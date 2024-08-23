@@ -91,7 +91,7 @@ func parseArgs(stderr io.Writer, osArgs []string) (*mainArgs, error) {
 	flag.StringVar(&a.defName, "def_name", "", "name of the macro definition")
 	flag.StringVar(&a.outputFile, "output", "", "path to the output file")
 	flag.StringVar(&a.gazelleRepoName, "gazelle_repo_name", "@bazel_gazelle", "name of the gazelle repo to load go_deps, (default: @bazel_gazelle)")
-	flag.StringVar(&a.defaultBuildFileGeneration, "default_build_file_generation", "auto", "the default value for build_file_generation attribute")
+	flag.StringVar(&a.defaultBuildFileGeneration, "default_build_file_generation", "clean", "the default value for build_file_generation attribute")
 	flag.StringVar(&a.defaultBuildFileProtoMode, "default_build_file_proto_mode", "default", "the default value for build_file_proto_mode attribute")
 	flag.Parse(osArgs)
 

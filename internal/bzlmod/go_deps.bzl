@@ -47,27 +47,23 @@ https://github.com/bazelbuild/bazel-gazelle/tree/master/internal/bzlmod/default_
 
 _GAZELLE_ATTRS = {
     "build_file_generation": attr.string(
-        default = "on",
-        doc = """One of `"auto"`, `"on"` (default), `"off"`, `"clean"`.
+        default = "clean",
+        doc = """One of `"clean"` (default), `"update"`, `"off"`
 
         Whether Gazelle should generate build files for the Go module.
 
-        Although "auto" is the default globally for build_file_generation,
-        if a `"gazelle_override"` or `"gazelle_default_attributes"` tag is present
-        for a Go module, the `"build_file_generation"` attribute will default to "on"
-        since these tags indicate the presence of `"directives"` or `"build_extra_args"`.
+        In `"clean"` mode (default), Gazelle will ignore bazel files from the repository,
+        and create new files.
 
-        In `"auto"` mode, Gazelle will run if there is no build file in the Go
-        module's root directory.
+        In `"update"` mode, Gazelle will attempt to use and update the existing files
+        in the repository.
 
-        In `"clean"` mode, Gazelle will first remove any existing build files.
-
+        In `"off"` mode, Gazelle will leave the BUILD files from the repository intact.
         """,
         values = [
-            "auto",
-            "off",
-            "on",
             "clean",
+            "update",
+            "off",
         ],
     ),
     "build_extra_args": attr.string_list(
@@ -123,35 +119,30 @@ def _get_override_or_default(specific_overrides, gazelle_default_attributes, def
     # 1st: Check for user-provided specific overrides. If a specific override is found,
     # all of its attributes will be applied (even if left to the tag's default). This is to allow
     # users to override the gazelle_default_attributes tag back to the tag's default.
-    #
-    # This will also cause "build_file_generation" to default to "on" if a specific override is found.
     specific_override = specific_overrides.get(path)
-    if specific_override and hasattr(specific_override, attribute_name):
+    if specific_override != None and hasattr(specific_override, attribute_name):
         return getattr(specific_override, attribute_name)
 
     # 2nd. Check for default attributes provided by the user. This must be done before checking for
     # gazelle's defaults path overrides to prevent Gazelle from overriding a user-specified flag.
-    #
-    # This will also cause "build_file_generation" to default to "on" if default attributes are found.
     global_override_value = getattr(gazelle_default_attributes, attribute_name, None)
-    if global_override_value:
+    if global_override_value != None:
         return global_override_value
 
     # 3rd: Check for default overrides for specific path.
     default_path_override = default_path_overrides.get(path)
-    if default_path_override:
+    if default_path_override != None:
         return default_path_override
 
     # 4th. Return the default value if no override was found.
-    # This will cause "build_file_generation" to default to "auto".
     return default_value
 
 def _get_directives(path, gazelle_overrides, gazelle_default_attributes):
-    return _get_override_or_default(gazelle_overrides, gazelle_default_attributes, DEFAULT_DIRECTIVES_BY_PATH, path, [], "directives")
+    return _get_override_or_default(gazelle_overrides, gazelle_default_attributes, DEFAULT_DIRECTIVES_BY_PATH, path, ["gazelle:proto disable"], "directives")
 
 def _get_build_file_generation(path, gazelle_overrides, gazelle_default_attributes):
-    # The default value for build_file_generation is "auto" if no override is found, but will default to "on" if an override is found.
-    return _get_override_or_default(gazelle_overrides, gazelle_default_attributes, DEFAULT_BUILD_FILE_GENERATION_BY_PATH, path, "auto", "build_file_generation")
+    # The default value for build_file_generation is "clean" if no override is found
+    return _get_override_or_default(gazelle_overrides, gazelle_default_attributes, DEFAULT_BUILD_FILE_GENERATION_BY_PATH, path, "clean", "build_file_generation")
 
 def _get_build_extra_args(path, gazelle_overrides, gazelle_default_attributes):
     return _get_override_or_default(gazelle_overrides, gazelle_default_attributes, DEFAULT_BUILD_EXTRA_ARGS_BY_PATH, path, [], "build_extra_args")

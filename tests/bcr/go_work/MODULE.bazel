@@ -35,7 +35,7 @@ go_deps.config(
 # Validate a full go workspace
 go_deps.from_file(go_work = "//:go.work")
 go_deps.gazelle_default_attributes(
-    build_file_generation = "on",
+    build_file_generation = "update",
     directives = [
         "gazelle:proto disable",
     ],
@@ -43,9 +43,6 @@ go_deps.gazelle_default_attributes(
 
 # By defining `gazelle_default_attributes`, we also must individually
 # specify certain overrides from internal/bzlmod/default_gazelle_overrides.bzl
-#
-# "build_file_generation" defaults to "on" because we provided a "gazelle_override"
-# (which contains either directives or build extra args).
 go_deps.gazelle_override(
     directives = [
         "gazelle:build_file_name BUILD.bazel",
@@ -85,6 +82,7 @@ go_deps.module_override(
 
 # Test an archive override from a known archive.
 go_deps.gazelle_override(
+    build_file_generation = "off",
     directives = [
         "gazelle:go_naming_convention go_default_library",
     ],
