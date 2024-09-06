@@ -1,0 +1,16 @@
+# gazelle:gitignore on
+
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        ".gitignore",
+        "BUILD.bazel",
+        "WORKSPACE",
+        "file2",
+        "//all:all_files",
+        "//sub2:all_files",
+        "//unignore:all_files",
+    ],
+    visibility = ["//visibility:public"],
+)

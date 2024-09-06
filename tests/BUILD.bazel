@@ -46,23 +46,49 @@ gazelle_binary(
     visibility = ["//visibility:private"],
 )
 
+# Each test case
+TESTS = sets.to_list(sets.make([
+    paths.dirname(p)
+    # Note that glob matches "this package's directories and non-subpackage
+    # subdirectories," so any directory with a BUILD or BUILD.bazel file
+    # will not match, but those with BUILD.in and BUILD.out will.
+    for p in glob([
+        "**/WORKSPACE",
+        "**/MODULE.bazel",
+    ])
+]))
+
+# The files for each test case
+TEST_FILES = [glob(include = [test + "/**"]) for test in TESTS]
+
+# The plain source files for each test case
+TEST_DATA_FILES = [[d for d in data if d.find(".test-") == -1] for data in TEST_FILES]
+
+# Files generated for each test case
+TEST_GEN_FILES_IN = [[d for d in data if d.find(".test-") != -1] for data in TEST_FILES]
+TEST_GEN_FILES_OUT = [[d.replace(".test-", ".") for d in data] for data in TEST_GEN_FILES_IN]
+
+# genrules renaming files with ".test-" prefix to "." prefix.
+[
+    [
+        genrule(
+            name = "rename_%s_%s" % (TESTS[i], j),
+            srcs = [TEST_GEN_FILES_IN[i][j]],
+            outs = [TEST_GEN_FILES_OUT[i][j]],
+            cmd = "cp $< $@",
+            visibility = ["//visibility:private"],
+        )
+        for j in range(len(TEST_GEN_FILES_IN[i]))
+    ]
+    for i in range(len(TESTS))
+]
+
 [gazelle_generation_test(
     # Name the test the path to the directory containing the WORKSPACE file.
-    name = test_dir,
-    gazelle_binary = get_binary(test_dir),
+    name = TESTS[i],
+    gazelle_binary = get_binary(TESTS[i]),
     # This is a noop as the default is False. However, it does confirm that
     # gazelle_generation_test accepts setting common test attributes.
     local = False,
-    test_data = glob(
-        include = [test_dir + "/**"],
-    ),
-) for test_dir in sets.to_list(sets.make([
-        paths.dirname(p)
-        # Note that glob matches "this package's directories and non-subpackage
-        # subdirectories," so any directory with a BUILD or BUILD.bazel file
-        # will not match, but those with BUILD.in and BUILD.out will.
-        for p in glob([
-            "**/WORKSPACE",
-            "**/MODULE.bazel",
-        ])
-    ]))]
+    test_data = TEST_DATA_FILES[i] + TEST_GEN_FILES_OUT[i]
+) for i in range(len(TESTS))]

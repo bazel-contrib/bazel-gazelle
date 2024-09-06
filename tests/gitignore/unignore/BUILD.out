@@ -1,0 +1,11 @@
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        ".gitignore",
+        "BUILD.bazel",
+        "file1",
+        "reincluded",
+    ],
+    visibility = ["//visibility:public"],
+)

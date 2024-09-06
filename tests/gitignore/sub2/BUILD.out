@@ -1,0 +1,10 @@
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "file2",
+        "file3",
+    ],
+    visibility = ["//visibility:public"],
+)

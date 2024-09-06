@@ -146,6 +146,8 @@ tasks:
     # which doesn't match the golden files generated on *nix.
     - "-//tests:fix_mode_print0"
     - "-//tests:fix_mode_strict"
+    # bazel collecting+renaming .git* files does not work on windows
+    - "-//tests:gitignore"
   windows:
     name: Windows with WORKSPACE
     platform: windows
@@ -172,6 +174,8 @@ tasks:
     # which doesn't match the golden files generated on *nix.
     - "-//tests:fix_mode_print0"
     - "-//tests:fix_mode_strict"
+    # bazel collecting+renaming .git* files does not work on windows
+    - "-//tests:gitignore"
   incompatible:
     name: Ubuntu 22.04 with WORKSPACE and --config=incompatible
     platform: ubuntu2204
