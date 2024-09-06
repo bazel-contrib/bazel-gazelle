@@ -1,0 +1,17 @@
+# A comment
+# *
+# ^ looks like a an ignore expression but is in a comment
+# **/*.*
+#
+
+# Plain filename
+file1
+
+# Plain directory name, should not match file
+file2/
+
+# Plain directory name
+sub1
+
+# Prefix with a star
+preig-*

@@ -20,6 +20,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"os"
@@ -29,6 +30,7 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 	"github.com/bmatcuk/doublestar/v4"
+	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 
 	gzflag "github.com/bazelbuild/bazel-gazelle/flag"
 )
@@ -41,6 +43,9 @@ type walkConfig struct {
 	excludes []string
 	ignore   bool
 	follow   []string
+
+	gitignorePatterns []gitignore.Pattern
+	gitignoreMatcher  gitignore.Matcher
 }
 
 const walkName = "_walk"
@@ -57,6 +62,10 @@ func (wc *walkConfig) shouldFollow(p string) bool {
 	return matchAnyGlob(wc.follow, p)
 }
 
+func (wc *walkConfig) isGitIgnored(p []string, isDir bool) bool {
+	return wc.gitignoreMatcher != nil && wc.gitignoreMatcher.Match(p, isDir)
+}
+
 var _ config.Configurer = (*Configurer)(nil)
 
 type Configurer struct{}
@@ -70,7 +79,7 @@ func (*Configurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config)
 func (*Configurer) CheckFlags(fs *flag.FlagSet, c *config.Config) error { return nil }
 
 func (*Configurer) KnownDirectives() []string {
-	return []string{"exclude", "follow", "ignore"}
+	return []string{"gitignore", "exclude", "follow", "ignore"}
 }
 
 func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
@@ -99,6 +108,12 @@ func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
 					log.Printf("the ignore directive does not take any arguments. Did you mean to use gazelle:exclude instead? in //%s '# gazelle:ignore %s'", f.Pkg, d.Value)
 				}
 				wcCopy.ignore = true
+			case "gitignore":
+				if d.Value == "on" {
+					wcCopy.gitignoreMatcher = gitignore.NewMatcher(wcCopy.gitignorePatterns)
+				} else {
+					wcCopy.gitignoreMatcher = nil
+				}
 			}
 		}
 	}
@@ -149,6 +164,30 @@ func loadBazelIgnore(repoRoot string) (isIgnoredFunc, error) {
 	}
 
 	return isIgnored, nil
+}
+
+func (wc *walkConfig) loadGitIgnore(rel string, ignoreReader io.Reader) {
+	var domain []string
+	if rel != "" {
+		domain = strings.Split(rel, "/")
+	}
+
+	// Load all the patterns
+	reader := bufio.NewScanner(ignoreReader)
+	for reader.Scan() {
+		// Trim, ignore empty lines and comments
+		i := strings.TrimSpace(reader.Text())
+		if i == "" || strings.HasPrefix(i, "#") {
+			continue
+		}
+
+		wc.gitignorePatterns = append(wc.gitignorePatterns, gitignore.ParsePattern(i, domain))
+	}
+
+	// Override any existing matcher to include new gitignore patterns.
+	if wc.gitignoreMatcher != nil {
+		wc.gitignoreMatcher = gitignore.NewMatcher(wc.gitignorePatterns)
+	}
 }
 
 func checkPathMatchPattern(pattern string) error {
