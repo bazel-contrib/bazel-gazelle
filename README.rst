@@ -760,6 +760,11 @@ The following directives are recognized:
 | your project contains non-Bazel files named ``BUILD`` (or ``build`` on                     |
 | case-insensitive file systems).                                                            |
 +---------------------------------------------------+----------------------------------------+
+| :direc:`# gazelle:generation_mode`                | ``create_and_update``                  |
++---------------------------------------------------+----------------------------------------+
+| Declares if gazelle should create and update BUILD files per directory or only update      |
+| existing BUILD files. Valid values are: ``create_and_update`` and ``update_only``.         |
++---------------------------------------------------+----------------------------------------+
 | :direc:`# gazelle:build_tags foo,bar`             | none                                   |
 +---------------------------------------------------+----------------------------------------+
 | List of Go build tags Gazelle will defer to Bazel for evaluation. Gazelle applies          |
