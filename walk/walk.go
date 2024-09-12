@@ -132,7 +132,12 @@ func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode,
 	visit(c, cexts, knownDirectives, updateRels, trie, wf, "", false)
 }
 
-func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, rel string, updateParent bool) {
+// Read and traverse the 'rel' directory, calling the WalkFunc for each directory
+// while respecting the `isBazelIgnored` and exclusion directives.
+//
+// If the given directory is not configured to produce a BUILD the collected files
+// will be returned and the WalkFunc will not be called.
+func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, rel string, updateParent bool) ([]string, bool) {
 	haveError := false
 
 	ents := make([]fs.DirEntry, 0, len(trie.children))
@@ -158,14 +163,22 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		haveError = true
 	}
 
-	c = configure(cexts, knownDirectives, c, rel, f)
 	wc := getWalkConfig(c)
+	collectionOnly := f == nil && wc.updateOnly
 
-	if wc.isExcluded(rel) {
-		return
+	// Configure the current directory if not only collecting files
+	if !collectionOnly {
+		c = configure(cexts, knownDirectives, c, rel, f)
+		wc = getWalkConfig(c)
+
+		// If the config of this directory has excluded itself
+		if wc.isExcluded(rel) {
+			return nil, false
+		}
 	}
 
-	var subdirs, regularFiles []string
+	// Divide the directory entries while filtering out ignored/excluded.
+	var dirs, regularFiles []string
 	for _, ent := range ents {
 		base := ent.Name()
 		entRel := path.Join(rel, base)
@@ -177,17 +190,31 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		case ent == nil:
 			continue
 		case ent.IsDir():
-			subdirs = append(subdirs, base)
+			dirs = append(dirs, base)
 		default:
 			regularFiles = append(regularFiles, base)
 		}
 	}
 
+	var subdirs []string
+
+	// Visit subdirectories dividing them into `regularFiles` and `subdirs``
 	shouldUpdate := updateRels.shouldUpdate(rel, updateParent)
-	for _, sub := range subdirs {
+	for _, sub := range dirs {
 		if subRel := path.Join(rel, sub); updateRels.shouldVisit(subRel, shouldUpdate) {
-			visit(c, cexts, knownDirectives, updateRels, trie.children[sub], wf, subRel, shouldUpdate)
+			subFiles, shouldMerge := visit(c, cexts, knownDirectives, updateRels, trie.children[sub], wf, subRel, shouldUpdate)
+			if shouldMerge {
+				for _, f := range subFiles {
+					regularFiles = append(regularFiles, path.Join(sub, f))
+				}
+			} else {
+				subdirs = append(subdirs, sub)
+			}
 		}
+	}
+
+	if collectionOnly {
+		return regularFiles, true
 	}
 
 	update := !haveError && !wc.ignore && shouldUpdate
@@ -195,6 +222,7 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		genFiles := findGenFiles(wc, f)
 		wf(dir, rel, c, update, f, subdirs, regularFiles, genFiles)
 	}
+	return nil, false
 }
 
 // An UpdateFilter tracks which directories need to be updated
