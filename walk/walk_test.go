@@ -17,8 +17,10 @@ package walk
 
 import (
 	"flag"
+	"fmt"
 	"path"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -139,6 +141,69 @@ func TestUpdateDirs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGenMode(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{Path: "mode-create/"},
+		{Path: "mode-create/a.go"},
+		{Path: "mode-create/sub/"},
+		{Path: "mode-create/sub/b.go"},
+		{Path: "mode-create/sub/sub2/"},
+		{Path: "mode-create/sub/sub2/sub3/c.go"},
+		{Path: "mode-update/"},
+		{
+			Path:    "mode-update/BUILD.bazel",
+			Content: "# gazelle:generation_mode update_only",
+		},
+		{Path: "mode-update/a.go"},
+		{Path: "mode-update/sub/"},
+		{Path: "mode-update/sub/b.go"},
+		{Path: "mode-update/sub/sub2/"},
+		{Path: "mode-update/sub/sub2/sub3/c.go"},
+		{Path: "mode-update/sub/sub3/"},
+		{Path: "mode-update/sub/sub3/BUILD.bazel"},
+		{Path: "mode-update/sub/sub3/d.go"},
+		{Path: "mode-update/sub/sub3/sub4/"},
+		{Path: "mode-update/sub/sub3/sub4/e.go"},
+	})
+	defer cleanup()
+
+	type visitSpec struct {
+		subdirs, files []string
+	}
+
+	t.Run("generation_mode create vs update", func(t *testing.T) {
+		c, cexts := testConfig(t, dir)
+		var visits []visitSpec
+		Walk(c, cexts, []string{"."}, VisitAllUpdateSubdirsMode, func(_ string, rel string, _ *config.Config, update bool, _ *rule.File, subdirs, regularFiles, _ []string) {
+			visits = append(visits, visitSpec{
+				subdirs: subdirs,
+				files:   regularFiles,
+			})
+		})
+
+		if len(visits) != 7 {
+			t.Error(fmt.Sprintf("Expected 7 visits, got %v", len(visits)))
+		}
+
+		if !reflect.DeepEqual(visits[len(visits)-1].subdirs, []string{"mode-create", "mode-update"}) {
+			t.Errorf("Last visit should be root dir with 2 subdirs")
+		}
+
+		if len(visits[0].subdirs) != 0 || len(visits[0].files) != 1 || visits[0].files[0] != "c.go" {
+			t.Errorf("Leaf visit should be only files: %v", visits[0])
+		}
+		modeUpdateFiles1 := []string{"BUILD.bazel", "d.go", "sub4/e.go"}
+		if !reflect.DeepEqual(visits[4].files, modeUpdateFiles1) {
+			t.Errorf("update mode should contain files in subdirs. Want %v, got: %v", modeUpdateFiles1, visits[5].files)
+		}
+
+		modeUpdateFiles2 := []string{"BUILD.bazel", "a.go", "sub/b.go", "sub/sub2/sub3/c.go"}
+		if !reflect.DeepEqual(visits[5].files, modeUpdateFiles2) {
+			t.Errorf("update mode should contain files in subdirs. Want %v, got: %v", modeUpdateFiles2, visits[5].files)
+		}
+	})
 }
 
 func TestCustomBuildName(t *testing.T) {
