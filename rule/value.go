@@ -37,6 +37,8 @@ type GlobValue struct {
 	Excludes []string
 }
 
+var _ BzlExprValue = (*GlobValue)(nil)
+
 func (g GlobValue) BzlExpr() bzl.Expr {
 	patternsValue := ExprFromValue(g.Patterns)
 	globArgs := []bzl.Expr{patternsValue}
@@ -72,6 +74,9 @@ type Merger interface {
 
 type SortedStrings []string
 
+var _ BzlExprValue = SortedStrings(nil)
+var _ Merger = SortedStrings(nil)
+
 func (s SortedStrings) BzlExpr() bzl.Expr {
 	list := make([]bzl.Expr, len(s))
 	for i, v := range s {
@@ -93,6 +98,8 @@ func (s SortedStrings) Merge(other bzl.Expr) bzl.Expr {
 
 type UnsortedStrings []string
 
+var _ Merger = UnsortedStrings(nil)
+
 func (s UnsortedStrings) Merge(other bzl.Expr) bzl.Expr {
 	if other == nil {
 		return ExprFromValue(s)
@@ -103,6 +110,8 @@ func (s UnsortedStrings) Merge(other bzl.Expr) bzl.Expr {
 // SelectStringListValue is a value that can be translated to a Bazel
 // select expression that picks a string list based on a string condition.
 type SelectStringListValue map[string][]string
+
+var _ BzlExprValue = SelectStringListValue(nil)
 
 func (s SelectStringListValue) BzlExpr() bzl.Expr {
 	defaultKey := "//conditions:default"
