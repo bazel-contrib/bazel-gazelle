@@ -59,6 +59,13 @@ func testConfig(t *testing.T, args ...string) (*config.Config, []language.Langua
 	return c, langs, cexts
 }
 
+var expectedBuildTags = []tagSet{
+	{"gc": true},
+	{"gc": true, "foo": true},
+	{"gc": true, "bar": true},
+	{"gc": true, "foo": true, "bar": true},
+}
+
 func TestCommandLine(t *testing.T) {
 	c, _, _ := testConfig(
 		t,
@@ -68,10 +75,8 @@ func TestCommandLine(t *testing.T) {
 		"-external=vendored",
 		"-repo_root=.")
 	gc := getGoConfig(c)
-	for _, tag := range []string{"foo", "bar", "gc"} {
-		if !gc.genericTags[tag] {
-			t.Errorf("expected tag %q to be set", tag)
-		}
+	if diff := cmp.Diff(expectedBuildTags, gc.genericTags); diff != "" {
+		t.Errorf("(-want, +got): %s", diff)
 	}
 	if gc.prefix != "example.com/repo" {
 		t.Errorf(`got prefix %q; want "example.com/repo"`, gc.prefix)
@@ -101,10 +106,8 @@ func TestDirectives(t *testing.T) {
 		cext.Configure(c, "test", f)
 	}
 	gc := getGoConfig(c)
-	for _, tag := range []string{"foo", "bar", "gc"} {
-		if !gc.genericTags[tag] {
-			t.Errorf("expected tag %q to be set", tag)
-		}
+	if diff := cmp.Diff(expectedBuildTags, gc.genericTags); diff != "" {
+		t.Errorf("(-want, +got): %s", diff)
 	}
 	if gc.prefix != "y" {
 		t.Errorf(`got prefix %q; want "y"`, gc.prefix)
@@ -265,22 +268,6 @@ load("@io_bazel_rules_go//proto:go_proto_library.bzl", "go_proto_library")
 				t.Errorf("got %v; want %v", pc.Mode, tc.want)
 			}
 		})
-	}
-}
-
-func TestPreprocessTags(t *testing.T) {
-	gc := newGoConfig()
-	expectedTags := []string{"gc"}
-	for _, tag := range expectedTags {
-		if !gc.genericTags[tag] {
-			t.Errorf("tag %q not set", tag)
-		}
-	}
-	unexpectedTags := []string{"x", "cgo", "go1.8", "go1.7"}
-	for _, tag := range unexpectedTags {
-		if gc.genericTags[tag] {
-			t.Errorf("tag %q unexpectedly set", tag)
-		}
 	}
 }
 

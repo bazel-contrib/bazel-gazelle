@@ -107,8 +107,8 @@ Here are a few examples. See the `full list of directives`_.
 
 * ``# gazelle:prefix`` - sets the Go import path prefix for the current
   directory.
-* ``# gazelle:build_tags`` - sets the list of build tags which Gazelle considers
-  to be true on all platforms.
+* ``# gazelle:build_tags`` - sets the list of build tags which Gazelle will
+  defer to Bazel for evaluation.
 
 There are a few directives which are not applied to the ``Config`` object but
 are interpreted directly in packages where they are relevant.

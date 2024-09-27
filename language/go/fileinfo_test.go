@@ -386,7 +386,7 @@ func TestCheckConstraints(t *testing.T) {
 	defer os.RemoveAll(dir)
 	for _, tc := range []struct {
 		desc                        string
-		genericTags                 map[string]bool
+		genericTags                 string
 		os, arch, filename, content string
 		want                        bool
 	}{
@@ -466,12 +466,12 @@ func TestCheckConstraints(t *testing.T) {
 			want:     false,
 		}, {
 			desc:        "tags all satisfied",
-			genericTags: map[string]bool{"a": true, "b": true},
+			genericTags: "a,b",
 			content:     "// +build a,b\n\npackage foo",
 			want:        true,
 		}, {
 			desc:        "tags some satisfied",
-			genericTags: map[string]bool{"a": true},
+			genericTags: "a",
 			content:     "// +build a,b\n\npackage foo",
 			want:        false,
 		}, {
@@ -480,36 +480,36 @@ func TestCheckConstraints(t *testing.T) {
 			want:    true,
 		}, {
 			desc:        "tag satisfied negated",
-			genericTags: map[string]bool{"a": true},
+			genericTags: "a",
 			content:     "// +build !a\n\npackage foo",
-			want:        false,
+			want:        true,
 		}, {
 			desc:    "tag double negative",
 			content: "// +build !!a\n\npackage foo",
 			want:    false,
 		}, {
 			desc:        "tag group and satisfied",
-			genericTags: map[string]bool{"foo": true, "bar": true},
+			genericTags: "foo,bar",
 			content:     "// +build foo,bar\n\npackage foo",
 			want:        true,
 		}, {
 			desc:        "tag group and unsatisfied",
-			genericTags: map[string]bool{"foo": true},
+			genericTags: "foo",
 			content:     "// +build foo,bar\n\npackage foo",
 			want:        false,
 		}, {
 			desc:        "tag line or satisfied",
-			genericTags: map[string]bool{"foo": true},
+			genericTags: "foo",
 			content:     "// +build foo bar\n\npackage foo",
 			want:        true,
 		}, {
 			desc:        "tag line or unsatisfied",
-			genericTags: map[string]bool{"foo": true},
+			genericTags: "foo",
 			content:     "// +build !foo bar\n\npackage foo",
-			want:        false,
+			want:        true,
 		}, {
 			desc:        "tag lines and satisfied",
-			genericTags: map[string]bool{"foo": true, "bar": true},
+			genericTags: "foo,bar",
 			content: `
 // +build foo
 // +build bar
@@ -518,7 +518,7 @@ package foo`,
 			want: true,
 		}, {
 			desc:        "tag lines and unsatisfied",
-			genericTags: map[string]bool{"foo": true},
+			genericTags: "foo",
 			content: `
 // +build foo
 // +build bar
@@ -528,7 +528,7 @@ package foo`,
 		}, {
 			desc:        "cgo tags satisfied",
 			os:          "linux",
-			genericTags: map[string]bool{"foo": true},
+			genericTags: "foo",
 			content: `
 // +build foo
 
@@ -581,9 +581,8 @@ import "C"
 		t.Run(tc.desc, func(t *testing.T) {
 			c, _, _ := testConfig(t)
 			gc := getGoConfig(c)
-			gc.genericTags = tc.genericTags
-			if gc.genericTags == nil {
-				gc.genericTags = map[string]bool{"gc": true}
+			if err := gc.setBuildTags(tc.genericTags); err != nil {
+				t.Errorf("error setting build tags %q", tc.genericTags)
 			}
 			filename := tc.filename
 			if filename == "" {
