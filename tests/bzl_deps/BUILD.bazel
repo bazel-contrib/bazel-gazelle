@@ -3,5 +3,8 @@ load(":bzl_test.bzl", "bzl_test")
 bzl_test(
     name = "def_bzl_test",
     src = "do_nothing_macro.bzl",
-    deps = ["//:def"],
+    deps = [
+      "//:def",
+      "@rules_shell//shell:rules_bzl",
+    ],
 )

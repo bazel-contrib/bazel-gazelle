@@ -97,6 +97,19 @@ http_archive(
     ],
 )
 
+http_archive(
+    name = "rules_shell",
+    sha256 = "410e8ff32e018b9efd2743507e7595c26e2628567c42224411ff533b57d27c28",
+    strip_prefix = "rules_shell-0.2.0",
+    url = "https://github.com/bazelbuild/rules_shell/releases/download/v0.2.0/rules_shell-v0.2.0.tar.gz",
+)
+
+load("@rules_shell//shell:repositories.bzl", "rules_shell_dependencies", "rules_shell_toolchains")
+
+rules_shell_dependencies()
+
+rules_shell_toolchains()
+
 # Stardoc pulls in a lot of deps, which we need to declare here.
 load("@io_bazel_stardoc//:setup.bzl", "stardoc_repositories")
 

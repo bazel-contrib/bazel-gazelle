@@ -20,6 +20,9 @@ load(
     "@bazel_skylib//lib:shell.bzl",
     "shell",
 )
+load("@rules_shell//shell:sh_binary.bzl",
+    "sh_binary"
+)
 load(
     "//internal:gazelle_binary.bzl",
     _gazelle_binary = "gazelle_binary_wrapper",
@@ -218,7 +221,7 @@ def gazelle(name, **kwargs):
     tags_set = {t: "" for t in kwargs.pop("tags", [])}
     tags_set["manual"] = ""
     tags = tags_set.keys()
-    native.sh_binary(
+    sh_binary(
         name = name,
         tags = tags,
         srcs = [runner_name],
