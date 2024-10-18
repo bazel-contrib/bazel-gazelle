@@ -23,6 +23,9 @@ load(
 load("@rules_shell//shell:sh_binary.bzl",
     "sh_binary"
 )
+load("@rules_shell//shell:sh_test.bzl",
+    "sh_test"
+)
 load(
     "//internal:gazelle_binary.bzl",
     _gazelle_binary = "gazelle_binary_wrapper",
@@ -245,7 +248,7 @@ def gazelle_test(name, size = None, timeout = None, **kwargs):
     tags_set["no-cache"] = ""
     tags_set["external"] = ""
     tags = tags_set.keys()
-    native.sh_test(
+    sh_test(
         name = name,
         srcs = [runner_name],
         visibility = visibility,
