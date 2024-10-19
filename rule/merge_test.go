@@ -16,11 +16,19 @@ limitations under the License.
 package rule_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/bazelbuild/bazel-gazelle/rule"
 	bzl "github.com/bazelbuild/buildtools/build"
 )
+
+func depsMergeable(r *rule.Rule, attr string) bool {
+	return attr == "deps"
+}
+func notMergeable(r *rule.Rule, attr string) bool {
+	return false
+}
 
 func TestMergeRules(t *testing.T) {
 	t.Run("private attributes are merged", func(t *testing.T) {
@@ -29,7 +37,7 @@ func TestMergeRules(t *testing.T) {
 		privateAttrVal := "private_value"
 		src.SetPrivateAttr(privateAttrKey, privateAttrVal)
 		dst := rule.NewRule("go_library", "go_default_library")
-		rule.MergeRules(src, dst, map[string]bool{}, "")
+		rule.MergeRules(src, dst, notMergeable, notMergeable, "")
 		if dst.PrivateAttr(privateAttrKey).(string) != privateAttrVal {
 			t.Fatalf("private attributes are merged: got %v; want %s",
 				dst.PrivateAttr(privateAttrKey), privateAttrVal)
@@ -44,7 +52,7 @@ func TestMergeRules_WithSortedStringAttr(t *testing.T) {
 		sortedStringAttrVal := rule.SortedStrings{"@qux", "//foo:bar", "//foo:baz"}
 		src.SetAttr(sortedStringAttrKey, sortedStringAttrVal)
 		dst := rule.NewRule("go_library", "go_default_library")
-		rule.MergeRules(src, dst, map[string]bool{}, "")
+		rule.MergeRules(src, dst, depsMergeable, notMergeable, "")
 
 		valExpr, ok := dst.Attr(sortedStringAttrKey).(*bzl.ListExpr)
 		if !ok {
@@ -68,7 +76,7 @@ func TestMergeRules_WithSortedStringAttr(t *testing.T) {
 		src.SetAttr(sortedStringAttrKey, sortedStringAttrVal)
 		dst := rule.NewRule("go_library", "go_default_library")
 		dst.SetAttr(sortedStringAttrKey, rule.SortedStrings{"@qux", "//foo:bar", "//bacon:eggs"})
-		rule.MergeRules(src, dst, map[string]bool{"deps": true}, "")
+		rule.MergeRules(src, dst, depsMergeable, notMergeable, "")
 
 		valExpr, ok := dst.Attr(sortedStringAttrKey).(*bzl.ListExpr)
 		if !ok {
@@ -90,7 +98,7 @@ func TestMergeRules_WithSortedStringAttr(t *testing.T) {
 		dst := rule.NewRule("go_library", "go_default_library")
 		sortedStringAttrVal := rule.SortedStrings{"@qux", "//foo:bar", "//foo:baz"}
 		dst.SetAttr(sortedStringAttrKey, sortedStringAttrVal)
-		rule.MergeRules(src, dst, map[string]bool{"deps": true}, "")
+		rule.MergeRules(src, dst, depsMergeable, notMergeable, "")
 
 		if dst.Attr(sortedStringAttrKey) != nil {
 			t.Fatalf("delete existing sorted strings: got %v; want nil",
@@ -106,7 +114,7 @@ func TestMergeRules_WithUnsortedStringAttr(t *testing.T) {
 		sortedStringAttrVal := rule.UnsortedStrings{"@qux", "//foo:bar", "//foo:baz"}
 		src.SetAttr(sortedStringAttrKey, sortedStringAttrVal)
 		dst := rule.NewRule("go_library", "go_default_library")
-		rule.MergeRules(src, dst, map[string]bool{}, "")
+		rule.MergeRules(src, dst, depsMergeable, notMergeable, "")
 
 		valExpr, ok := dst.Attr(sortedStringAttrKey).(*bzl.ListExpr)
 		if !ok {
@@ -130,7 +138,7 @@ func TestMergeRules_WithUnsortedStringAttr(t *testing.T) {
 		src.SetAttr(sortedStringAttrKey, sortedStringAttrVal)
 		dst := rule.NewRule("go_library", "go_default_library")
 		dst.SetAttr(sortedStringAttrKey, rule.UnsortedStrings{"@qux", "//foo:bar", "//bacon:eggs"})
-		rule.MergeRules(src, dst, map[string]bool{"deps": true}, "")
+		rule.MergeRules(src, dst, depsMergeable, notMergeable, "")
 
 		valExpr, ok := dst.Attr(sortedStringAttrKey).(*bzl.ListExpr)
 		if !ok {
@@ -144,6 +152,30 @@ func TestMergeRules_WithUnsortedStringAttr(t *testing.T) {
 				t.Fatalf("unsorted string attributes are merged: got %v; want %v",
 					v.(*bzl.StringExpr).Value, expected[i])
 			}
+		}
+	})
+}
+
+func TestMergeRules_WithUnmanagedAttr(t *testing.T) {
+	t.Run("unknown string attributes overwrite attributes in non-empty rule", func(t *testing.T) {
+		src := rule.NewRule("go_library", "go_default_library")
+		unknownStringAttrKey := "unknown_attr"
+		overwrittenAttrVal := rule.UnsortedStrings{"@qux", "//foo:bar", "//foo:baz"}
+		src.SetAttr(unknownStringAttrKey, "foobar")
+		dst := rule.NewRule("go_library", "go_default_library")
+		dst.SetAttr(unknownStringAttrKey, overwrittenAttrVal)
+		rule.MergeRules(src, dst, notMergeable, notMergeable, "")
+
+		valExpr, ok := dst.Attr(unknownStringAttrKey).(*bzl.StringExpr)
+		if !ok {
+			t.Fatalf("unknown attributes are overwritten: got %v; want *bzl.StringExpr",
+				reflect.TypeOf(dst.Attr(unknownStringAttrKey)))
+		}
+
+		expected := "foobar"
+		if valExpr.Value != expected {
+			t.Fatalf("unknown attributes are overwritten: got %v; want %v",
+				valExpr.Value, expected)
 		}
 	})
 }

@@ -24,6 +24,8 @@ import (
 	bzl "github.com/bazelbuild/buildtools/build"
 )
 
+type IsMergeable = func(r *Rule, attr string) bool
+
 // MergeRules copies information from src into dst, usually discarding
 // information in dst when they have the same attributes.
 //
@@ -41,14 +43,14 @@ import (
 // marked with a "# keep" comment, values in the attribute not marked with
 // a "# keep" comment will be dropped. If the attribute is empty afterward,
 // it will be deleted.
-func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
+func MergeRules(src, dst *Rule, isMergeable, isManaged IsMergeable, filename string) {
 	if dst.ShouldKeep() {
 		return
 	}
 
 	// Process attributes that are in dst but not in src.
 	for key, dstAttr := range dst.attrs {
-		if _, ok := src.attrs[key]; ok || !mergeable[key] || ShouldKeep(dstAttr.expr) {
+		if _, ok := src.attrs[key]; ok || !isMergeable(src, key) || ShouldKeep(dstAttr.expr) {
 			continue
 		}
 		if mergedValue, err := mergeAttrValues(nil, &dstAttr); err != nil {
@@ -63,9 +65,20 @@ func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 
 	// Merge attributes from src into dst.
 	for key, srcAttr := range src.attrs {
-		if dstAttr, ok := dst.attrs[key]; !ok {
+		// Always set properties that are not yet set.
+		dstAttr, dstAttrExists := dst.attrs[key]
+		if !dstAttrExists {
 			dst.SetAttr(key, srcAttr.expr.RHS)
-		} else if mergeable[key] && !ShouldKeep(dstAttr.expr) {
+			continue
+		}
+
+		// Do not override attributes marked with "# keep".
+		if ShouldKeep(dstAttr.expr) {
+			continue
+		}
+
+		if isMergeable(src, key) {
+			// Merge mergeable attributes.
 			if mergedValue, err := mergeAttrValues(&srcAttr, &dstAttr); err != nil {
 				start, end := dstAttr.expr.RHS.Span()
 				log.Printf("%s:%d.%d-%d.%d: could not merge expression", filename, start.Line, start.LineRune, end.Line, end.LineRune)
@@ -74,6 +87,9 @@ func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 			} else {
 				dst.SetAttr(key, mergedValue)
 			}
+		} else if !isManaged(src, key) {
+			// Overwrite unknown attributes.
+			dst.SetAttr(key, srcAttr.expr.RHS)
 		}
 	}
 

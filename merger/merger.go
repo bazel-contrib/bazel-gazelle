@@ -107,12 +107,23 @@ const UnstableInsertIndexKey = "_gazelle_insert_index"
 // If a rule is marked with a "# keep" comment, the whole rule will not
 // be modified.
 func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phase, kinds map[string]rule.KindInfo, aliasedKinds map[string]string) {
-	getMergeAttrs := func(r *rule.Rule) map[string]bool {
+	isMergeable := func(r *rule.Rule, attr string) bool {
+		// Attributes merged in this phase.
 		if phase == PreResolve {
-			return kinds[r.Kind()].MergeableAttrs
+			return kinds[r.Kind()].MergeableAttrs[attr]
 		} else {
-			return kinds[r.Kind()].ResolveAttrs
+			return kinds[r.Kind()].ResolveAttrs[attr]
 		}
+	}
+
+	isManaged := func(r *rule.Rule, attr string) bool {
+		// Name and visibility are uniquely managed by gazelle.
+		if attr == "name" || attr == "visibility" {
+			return true
+		}
+		k := kinds[r.Kind()]
+		// All known attributes of this rule kind.
+		return k.NonEmptyAttrs[attr] || k.SubstituteAttrs[attr] || k.ResolveAttrs[attr] || k.MergeableAttrs[attr]
 	}
 
 	// Merge empty rules into the file and delete any rules which become empty.
@@ -121,7 +132,7 @@ func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phas
 			if oldRule.ShouldKeep() {
 				continue
 			}
-			rule.MergeRules(emptyRule, oldRule, getMergeAttrs(emptyRule), oldFile.Path)
+			rule.MergeRules(emptyRule, oldRule, isMergeable, isManaged, oldFile.Path)
 			if oldRule.IsEmpty(kinds[oldRule.Kind()]) {
 				oldRule.Delete()
 			}
@@ -169,7 +180,7 @@ func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phas
 				genRule.Insert(oldFile)
 			}
 		} else {
-			rule.MergeRules(genRule, matchRules[i], getMergeAttrs(genRule), oldFile.Path)
+			rule.MergeRules(genRule, matchRules[i], isMergeable, isManaged, oldFile.Path)
 		}
 	}
 }
