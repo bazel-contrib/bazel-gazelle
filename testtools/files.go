@@ -56,11 +56,32 @@ type FileSpec struct {
 	NotExist bool
 }
 
+// Use an interface to allow tests to use *testing.T or *testing.B or external libraries like ginkgo.
+type TB interface {
+	Helper()
+	TempDir() string
+
+	FailNow()
+	Failed() bool
+
+	Log(args ...interface{})
+	Logf(format string, args ...interface{})
+	Error(args ...interface{})
+	Errorf(format string, args ...interface{})
+	Fatal(args ...interface{})
+	Fatalf(format string, args ...interface{})
+}
+
+var (
+	_ TB = (*testing.T)(nil)
+	_ TB = (*testing.B)(nil)
+)
+
 // CreateFiles creates a directory of test files. This is a more compact
 // alternative to testdata directories. CreateFiles returns a canonical path
 // to the directory and a function to call to clean up the directory
 // after the test.
-func CreateFiles(t *testing.T, files []FileSpec) (dir string, cleanup func()) {
+func CreateFiles(t TB, files []FileSpec) (dir string, cleanup func()) {
 	t.Helper()
 	dir, err := os.MkdirTemp(os.Getenv("TEST_TEMPDIR"), "gazelle_test")
 	if err != nil {
@@ -105,7 +126,7 @@ func CreateFiles(t *testing.T, files []FileSpec) (dir string, cleanup func()) {
 // CheckFiles checks that files in "dir" exist and have the content specified
 // in "files". Files not listed in "files" are not tested, so extra files
 // are allowed.
-func CheckFiles(t *testing.T, dir string, files []FileSpec) {
+func CheckFiles(t TB, dir string, files []FileSpec) {
 	t.Helper()
 	for _, f := range files {
 		path := filepath.Join(dir, f.Path)
@@ -408,7 +429,7 @@ type testConfig struct {
 
 // updateExpectedConfig writes to an expected stdout, stderr, or exit code file
 // with the latest results of a test.
-func updateExpectedConfig(t *testing.T, expected string, actual string, srcTestDirectory string, expectedFilename string) {
+func updateExpectedConfig(t TB, expected string, actual string, srcTestDirectory string, expectedFilename string) {
 	if expected != actual {
 		destFile := path.Join(srcTestDirectory, expectedFilename)
 
