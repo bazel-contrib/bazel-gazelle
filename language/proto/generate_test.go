@@ -24,13 +24,13 @@ import (
 	"testing"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazelbuild/bazel-gazelle/internal/mapkind"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/merger"
 	"github.com/bazelbuild/bazel-gazelle/resolve"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 	"github.com/bazelbuild/bazel-gazelle/testtools"
 	"github.com/bazelbuild/bazel-gazelle/walk"
-
 	bzl "github.com/bazelbuild/buildtools/build"
 )
 
@@ -47,6 +47,11 @@ func TestGenerateRules(t *testing.T) {
 	c, lang, _ := testConfig(t, "testdata")
 
 	walk.Walk(c, []config.Configurer{lang}, []string{"testdata"}, walk.VisitAllUpdateSubdirsMode, func(dir, rel string, c *config.Config, update bool, oldFile *rule.File, subdirs, regularFiles, genFiles []string) {
+		// Ignore testdata root dir
+		if rel == "" {
+			return
+		}
+
 		isTest := false
 		for _, name := range regularFiles {
 			if name == "BUILD.want" {
@@ -57,6 +62,7 @@ func TestGenerateRules(t *testing.T) {
 		if !isTest {
 			return
 		}
+		loads := lang.(language.ModuleAwareLanguage).ApparentLoads(func(string) string { return "" })
 		t.Run(rel, func(t *testing.T) {
 			res := lang.GenerateRules(language.GenerateArgs{
 				Config:       c,
@@ -70,12 +76,16 @@ func TestGenerateRules(t *testing.T) {
 			if len(res.Empty) > 0 {
 				t.Errorf("got %d empty rules; want 0", len(res.Empty))
 			}
+			mappedResult, err := mapkind.ApplyOnRules(c, nil, oldFile, res.Gen, res.Empty)
+			if err != nil {
+				t.Fatalf("error applying mapped kinds: %v", err)
+			}
 			f := rule.EmptyFile("test", "")
 			for _, r := range res.Gen {
 				r.Insert(f)
 			}
 			convertImportsAttrs(f)
-			merger.FixLoads(f, lang.(language.ModuleAwareLanguage).ApparentLoads(func(string) string { return "" }))
+			merger.FixLoads(f, mappedResult.ApplyOnLoads(loads))
 			f.Sync()
 			got := string(bzl.Format(f.File))
 			wantPath := filepath.Join(dir, "BUILD.want")
@@ -175,7 +185,7 @@ func TestGeneratePackage(t *testing.T) {
 					"protos/sub/sub.proto",
 				},
 				HasServices: true,
-				Services: []string{"Quux"},
+				Services:    []string{"Quux"},
 			},
 		},
 		Imports: map[string]bool{
@@ -236,7 +246,7 @@ func TestFileModeImports(t *testing.T) {
 				Path:        filepath.Join(dir, "foo.proto"),
 				Name:        "foo.proto",
 				PackageName: "file_mode",
-				Messages: []string{"Foo"},
+				Messages:    []string{"Foo"},
 			},
 		},
 		Imports: map[string]bool{},

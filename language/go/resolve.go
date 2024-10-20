@@ -31,8 +31,8 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
-func (*goLang) Imports(_ *config.Config, r *rule.Rule, f *rule.File) []resolve.ImportSpec {
-	if !isGoLibrary(r.Kind()) || isExtraLibrary(r) {
+func (*goLang) Imports(c *config.Config, r *rule.Rule, f *rule.File) []resolve.ImportSpec {
+	if !isGoLibrary(c, r) || isExtraLibrary(r) {
 		return nil
 	}
 	if importPath := r.AttrString("importpath"); importPath == "" {
@@ -47,7 +47,7 @@ func (*goLang) Imports(_ *config.Config, r *rule.Rule, f *rule.File) []resolve.I
 
 func (*goLang) Embeds(r *rule.Rule, from label.Label) []label.Label {
 	embedStrings := r.AttrStrings("embed")
-	if isGoProtoLibrary(r.Kind()) {
+	if isGoProtoLibrary(nil, r) {
 		embedStrings = append(embedStrings, r.AttrString("proto"))
 		embedStrings = append(embedStrings, r.AttrStrings("protos")...)
 	}
@@ -71,8 +71,8 @@ func (gl *goLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Remo
 	imports := importsRaw.(rule.PlatformStrings)
 	r.DelAttr("deps")
 	var resolve func(*config.Config, *resolve.RuleIndex, *repo.RemoteCache, string, label.Label) (label.Label, error)
-	switch r.Kind() {
-	case "go_proto_library":
+	switch {
+	case isRuleKind(c, r, "go_proto_library"):
 		resolve = resolveProto
 	default:
 		resolve = ResolveGo
@@ -96,7 +96,7 @@ func (gl *goLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Remo
 		log.Print(err)
 	}
 	if !deps.IsEmpty() {
-		if r.Kind() == "go_proto_library" {
+		if isRuleKind(c, r, "go_proto_library") {
 			// protos may import the same library multiple times by different names,
 			// so we need to de-duplicate them. Protos are not platform-specific,
 			// so it's safe to just flatten them.
@@ -369,12 +369,12 @@ func resolveWithIndexProto(c *config.Config, ix *resolve.RuleIndex, imp string, 
 	return matches[0].Label, nil
 }
 
-func isGoLibrary(kind string) bool {
-	return kind == "go_library" || isGoProtoLibrary(kind)
+func isGoLibrary(c *config.Config, r *rule.Rule) bool {
+	return isRuleKind(c, r, "go_library") || isGoProtoLibrary(c, r)
 }
 
-func isGoProtoLibrary(kind string) bool {
-	return kind == "go_proto_library" || kind == "go_grpc_library"
+func isGoProtoLibrary(c *config.Config, r *rule.Rule) bool {
+	return isRuleKind(c, r, "go_proto_library") || isRuleKind(c, r, "go_grpc_library")
 }
 
 // isExtraLibrary returns true if this rule is one of a handful of proto

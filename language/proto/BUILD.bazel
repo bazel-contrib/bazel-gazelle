@@ -78,6 +78,7 @@ go_test(
     embed = [":proto"],
     deps = [
         "//config",
+        "//internal/mapkind",
         "//label",
         "//language",
         "//merger",

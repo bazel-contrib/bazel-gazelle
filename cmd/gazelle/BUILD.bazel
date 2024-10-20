@@ -26,6 +26,7 @@ go_library(
     deps = [
         "//config",
         "//flag",
+        "//internal/mapkind",
         "//internal/wspace",
         "//label",
         "//language",
@@ -36,7 +37,6 @@ go_library(
         "//resolve",
         "//rule",
         "//walk",
-        "@com_github_bazelbuild_buildtools//build",
         "@com_github_pmezard_go_difflib//difflib",
     ],
 )

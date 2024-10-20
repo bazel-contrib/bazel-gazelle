@@ -1,0 +1,16 @@
+load("//my/go:defs.bzl", "my_go_binary", "my_go_library")
+
+my_go_library(
+    name = "removed_lib",
+    srcs = ["main.go"],
+    _gazelle_imports = [],
+    importpath = "example.com/repo/mapping/bin/removed",
+    visibility = ["//visibility:private"],
+)
+
+my_go_binary(
+    name = "removed",
+    _gazelle_imports = [],
+    embed = [":removed_lib"],
+    visibility = ["//visibility:public"],
+)

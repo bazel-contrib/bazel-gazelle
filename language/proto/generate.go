@@ -47,7 +47,7 @@ func (*protoLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	// Some of the generated files may have been consumed by other rules
 	consumedFileSet := make(map[string]bool)
 	for _, r := range args.OtherGen {
-		if r.Kind() != "proto_library" {
+		if !isRuleKind(c, r, "proto_library") {
 			continue
 		}
 		for _, f := range r.AttrStrings("srcs") {
@@ -86,7 +86,7 @@ func (*protoLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	for i, r := range res.Gen {
 		res.Imports[i] = r.PrivateAttr(config.GazelleImportsKey)
 	}
-	res.Empty = append(res.Empty, generateEmpty(args.File, regularProtoFiles, genProtoFiles)...)
+	res.Empty = append(res.Empty, generateEmpty(c, args.File, regularProtoFiles, genProtoFiles)...)
 	return res
 }
 
@@ -278,7 +278,7 @@ func getPrefix(pc *ProtoConfig, rel string) string {
 // generateEmpty generates a list of proto_library rules that may be deleted.
 // This is generated from existing proto_library rules with srcs lists that
 // don't match any static or generated files.
-func generateEmpty(f *rule.File, regularFiles, genFiles []string) []*rule.Rule {
+func generateEmpty(cfg *config.Config, f *rule.File, regularFiles, genFiles []string) []*rule.Rule {
 	if f == nil {
 		return nil
 	}
@@ -292,7 +292,7 @@ func generateEmpty(f *rule.File, regularFiles, genFiles []string) []*rule.Rule {
 	var empty []*rule.Rule
 outer:
 	for _, r := range f.Rules {
-		if r.Kind() != "proto_library" {
+		if !isRuleKind(cfg, r, "proto_library") {
 			continue
 		}
 		srcs := r.AttrStrings("srcs")

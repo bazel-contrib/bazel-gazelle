@@ -1,0 +1,16 @@
+load("//my/go:defs.bzl", "my_go_library", "my_go_test")
+
+my_go_library(
+    name = "removed",
+    srcs = ["foo.go"],
+    _gazelle_imports = [],
+    importpath = "example.com/repo/mapping/lib/removed",
+    visibility = ["//visibility:public"],
+)
+
+my_go_test(
+    name = "removed_test",
+    srcs = ["foo_test.go"],
+    _gazelle_imports = [],
+    embed = [":removed"],
+)

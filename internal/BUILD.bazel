@@ -55,6 +55,7 @@ filegroup(
         "//internal/gazellebinarytest:all_files",
         "//internal/generationtest:all_files",
         "//internal/language:all_files",
+        "//internal/mapkind:all_files",
         "//internal/module:all_files",
         "//internal/version:all_files",
         "//internal/wspace:all_files",

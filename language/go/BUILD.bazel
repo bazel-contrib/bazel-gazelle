@@ -75,6 +75,7 @@ go_test(
     embed = [":go"],
     deps = [
         "//config",
+        "//internal/mapkind",
         "//label",
         "//language",
         "//language/proto",

@@ -69,11 +69,11 @@ func migrateNamingConvention(c *config.Config, f *rule.File) {
 		switch {
 		case r.Name() == libName:
 			haveLib = true
-		case r.Kind() == "go_library" && r.Name() == migrateLibName && r.AttrString("importpath") == importPath:
+		case isRuleKind(c, r, "go_library") && r.Name() == migrateLibName && r.AttrString("importpath") == importPath:
 			haveMigrateLib = true
 		case r.Name() == testName:
 			haveTest = true
-		case r.Kind() == "go_test" && r.Name() == migrateTestName && strListAttrContains(r, "embed", ":"+migrateLibName):
+		case isRuleKind(c, r, "go_test") && r.Name() == migrateTestName && strListAttrContains(r, "embed", ":"+migrateLibName):
 			haveMigrateTest = true
 		}
 	}
@@ -88,18 +88,17 @@ func migrateNamingConvention(c *config.Config, f *rule.File) {
 
 	// Rename the targets and stuff in the same file that refers to them.
 	for _, r := range f.Rules {
-		// TODO(jayconrod): support map_kind directive.
 		// We'll need to move the metaresolver from resolve.RuleIndex to config.Config so we can access it from here.
-		switch r.Kind() {
-		case "go_binary":
+		switch {
+		case isRuleKind(c, r, "go_binary"):
 			if haveMigrateLib && shouldMigrateLib {
 				replaceInStrListAttr(r, "embed", ":"+migrateLibName, ":"+libName)
 			}
-		case "go_library":
+		case isRuleKind(c, r, "go_library"):
 			if r.Name() == migrateLibName && shouldMigrateLib {
 				r.SetName(libName)
 			}
-		case "go_test":
+		case isRuleKind(c, r, "go_test"):
 			if r.Name() == migrateTestName && shouldMigrateTest {
 				r.SetName(testName)
 			}
@@ -116,15 +115,8 @@ func fileContainsGoBinary(c *config.Config, f *rule.File) bool {
 		return false
 	}
 	for _, r := range f.Rules {
-		kind := r.Kind()
-		if kind == "go_binary" {
+		if isRuleKind(c, r, "go_binary") {
 			return true
-		}
-
-		if mappedKind, ok := c.KindMap["go_binary"]; ok {
-			if mappedKind.KindName == kind {
-				return true
-			}
 		}
 	}
 	return false
@@ -159,7 +151,7 @@ func strListAttrContains(r *rule.Rule, attr, s string) bool {
 // no keep comment on "library" and no existing "embed" attribute.
 func migrateLibraryEmbed(c *config.Config, f *rule.File) {
 	for _, r := range f.Rules {
-		if !isGoRule(r.Kind()) {
+		if !isGoRule(c, r) {
 			continue
 		}
 		libExpr := r.Attr("library")
@@ -175,7 +167,7 @@ func migrateLibraryEmbed(c *config.Config, f *rule.File) {
 // rules with a "compilers" attribute.
 func migrateGrpcCompilers(c *config.Config, f *rule.File) {
 	for _, r := range f.Rules {
-		if r.Kind() != "go_grpc_library" || r.ShouldKeep() || r.Attr("compilers") != nil {
+		if !isRuleKind(c, r, "go_grpc_library") || r.ShouldKeep() || r.Attr("compilers") != nil {
 			continue
 		}
 		r.SetKind("go_proto_library")
@@ -194,7 +186,7 @@ func squashCgoLibrary(c *config.Config, f *rule.File) {
 	// Find the default cgo_library and go_library rules.
 	var cgoLibrary, goLibrary *rule.Rule
 	for _, r := range f.Rules {
-		if r.Kind() == "cgo_library" && r.Name() == "cgo_default_library" && !r.ShouldKeep() {
+		if isRuleKind(c, r, "cgo_library") && r.Name() == "cgo_default_library" && !r.ShouldKeep() {
 			if cgoLibrary != nil {
 				log.Printf("%s: when fixing existing file, multiple cgo_library rules with default name found", f.Path)
 				continue
@@ -202,7 +194,7 @@ func squashCgoLibrary(c *config.Config, f *rule.File) {
 			cgoLibrary = r
 			continue
 		}
-		if r.Kind() == "go_library" && r.Name() == defaultLibName {
+		if isRuleKind(c, r, "go_library") && r.Name() == defaultLibName {
 			if goLibrary != nil {
 				log.Printf("%s: when fixing existing file, multiple go_library rules with default name referencing cgo_library found", f.Path)
 			}
@@ -243,7 +235,7 @@ func squashXtest(c *config.Config, f *rule.File) {
 	// Search for internal and external tests.
 	var itest, xtest *rule.Rule
 	for _, r := range f.Rules {
-		if r.Kind() != "go_test" {
+		if !isRuleKind(c, r, "go_test") {
 			continue
 		}
 		if r.Name() == defaultTestName {
@@ -286,7 +278,7 @@ func squashXtest(c *config.Config, f *rule.File) {
 // duplicate expressions.
 func flattenSrcs(c *config.Config, f *rule.File) {
 	for _, r := range f.Rules {
-		if !isGoRule(r.Kind()) {
+		if !isGoRule(c, r) {
 			continue
 		}
 		oldSrcs := r.Attr("srcs")
@@ -323,7 +315,7 @@ func removeLegacyProto(c *config.Config, f *rule.File) {
 		if r.Kind() == "filegroup" && r.Name() == legacyProtoFilegroupName {
 			protoFilegroups = append(protoFilegroups, r)
 		}
-		if r.Kind() == "go_proto_library" {
+		if isRuleKind(c, r, "go_proto_library") {
 			protoRules = append(protoRules, r)
 		}
 	}
@@ -364,10 +356,10 @@ func removeLegacyGazelle(c *config.Config, f *rule.File) {
 	}
 }
 
-func isGoRule(kind string) bool {
-	return kind == "go_library" ||
-		kind == "go_binary" ||
-		kind == "go_test" ||
-		kind == "go_proto_library" ||
-		kind == "go_grpc_library"
+func isGoRule(c *config.Config, r *rule.Rule) bool {
+	return isRuleKind(c, r, "go_library") ||
+		isRuleKind(c, r, "go_binary") ||
+		isRuleKind(c, r, "go_test") ||
+		isRuleKind(c, r, "go_proto_library") ||
+		isRuleKind(c, r, "go_grpc_library")
 }
