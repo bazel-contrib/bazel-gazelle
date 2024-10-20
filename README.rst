@@ -943,6 +943,14 @@ The following directives are recognized:
 | in the package name. For example, if the package is ``"foo/bar/baz"``, the                 |
 | ``proto_library`` rule will be named ``baz_proto``.                                        |
 +---------------------------------------------------+----------------------------------------+
+| :direc:`# gazelle:proto_file_include option`      | :value:`""`                            |
++---------------------------------------------------+----------------------------------------+
+| Specifies an option that Gazelle can use to co-associate .proto files into rules.          |
+| This is primarily used to add extra source files to generated rules in packages using      |
+| ``proto_mode: file`` mode.  For example, in a package with ``# gazelle proto_mode: file``, |
+| the directive `# gazelle:proto_file_include package.proto` will add `package.proto`        |
+| to the ``srcs`` of all ``proto_library`` rules in that package.                            |
++---------------------------------------------------+----------------------------------------+
 | :direc:`# gazelle:proto_import_prefix path`       | n/a                                    |
 +---------------------------------------------------+----------------------------------------+
 | Sets the `import_prefix`_ attribute of generated ``proto_library`` rules.                  |
