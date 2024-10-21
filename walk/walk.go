@@ -23,7 +23,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -135,19 +134,7 @@ func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode,
 func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, rel string, updateParent bool) {
 	haveError := false
 
-	ents := make([]fs.DirEntry, 0, len(trie.children))
-	for _, node := range trie.children {
-		ents = append(ents, *node.entry)
-	}
-
-	sort.Slice(ents, func(i, j int) bool {
-		return ents[i].Name() < ents[j].Name()
-	})
-
-	// Absolute path to the directory being visited
-	dir := filepath.Join(c.RepoRoot, rel)
-
-	f, err := loadBuildFile(c, rel, dir, ents)
+	f, err := loadBuildFile(c, rel, trie.files)
 	if err != nil {
 		log.Print(err)
 		if c.Strict {
@@ -158,42 +145,60 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		haveError = true
 	}
 
-	c = configure(cexts, knownDirectives, c, rel, f)
+	configure(cexts, knownDirectives, c, rel, f)
 	wc := getWalkConfig(c)
 
 	if wc.isExcluded(rel) {
 		return
 	}
 
-	var subdirs, regularFiles []string
-	for _, ent := range ents {
+	var regularFiles []string
+	for _, ent := range trie.files {
 		base := ent.Name()
 		entRel := path.Join(rel, base)
 		if wc.isExcluded(entRel) {
 			continue
 		}
-		ent := resolveFileInfo(wc, dir, entRel, ent)
+		ent := resolveFileInfo(c, wc, rel, ent)
 		switch {
 		case ent == nil:
 			continue
-		case ent.IsDir():
-			subdirs = append(subdirs, base)
 		default:
 			regularFiles = append(regularFiles, base)
 		}
 	}
 
+	var subdirs []*pathTrie
+	var subdirNames []string
+	for _, sub := range trie.subdirs {
+		base := sub.entry.Name()
+		entRel := path.Join(rel, base)
+		if wc.isExcluded(entRel) {
+			continue
+		}
+		ent := resolveFileInfo(c, wc, rel, sub.entry)
+		switch {
+		case ent == nil:
+			continue
+		default:
+			subdirs = append(subdirs, sub)
+			subdirNames = append(subdirNames, base)
+		}
+	}
+
 	shouldUpdate := updateRels.shouldUpdate(rel, updateParent)
 	for _, sub := range subdirs {
-		if subRel := path.Join(rel, sub); updateRels.shouldVisit(subRel, shouldUpdate) {
-			visit(c, cexts, knownDirectives, updateRels, trie.children[sub], wf, subRel, shouldUpdate)
+		entry := sub.entry
+		if subRel := path.Join(rel, entry.Name()); updateRels.shouldVisit(subRel, shouldUpdate) {
+			visit(c.Clone(), cexts, knownDirectives, updateRels, sub, wf, subRel, shouldUpdate)
 		}
 	}
 
 	update := !haveError && !wc.ignore && shouldUpdate
 	if updateRels.shouldCall(rel, updateParent) {
+		dir := filepath.Join(c.RepoRoot, rel)
 		genFiles := findGenFiles(wc, f)
-		wf(dir, rel, c, update, f, subdirs, regularFiles, genFiles)
+		wf(dir, rel, c, update, f, subdirNames, regularFiles, genFiles)
 	}
 }
 
@@ -279,12 +284,12 @@ func (u *UpdateFilter) shouldVisit(rel string, updateParent bool) bool {
 	}
 }
 
-func loadBuildFile(c *config.Config, pkg, dir string, ents []fs.DirEntry) (*rule.File, error) {
+func loadBuildFile(c *config.Config, pkg string, ents []fs.DirEntry) (*rule.File, error) {
 	var err error
-	readDir := dir
+	readDir := filepath.Join(c.RepoRoot, pkg)
 	readEnts := ents
 	if c.ReadBuildFilesDir != "" {
-		readDir = filepath.Join(c.ReadBuildFilesDir, filepath.FromSlash(pkg))
+		readDir = filepath.Join(c.ReadBuildFilesDir, pkg)
 		readEnts, err = os.ReadDir(readDir)
 		if err != nil {
 			return nil, err
@@ -297,10 +302,7 @@ func loadBuildFile(c *config.Config, pkg, dir string, ents []fs.DirEntry) (*rule
 	return rule.LoadFile(path, pkg)
 }
 
-func configure(cexts []config.Configurer, knownDirectives map[string]bool, c *config.Config, rel string, f *rule.File) *config.Config {
-	if rel != "" {
-		c = c.Clone()
-	}
+func configure(cexts []config.Configurer, knownDirectives map[string]bool, c *config.Config, rel string, f *rule.File) {
 	if f != nil {
 		for _, d := range f.Directives {
 			if !knownDirectives[d.Key] {
@@ -316,7 +318,6 @@ func configure(cexts []config.Configurer, knownDirectives map[string]bool, c *co
 	for _, cext := range cexts {
 		cext.Configure(c, rel, f)
 	}
-	return c
 }
 
 func findGenFiles(wc *walkConfig, f *rule.File) []string {
@@ -343,7 +344,7 @@ func findGenFiles(wc *walkConfig, f *rule.File) []string {
 	return genFiles
 }
 
-func resolveFileInfo(wc *walkConfig, dir, rel string, ent fs.DirEntry) fs.DirEntry {
+func resolveFileInfo(c *config.Config, wc *walkConfig, rel string, ent fs.DirEntry) fs.DirEntry {
 	if ent.Type()&os.ModeSymlink == 0 {
 		// Not a symlink, use the original FileInfo.
 		return ent
@@ -352,7 +353,7 @@ func resolveFileInfo(wc *walkConfig, dir, rel string, ent fs.DirEntry) fs.DirEnt
 		// A symlink, but not one we should follow.
 		return nil
 	}
-	fi, err := os.Stat(path.Join(dir, ent.Name()))
+	fi, err := os.Stat(filepath.Join(c.RepoRoot, rel, ent.Name()))
 	if err != nil {
 		// A symlink, but not one we could resolve.
 		return nil
@@ -361,19 +362,18 @@ func resolveFileInfo(wc *walkConfig, dir, rel string, ent fs.DirEntry) fs.DirEnt
 }
 
 type pathTrie struct {
-	children map[string]*pathTrie
-	entry    *fs.DirEntry
+	entry   fs.DirEntry
+	subdirs []*pathTrie
+	files   []fs.DirEntry
 }
 
 // Basic factory method to ensure the entry is properly copied
 func newTrie(entry fs.DirEntry) *pathTrie {
-	return &pathTrie{entry: &entry}
+	return &pathTrie{entry: entry}
 }
 
 func buildTrie(c *config.Config, isIgnored isIgnoredFunc) (*pathTrie, error) {
-	trie := &pathTrie{
-		children: map[string]*pathTrie{},
-	}
+	trie := &pathTrie{}
 
 	// A channel to limit the number of concurrent goroutines
 	limitCh := make(chan struct{}, 100)
@@ -406,14 +406,16 @@ func walkDir(root, rel string, eg *errgroup.Group, limitCh chan struct{}, isIgno
 			continue
 		}
 
-		entryTrie := newTrie(entry)
-		trie.children[entry.Name()] = entryTrie
-
 		if entry.IsDir() {
-			entryTrie.children = map[string]*pathTrie{}
+			entryTrie := newTrie(entry)
+
 			eg.Go(func() error {
 				return walkDir(root, entryPath, eg, limitCh, isIgnored, entryTrie)
 			})
+
+			trie.subdirs = append(trie.subdirs, entryTrie)
+		} else {
+			trie.files = append(trie.files, entry)
 		}
 	}
 	return nil
