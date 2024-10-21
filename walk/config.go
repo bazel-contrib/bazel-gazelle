@@ -158,15 +158,7 @@ func checkPathMatchPattern(pattern string) error {
 
 func matchAnyGlob(patterns []string, path string) bool {
 	for _, x := range patterns {
-		matched, err := doublestar.Match(x, path)
-		if err != nil {
-			// doublestar.Match returns only one possible error, and only if the
-			// pattern is not valid. During the configuration of the walker (see
-			// Configure below), we discard any invalid pattern and thus an error
-			// here should not be possible.
-			log.Panicf("error during doublestar.Match. This should not happen, please file an issue https://github.com/bazelbuild/bazel-gazelle/issues/new: %s", err)
-		}
-		if matched {
+		if doublestar.MatchUnvalidated(x, path) {
 			return true
 		}
 	}

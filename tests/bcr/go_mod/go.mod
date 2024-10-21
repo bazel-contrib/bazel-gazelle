@@ -4,13 +4,14 @@ module github.com/bazelbuild/bazel-gazelle/tests/bcr/go_mod
 go 1.21.5
 
 // Validate go.mod replace directives can be properly used:
-replace github.com/bmatcuk/doublestar/v4 => github.com/bmatcuk/doublestar v1.3.4
+replace github.com/bmatcuk/doublestar/v4 => github.com/bmatcuk/doublestar/v4 v4.7.1
 
 require (
 	example.org/hello v1.0.0
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/bazelbuild/buildtools v0.0.0-20230317132445-9c3c1fc0106e
 	github.com/bazelbuild/rules_go v0.39.1
+	// NOTE: keep <4.7.0 to test the 'replace'
 	github.com/bmatcuk/doublestar/v4 v4.6.0
 	github.com/cloudflare/circl v1.3.7
 	github.com/envoyproxy/protoc-gen-validate v1.0.1

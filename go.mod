@@ -7,7 +7,7 @@ toolchain go1.22.7
 require (
 	github.com/bazelbuild/buildtools v0.0.0-20240827154017-dd10159baa91
 	github.com/bazelbuild/rules_go v0.50.1
-	github.com/bmatcuk/doublestar/v4 v4.6.1
+	github.com/bmatcuk/doublestar/v4 v4.7.1
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/google/go-cmp v0.6.0
 	github.com/pmezard/go-difflib v1.0.0
