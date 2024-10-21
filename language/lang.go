@@ -189,4 +189,7 @@ type GenerateResult struct {
 	// correspond. These values are passed to Resolve after merge. The type
 	// is opaque since different languages may use different representations.
 	Imports []interface{}
+
+    // Additional packages that should be indexed.
+    PackagesToIndex []string
 }
