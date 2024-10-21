@@ -68,6 +68,8 @@ type PlatformStrings struct {
 	Platform map[PlatformConstraint][]string
 }
 
+var _ BzlExprValue = (*PlatformStrings)(nil)
+
 // HasExt returns whether this set contains a file with the given extension.
 func (ps *PlatformStrings) HasExt(ext string) bool {
 	return ps.firstExtFile(ext) != ""
