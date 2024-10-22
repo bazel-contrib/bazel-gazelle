@@ -23,10 +23,12 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/rule"
+	"golang.org/x/sync/errgroup"
 )
 
 // Mode determines which directories Walk visits and which directories
@@ -122,24 +124,28 @@ func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode,
 		log.Printf("error loading .bazelignore: %v", err)
 	}
 
-	visit(c, cexts, isBazelIgnored, knownDirectives, updateRels, wf, c.RepoRoot, "", false)
+	trie, err := buildTrie(c, isBazelIgnored)
+	if err != nil {
+		log.Fatalf("error walking the file system: %v\n", err)
+	}
+
+	visit(c, cexts, knownDirectives, updateRels, trie, wf, "", false)
 }
 
-func visit(c *config.Config, cexts []config.Configurer, isBazelIgnored isIgnoredFunc, knownDirectives map[string]bool, updateRels *UpdateFilter, wf WalkFunc, dir, rel string, updateParent bool) {
-	if isBazelIgnored(rel) {
-		return
-	}
-
+func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, rel string, updateParent bool) {
 	haveError := false
 
-	// TODO: OPT: ReadDir stats all the files, which is slow. We just care about
-	// names and modes, so we should use something like
-	// golang.org/x/tools/internal/fastwalk to speed this up.
-	ents, err := os.ReadDir(dir)
-	if err != nil {
-		log.Print(err)
-		return
+	ents := make([]fs.DirEntry, 0, len(trie.children))
+	for _, node := range trie.children {
+		ents = append(ents, *node.entry)
 	}
+
+	sort.Slice(ents, func(i, j int) bool {
+		return ents[i].Name() < ents[j].Name()
+	})
+
+	// Absolute path to the directory being visited
+	dir := filepath.Join(c.RepoRoot, rel)
 
 	f, err := loadBuildFile(c, rel, dir, ents)
 	if err != nil {
@@ -155,17 +161,18 @@ func visit(c *config.Config, cexts []config.Configurer, isBazelIgnored isIgnored
 	c = configure(cexts, knownDirectives, c, rel, f)
 	wc := getWalkConfig(c)
 
-	if wc.isExcluded(rel, ".") {
+	if wc.isExcluded(rel) {
 		return
 	}
 
 	var subdirs, regularFiles []string
 	for _, ent := range ents {
 		base := ent.Name()
-		if isBazelIgnored(path.Join(rel, base)) || wc.isExcluded(rel, base) {
+		entRel := path.Join(rel, base)
+		if wc.isExcluded(entRel) {
 			continue
 		}
-		ent := resolveFileInfo(wc, dir, rel, ent)
+		ent := resolveFileInfo(wc, dir, entRel, ent)
 		switch {
 		case ent == nil:
 			continue
@@ -179,7 +186,7 @@ func visit(c *config.Config, cexts []config.Configurer, isBazelIgnored isIgnored
 	shouldUpdate := updateRels.shouldUpdate(rel, updateParent)
 	for _, sub := range subdirs {
 		if subRel := path.Join(rel, sub); updateRels.shouldVisit(subRel, shouldUpdate) {
-			visit(c, cexts, isBazelIgnored, knownDirectives, updateRels, wf, filepath.Join(dir, sub), subRel, shouldUpdate)
+			visit(c, cexts, knownDirectives, updateRels, trie.children[sub], wf, subRel, shouldUpdate)
 		}
 	}
 
@@ -329,7 +336,7 @@ func findGenFiles(wc *walkConfig, f *rule.File) []string {
 
 	var genFiles []string
 	for _, s := range strs {
-		if !wc.isExcluded(f.Pkg, s) {
+		if !wc.isExcluded(path.Join(f.Pkg, s)) {
 			genFiles = append(genFiles, s)
 		}
 	}
@@ -337,22 +344,77 @@ func findGenFiles(wc *walkConfig, f *rule.File) []string {
 }
 
 func resolveFileInfo(wc *walkConfig, dir, rel string, ent fs.DirEntry) fs.DirEntry {
-	base := ent.Name()
-	if base == "" {
-		return nil
-	}
 	if ent.Type()&os.ModeSymlink == 0 {
 		// Not a symlink, use the original FileInfo.
 		return ent
 	}
-	if !wc.shouldFollow(rel, base) {
+	if !wc.shouldFollow(rel) {
 		// A symlink, but not one we should follow.
 		return nil
 	}
-	fi, err := os.Stat(path.Join(dir, base))
+	fi, err := os.Stat(path.Join(dir, ent.Name()))
 	if err != nil {
 		// A symlink, but not one we could resolve.
 		return nil
 	}
 	return fs.FileInfoToDirEntry(fi)
+}
+
+type pathTrie struct {
+	children map[string]*pathTrie
+	entry    *fs.DirEntry
+}
+
+// Basic factory method to ensure the entry is properly copied
+func newTrie(entry fs.DirEntry) *pathTrie {
+	return &pathTrie{entry: &entry}
+}
+
+func buildTrie(c *config.Config, isIgnored isIgnoredFunc) (*pathTrie, error) {
+	trie := &pathTrie{
+		children: map[string]*pathTrie{},
+	}
+
+	// A channel to limit the number of concurrent goroutines
+	limitCh := make(chan struct{}, 100)
+
+	// An error group to handle error propagation
+	eg := errgroup.Group{}
+	eg.Go(func() error {
+		return walkDir(c.RepoRoot, "", &eg, limitCh, isIgnored, trie)
+	})
+
+	return trie, eg.Wait()
+}
+
+// walkDir recursively and concurrently descends into the 'rel' directory and builds a trie
+func walkDir(root, rel string, eg *errgroup.Group, limitCh chan struct{}, isIgnored isIgnoredFunc, trie *pathTrie) error {
+	limitCh <- struct{}{}
+	defer (func() { <-limitCh })()
+
+	entries, err := os.ReadDir(filepath.Join(root, rel))
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		entryName := entry.Name()
+		entryPath := path.Join(rel, entryName)
+
+		// Ignore .git, empty names and ignored paths
+		if entryName == "" || entryName == ".git" || isIgnored(entryPath) {
+			continue
+		}
+
+		entryTrie := newTrie(entry)
+		trie.children[entry.Name()] = entryTrie
+
+		if entry.IsDir() {
+			entryTrie.children = map[string]*pathTrie{}
+			eg.Go(func() error {
+				return walkDir(root, entryPath, eg, limitCh, isIgnored, entryTrie)
+			})
+		}
+	}
+	return nil
 }

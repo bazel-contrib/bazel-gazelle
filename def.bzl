@@ -205,7 +205,7 @@ def _gazelle_kwargs_prepare(name, kwargs):
         kwargs["extra_args"] = kwargs["args"]
         kwargs.pop("args")
 
-    visibility = kwargs.pop("visibility", default = None)
+    visibility = kwargs.pop("visibility", None)
     return name + "-runner", visibility
 
 def gazelle(name, **kwargs):

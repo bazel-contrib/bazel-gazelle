@@ -1,0 +1,4 @@
+# gazelle:ignore *.go
+
+# valid use, but trailing whitespace should not warn
+# gazelle:ignore    

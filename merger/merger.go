@@ -117,7 +117,7 @@ func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phas
 
 	// Merge empty rules into the file and delete any rules which become empty.
 	for _, emptyRule := range emptyRules {
-		if oldRule, _ := Match(oldFile.Rules, emptyRule, kinds[emptyRule.Kind()]); oldRule != nil {
+		if oldRule, _ := match(oldFile.Rules, emptyRule, kinds[emptyRule.Kind()], false); oldRule != nil {
 			if oldRule.ShouldKeep() {
 				continue
 			}
@@ -211,6 +211,10 @@ func substituteRule(r *rule.Rule, substitutions map[string]string, info rule.Kin
 // order that attributes are listed). If disambiguation is successful,
 // the rule and nil are returned. Otherwise, nil and an error are returned.
 func Match(rules []*rule.Rule, x *rule.Rule, info rule.KindInfo) (*rule.Rule, error) {
+	return match(rules, x, info, true)
+}
+
+func match(rules []*rule.Rule, x *rule.Rule, info rule.KindInfo, wantError bool) (*rule.Rule, error) {
 	xname := x.Name()
 	xkind := x.Kind()
 	var nameMatches []*rule.Rule
@@ -227,11 +231,17 @@ func Match(rules []*rule.Rule, x *rule.Rule, info rule.KindInfo) (*rule.Rule, er
 	if len(nameMatches) == 1 {
 		y := nameMatches[0]
 		if xkind != y.Kind() {
+			if !wantError {
+				return nil, nil
+			}
 			return nil, fmt.Errorf("could not merge %s(%s): a rule of the same name has kind %s", xkind, xname, y.Kind())
 		}
 		return y, nil
 	}
 	if len(nameMatches) > 1 {
+		if !wantError {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("could not merge %s(%s): multiple rules have the same name", xkind, xname)
 	}
 
@@ -245,6 +255,9 @@ func Match(rules []*rule.Rule, x *rule.Rule, info rule.KindInfo) (*rule.Rule, er
 		if len(attrMatches) == 1 {
 			return attrMatches[0], nil
 		} else if len(attrMatches) > 1 {
+			if !wantError {
+				return nil, nil
+			}
 			return nil, fmt.Errorf("could not merge %s(%s): multiple rules have the same attribute %s", xkind, xname, key)
 		}
 	}
@@ -253,6 +266,9 @@ func Match(rules []*rule.Rule, x *rule.Rule, info rule.KindInfo) (*rule.Rule, er
 		if len(kindMatches) == 1 {
 			return kindMatches[0], nil
 		} else if len(kindMatches) > 1 {
+			if !wantError {
+				return nil, nil
+			}
 			return nil, fmt.Errorf("could not merge %s(%s): multiple rules have the same kind but different names", xkind, xname)
 		}
 	}

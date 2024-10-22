@@ -42,7 +42,7 @@ const (
 	TypeWorkspace
 	// TypeBzl represents .bzl files
 	TypeBzl
-	//TypeModule represents MODULE.bazel files
+	// TypeModule represents MODULE.bazel and *.MODULE.bazel files
 	TypeModule
 )
 
@@ -130,7 +130,7 @@ func getFileType(filename string) FileType {
 	if strings.HasSuffix(basename, ".oss") {
 		basename = basename[:len(basename)-4]
 	}
-	if basename == "module.bazel" {
+	if basename == "module.bazel" || strings.HasSuffix(basename, ".module.bazel") {
 		return TypeModule
 	}
 	ext := filepath.Ext(basename)

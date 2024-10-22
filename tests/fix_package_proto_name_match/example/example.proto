@@ -1,0 +1,12 @@
+
+syntax = "proto3";
+
+package proto.example.example;
+
+option go_package = "github.com/bazelbuild/bazel-gazelle/fix_package_proto_name_match/example/example";
+
+import "google/type/date.proto";
+
+message Example {
+  google.type.Date date = 1;
+}

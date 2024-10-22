@@ -571,15 +571,12 @@ def _go_deps_impl(module_ctx):
             continue
 
         # Only use the Bazel module if it is at least as high as the required Go module version.
-        if path in module_resolutions and bazel_dep.version < module_resolutions[path].version:
-            outdated_direct_dep_printer(
-                "Go module \"{path}\" is provided by Bazel module \"{bazel_module}\" in version {bazel_dep_version}, but requested at higher version {go_version} via Go requirements. Consider adding or updating an appropriate \"bazel_dep\" to ensure that the Bazel module is used to provide the Go module.".format(
-                    path = path,
-                    bazel_module = bazel_dep.module_name,
-                    bazel_dep_version = bazel_dep.raw_version,
-                    go_version = module_resolutions[path].raw_version,
-                ),
-            )
+        if path in module_resolutions and bazel_dep.version != module_resolutions[path].version:
+            outdated_direct_dep_printer("\n\nMismatch between versions requested for module {module}\nBazel dependency version requested in MODULE.bazel: {bazel_dep_version}\nGo module version requested in go.mod: {go_module_version}\nPlease resolve this mismatch to prevent discrepancies between native Go and Bazel builds\n\n".format(
+                module = path,
+                bazel_dep_version = bazel_dep.raw_version,
+                go_module_version = module_resolutions[path].raw_version,
+            ))
             continue
 
         # TODO: We should update root_versions if the bazel_dep is a direct dependency of the root
@@ -597,16 +594,25 @@ def _go_deps_impl(module_ctx):
             )
 
     resolved_go_modules = {}
+    repos_processed = {}
     for path, module in module_resolutions.items():
         if hasattr(module, "module_name"):
             # Do not create a go_repository for a Go module provided by a bazel_dep.
-            root_module_direct_deps.pop(_repo_name(path), default = None)
-            root_module_direct_dev_deps.pop(_repo_name(path), default = None)
+            root_module_direct_deps.pop(_repo_name(path), None)
+            root_module_direct_dev_deps.pop(_repo_name(path), None)
             continue
         if getattr(module_ctx, "is_isolated", False) and path in _SHARED_REPOS:
             # Do not create a go_repository for a dep shared with the non-isolated instance of
             # go_deps.
             continue
+        if module.repo_name in repos_processed:
+            fail("Go module {prev_path} and {path} will resolve to the same Bazel repo name: {name}. While Go allows modules to only differ in case, this isn't supported in Gazelle (yet). Please ensure you only use one of these modules in your go.mod(s)".format(
+                prev_path = repos_processed[module.repo_name],
+                path = path,
+                name = module.repo_name,
+            ))
+
+        repos_processed[module.repo_name] = path
         go_repository_args = {
             "name": module.repo_name,
             # Compared to the name attribute, the content of this attribute does not go through repo

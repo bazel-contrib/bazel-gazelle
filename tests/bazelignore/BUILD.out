@@ -1,0 +1,10 @@
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        ".bazelignore",
+        "MODULE.bazel",
+        "//sub2:all_files",
+    ],
+    visibility = ["//visibility:public"],
+)

@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/bazelbuild/buildtools/labels"
 	"github.com/bazelbuild/buildtools/tables"
 )
 
@@ -1081,6 +1082,7 @@ func comparePaths(path1, path2 string) bool {
 // If one label has explicit repository path (starts with @), it goes first
 // If the packages are different, labels are sorted by package name (empty package goes first)
 // If the packages are the same, labels are sorted by their name
+// Relative labels go last
 func compareLoadLabels(load1Label, load2Label string) bool {
 	// handle absolute labels with explicit repositories separately to
 	// make sure they precede absolute and relative labels without repos
@@ -1092,31 +1094,27 @@ func compareLoadLabels(load1Label, load2Label string) bool {
 		return isExplicitRepo1
 	}
 
-	// Either both labels have explicit repository names or both don't, compare their packages
-	// and break ties using file names if necessary
-	module1Parts := strings.SplitN(load1Label, ":", 2)
-	package1, filename1 := "", module1Parts[0]
-	if len(module1Parts) == 2 {
-		package1, filename1 = module1Parts[0], module1Parts[1]
-	}
-	module2Parts := strings.SplitN(load2Label, ":", 2)
-	package2, filename2 := "", module2Parts[0]
-	if len(module2Parts) == 2 {
-		package2, filename2 = module2Parts[0], module2Parts[1]
-	}
+	// ensure that relative labels go last by giving them a fake package name
+	// that sorts after all valid package names
+	label1 := labels.ParseRelative(load1Label, string(rune(0x7F)))
+	label2 := labels.ParseRelative(load2Label, string(rune(0x7F)))
 
-	// in case both packages are the same, use file names to break ties
-	if package1 == package2 {
-		return comparePaths(filename1, filename2)
+	if label1.Repository != label2.Repository {
+		return label1.Repository < label2.Repository
 	}
 
 	// in case one of the packages is empty, the empty one goes first
-	if len(package1) == 0 || len(package2) == 0 {
-		return len(package1) > 0
+	if (len(label1.Package) == 0) != (len(label2.Package) == 0) {
+		return len(label1.Package) == 0
 	}
 
 	// both packages are non-empty and not equal, so compare them
-	return comparePaths(package1, package2)
+	if label1.Package != label2.Package {
+		return comparePaths(label1.Package, label2.Package)
+	}
+
+	// in case both packages are the same, use file names to break ties
+	return comparePaths(label1.Target, label2.Target)
 }
 
 // sortLoadStatements reorders sorts loads lexicographically by the source file,

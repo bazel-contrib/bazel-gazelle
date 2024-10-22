@@ -725,7 +725,7 @@ func (l *Load) sync() {
 // Rule represents a rule statement within a build file.
 type Rule struct {
 	stmt
-	kind        bzl.Expr
+	kind        string
 	args        []bzl.Expr
 	attrs       map[string]attrValue
 	private     map[string]interface{}
@@ -748,7 +748,7 @@ func NewRule(kind, name string) *Rule {
 
 	r := &Rule{
 		stmt:        stmt{expr: call},
-		kind:        kindIdent,
+		kind:        kind,
 		attrs:       map[string]attrValue{},
 		private:     map[string]interface{}{},
 		sortedAttrs: []string{"deps", "srcs"},
@@ -850,7 +850,7 @@ func ruleFromExpr(index int, expr bzl.Expr) *Rule {
 			expr:     call,
 			comments: commentsFromExpr(expr),
 		},
-		kind:    kind,
+		kind:    bzl.FormatString(kind),
 		args:    args,
 		attrs:   attrs,
 		private: map[string]interface{}{},
@@ -866,12 +866,12 @@ func (r *Rule) ShouldKeep() bool {
 
 // Kind returns the kind of rule this is (for example, "go_library").
 func (r *Rule) Kind() string {
-	return bzl.FormatString(r.kind)
+	return r.kind
 }
 
 // SetKind changes the kind of rule this is.
 func (r *Rule) SetKind(kind string) {
-	r.kind = &bzl.Ident{Name: kind}
+	r.kind = kind
 	r.updated = true
 }
 

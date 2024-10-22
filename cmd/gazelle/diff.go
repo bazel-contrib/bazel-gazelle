@@ -74,6 +74,15 @@ func diffFile(c *config.Config, f *rule.File) error {
 	} else {
 		diff.ToFile = outPath
 	}
+	// Trim off trailing newline from the end of the file.  Modern diff tools typically
+	// handle this, however difflib does not and is no longer maintained, so we need to
+	// handle it here.
+	if len(diff.A) > 0 {
+		if diff.A[len(diff.A)-1] == "\n" {diff.A = diff.A[:len(diff.A)-1]}
+	}
+	if len(diff.B) > 0 {
+		if diff.B[len(diff.B)-1] == "\n" {diff.B = diff.B[:len(diff.B)-1]}
+	}
 
 	uc := getUpdateConfig(c)
 	var out io.Writer = os.Stdout

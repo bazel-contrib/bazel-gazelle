@@ -20,11 +20,10 @@ import (
 )
 
 func TestReplace(t *testing.T) {
-	// doublestar.StandardOS does NOT exist in doublestar/v4
-	// See: https://pkg.go.dev/github.com/bmatcuk/doublestar#OS
+	// doublestar.MatchUnvalidated does NOT exist in doublestar <v4.7.0
 	// If we are able to initialize this variable, it validates that the dependency is properly
-	// being replaced with github.com/bmatcuk/doublestar@v1.3.4
-	_ = doublestar.StandardOS
+	// being replaced with github.com/bmatcuk/doublestar/v4@v4.7.0
+	_ = doublestar.MatchUnvalidated
 }
 
 func TestPatch(t *testing.T) {

@@ -1,0 +1,1 @@
+gazelle: the ignore directive does not take any arguments. Did you mean to use gazelle:exclude instead? in //ignore_directive '# gazelle:ignore *.go'

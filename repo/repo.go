@@ -83,16 +83,19 @@ func IsFromDirective(repo *rule.Rule) bool {
 // with the following prioritization:
 //   - rules that were provided as directives have precedence
 //   - rules that were provided last
-func (l *loader) add(file *rule.File, repo *rule.Rule) {
+func (l *loader) add(file *rule.File, repo *rule.Rule) error {
 	name := repo.Name()
 	if name == "" {
-		return
+		return nil
 	}
-
+	
 	if i, ok := l.repoIndexMap[repo.Name()]; ok {
+		if !IsFromDirective(l.repos[i]) && !IsFromDirective(repo) {
+			return fmt.Errorf("found duplicate repo %q", repo.Name())
+		}
 		if IsFromDirective(l.repos[i]) && !IsFromDirective(repo) {
 			// We always prefer directives over non-directives
-			return
+			return nil
 		}
 		// Update existing rule to new rule
 		l.repos[i] = repo
@@ -101,6 +104,7 @@ func (l *loader) add(file *rule.File, repo *rule.Rule) {
 		l.repoIndexMap[name] = len(l.repos) - 1
 	}
 	l.repoFileMap[name] = file
+	return nil
 }
 
 // visit returns true exactly once for each file,function key, and false for all future instances
@@ -113,7 +117,8 @@ func (l *loader) visit(file, function string) bool {
 }
 
 // ListRepositories extracts metadata about repositories declared in a
-// file.
+// file. If there are duplicate rules that are both not defined from a 
+// directive, it will fail.
 func ListRepositories(workspace *rule.File) (repos []*rule.Rule, repoFileMap map[string]*rule.File, err error) {
 	l := &loader{
 		repoRoot:     filepath.Dir(workspace.Path),
@@ -121,9 +126,11 @@ func ListRepositories(workspace *rule.File) (repos []*rule.Rule, repoFileMap map
 		repoFileMap:  make(map[string]*rule.File),
 		visited:      make(map[macroKey]struct{}),
 	}
-
+	
 	for _, repo := range workspace.Rules {
-		l.add(workspace, repo)
+		if err := l.add(workspace, repo); err != nil {
+			return nil, nil, err
+		}
 	}
 	if err := l.loadExtraRepos(workspace); err != nil {
 		return nil, nil, err
@@ -164,7 +171,9 @@ func (l *loader) loadRepositoriesFromMacro(macro *RepoMacro) error {
 	for _, rule := range macroFile.Rules {
 		// (Incorrectly) assume that anything with a name attribute is a rule, not a macro to recurse into
 		if rule.Name() != "" {
-			l.add(macroFile, rule)
+			if err := l.add(macroFile, rule); err != nil {
+				return err
+			}
 			continue
 		}
 		if !macro.Leveled {

@@ -31,17 +31,14 @@ const (
 
 // attribute constants that are used multiple times.
 const (
-	_buildFileGenerationAttr = "build_file_generation"
-	_buildFileProtoModeAttr  = "build_file_proto_mode"
-	_patchArgsAttr           = "patch_args"
-	_buildDirectivesAttr     = "build_directives"
-	_directivesAttr          = "directives"
+	_buildFileGenerationAttr        = "build_file_generation"
+	_buildFileProtoModeAttr         = "build_file_proto_mode"
+	_patchArgsAttr                  = "patch_args"
+	_buildDirectivesAttr            = "build_directives"
+	_directivesAttr                 = "directives"
+	_buildFileProtoModeDefault      = "default"
+	_buildFileGenerationModeDefault = "auto"
 )
-
-var _defaultValues = map[string]string{
-	_buildFileGenerationAttr: "auto",
-	_buildFileProtoModeAttr:  "default",
-}
 
 var _mapAttrToOverride = map[string]string{
 	_buildDirectivesAttr:     _gazelleOverride,
@@ -66,6 +63,9 @@ type mainArgs struct {
 	defName         string
 	outputFile      string
 	gazelleRepoName string
+
+	defaultBuildFileGeneration string
+	defaultBuildFileProtoMode  string
 }
 
 func main() {
@@ -91,6 +91,8 @@ func parseArgs(stderr io.Writer, osArgs []string) (*mainArgs, error) {
 	flag.StringVar(&a.defName, "def_name", "", "name of the macro definition")
 	flag.StringVar(&a.outputFile, "output", "", "path to the output file")
 	flag.StringVar(&a.gazelleRepoName, "gazelle_repo_name", "@bazel_gazelle", "name of the gazelle repo to load go_deps, (default: @bazel_gazelle)")
+	flag.StringVar(&a.defaultBuildFileGeneration, "default_build_file_generation", "auto", "the default value for build_file_generation attribute")
+	flag.StringVar(&a.defaultBuildFileProtoMode, "default_build_file_proto_mode", "default", "the default value for build_file_proto_mode attribute")
 	flag.Parse(osArgs)
 
 	if a.macroPath != "" && a.workspace != "" {
@@ -137,7 +139,7 @@ func run(a mainArgs, stderr io.Writer) error {
 	// will be deterministic.
 	for _, r := range repos {
 		if r.Kind() == "go_repository" {
-			repoOverrides := goRepositoryToOverrideSet(r)
+			repoOverrides := goRepositoryToOverrideSet(r, a.defaultBuildFileGeneration, a.defaultBuildFileProtoMode)
 			outputOverrides = append(outputOverrides, setToOverridesSlice(repoOverrides)...)
 		}
 	}
@@ -162,7 +164,7 @@ func run(a mainArgs, stderr io.Writer) error {
 	return nil
 }
 
-func goRepositoryToOverrideSet(r *rule.Rule) overrideSet {
+func goRepositoryToOverrideSet(r *rule.Rule, defaultBuildFileGeneration, defaultBuildFileProtoMode string) overrideSet {
 	// each repo has its own override set, and can't have multiple
 	// duplicate overrides. This set is created to be populated and read
 	set := make(overrideSet)
@@ -176,7 +178,9 @@ func goRepositoryToOverrideSet(r *rule.Rule) overrideSet {
 		}
 
 		attrValue := r.Attr(attr)
-		if attrValue == nil || attr == _buildFileProtoModeAttr {
+		
+		// proto mode and build file generation require special handling.
+		if attrValue == nil || attr == _buildFileProtoModeAttr || attr == _buildFileGenerationAttr {
 			continue
 		}
 
@@ -192,10 +196,6 @@ func goRepositoryToOverrideSet(r *rule.Rule) overrideSet {
 		// attribute to convert to "directives" attribute.
 		if k, ok := _attrOverrideKeys[attr]; ok {
 			attr = k
-		}
-
-		if def, ok := _defaultValues[attr]; def == r.AttrString(attr) && ok {
-			continue
 		}
 
 		if val != nil {
@@ -216,31 +216,91 @@ func goRepositoryToOverrideSet(r *rule.Rule) overrideSet {
 		set[kind] = override
 	}
 
-	// Since "build_file_proto_mode" is added to the "directives", we need
-	// to run it after the fact to make sure that "directives" is set.
-	applyBuildFileProtoMode(r, set)
+	// If the user default doesn't match the global default, but there's a gazelle override, we need to still apply
+	// it to the individual overrides.
+	// Also, since "build_file_proto_mode" is added to the "directives", we need
+	// to apply it last to make sure "directives" is set.
+	applyBuildFileGeneration(r, set, defaultBuildFileGeneration)
+	applyBuildFileProtoMode(r, set, defaultBuildFileProtoMode, defaultBuildFileGeneration)
 	return set
 }
 
-func applyBuildFileProtoMode(r *rule.Rule, set overrideSet) {
-	if r.Attr(_buildFileProtoModeAttr) == nil {
+func applyBuildFileGeneration(r *rule.Rule, set overrideSet, userDefaultGeneration string) {
+	ruleGeneration := r.AttrString(_buildFileGenerationAttr)
+	o, ok := set[_gazelleOverride]
+	if !ok {
+	 	if ruleGeneration == "" || ruleGeneration == userDefaultGeneration {
+			return
+		}
+		set[_gazelleOverride] = newGenerationOverride(r.AttrString("importpath"), ruleGeneration)
 		return
 	}
 
-	if def, ok := _defaultValues[_buildFileProtoModeAttr]; def == r.AttrString(_buildFileProtoModeAttr) && ok {
+	if ruleGeneration == "" {
+		ruleGeneration = userDefaultGeneration
+	}
+
+	o.SetAttr(_buildFileGenerationAttr, ruleGeneration)
+	set[_gazelleOverride] = o
+	return
+}
+
+
+func newGenerationOverride(path, ruleGeneration string) *rule.Rule {
+	override := rule.NewRule(_gazelleOverride, "")
+	override.SetAttr("path", path)
+	override.SetAttr(_buildFileGenerationAttr, ruleGeneration)
+	return override
+}
+
+func applyBuildFileProtoMode(r *rule.Rule, set overrideSet, userDefaultProtoMode, userDefaultGeneration string) {
+	protoMode := r.AttrString(_buildFileProtoModeAttr)
+
+	// If the gazelle_override doesn't exist. We only need to apply the proto mode
+	// if it does not match the user default proto mode.
+	gazelleOverride, ok := set[_gazelleOverride]
+	if !ok {
+		if protoMode == "" || protoMode == userDefaultProtoMode {
+			return
+		}
+		
+		set[_gazelleOverride] = newProtoOverride(r.AttrString("importpath"), protoMode)
+		
+		// Since it's a new override, we need to apply build_file_generation again.
+		applyBuildFileGeneration(r, set, userDefaultGeneration)
 		return
 	}
 
-	directive := "gazelle:proto " + r.AttrString(_buildFileProtoModeAttr)
-	kind := _gazelleOverride
-	override := rule.NewRule(kind, "")
-	if o, ok := set[kind]; ok {
-		override = o
+	// If the gazelle_override exists, we should apply the override anyway since
+	// the tag overwrites the defaults.
+	if protoMode == "" {
+		protoMode = userDefaultProtoMode
 	}
-	directives := override.AttrStrings(_directivesAttr)
-	directives = append(directives, directive)
+	
+	safeAppendDirective(gazelleOverride, "gazelle:proto " + protoMode)
+	set[_gazelleOverride] = gazelleOverride
+	return
+}
+
+func newProtoOverride(path, protoMode string) *rule.Rule {
+	override := rule.NewRule(_gazelleOverride, "")
+	override.SetAttr("path", path)
+	directives := []string{"gazelle:proto " + protoMode}
 	override.SetAttr(_directivesAttr, directives)
-	set[kind] = override
+	return override
+}
+
+func safeAppendDirective(gazelleOverride *rule.Rule, directive string) {
+	directives := gazelleOverride.AttrStrings(_directivesAttr)
+	directiveMap := make(map[string]struct{})
+	for _, d := range directives{
+		directiveMap[d] = struct{}{}
+	}
+	if _, ok := directiveMap[directive]; ok {
+		return 
+	}
+	directives = append(directives, directive)
+	gazelleOverride.SetAttr(_directivesAttr, directives)
 }
 
 func setPatchArgs(patchArgs []string, override *rule.Rule) {

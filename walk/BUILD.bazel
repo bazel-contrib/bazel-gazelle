@@ -13,6 +13,7 @@ go_library(
         "//flag",
         "//rule",
         "@com_github_bmatcuk_doublestar_v4//:doublestar",
+        "@org_golang_x_sync//errgroup",
     ],
 )
 

@@ -18,7 +18,7 @@ package tables
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 )
 
 type Definitions struct {
@@ -37,7 +37,7 @@ type Definitions struct {
 func ParseJSONDefinitions(file string) (Definitions, error) {
 	var definitions Definitions
 
-	data, err := ioutil.ReadFile(file)
+	data, err := os.ReadFile(file)
 	if err != nil {
 		return definitions, err
 	}

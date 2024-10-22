@@ -27,7 +27,7 @@ def gazelle_generation_test(name, gazelle_binary, test_data, build_in_suffix = "
     ```
     |-- <testDataPath>
         |-- some_test
-            |-- WORKSPACE
+            |-- WORKSPACE and/or MODULE.bazel -> Indicates the directory is a test case.
             |-- README.md --> README describing what the test does.
             |-- arguments.txt --> newline delimited list of arguments to pass in (ignored if empty).
             |-- expectedStdout.txt --> Expected stdout for this test.

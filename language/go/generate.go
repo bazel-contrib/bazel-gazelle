@@ -329,11 +329,36 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 			}
 		}
 
+		var genGoProtoRules []string
+		for _, r := range rules {
+			if r.Kind() == "go_proto_library" {
+				genGoProtoRules = append(genGoProtoRules, r.Name())
+			}
+		}
+
 		// Generate Go rules.
 		if protoName == "" {
 			// Empty proto rules for deletion.
 			_, rs := g.generateProto(pcMode, []protoTarget{pkg.proto}, pkg.importPath)
-			rules = append(rules, rs...)
+
+			// Do not generate empty rule if already created above
+			found := false
+			for _, r := range rs {
+				if r.Kind() == "go_proto_library" {
+					for _, pr := range genGoProtoRules {
+						if pr == r.Name() {
+							found = true
+							break
+						}
+					}
+					if found {
+						break
+					}
+				}
+			}
+			if !found {
+				rules = append(rules, rs...)
+			}
 		}
 		lib := g.generateLib(pkg, protoEmbeds)
 		var libName string
