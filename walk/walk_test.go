@@ -167,7 +167,7 @@ func TestCustomBuildName(t *testing.T) {
 		}
 	})
 	want := []string{
-		"sub/BUILD.test",
+		"sub/BUILD.bazel",
 		"BUILD.bazel",
 	}
 	if diff := cmp.Diff(want, rels); diff != "" {
