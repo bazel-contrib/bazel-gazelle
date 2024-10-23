@@ -129,10 +129,10 @@ func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode,
 		log.Fatalf("error walking the file system: %v\n", err)
 	}
 
-	visit(c, cexts, knownDirectives, updateRels, trie, wf, "", false)
+	visit(c, cexts, knownDirectives, updateRels, trie, wf, nil, "", false)
 }
 
-func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, rel string, updateParent bool) {
+func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, relParts []string, rel string, updateParent bool) {
 	haveError := false
 
 	ents := make([]fs.DirEntry, 0, len(trie.children))
@@ -161,9 +161,22 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 	c = configure(cexts, knownDirectives, c, rel, f)
 	wc := getWalkConfig(c)
 
+	// Collect gitignore files in this directory.
+	if _, hasIgnore := trie.children[".gitignore"]; hasIgnore {
+		ignoreFilePath := path.Join(c.RepoRoot, rel, ".gitignore")
+		if ignoreReader, ignoreErr := os.Open(ignoreFilePath); ignoreErr == nil {
+			defer ignoreReader.Close()
+			wc.loadGitIgnore(rel, ignoreReader)
+		}
+	}
+
 	if wc.isExcluded(rel) {
 		return
 	}
+
+	// Append an additional element to the relParts array to allow swapping the trailing entry
+	// in each iteration of the loop below.
+	entParts := append(relParts, ".")
 
 	var subdirs, regularFiles []string
 	for _, ent := range ents {
@@ -172,6 +185,14 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		if wc.isExcluded(entRel) {
 			continue
 		}
+
+		entParts[len(entParts)-1] = base
+
+		// Skip git-ignored when the gitignore option is enabled.
+		if wc.isGitIgnored(entParts, ent.IsDir()) {
+			continue
+		}
+
 		ent := resolveFileInfo(wc, dir, entRel, ent)
 		switch {
 		case ent == nil:
@@ -186,7 +207,10 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 	shouldUpdate := updateRels.shouldUpdate(rel, updateParent)
 	for _, sub := range subdirs {
 		if subRel := path.Join(rel, sub); updateRels.shouldVisit(subRel, shouldUpdate) {
-			visit(c, cexts, knownDirectives, updateRels, trie.children[sub], wf, subRel, shouldUpdate)
+			// Create a new slice to allow the nested 'visit' call to modify the slice without affecting the parent.
+			subParts := append(relParts, sub)
+
+			visit(c, cexts, knownDirectives, updateRels, trie.children[sub], wf, subParts, subRel, shouldUpdate)
 		}
 	}
 

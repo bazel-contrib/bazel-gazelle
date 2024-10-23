@@ -1,0 +1,7 @@
+# ! prefixed comments should override ignores from parent configs
+!file1
+
+
+# ! prefixed comments should override ignores preceding them in the same file
+reincluded
+!reincluded

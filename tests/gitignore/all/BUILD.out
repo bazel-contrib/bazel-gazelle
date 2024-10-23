@@ -1,0 +1,6 @@
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [],
+    visibility = ["//visibility:public"],
+)
