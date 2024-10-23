@@ -24,8 +24,6 @@ import (
 	bzl "github.com/bazelbuild/buildtools/build"
 )
 
-type IsMergeable = func(r *Rule, attr string) bool
-
 // MergeRules copies information from src into dst, usually discarding
 // information in dst when they have the same attributes.
 //
@@ -43,14 +41,17 @@ type IsMergeable = func(r *Rule, attr string) bool
 // marked with a "# keep" comment, values in the attribute not marked with
 // a "# keep" comment will be dropped. If the attribute is empty afterward,
 // it will be deleted.
-func MergeRules(src, dst *Rule, isMergeable, isManaged IsMergeable, filename string) {
+//
+// If src has an attribute not present in 'mergeable' and not marked with a
+// "# keep" comment, values in the dist attribute will be overwritten.
+func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 	if dst.ShouldKeep() {
 		return
 	}
 
 	// Process attributes that are in dst but not in src.
 	for key, dstAttr := range dst.attrs {
-		if _, ok := src.attrs[key]; ok || !isMergeable(src, key) || ShouldKeep(dstAttr.expr) {
+		if _, ok := src.attrs[key]; ok || !mergeable[key] || ShouldKeep(dstAttr.expr) {
 			continue
 		}
 		if mergedValue, err := mergeAttrValues(nil, &dstAttr); err != nil {
@@ -72,12 +73,12 @@ func MergeRules(src, dst *Rule, isMergeable, isManaged IsMergeable, filename str
 			continue
 		}
 
-		// Do not override attributes marked with "# keep".
+		// Do not overwrite attributes marked with "# keep".
 		if ShouldKeep(dstAttr.expr) {
 			continue
 		}
 
-		if isMergeable(src, key) {
+		if attrMergeable, attrKnown := mergeable[key]; attrMergeable {
 			// Merge mergeable attributes.
 			if mergedValue, err := mergeAttrValues(&srcAttr, &dstAttr); err != nil {
 				start, end := dstAttr.expr.RHS.Span()
@@ -87,7 +88,7 @@ func MergeRules(src, dst *Rule, isMergeable, isManaged IsMergeable, filename str
 			} else {
 				dst.SetAttr(key, mergedValue)
 			}
-		} else if !isManaged(src, key) {
+		} else if !attrKnown {
 			// Overwrite unknown attributes.
 			dst.SetAttr(key, srcAttr.expr.RHS)
 		}
