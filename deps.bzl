@@ -64,6 +64,13 @@ def gazelle_dependencies(
         sha256 = "26d4021f6898e23b82ef953078389dd49ac2b5618ac564ade4ef87cced147b38",
     )
 
+    _maybe(
+        http_archive,
+        name = "rules_shell",
+        sha256 = "410e8ff32e018b9efd2743507e7595c26e2628567c42224411ff533b57d27c28",
+        strip_prefix = "rules_shell-0.2.0",
+        url = "https://github.com/bazelbuild/rules_shell/releases/download/v0.2.0/rules_shell-v0.2.0.tar.gz",
+    )
     if go_sdk:
         go_repository_cache(
             name = "bazel_gazelle_go_repository_cache",
