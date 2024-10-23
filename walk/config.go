@@ -33,14 +33,27 @@ import (
 	gzflag "github.com/bazelbuild/bazel-gazelle/flag"
 )
 
+// GenerationModeType represents one of the generation modes.
+type GenerationModeType string
+
+// Generation modes
+const (
+	// Update: update and maintain existing BUILD files
+	GenerationModeUpdate GenerationModeType = "update"
+
+	// Create: create new and update existing BUILD files
+	GenerationModeCreate GenerationModeType = "create"
+)
+
 // TODO(#472): store location information to validate each exclude. They
 // may be set in one directory and used in another. Excludes work on
 // declared generated files, so we can't just stat.
 
 type walkConfig struct {
-	excludes []string
-	ignore   bool
-	follow   []string
+	updateOnly bool
+	excludes   []string
+	ignore     bool
+	follow     []string
 }
 
 const walkName = "_walk"
@@ -70,7 +83,7 @@ func (*Configurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config)
 func (*Configurer) CheckFlags(fs *flag.FlagSet, c *config.Config) error { return nil }
 
 func (*Configurer) KnownDirectives() []string {
-	return []string{"exclude", "follow", "ignore"}
+	return []string{"generation_mode", "exclude", "follow", "ignore"}
 }
 
 func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
@@ -82,6 +95,8 @@ func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
 	if f != nil {
 		for _, d := range f.Directives {
 			switch d.Key {
+			case "generation_mode":
+				wcCopy.updateOnly = GenerationModeType(strings.TrimSpace(d.Value)) == GenerationModeUpdate
 			case "exclude":
 				if err := checkPathMatchPattern(path.Join(rel, d.Value)); err != nil {
 					log.Printf("the exclusion pattern is not valid %q: %s", path.Join(rel, d.Value), err)
