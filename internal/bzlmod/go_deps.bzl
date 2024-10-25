@@ -584,6 +584,7 @@ def _go_deps_impl(module_ctx):
 
     for path, root_version in root_versions.items():
         resolved_version = module_resolutions[path].version
+
         # Do not report version mismatches for overridden Bazel modules.
         if resolved_version != _HIGHEST_VERSION_SENTINEL and semver.to_comparable(root_version) < resolved_version:
             outdated_direct_dep_printer(
