@@ -534,17 +534,23 @@ Update io_bazel_rules_go to a newer version in your WORKSPACE file.`
 		repoNamingConvention := map[string]namingConvention{}
 		for _, repo := range c.Repos {
 			if repo.Kind() == "go_repository" {
+				var name string
+				if apparentName := c.ModuleToApparentName(repo.AttrString("module_name")); apparentName != "" {
+					name = apparentName
+				} else {
+					name = repo.Name()
+				}
 				if attr := repo.AttrString("build_naming_convention"); attr == "" {
 					// No naming convention specified.
 					// go_repsitory uses importAliasNamingConvention by default, so we
 					// could use whichever name.
 					// resolveExternal should take that as a signal to follow the current
 					// naming convention to avoid churn.
-					repoNamingConvention[repo.Name()] = importAliasNamingConvention
+					repoNamingConvention[name] = importAliasNamingConvention
 				} else if nc, err := namingConventionFromString(attr); err != nil {
-					log.Printf("in go_repository named %q: %v", repo.Name(), err)
+					log.Printf("in go_repository named %q: %v", name, err)
 				} else {
-					repoNamingConvention[repo.Name()] = nc
+					repoNamingConvention[name] = nc
 				}
 			}
 		}
