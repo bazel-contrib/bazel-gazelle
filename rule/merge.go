@@ -42,8 +42,9 @@ import (
 // a "# keep" comment will be dropped. If the attribute is empty afterward,
 // it will be deleted.
 //
-// If src has an attribute not present in 'mergeable' and not marked with a
-// "# keep" comment, values in the dst attribute will be overwritten.
+// If src has an attribute not present in 'mergeable' and the attribute
+// does not exist or is not marked with a "# keep" comment, values in the
+// dst attribute will be overwritten.
 func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 	if dst.ShouldKeep() {
 		return
