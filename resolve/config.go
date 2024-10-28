@@ -65,7 +65,7 @@ func (o regexpOverrideSpec) matches(imp ImportSpec, lang string) bool {
 
 func (o regexpOverrideSpec) resolveRegexpDep(imp ImportSpec) label.Label {
 	// If NumSubexp() returns 0, then there are no captures in the regex,
-	// therefor the ReplaceAllString() call above would likely generate
+	// therefore the ReplaceAllString() call above would likely generate
 	// an invalid label.
 	if o.ImpRegex.NumSubexp() == 0 {
 	    return o.dep
