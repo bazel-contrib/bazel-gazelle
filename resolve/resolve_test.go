@@ -30,6 +30,10 @@ func TestFindRuleWithOverride_ParentTraversal(t *testing.T) {
 		{Key: "resolve_regexp", Value: "go ^github.com/foo/(.*)/(.*)$ @com_example//$1/bar_sub_dir/$2:replacement"},
 	}, rootCfg)
 
+	nonCapturedRegexpCfg := getConfig(t, "", []rule.Directive{
+		{Key: "resolve_regexp", Value: "py github.com/\\.* @com_example//regexp:no_replacement"},
+	}, nil)
+
 	tests := []struct {
 		name      string
 		cfg       *config.Config
@@ -103,13 +107,21 @@ func TestFindRuleWithOverride_ParentTraversal(t *testing.T) {
 			wantFound:  true,
 		},
 		{
-			name:       "Target resolves to label populated by multipe captured regexp",
+			name:       "Target resolves to label populated by multiple captured regexp",
 			cfg:        multipleExpDualResolveRegexpCfg,
 			importSpec: ImportSpec{Lang: "go", Imp: "github.com/foo/foo_package/baz"},
 			lang:       "go",
 			want:       getTestLabel(t, "@com_example//foo_package/bar_sub_dir/baz:replacement"),
 			wantFound:  true,
-		}, 
+		},
+		{
+			name:       "Target resolves to label populated by the configuration with no captured regex",
+			cfg:        nonCapturedRegexpCfg,
+			importSpec: ImportSpec{Lang: "py", Imp: "github.com/root/repo"},
+			lang:       "py",
+			want:       getTestLabel(t, "@com_example//regexp:no_replacement"),
+			wantFound:  true,
+		},
 	}
 
 	for _, tt := range tests {
