@@ -59,11 +59,19 @@ func testConfig(t *testing.T, args ...string) (*config.Config, []language.Langua
 	return c, langs, cexts
 }
 
+func newTagSet(tags ...string) tagSet {
+	ts := make(tagSet)
+	for _, t := range tags {
+		ts[t] = struct{}{}
+	}
+	return ts
+}
+
 var expectedBuildTags = []tagSet{
-	{"gc": true},
-	{"gc": true, "foo": true},
-	{"gc": true, "bar": true},
-	{"gc": true, "foo": true, "bar": true},
+	newTagSet("gc"),
+	newTagSet("gc", "foo"),
+	newTagSet("gc", "bar"),
+	newTagSet("gc", "foo", "bar"),
 }
 
 func TestCommandLine(t *testing.T) {

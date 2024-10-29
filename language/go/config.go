@@ -41,10 +41,10 @@ import (
 
 var minimumRulesGoVersion = version.Version{0, 29, 0}
 
-type tagSet map[string]bool
+type tagSet map[string]struct{}
 
 func (ts tagSet) clone() tagSet {
-	c := make(tagSet)
+	c := make(tagSet, len(ts))
 	for k, v := range ts {
 		c[k] = v
 	}
@@ -189,7 +189,7 @@ func newGoConfig() *goConfig {
 		goGrpcCompilers:  defaultGoGrpcCompilers,
 		goGenerateProto:  true,
 		genericTags: []tagSet{
-			{"gc": true},
+			{"gc": struct{}{}},
 		},
 	}
 	return gc
@@ -224,7 +224,7 @@ func (gc *goConfig) setBuildTags(tags string) error {
 		var newSets []tagSet
 		for _, ts := range gc.genericTags {
 			c := ts.clone()
-			c[t] = true
+			c[t] = struct{}{}
 			newSets = append(newSets, c)
 		}
 		gc.genericTags = append(gc.genericTags, newSets...)

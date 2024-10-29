@@ -587,7 +587,8 @@ func checkConstraints(c *config.Config, os, arch, osSuffix, archSuffix string, t
 			return arch == tag
 		}
 
-		return ts[tag]
+		_, ok := ts[tag]
+		return ok
 	}
 
 	for _, ts := range goConf.genericTags {
