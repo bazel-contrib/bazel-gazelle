@@ -23,7 +23,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -398,12 +397,6 @@ func walkDir(root, rel string, eg *errgroup.Group, limitCh chan struct{}, isIgno
 	if err != nil {
 		return err
 	}
-
-	// Sort trie entries once before processing to ensure
-	// a consistent order of traversal and deterministic output.
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Name() < entries[j].Name()
-	})
 
 	for _, entry := range entries {
 		entryName := entry.Name()
