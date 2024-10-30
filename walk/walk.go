@@ -168,9 +168,10 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		}
 	}
 
+	shouldUpdate := updateRels.shouldUpdate(rel, updateParent)
+
 	// Filter and collect subdirectories
 	var subdirs []string
-	var subdirTries []*pathTrie
 	for _, t := range trie.children {
 		base := t.entry.Name()
 		entRel := path.Join(rel, base)
@@ -179,14 +180,10 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		}
 		if ent := resolveFileInfo(wc, dir, entRel, t.entry); ent != nil {
 			subdirs = append(subdirs, base)
-			subdirTries = append(subdirTries, t)
-		}
-	}
 
-	shouldUpdate := updateRels.shouldUpdate(rel, updateParent)
-	for i, sub := range subdirs {
-		if subRel := path.Join(rel, sub); updateRels.shouldVisit(subRel, shouldUpdate) {
-			visit(c, cexts, knownDirectives, updateRels, subdirTries[i], wf, subRel, shouldUpdate)
+			if updateRels.shouldVisit(entRel, shouldUpdate) {
+				visit(c, cexts, knownDirectives, updateRels, t, wf, entRel, shouldUpdate)
+			}
 		}
 	}
 
