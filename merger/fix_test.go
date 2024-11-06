@@ -30,7 +30,8 @@ func TestFixLoads(t *testing.T) {
 		{
 			Name: "@bar",
 			Symbols: []string{
-				"magic",
+				"magic_macro",
+				"magic_struct",
 			},
 		},
 		{
@@ -81,7 +82,7 @@ foo_library(name = "a_lib")
 `,
 		},
 		"correct with macro": {
-			input: `load("@bar", "magic")
+			input: `load("@bar", "magic_macro")
 load("@foo", "foo_binary", "foo_library")
 
 foo_binary(name = "a")
@@ -90,11 +91,11 @@ foo_library(
 	name = "a_lib",
 	deps = [
 		"//a/b:c",
-		magic("baz"),
+		magic_macro("baz"),
 	],
 )
 		`,
-			want: `load("@bar", "magic")
+			want: `load("@bar", "magic_macro")
 load("@foo", "foo_binary", "foo_library")
 
 foo_binary(name = "a")
@@ -103,7 +104,7 @@ foo_library(
     name = "a_lib",
     deps = [
         "//a/b:c",
-        magic("baz"),
+        magic_macro("baz"),
     ],
 )
 `,
@@ -117,11 +118,11 @@ foo_library(
     name = "a_lib",
     deps = [
         "//a/b:c",
-        magic("baz"),
+        magic_macro("baz"),
     ],
 )
 `,
-			want: `load("@bar", "magic")
+			want: `load("@bar", "magic_macro")
 load("@foo", "foo_binary", "foo_library")
 
 foo_binary(name = "a")
@@ -130,13 +131,13 @@ foo_library(
     name = "a_lib",
     deps = [
         "//a/b:c",
-        magic("baz"),
+        magic_macro("baz"),
     ],
 )
 `,
 		},
 		"unused macro": {
-			input: `load("@bar", "magic")
+			input: `load("@bar", "magic_macro")
 			load("@foo", "foo_binary")
 
 foo_binary(name = "a")
@@ -218,6 +219,21 @@ selects.config_setting_group(
         "//:config_a",
         "//:config_b",
     ],
+)
+`,
+		},
+		"struct member": {
+			input: `foo_binary(
+    name = "a",
+    field = magic_struct.member,
+)
+`,
+			want: `load("@bar", "magic_struct")
+load("@foo", "foo_binary")
+
+foo_binary(
+    name = "a",
+    field = magic_struct.member,
 )
 `,
 		},

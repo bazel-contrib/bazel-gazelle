@@ -60,30 +60,36 @@ func FixLoads(f *rule.File, knownLoads []rule.LoadInfo) {
 	// Make a map of all the symbols from known files used in this file.
 	usedSymbols := make(map[string]map[string]bool)
 	bzl.Walk(f.File, func(x bzl.Expr, stk []bzl.Expr) {
-		ce, ok := x.(*bzl.CallExpr)
-		if !ok {
-			return
-		}
+		var idents []*bzl.Ident
 
-		var functionIdent *bzl.Ident
-
-		d, ok := ce.X.(*bzl.DotExpr)
-		if ok {
-			functionIdent, ok = d.X.(*bzl.Ident)
-		} else {
-			functionIdent, ok = ce.X.(*bzl.Ident)
-		}
-
-		if !ok {
-			return
-		}
-
-		idents := []*bzl.Ident{functionIdent}
-
-		for _, arg := range ce.List {
-			if argIdent, ok := arg.(*bzl.Ident); ok {
-				idents = append(idents, argIdent)
+		if ce, ok := x.(*bzl.CallExpr); ok {
+			if d, ok := ce.X.(*bzl.DotExpr); ok {
+				if functionIdent, ok := d.X.(*bzl.Ident); ok {
+					idents = append(idents, functionIdent)
+				} else {
+					return
+				}
+			} else {
+				if functionIdent, ok := ce.X.(*bzl.Ident); ok {
+					idents = append(idents, functionIdent)
+				} else {
+					return
+				}
 			}
+
+			for _, arg := range ce.List {
+				if argIdent, ok := arg.(*bzl.Ident); ok {
+					idents = append(idents, argIdent)
+				}
+			}
+		} else if d, ok := x.(*bzl.DotExpr); ok {
+			if id, ok := d.X.(*bzl.Ident); ok {
+				idents = append(idents, id)
+			} else {
+				return
+			}
+		} else {
+			return
 		}
 
 		for _, id := range idents {
