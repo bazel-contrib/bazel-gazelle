@@ -39,8 +39,8 @@ gazelle_binary(
 )
 
 go_cross_binary(
-    name = "gazelle_local_go1.18",
-    sdk_version = "1.18",
+    name = "gazelle_local_go1.19",
+    sdk_version = "1.19",
     target = ":gazelle_local",
 )
 
