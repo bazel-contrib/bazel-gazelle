@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazelbuild/bazel-gazelle/internal/mapkind"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
 	"github.com/bazelbuild/bazel-gazelle/merger"
@@ -87,6 +88,11 @@ func TestGenerateRules(t *testing.T) {
 	}
 	var testsFound int
 	walk.Walk(c, cexts, []string{testdataDir}, walk.VisitAllUpdateSubdirsMode, func(dir, rel string, c *config.Config, update bool, oldFile *rule.File, subdirs, regularFiles, genFiles []string) {
+		// Ignore testdata root dir
+		if rel == "" {
+			return
+		}
+
 		t.Run(rel, func(t *testing.T) {
 			var empty, gen []*rule.Rule
 			for _, lang := range langs {
@@ -117,12 +123,16 @@ func TestGenerateRules(t *testing.T) {
 				return
 			}
 			testsFound += 1
+			mappedResult, err := mapkind.ApplyOnRules(c, nil, oldFile, gen, empty)
+			if err != nil {
+				t.Fatalf("error applying mapped kinds: %v", err)
+			}
 			f := rule.EmptyFile("test", "")
 			for _, r := range gen {
 				r.Insert(f)
 			}
 			convertImportsAttrs(f)
-			merger.FixLoads(f, loads)
+			merger.FixLoads(f, mappedResult.ApplyOnLoads(loads))
 			f.Sync()
 			got := string(bzl.Format(f.File))
 			wantPath := filepath.Join(dir, "BUILD.want")

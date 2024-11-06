@@ -1,0 +1,1 @@
+# gazelle:map_kind proto_library     my_proto_library    //my/proto:defs.bzl

@@ -1,0 +1,5 @@
+# gazelle:map_kind go_binary         my_go_binary        //my/go:defs.bzl
+# gazelle:map_kind go_library        my_go_library       //my/go:defs.bzl
+# gazelle:map_kind go_test           my_go_test          //my/go:defs.bzl
+# gazelle:map_kind proto_library     my_proto_library    //my/proto:defs.bzl
+# gazelle:map_kind go_proto_library  my_go_proto_library //my/proto:defs.bzl

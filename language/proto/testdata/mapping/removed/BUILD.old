@@ -1,0 +1,8 @@
+load("//my/proto:defs.bzl", "my_proto_library")
+
+my_proto_library(
+    name = "removed_proto",
+    srcs = ["foo.proto"],
+    _gazelle_imports = [],
+    visibility = ["//visibility:public"],
+)

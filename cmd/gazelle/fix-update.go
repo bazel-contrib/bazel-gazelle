@@ -28,10 +28,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/bazelbuild/buildtools/build"
-
 	"github.com/bazelbuild/bazel-gazelle/config"
 	gzflag "github.com/bazelbuild/bazel-gazelle/flag"
+	"github.com/bazelbuild/bazel-gazelle/internal/mapkind"
 	"github.com/bazelbuild/bazel-gazelle/internal/wspace"
 	"github.com/bazelbuild/bazel-gazelle/label"
 	"github.com/bazelbuild/bazel-gazelle/language"
@@ -245,9 +244,8 @@ type visitRecord struct {
 	// file is the build file being processed.
 	file *rule.File
 
-	// mappedKinds are mapped kinds used during this visit.
-	mappedKinds    []config.MappedKind
-	mappedKindInfo map[string]rule.KindInfo
+	// mappedResult contains all mapped kinds and kindInfos used during this visit.
+	mappedResult *mapkind.MappedResult
 }
 
 var genericLoads = []rule.LoadInfo{
@@ -275,13 +273,13 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 	}
 
 	mrslv := newMetaResolver()
-	kinds := make(map[string]rule.KindInfo)
+	kindInfos := make(map[string]rule.KindInfo)
 	loads := genericLoads
 	exts := make([]interface{}, 0, len(languages))
 	for _, lang := range languages {
 		for kind, info := range lang.Kinds() {
 			mrslv.AddBuiltin(kind, lang)
-			kinds[kind] = info
+			kindInfos[kind] = info
 		}
 		if moduleAwareLang, ok := lang.(language.ModuleAwareLanguage); ok {
 			loads = append(loads, moduleAwareLang.ApparentLoads(c.ModuleToApparentName)...)
@@ -362,68 +360,14 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 			return
 		}
 
-		// Apply and record relevant kind mappings.
-		var (
-			mappedKinds    []config.MappedKind
-			mappedKindInfo = make(map[string]rule.KindInfo)
-		)
-		// We apply map_kind to all rules, including pre-existing ones.
-		var allRules []*rule.Rule
-		allRules = append(allRules, gen...)
-		if f != nil {
-			allRules = append(allRules, f.Rules...)
+		// Apply map_kind to all rules including pre-existing rules, and record relevant kind mappings.
+		mappedResult, err := mapkind.ApplyOnRules(c, kindInfos, f, gen, empty)
+		if err != nil {
+			errorsFromWalk = append(errorsFromWalk, fmt.Errorf("error applying mapped kinds: %v", err))
 		}
 
-		maybeRecordReplacement := func(ruleKind string) (*string, error) {
-			var repl *config.MappedKind
-			repl, err = lookupMapKindReplacement(c.KindMap, ruleKind)
-			if err != nil {
-				return nil, err
-			}
-			if repl != nil {
-				mappedKindInfo[repl.KindName] = kinds[ruleKind]
-				mappedKinds = append(mappedKinds, *repl)
-				mrslv.MappedKind(rel, *repl)
-				return &repl.KindName, nil
-			}
-			return nil, nil
-		}
-
-		for _, r := range allRules {
-			if replacementName, err := maybeRecordReplacement(r.Kind()); err != nil {
-				errorsFromWalk = append(errorsFromWalk, fmt.Errorf("looking up mapped kind: %w", err))
-			} else if replacementName != nil {
-				r.SetKind(*replacementName)
-			}
-
-			for i, arg := range r.Args() {
-				// Only check the first arg - this supports the maybe(java_library, ...) pattern,
-				// but avoids potential false positives from other uses of symbols.
-				if i != 0 {
-					break
-				}
-				if ident, ok := arg.(*build.Ident); ok {
-					// Don't allow re-mapping symbols that aren't known loads of a plugin.
-					if _, knownKind := kinds[ident.Name]; !knownKind {
-						continue
-					}
-					if replacementName, err := maybeRecordReplacement(ident.Name); err != nil {
-						errorsFromWalk = append(errorsFromWalk, fmt.Errorf("looking up mapped kind: %w", err))
-					} else if replacementName != nil {
-						if err := r.UpdateArg(i, &build.Ident{Name: *replacementName}); err != nil {
-							log.Panicf("%s: %v", rel, err)
-						}
-					}
-				}
-			}
-		}
-		for _, r := range empty {
-			if repl, ok := c.KindMap[r.Kind()]; ok {
-				mappedKindInfo[repl.KindName] = kinds[r.Kind()]
-				mappedKinds = append(mappedKinds, repl)
-				mrslv.MappedKind(rel, repl)
-				r.SetKind(repl.KindName)
-			}
+		for _, mappedKind := range mappedResult.MappedKinds {
+			mrslv.MappedKind(rel, mappedKind)
 		}
 
 		// Insert or merge rules into the build file.
@@ -433,18 +377,16 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 				r.Insert(f)
 			}
 		} else {
-			merger.MergeFile(f, empty, gen, merger.PreResolve,
-				unionKindInfoMaps(kinds, mappedKindInfo))
+			merger.MergeFile(f, empty, gen, merger.PreResolve, mappedResult.Kinds)
 		}
 		visits = append(visits, visitRecord{
-			pkgRel:         rel,
-			c:              c,
-			rules:          gen,
-			imports:        imports,
-			empty:          empty,
-			file:           f,
-			mappedKinds:    mappedKinds,
-			mappedKindInfo: mappedKindInfo,
+			pkgRel:       rel,
+			c:            c,
+			rules:        gen,
+			imports:      imports,
+			empty:        empty,
+			file:         f,
+			mappedResult: mappedResult,
 		})
 
 		// Add library rules to the dependency resolution table.
@@ -494,8 +436,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 				rslv.Resolve(v.c, ruleIndex, rc, r, v.imports[i], from)
 			}
 		}
-		merger.MergeFile(v.file, v.empty, v.rules, merger.PostResolve,
-			unionKindInfoMaps(kinds, v.mappedKindInfo))
+		merger.MergeFile(v.file, v.empty, v.rules, merger.PostResolve, v.mappedResult.Kinds)
 	}
 	for _, lang := range languages {
 		if life, ok := lang.(language.LifecycleManager); ok {
@@ -506,7 +447,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 	// Emit merged files.
 	var exit error
 	for _, v := range visits {
-		merger.FixLoads(v.file, applyKindMappings(v.mappedKinds, loads))
+		merger.FixLoads(v.file, v.mappedResult.ApplyOnLoads(loads))
 		if err := uc.emit(v.c, v.file); err != nil {
 			if err == errExit {
 				exit = err
@@ -522,37 +463,6 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 	}
 
 	return exit
-}
-
-// lookupMapKindReplacement finds a mapped replacement for rule kind `kind`, resolving transitively.
-// i.e. if go_library is mapped to custom_go_library, and custom_go_library is mapped to other_go_library,
-// looking up go_library will return other_go_library.
-// It returns an error on a loop, and may return nil if no remapping should be performed.
-func lookupMapKindReplacement(kindMap map[string]config.MappedKind, kind string) (*config.MappedKind, error) {
-	var mapped *config.MappedKind
-	seenKinds := make(map[string]struct{})
-	seenKindPath := []string{kind}
-	for {
-		replacement, ok := kindMap[kind]
-		if !ok {
-			break
-		}
-
-		seenKindPath = append(seenKindPath, replacement.KindName)
-		if _, alreadySeen := seenKinds[replacement.KindName]; alreadySeen {
-			return nil, fmt.Errorf("found loop of map_kind replacements: %s", strings.Join(seenKindPath, " -> "))
-		}
-
-		seenKinds[replacement.KindName] = struct{}{}
-		mapped = &replacement
-		if kind == replacement.KindName {
-			break
-		}
-
-		kind = replacement.KindName
-	}
-
-	return mapped, nil
 }
 
 func newFixUpdateConfiguration(wd string, cmd command, args []string, cexts []config.Configurer) (*config.Config, error) {
@@ -744,54 +654,6 @@ func maybePopulateRemoteCacheFromGoMod(c *config.Config, rc *repo.RemoteCache) e
 	}
 
 	return rc.PopulateFromGoMod(goModPath)
-}
-
-func unionKindInfoMaps(a, b map[string]rule.KindInfo) map[string]rule.KindInfo {
-	if len(a) == 0 {
-		return b
-	}
-	if len(b) == 0 {
-		return a
-	}
-	result := make(map[string]rule.KindInfo, len(a)+len(b))
-	for _, m := range []map[string]rule.KindInfo{a, b} {
-		for k, v := range m {
-			result[k] = v
-		}
-	}
-	return result
-}
-
-// applyKindMappings returns a copy of LoadInfo that includes c.KindMap.
-func applyKindMappings(mappedKinds []config.MappedKind, loads []rule.LoadInfo) []rule.LoadInfo {
-	if len(mappedKinds) == 0 {
-		return loads
-	}
-
-	// Add new RuleInfos or replace existing ones with merged ones.
-	mappedLoads := make([]rule.LoadInfo, len(loads))
-	copy(mappedLoads, loads)
-	for _, mappedKind := range mappedKinds {
-		mappedLoads = appendOrMergeKindMapping(mappedLoads, mappedKind)
-	}
-	return mappedLoads
-}
-
-// appendOrMergeKindMapping adds LoadInfo for the given replacement.
-func appendOrMergeKindMapping(mappedLoads []rule.LoadInfo, mappedKind config.MappedKind) []rule.LoadInfo {
-	// If mappedKind.KindLoad already exists in the list, create a merged copy.
-	for i, load := range mappedLoads {
-		if load.Name == mappedKind.KindLoad {
-			mappedLoads[i].Symbols = append(load.Symbols, mappedKind.KindName)
-			return mappedLoads
-		}
-	}
-
-	// Add a new LoadInfo.
-	return append(mappedLoads, rule.LoadInfo{
-		Name:    mappedKind.KindLoad,
-		Symbols: []string{mappedKind.KindName},
-	})
 }
 
 func isDirErr(err error) bool {

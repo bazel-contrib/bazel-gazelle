@@ -1,0 +1,53 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "mapkind",
+    srcs = [
+        "apply.go",
+        "result.go",
+        "rules_iterator.go",
+        "rules_iterator_compat.go",
+    ],
+    importpath = "github.com/bazelbuild/bazel-gazelle/internal/mapkind",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//config",
+        "//rule",
+        "@com_github_bazelbuild_buildtools//build",
+    ],
+)
+
+alias(
+    name = "go_default_library",
+    actual = ":mapkind",
+    visibility = ["//:__subpackages__"],
+)
+
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "apply.go",
+        "apply_test.go",
+        "result.go",
+        "result_test.go",
+        "rules_iterator.go",
+        "rules_iterator_compat.go",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "mapkind_test",
+    srcs = [
+        "apply_test.go",
+        "result_test.go",
+    ],
+    embed = [":mapkind"],
+    deps = [
+        "//config",
+        "//rule",
+        "@com_github_google_go_cmp//cmp",
+    ],
+)

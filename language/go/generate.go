@@ -47,7 +47,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	protoPackages := make(map[string]proto.Package)
 	protoFileInfo := make(map[string]proto.FileInfo)
 	for _, r := range args.OtherGen {
-		if r.Kind() == "go_proto_library" {
+		if isRuleKind(c, r, "go_proto_library") {
 			if proto := r.AttrString("proto"); proto != "" {
 				goProtoRules[proto] = struct{}{}
 			}
@@ -58,7 +58,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 			}
 
 		}
-		if r.Kind() != "proto_library" {
+		if !isRuleKind(c, r, "proto_library") {
 			continue
 		}
 		pkg := r.PrivateAttr(proto.PackageKey).(proto.Package)
@@ -71,7 +71,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	sort.Strings(protoRuleNames)
 	var emptyProtoRuleNames []string
 	for _, r := range args.OtherEmpty {
-		if r.Kind() == "proto_library" {
+		if isRuleKind(c, r, "proto_library") {
 			emptyProtoRuleNames = append(emptyProtoRuleNames, r.Name())
 		}
 	}
@@ -234,7 +234,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 			protoEmbed, rs = g.generateProto(pcMode, protoTargets, importPath)
 			if protoEmbed != "" {
 				// check if rs is non-empty and that the first rule is a go_proto_library with the same importPath
-				if len(rs) > 0 && rs[0].Kind() == "go_proto_library" && rs[0].AttrString("importpath") == pkg.importPath {
+				if len(rs) > 0 && isRuleKind(c, rs[0], "go_proto_library") && rs[0].AttrString("importpath") == pkg.importPath {
 					protoEmbeds = append(protoEmbeds, protoEmbed)
 				}
 			}
@@ -259,7 +259,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 				protoEmbed, rs = g.generateProto(pcMode, []protoTarget{pkg.proto}, pkg.importPath)
 				if protoEmbed != "" {
 					// check if rs is non-empty and that the first rule is a go_proto_library with the same importPath
-					if len(rs) > 0 && rs[0].Kind() == "go_proto_library" && rs[0].AttrString("importpath") == pkg.importPath {
+					if len(rs) > 0 && isRuleKind(c, rs[0], "go_proto_library") && rs[0].AttrString("importpath") == pkg.importPath {
 						protoEmbeds = append(protoEmbeds, protoEmbed)
 					}
 				}

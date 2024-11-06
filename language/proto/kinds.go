@@ -18,6 +18,7 @@ package proto
 import (
 	"fmt"
 
+	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
@@ -53,4 +54,23 @@ func (*protoLang) ApparentLoads(moduleToApparentName func(string) string) []rule
 			},
 		},
 	}
+}
+
+func isRuleKind(c *config.Config, r *rule.Rule, expectedKind string) bool {
+	kind := r.Kind()
+	if kind == expectedKind {
+		return true
+	}
+
+	if c == nil {
+		return false
+	}
+
+	if mappedKind, ok := c.KindMap[expectedKind]; ok {
+		if mappedKind.KindName == kind {
+			return true
+		}
+	}
+
+	return false
 }

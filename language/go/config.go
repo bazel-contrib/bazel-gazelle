@@ -793,7 +793,7 @@ func detectNamingConvention(c *config.Config, rootFile *rule.File) namingConvent
 				// kind of go library. The old version of go_proto_library used this
 				// name, and it's possible with map_kind as well.
 				return goDefaultLibraryNamingConvention
-			} else if isGoLibrary(kind) && name == path.Base(r.AttrString("importpath")) {
+			} else if isGoLibrary(c, r) && name == path.Base(r.AttrString("importpath")) {
 				return importNamingConvention
 			}
 		}
