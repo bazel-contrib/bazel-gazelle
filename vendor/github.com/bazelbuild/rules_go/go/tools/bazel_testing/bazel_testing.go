@@ -77,6 +77,10 @@ type Args struct {
 	// NogoExcludes is the list of targets to include for Nogo linting.
 	NogoExcludes []string
 
+	// WorkspacePrefix is a string that should be inserted at the beginning
+	// of the default generated WORKSPACE file.
+	WorkspacePrefix string
+
 	// WorkspaceSuffix is a string that should be appended to the end
 	// of the default generated WORKSPACE file.
 	WorkspaceSuffix string
@@ -90,7 +94,7 @@ type Args struct {
 	// workspace. It is executed once and only once before the beginning of
 	// all tests. If SetUp returns a non-nil error, execution is halted and
 	// tests cases are not executed.
-	SetUp func() error
+	SetUp           func() error
 }
 
 // debug may be set to make the test print the test workspace path and stop
@@ -135,7 +139,7 @@ func TestMain(m *testing.M, args Args) {
 	workspaceDir, cleanup, err := setupWorkspace(args, files)
 	defer func() {
 		if err := cleanup(); err != nil {
-			fmt.Fprintf(os.Stderr, "cleanup error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "cleanup warning: %v\n", err)
 			// Don't fail the test on a cleanup error.
 			// Some operating systems (windows, maybe also darwin) can't reliably
 			// delete executable files after they're run.
@@ -175,13 +179,10 @@ func TestMain(m *testing.M, args Args) {
 // hide that this code is executing inside a bazel test.
 func BazelCmd(args ...string) *exec.Cmd {
 	cmd := exec.Command("bazel")
-	if outputUserRoot != "" {
-		cmd.Args = append(cmd.Args,
-			"--output_user_root="+outputUserRoot,
-			"--nosystem_rc",
-			"--nohome_rc",
-		)
-	}
+	// --nosystem_rc isn't used here because Bazel may need essential flags set in
+	// system rc to be able to work correctly
+	// See https://github.com/bazelbuild/rules_go/pull/3969#issuecomment-2220405416
+	cmd.Args = append(cmd.Args, "--nohome_rc")
 	cmd.Args = append(cmd.Args, args...)
 	for _, e := range os.Environ() {
 		// Filter environment variables set by the bazel test wrapper script.
@@ -291,7 +292,11 @@ func setupWorkspace(args Args, files []string) (dir string, cleanup func() error
 		tmpDir = filepath.Clean(tmpDir)
 		if i := strings.Index(tmpDir, string(os.PathSeparator)+"execroot"+string(os.PathSeparator)); i >= 0 {
 			outBaseDir = tmpDir[:i]
-			outputUserRoot = filepath.Dir(outBaseDir)
+			if dir, err := filepath.Abs(filepath.Dir(outBaseDir)); err == nil {
+				// Use forward slashes, even on Windows. Bazel's rc file parser
+				// reports an error if there are backslashes.
+				outputUserRoot = strings.ReplaceAll(dir, `\`, `/`)
+			}
 			cacheDir = filepath.Join(outBaseDir, "bazel_testing")
 		} else {
 			cacheDir = filepath.Join(tmpDir, "bazel_testing")
@@ -318,14 +323,18 @@ func setupWorkspace(args Args, files []string) (dir string, cleanup func() error
 		return "", cleanup, err
 	}
 
-	// Create a .bazelrc file if GO_BAZEL_TEST_BAZELFLAGS is set.
+	// Create a .bazelrc file with the contents of GO_BAZEL_TEST_BAZELFLAGS is set.
 	// The test can override this with its own .bazelrc or with flags in commands.
+	bazelrcPath := filepath.Join(mainDir, ".bazelrc")
+	bazelrcBuf := &bytes.Buffer{}
+	if outputUserRoot != "" {
+		fmt.Fprintf(bazelrcBuf, "startup --output_user_root=%s\n", outputUserRoot)
+	}
 	if flags := os.Getenv("GO_BAZEL_TEST_BAZELFLAGS"); flags != "" {
-		bazelrcPath := filepath.Join(mainDir, ".bazelrc")
-		content := "build " + flags
-		if err := ioutil.WriteFile(bazelrcPath, []byte(content), 0666); err != nil {
-			return "", cleanup, err
-		}
+		fmt.Fprintf(bazelrcBuf, "build %s\n", flags)
+	}
+	if err := os.WriteFile(bazelrcPath, bazelrcBuf.Bytes(), 0666); err != nil {
+		return "", cleanup, err
 	}
 
 	// Extract test files for the main workspace.
@@ -407,6 +416,7 @@ func setupWorkspace(args Args, files []string) (dir string, cleanup func() error
 			}
 		}()
 		info := workspaceTemplateInfo{
+			Prefix:       args.WorkspacePrefix,
 			Suffix:       args.WorkspaceSuffix,
 			Nogo:         args.Nogo,
 			NogoIncludes: args.NogoIncludes,
@@ -458,15 +468,6 @@ func setupWorkspace(args Args, files []string) (dir string, cleanup func() error
 		}
 		if err := defaultModuleBazelTpl.Execute(w, info); err != nil {
 			return "", cleanup, err
-		}
-
-		// Enable Bzlmod.
-		bazelrcPath := filepath.Join(mainDir, ".bazelrc")
-		if _, err = os.Stat(bazelrcPath); os.IsNotExist(err) {
-			err = os.WriteFile(bazelrcPath, []byte("common --enable_bzlmod"), 0666)
-			if err != nil {
-				return "", cleanup, err
-			}
 		}
 	}
 
@@ -536,6 +537,7 @@ type workspaceTemplateInfo struct {
 	Nogo           string
 	NogoIncludes   []string
 	NogoExcludes   []string
+	Prefix         string
 	Suffix         string
 }
 
@@ -546,6 +548,8 @@ local_repository(
     path = "../{{.}}",
 )
 {{end}}
+
+{{.Prefix}}
 
 {{if not .GoSDKPath}}
 load("@io_bazel_rules_go//go:deps.bzl", "go_rules_dependencies", "go_register_toolchains")
