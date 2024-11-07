@@ -63,7 +63,7 @@ go_sdk_dev = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk", de
 go_sdk_dev.download(version = "1.23.3")
 
 # Used by compatibility tests, keep as low as possible.
-go_sdk_dev.download(version = "1.20.14")
+go_sdk_dev.download(version = "1.21.13")
 
 # Known to exist since it is instantiated by rules_go itself.
 use_repo(

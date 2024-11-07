@@ -1,6 +1,6 @@
 module github.com/bazelbuild/bazel-gazelle/tests/bcr/go_work/test_dep
 
-go 1.21.5
+go 1.23.3
 
 require github.com/stretchr/testify v1.8.4
 

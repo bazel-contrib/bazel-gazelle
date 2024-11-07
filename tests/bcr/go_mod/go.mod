@@ -1,7 +1,7 @@
 // This will stop go mod from descending into this directory.
 module github.com/bazelbuild/bazel-gazelle/tests/bcr/go_mod
 
-go 1.23.2
+go 1.23.3
 
 // Validate go.mod replace directives can be properly used:
 replace github.com/bmatcuk/doublestar/v4 => github.com/bmatcuk/doublestar/v4 v4.7.1

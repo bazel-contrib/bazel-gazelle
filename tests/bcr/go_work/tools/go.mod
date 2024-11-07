@@ -1,6 +1,6 @@
 module github.com/bazelbuild/bazel-gazelle/tests/bcr/go_work/tools
 
-go 1.21.0
+go 1.23.3
 
 require (
 	github.com/99designs/gqlgen v0.17.40

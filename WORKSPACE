@@ -49,11 +49,13 @@ go_register_nogo(
     nogo = "@bazel_gazelle//:nogo",
 )
 
+# Go 1.21 is needed to support the toolchain directive in go.mod, which is non-hermetically read
+# by GoToolchainBinaryBuild on Windows.
 # Go 1.20 is needed so support nogo's use of token.File.FileStart.
 # Go 1.19 is needed for recent versions of golang.org/x/tools.
 go_download_sdk(
     name = "go_compat_sdk",
-    version = "1.20.14",
+    version = "1.21.13",
 )
 
 load("//:deps.bzl", "gazelle_dependencies")

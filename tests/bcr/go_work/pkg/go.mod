@@ -1,6 +1,6 @@
 module github.com/bazelbuild/bazel-gazelle/tests/bcr/go_work/pkg
 
-go 1.21.5
+go 1.23.3
 
 require (
 	example.org/hello v0.0.0-00010101000000-000000000000
