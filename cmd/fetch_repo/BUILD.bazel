@@ -26,10 +26,10 @@ go_binary(
     visibility = ["//visibility:public"],
 )
 
-# Verify that fetch_repo builds with Go 1.21.
+# Verify that fetch_repo builds with Go 1.22.
 go_cross_binary(
-    name = "fetch_repo_go1.21",
-    sdk_version = "1.21",
+    name = "fetch_repo_go1.22",
+    sdk_version = "1.22",
     target = ":fetch_repo",
 )
 
