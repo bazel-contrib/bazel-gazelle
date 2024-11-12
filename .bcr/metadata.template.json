@@ -1,5 +1,5 @@
 {
-  "homepage": "https://github.com/bazelbuild/bazel-gazelle",
+  "homepage": "https://github.com/bazel-contrib/bazel-gazelle",
   "maintainers": [
     {
       "email": "fabian@meumertzhe.im",
@@ -18,7 +18,7 @@
     }
   ],
   "repository": [
-      "github:bazelbuild/bazel-gazelle"
+      "github:bazel-contrib/bazel-gazelle"
   ],
   "versions": [],
   "yanked_versions": {}
