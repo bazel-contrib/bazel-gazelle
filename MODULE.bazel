@@ -1,7 +1,8 @@
 module(
     name = "gazelle",
+    # Updated by the Publish to BCR app.
+    version = "",
     repo_name = "bazel_gazelle",
-    # version is set by the Publish to BCR app.
 )
 
 bazel_dep(name = "bazel_features", version = "1.9.1")
