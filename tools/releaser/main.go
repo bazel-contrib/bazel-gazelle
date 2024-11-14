@@ -92,7 +92,6 @@ This utility is intended to handle many of the steps to release a new version.
 		cmd  string
 		args []string
 	}{
-		{cmd: "go", args: []string{"get", "-t", "-u", "./..."}},
 		{cmd: "go", args: append([]string{"mod", "tidy"}, goVersionArgs...)},
 		{cmd: "go", args: []string{"mod", "vendor"}},
 		{cmd: "find", args: []string{"vendor", "-name", "BUILD.bazel", "-delete"}},
