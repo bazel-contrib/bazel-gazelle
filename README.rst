@@ -881,6 +881,24 @@ The following directives are recognized:
 |                                                                                            |
 | Existing rules of the old kind will be ignored. To switch your codebase from a builtin     |
 | kind to a mapped kind, use `buildozer`_.                                                   |
++------------------------------------------------------------+-------------------------------+
+| :direc:`# gazelle:macro macro_name wraps wrapped_rule`     | n/a                           |
++------------------------------------------------------------+-------------------------------+
+| Denotes that a macro wraps a given rule.                                                   |
+|                                                                                            |
+| If you have a wrapper macro around a rule that gazelle knows how to update the attrs for,  |
+| the macro directive will instruct gazelle that it should match generated rules to the      |
+| macro.                                                                                     |
+|                                                                                            |
+| This is different from the `map_kind` directive in that it does not change the kind of the |
+| rule, but just instructs gazelle that it should index and update the attrs for rules that  |
+| match the macro.                                                                           |
+|                                                                                            |
+| If you have macros that further wrap your map_kind rules, you can use the macro directive  |
+| to ensure that gazelle will still update their ``deps``.                                   |
+|                                                                                            |
+| For example, you could use ``gazelle:macro foo_go_binary wraps go_binary`` to tell gazelle |
+| that ``foo_go_binary`` is a macro that wraps ``go_binary`` rules.                          |
 +---------------------------------------------------+----------------------------------------+
 | :direc:`# gazelle:prefix path`                    | n/a                                    |
 +---------------------------------------------------+----------------------------------------+

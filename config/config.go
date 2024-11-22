@@ -91,6 +91,12 @@ type Config struct {
 	// # gazelle:map_kind.
 	KindMap map[string]MappedKind
 
+	// WrapperMap maps a wrapper macro name to the kind of rule that it wraps.
+	// It provides a way for users to define custom macros that generate rules
+	// that are understood by gazelle, while still allowing gazelle to update
+	// the attrs for the macro calls. Configured via # gazelle:macro.
+	WrapperMap map[string]string
+
 	// Repos is a list of repository rules declared in the main WORKSPACE file
 	// or in macros called by the main WORKSPACE file. This may affect rule
 	// generation and dependency resolution.
@@ -266,7 +272,7 @@ func (cc *CommonConfigurer) CheckFlags(fs *flag.FlagSet, c *Config) error {
 }
 
 func (cc *CommonConfigurer) KnownDirectives() []string {
-	return []string{"build_file_name", "map_kind", "lang"}
+	return []string{"build_file_name", "map_kind", "macro", "lang"}
 }
 
 func (cc *CommonConfigurer) Configure(c *Config, rel string, f *rule.File) {
@@ -292,6 +298,21 @@ func (cc *CommonConfigurer) Configure(c *Config, rel string, f *rule.File) {
 				KindName: vals[1],
 				KindLoad: vals[2],
 			}
+
+		case "macro":
+			vals := strings.Fields(d.Value)
+			if len(vals) != 3 {
+				log.Printf("expected two arguments (gazelle:macro macro_name wraps wrapped_kind), got %v", vals)
+				continue
+			}
+			if vals[1] != "wraps" {
+				log.Printf("expected 'wraps' as second arg to gazelle:macro directive, got %q", vals[1])
+			}
+
+			if c.WrapperMap == nil {
+				c.WrapperMap = make(map[string]string)
+			}
+			c.WrapperMap[vals[0]] = vals[2]
 
 		case "lang":
 			if len(d.Value) > 0 {
