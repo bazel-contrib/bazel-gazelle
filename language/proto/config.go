@@ -49,6 +49,10 @@ type ProtoConfig struct {
 	// files into proto_library rules. If unset, the proto package name is used.
 	groupOption string
 
+	// fileIncludeOption is an option name that Gazelle will use to include
+	// additional .proto files into proto_library rules in file mode.
+	fileIncludeOption string
+
 	// StripImportPrefix The prefix to strip from the paths of the .proto files.
 	// If set, Gazelle will apply this value to the strip_import_prefix attribute
 	// within the proto_library_rule.
@@ -201,7 +205,7 @@ func (*protoLang) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
 }
 
 func (*protoLang) KnownDirectives() []string {
-	return []string{"proto", "proto_group", "proto_strip_import_prefix", "proto_import_prefix"}
+	return []string{"proto", "proto_group", "proto_file_include", "proto_strip_import_prefix", "proto_import_prefix"}
 }
 
 func (*protoLang) Configure(c *config.Config, rel string, f *rule.File) {
@@ -221,6 +225,8 @@ func (*protoLang) Configure(c *config.Config, rel string, f *rule.File) {
 				pc.ModeExplicit = true
 			case "proto_group":
 				pc.groupOption = d.Value
+			case "proto_file_include":
+				pc.fileIncludeOption = d.Value
 			case "proto_strip_import_prefix":
 				pc.StripImportPrefix = d.Value
 				if err := checkStripImportPrefix(pc.StripImportPrefix, rel); err != nil {
