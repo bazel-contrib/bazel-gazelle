@@ -1,0 +1,26 @@
+diff --git BUILD.bazel BUILD.bazel
+index 6aa29a3..155129f 100644
+--- BUILD.bazel
++++ BUILD.bazel
+@@ -3,3 +3,9 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
++filegroup(
++    name = "common",
++    srcs = ["alloc.h", "api.h", "array.h"],
++    visibility = [":__subpackages__"],
++)
++
+ go_library(
+     name = "go-tree-sitter",
+     srcs = [
+diff --git python/BUILD.bazel python/BUILD.bazel
+index 04c7312..b184ac8 100644
+--- python/BUILD.bazel
++++ python/BUILD.bazel
+@@ -3,6 +3,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+ go_library(
+     name = "python",
+     srcs = [
++        "//:common",
+         "binding.go",
+         "parser.c",
+         "parser.h",

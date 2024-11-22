@@ -18,6 +18,7 @@ load(
     "DEFAULT_BUILD_EXTRA_ARGS_BY_PATH",
     "DEFAULT_BUILD_FILE_GENERATION_BY_PATH",
     "DEFAULT_DIRECTIVES_BY_PATH",
+    "DEFAULT_PATCHES_BY_PATH",
 )
 load(":go_mod.bzl", "deps_from_go_mod", "go_work_from_label", "sums_from_go_mod", "sums_from_go_work")
 load(":semver.bzl", "COMPARES_HIGHEST_SENTINEL", "semver")
@@ -157,7 +158,7 @@ def _get_build_extra_args(path, gazelle_overrides, gazelle_default_attributes):
     return _get_override_or_default(gazelle_overrides, gazelle_default_attributes, DEFAULT_BUILD_EXTRA_ARGS_BY_PATH, path, [], "build_extra_args")
 
 def _get_patches(path, module_overrides):
-    return _get_override_or_default(module_overrides, struct(), {}, path, [], "patches")
+    return _get_override_or_default(module_overrides, struct(), DEFAULT_PATCHES_BY_PATH, path, [], "patches")
 
 def _get_patch_args(path, module_overrides):
     override = _get_override_or_default(module_overrides, struct(), {}, path, None, "patch_strip")

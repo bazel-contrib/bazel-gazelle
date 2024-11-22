@@ -359,6 +359,7 @@ def _go_repository_impl(ctx):
             print("%s gazelle.stderr: %s" % (ctx.name, result.stderr))
 
     # Apply patches if necessary.
+    print("bazel_gazelle/go_repository: applying patches. name=%s, patches=%s" % (ctx.attr.name, ctx.attr.patches))
     patch(ctx)
 
     if generate:

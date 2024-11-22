@@ -125,3 +125,9 @@ DEFAULT_BUILD_EXTRA_ARGS_BY_PATH = {
         "-exclude=arith_s390x_test.go",
     ],
 }
+
+DEFAULT_PATCHES_BY_PATH = {
+    "github.com/smacker/go-tree-sitter": [
+        "//third_party:com_github_smacker_go_tree_sitter/build.patch",
+    ],
+}
