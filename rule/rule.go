@@ -305,7 +305,7 @@ func (f *File) MacroName() string {
 // called after editing operations, before reading the syntax tree again.
 func (f *File) Sync() {
 	var loadInserts, loadDeletes, loadStmts []*stmt
-	var r, w int
+	var r, w, maxIndex int
 	for r, w = 0, 0; r < len(f.Loads); r++ {
 		s := f.Loads[r]
 		s.sync()
@@ -313,6 +313,14 @@ func (f *File) Sync() {
 			loadDeletes = append(loadDeletes, &s.stmt)
 			continue
 		}
+
+		// We keep track of the maxIndex of a non-deleted load
+		// so we can insert a Rule{kind:"package"} in the required
+		// location in the logic below.
+		if s.index > maxIndex {
+			maxIndex = s.index
+		}
+
 		if s.inserted {
 			loadInserts = append(loadInserts, &s.stmt)
 			s.inserted = false
@@ -327,6 +335,22 @@ func (f *File) Sync() {
 	for r, w = 0, 0; r < len(f.Rules); r++ {
 		s := f.Rules[r]
 		s.sync()
+
+		// the package() rule is special in that it is REQUIRED to occur
+		// after all load()s and before any other rules. Therefore we
+		// manually update the index of any Rule{kind:"package"} we
+		// find to the index of the last load(). This is safe because
+		// "statements at the same index will occur in order" and rules
+		// always occur after load()s in the call to updateStmt below.
+		// Also note that we skip deleted rules because the logic in
+		// updateStmt implements delete by skipping the existing statement
+		// at the index of rule.index. Therefore, we cannot manipulate
+		// rule.index of deleted without resulting in an unintended
+		// statement's deletion.
+		if s.Kind() == "package" && !s.deleted {
+			s.index = maxIndex
+		}
+
 		if s.deleted {
 			ruleDeletes = append(ruleDeletes, &s.stmt)
 			continue
