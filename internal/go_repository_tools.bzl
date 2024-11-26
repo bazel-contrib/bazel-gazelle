@@ -54,8 +54,6 @@ def _go_repository_tools_impl(ctx):
         "GO111MODULE": "off",
         # workaround: avoid the Go SDK paths from leaking into the binary
         "GOROOT_FINAL": "GOROOT",
-        # workaround: avoid cgo paths in /tmp leaking into binary
-        "CGO_ENABLED": "0",
     })
 
     if "PATH" in ctx.os.environ:
