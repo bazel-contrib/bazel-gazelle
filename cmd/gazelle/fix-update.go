@@ -138,7 +138,11 @@ func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) erro
 		uc.dirs[i] = dir
 	}
 
-	if ucr.recursive && c.IndexLibraries {
+	if ucr.recursive && c.LazyIndex {
+		uc.walkMode = walk.UpdateSubdirsMode
+	} else if c.LazyIndex {
+		uc.walkMode = walk.UpdateDirsMode
+	} else if ucr.recursive && c.IndexLibraries {
 		uc.walkMode = walk.VisitAllUpdateSubdirsMode
 	} else if c.IndexLibraries {
 		uc.walkMode = walk.VisitAllUpdateDirsMode
@@ -242,6 +246,8 @@ type visitRecord struct {
 	// empty is a list of empty Go rules that may be deleted.
 	empty []*rule.Rule
 
+	toIndex map[string]struct{}
+
 	// file is the build file being processed.
 	file *rule.File
 
@@ -313,8 +319,11 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		}
 	}()
 
+	visitedPkgs := make(map[string]struct{})
+
 	var errorsFromWalk []error
 	walk.Walk(c, cexts, uc.dirs, uc.walkMode, func(dir, rel string, c *config.Config, update bool, f *rule.File, subdirs, regularFiles, genFiles []string) {
+		visitedPkgs[rel] = struct{}{}
 		// If this file is ignored or if Gazelle was not asked to update this
 		// directory, just index the build file and move on.
 		if !update {
@@ -339,6 +348,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		// Generate rules.
 		var empty, gen []*rule.Rule
 		var imports []interface{}
+		toIndex := map[string]struct{}{}
 		for _, l := range filterLanguages(c, languages) {
 			res := l.GenerateRules(language.GenerateArgs{
 				Config:       c,
@@ -357,6 +367,9 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 			empty = append(empty, res.Empty...)
 			gen = append(gen, res.Gen...)
 			imports = append(imports, res.Imports...)
+			for _, pkg := range res.PackagesToIndex {
+				toIndex[pkg] = struct{}{}
+			}
 		}
 		if f == nil && len(gen) == 0 {
 			return
@@ -441,6 +454,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 			c:              c,
 			rules:          gen,
 			imports:        imports,
+			toIndex:        toIndex,
 			empty:          empty,
 			file:           f,
 			mappedKinds:    mappedKinds,
@@ -472,6 +486,35 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		}
 
 		return fmt.Errorf("encountered multiple errors: %w, %v", errorsFromWalk[0], strings.Join(additionalErrors, ", "))
+	}
+
+	// Index the directories that we were asked to index
+	if c.LazyIndex {
+		allToIndex := map[string]interface{}{}
+		for _, v := range visits {
+			for pkg := range v.toIndex {
+				if _, ok := visitedPkgs[pkg]; !ok {
+					allToIndex[pkg] = struct{}{}
+				}
+			}
+		}
+
+		dirsToWalk := make([]string, 0, len(allToIndex))
+		for pkg := range allToIndex {
+			// TODO: Maybe want to do a similar EvalSymlinks logic that is done
+			// in CheckFlags to convert args to filepaths.
+			dirsToWalk = append(dirsToWalk, filepath.Join(c.WorkDir, pkg))
+		}
+		walk.Walk(c, cexts, dirsToWalk, walk.UpdateDirsMode, func(dir, rel string, c *config.Config, update bool, f *rule.File, subdirs, regularFiles, genFiles []string) {
+			if f != nil {
+				for _, repl := range c.KindMap {
+					mrslv.MappedKind(rel, repl)
+				}
+				for _, r := range f.Rules {
+					ruleIndex.AddRule(c, r, f)
+				}
+			}
+		})
 	}
 
 	// Finish building the index for dependency resolution.

@@ -27,6 +27,7 @@ limitations under the License.
 package config
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -85,6 +86,7 @@ type Config struct {
 	// IndexLibraries determines whether Gazelle should build an index of
 	// libraries in the workspace for dependency resolution
 	IndexLibraries bool
+	LazyIndex      bool
 
 	// KindMap maps from a kind name to its replacement. It provides a way for
 	// users to customize the kind of rules created by Gazelle, via
@@ -201,7 +203,7 @@ var _ Configurer = (*CommonConfigurer)(nil)
 // i.e., those that apply to Config itself and not to Config.Exts.
 type CommonConfigurer struct {
 	repoRoot, buildFileNames, readBuildFilesDir, writeBuildFilesDir string
-	indexLibraries, strict                                          bool
+	indexLibraries, strict, lazyIndex                               bool
 	langCsv                                                         string
 	bzlmod                                                          bool
 }
@@ -210,6 +212,7 @@ func (cc *CommonConfigurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *Confi
 	fs.StringVar(&cc.repoRoot, "repo_root", "", "path to a directory which corresponds to go_prefix, otherwise gazelle searches for it.")
 	fs.StringVar(&cc.buildFileNames, "build_file_name", strings.Join(DefaultValidBuildFileNames, ","), "comma-separated list of valid build file names.\nThe first element of the list is the name of output build files to generate.")
 	fs.BoolVar(&cc.indexLibraries, "index", true, "when true, gazelle will build an index of libraries in the workspace for dependency resolution")
+	fs.BoolVar(&cc.lazyIndex, "lazy_index", false, "when true, gazelle will lazily index")
 	fs.BoolVar(&cc.strict, "strict", false, "when true, gazelle will exit with none-zero value for build file syntax errors or unknown directives")
 	fs.StringVar(&cc.readBuildFilesDir, "experimental_read_build_files_dir", "", "path to a directory where build files should be read from (instead of -repo_root)")
 	fs.StringVar(&cc.writeBuildFilesDir, "experimental_write_build_files_dir", "", "path to a directory where build files should be written to (instead of -repo_root)")
@@ -252,7 +255,11 @@ func (cc *CommonConfigurer) CheckFlags(fs *flag.FlagSet, c *Config) error {
 			c.WriteBuildFilesDir = filepath.Join(c.WorkDir, cc.writeBuildFilesDir)
 		}
 	}
+	if cc.lazyIndex && !cc.indexLibraries {
+		return errors.New("Using -lazy_index requires -index=true")
+	}
 	c.IndexLibraries = cc.indexLibraries
+	c.LazyIndex = cc.lazyIndex
 	c.Strict = cc.strict
 	if len(cc.langCsv) > 0 {
 		c.Langs = strings.Split(cc.langCsv, ",")
