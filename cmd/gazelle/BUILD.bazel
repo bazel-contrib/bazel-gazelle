@@ -25,6 +25,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//config",
+        "//convention",
         "//flag",
         "//internal/wspace",
         "//label",

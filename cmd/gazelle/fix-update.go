@@ -35,6 +35,7 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/internal/wspace"
 	"github.com/bazelbuild/bazel-gazelle/label"
 	"github.com/bazelbuild/bazel-gazelle/language"
+	"github.com/bazelbuild/bazel-gazelle/convention"
 	"github.com/bazelbuild/bazel-gazelle/merger"
 	"github.com/bazelbuild/bazel-gazelle/repo"
 	"github.com/bazelbuild/bazel-gazelle/resolve"
@@ -55,6 +56,7 @@ type updateConfig struct {
 	patchBuffer    bytes.Buffer
 	print0         bool
 	profile        profiler
+	useConventions bool
 }
 
 type emitFunc func(c *config.Config, f *rule.File) error
@@ -90,6 +92,7 @@ func (ucr *updateConfigurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *conf
 
 	fs.StringVar(&ucr.mode, "mode", "fix", "print: prints all of the updated BUILD files\n\tfix: rewrites all of the BUILD files in place\n\tdiff: computes the rewrite but then just does a diff")
 	fs.BoolVar(&ucr.recursive, "r", true, "when true, gazelle will update subdirectories recursively")
+	fs.BoolVar(&uc.useConventions, "use_conventions", false, "when true, gazelle will enable convention checking in fix-update.")
 	fs.StringVar(&uc.patchPath, "patch", "", "when set with -mode=diff, gazelle will write to a file instead of stdout")
 	fs.BoolVar(&uc.print0, "print0", false, "when set with -mode=fix, gazelle will print the names of rewritten files separated with \\0 (NULL)")
 	fs.StringVar(&ucr.cpuProfile, "cpuprofile", "", "write cpu profile to `file`")
@@ -263,7 +266,8 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		&config.CommonConfigurer{},
 		&updateConfigurer{},
 		&walk.Configurer{},
-		&resolve.Configurer{})
+		&resolve.Configurer{},
+		&convention.Configurer{})
 
 	for _, lang := range languages {
 		cexts = append(cexts, lang)
@@ -313,6 +317,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		}
 	}()
 
+	conventionChecker := convention.NewChecker(c, uc.dirs, mrslv.Resolver, exts...)
 	var errorsFromWalk []error
 	walk.Walk(c, cexts, uc.dirs, uc.walkMode, func(dir, rel string, c *config.Config, update bool, f *rule.File, subdirs, regularFiles, genFiles []string) {
 		// If this file is ignored or if Gazelle was not asked to update this
@@ -321,9 +326,14 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 			for _, repl := range c.KindMap {
 				mrslv.MappedKind(rel, repl)
 			}
-			if c.IndexLibraries && f != nil {
+			if f != nil {
 				for _, r := range f.Rules {
-					ruleIndex.AddRule(c, r, f)
+					if c.IndexLibraries {
+						ruleIndex.AddRule(c, r, f)
+					}
+					if uc.useConventions {
+						conventionChecker.AddRule(c, r, f)
+					}
 				}
 			}
 			return
@@ -448,9 +458,12 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		})
 
 		// Add library rules to the dependency resolution table.
-		if c.IndexLibraries {
-			for _, r := range f.Rules {
+		for _, r := range f.Rules {
+			if c.IndexLibraries {
 				ruleIndex.AddRule(c, r, f)
+			}
+			if uc.useConventions {
+				conventionChecker.AddRule(c, r, f)
 			}
 		}
 	})
@@ -475,6 +488,9 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 	}
 
 	// Finish building the index for dependency resolution.
+	if uc.useConventions {
+		conventionChecker.Finish(c, ruleIndex)
+	}
 	ruleIndex.Finish()
 
 	// Resolve dependencies.
