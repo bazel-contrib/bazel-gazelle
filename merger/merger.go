@@ -106,7 +106,7 @@ const UnstableInsertIndexKey = "_gazelle_insert_index"
 // If an attribute is marked with a "# keep" comment, it will not be merged.
 // If a rule is marked with a "# keep" comment, the whole rule will not
 // be modified.
-func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phase, kinds map[string]rule.KindInfo) {
+func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phase, kinds map[string]rule.KindInfo, wrapperMacros map[string]string) {
 	getMergeAttrs := func(r *rule.Rule) map[string]bool {
 		if phase == PreResolve {
 			return kinds[r.Kind()].MergeableAttrs
@@ -117,7 +117,7 @@ func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phas
 
 	// Merge empty rules into the file and delete any rules which become empty.
 	for _, emptyRule := range emptyRules {
-		if oldRule, _ := match(oldFile.Rules, emptyRule, kinds[emptyRule.Kind()], false); oldRule != nil {
+		if oldRule, _ := match(oldFile.Rules, emptyRule, kinds[emptyRule.Kind()], false, wrapperMacros); oldRule != nil {
 			if oldRule.ShouldKeep() {
 				continue
 			}
@@ -135,7 +135,7 @@ func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phas
 	matchErrors := make([]error, len(genRules))
 	substitutions := make(map[string]string)
 	for i, genRule := range genRules {
-		oldRule, err := Match(oldFile.Rules, genRule, kinds[genRule.Kind()])
+		oldRule, err := Match(oldFile.Rules, genRule, kinds[genRule.Kind()], wrapperMacros)
 		if err != nil {
 			// TODO(jayconrod): add a verbose mode and log errors. They are too chatty
 			// to print by default.
@@ -210,11 +210,11 @@ func substituteRule(r *rule.Rule, substitutions map[string]string, info rule.Kin
 // the quality of the match (name match is best, then attribute match in the
 // order that attributes are listed). If disambiguation is successful,
 // the rule and nil are returned. Otherwise, nil and an error are returned.
-func Match(rules []*rule.Rule, x *rule.Rule, info rule.KindInfo) (*rule.Rule, error) {
-	return match(rules, x, info, true)
+func Match(rules []*rule.Rule, x *rule.Rule, info rule.KindInfo, wrapperMacros map[string]string) (*rule.Rule, error) {
+	return match(rules, x, info, true, wrapperMacros)
 }
 
-func match(rules []*rule.Rule, x *rule.Rule, info rule.KindInfo, wantError bool) (*rule.Rule, error) {
+func match(rules []*rule.Rule, x *rule.Rule, info rule.KindInfo, wantError bool, wrapperMacros map[string]string) (*rule.Rule, error) {
 	xname := x.Name()
 	xkind := x.Kind()
 	var nameMatches []*rule.Rule
@@ -225,11 +225,16 @@ func match(rules []*rule.Rule, x *rule.Rule, info rule.KindInfo, wantError bool)
 		}
 		if xkind == y.Kind() {
 			kindMatches = append(kindMatches, y)
+		} else if wrapperMacros[y.Kind()] == xkind {
+			kindMatches = append(kindMatches, y)
 		}
 	}
 
 	if len(nameMatches) == 1 {
 		y := nameMatches[0]
+		if wrapperMacros[y.Kind()] == xkind {
+			return y, nil
+		}
 		if xkind != y.Kind() {
 			if !wantError {
 				return nil, nil

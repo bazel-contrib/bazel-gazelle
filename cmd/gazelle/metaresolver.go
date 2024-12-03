@@ -30,12 +30,16 @@ type metaResolver struct {
 
 	// mappedKinds provides a list of replacements used by File.Pkg.
 	mappedKinds map[string][]config.MappedKind
+
+	// wrapperMacros provides a dict of configured wrapper macros for each package
+	wrapperMacros map[string]map[string]string
 }
 
 func newMetaResolver() *metaResolver {
 	return &metaResolver{
-		builtins:    make(map[string]resolve.Resolver),
-		mappedKinds: make(map[string][]config.MappedKind),
+		builtins:      make(map[string]resolve.Resolver),
+		mappedKinds:   make(map[string][]config.MappedKind),
+		wrapperMacros: make(map[string]map[string]string),
 	}
 }
 
@@ -50,12 +54,31 @@ func (mr *metaResolver) MappedKind(pkgRel string, kind config.MappedKind) {
 	mr.mappedKinds[pkgRel] = append(mr.mappedKinds[pkgRel], kind)
 }
 
+// WrapperMacros records the configured wrapper macros for a package
+func (mr *metaResolver) WrapperMacros(pkgRel string, wrapperMacros map[string]string) {
+	// Note: it is somewhat of a hack to store the wrapper macros in the metaResolver
+	// by each package. A more appropriate place for this would be to keep it in the
+	// config.Config struct. However, the config.Config struct is not available at
+	// all of the call sites where the Resolve method is called.
+	//
+	// For example, when the RuleIndex is finalizing and collecting information about
+	// embedded targets, it does this once across the entire index. 
+	mr.wrapperMacros[pkgRel] = wrapperMacros
+}
+
 // Resolver returns a resolver for the given rule and package, and a bool
 // indicating whether one was found. Empty string may be passed for pkgRel,
 // which results in consulting the builtin kinds only.
 func (mr *metaResolver) Resolver(r *rule.Rule, pkgRel string) resolve.Resolver {
+	ruleKind := r.Kind()
+	// if the kind is a wrapped macro, use the underlying macro kind for resolving
+	isWrappedMacro := false
+	if wrappedKind, ok := mr.wrapperMacros[pkgRel][ruleKind]; ok {
+		ruleKind = wrappedKind
+		isWrappedMacro = true
+	}
 	for _, mappedKind := range mr.mappedKinds[pkgRel] {
-		if mappedKind.KindName == r.Kind() {
+		if mappedKind.KindName == ruleKind {
 			fromKindResolver := mr.builtins[mappedKind.FromKind]
 			if fromKindResolver == nil {
 				return nil
@@ -66,7 +89,16 @@ func (mr *metaResolver) Resolver(r *rule.Rule, pkgRel string) resolve.Resolver {
 			}
 		}
 	}
-	return mr.builtins[r.Kind()]
+	if isWrappedMacro {
+		// if the kind is a wrapped macro, we need an inverseMapKindResolver
+		// to resolve the underlying macro kind
+		return inverseMapKindResolver{
+			fromKind: ruleKind,
+			delegate: mr.builtins[ruleKind],
+		}
+	}
+
+	return mr.builtins[ruleKind]
 }
 
 // inverseMapKindResolver applies an inverse of the map_kind
