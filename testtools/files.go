@@ -236,7 +236,7 @@ func TestGazelleGenerationOnPath(t *testing.T, args *TestGazelleGenerationArgs) 
 				return nil
 			}
 			if d.Name() == expectedExitCodeFilename {
-				config.ExitCode, err = strconv.Atoi(string(content))
+				config.ExitCode, err = strconv.Atoi(strings.TrimSpace(string(content)))
 				if err != nil {
 					// Set the ExitCode to a sentinel value (-1) to ensure that if the caller is updating the files on disk the value is updated.
 					config.ExitCode = -1
