@@ -701,6 +701,7 @@ func (g *generator) generateTests(pkg *goPackage, library string) []*rule.Rule {
 				continue
 			}
 		}
+
 		var embeds []string
 		if test.hasInternalTest {
 			if library != "" {
