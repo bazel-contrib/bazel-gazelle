@@ -22,6 +22,15 @@ import (
 )
 
 func cleanBuildFiles(path string) error {
+	filenamesToClean := []string{
+		"BUILD",
+		"BUILD.bazel",
+		"MODULE.bazel",
+		"MODULE.bazel.lock",
+		"WORKSPACE",
+		"WORKSPACE.bazel",
+		"WORKSPACE.bzlmod",
+	}
 	return filepath.Walk(*dest, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -29,8 +38,10 @@ func cleanBuildFiles(path string) error {
 		if info.IsDir() {
 			return nil
 		}
-		if info.Name() == "BUILD" || info.Name() == "BUILD.bazel" {
-			return os.Remove(path)
+		for _, filename := range filenamesToClean {
+			if info.Name() == filename {
+				return os.Remove(path)
+			}
 		}
 		return nil
 	})
