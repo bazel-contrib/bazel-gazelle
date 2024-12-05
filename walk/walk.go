@@ -131,6 +131,15 @@ func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode,
 	visit(c, cexts, knownDirectives, updateRels, trie, wf, "", false)
 }
 
+// Recursively traverse a trie to:
+//  1. configure (top-down)
+//  2. invoke the WalkFunc (bottom-up)
+//
+// Configuration includes building the config.Config for the directory
+// which is inherited by the child directories.
+//
+// Traversal may skip subtrees or files based on the config.Config exclude/ignore/follow options
+// as well as the UpdateFilter callbacks.
 func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, rel string, updateParent bool) {
 	haveError := false
 
@@ -148,7 +157,7 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		haveError = true
 	}
 
-	c = configure(cexts, knownDirectives, c, rel, f)
+	configure(cexts, knownDirectives, c, rel, f)
 	wc := getWalkConfig(c)
 
 	if wc.isExcluded(rel) {
@@ -182,7 +191,7 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 			subdirs = append(subdirs, base)
 
 			if updateRels.shouldVisit(entRel, shouldUpdate) {
-				visit(c, cexts, knownDirectives, updateRels, t, wf, entRel, shouldUpdate)
+				visit(c.Clone(), cexts, knownDirectives, updateRels, t, wf, entRel, shouldUpdate)
 			}
 		}
 	}
@@ -294,10 +303,7 @@ func loadBuildFile(c *config.Config, pkg, dir string, ents []fs.DirEntry) (*rule
 	return rule.LoadFile(path, pkg)
 }
 
-func configure(cexts []config.Configurer, knownDirectives map[string]bool, c *config.Config, rel string, f *rule.File) *config.Config {
-	if rel != "" {
-		c = c.Clone()
-	}
+func configure(cexts []config.Configurer, knownDirectives map[string]bool, c *config.Config, rel string, f *rule.File) {
 	if f != nil {
 		for _, d := range f.Directives {
 			if !knownDirectives[d.Key] {
@@ -313,7 +319,6 @@ func configure(cexts []config.Configurer, knownDirectives map[string]bool, c *co
 	for _, cext := range cexts {
 		cext.Configure(c, rel, f)
 	}
-	return c
 }
 
 func findGenFiles(wc *walkConfig, f *rule.File) []string {
