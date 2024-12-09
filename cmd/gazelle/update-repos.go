@@ -306,8 +306,8 @@ func updateRepos(wd string, args []string) (err error) {
 	for _, f := range sortedFiles {
 		// We don't need to pass any wrapper macros config into MergeFile because the update repos command does not support
 		// the '# gazelle:alias_kind MACRO KIND' directive.
-		emptyWrapperMacros := map[string]string{}
-		merger.MergeFile(f, emptyForFiles[f], genForFiles[f], merger.PreResolve, kinds, emptyWrapperMacros)
+		emptyWrapperMacros := nil
+		merger.MergeFile(f, emptyForFiles[f], genForFiles[f], merger.PreResolve, kinds, nil)
 		merger.FixLoads(f, loads)
 		if f == uc.workspace && !c.Bzlmod {
 			if err := merger.CheckGazelleLoaded(f); err != nil {
