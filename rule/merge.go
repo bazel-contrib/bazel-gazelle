@@ -102,31 +102,19 @@ func mergeAttrValues(srcAttr, dstAttr *attrValue) (bzl.Expr, error) {
 		return nil, nil
 	}
 	dst := dstAttr.expr.RHS
-	if srcAttr == nil && (dst == nil || isScalar(dst)) {
+	if srcAttr == nil {
 		return nil, nil
 	}
-	if srcAttr != nil && isScalar(srcAttr.expr.RHS) {
+	if isScalar(srcAttr.expr.RHS) {
 		return srcAttr.expr.RHS, nil
 	}
-
-	if _, ok := dstAttr.val.(Merger); srcAttr == nil && ok {
-		return nil, nil
+	if srcMerger, ok := srcAttr.val.(Merger); ok {
+		return srcMerger.Merge(dst), nil
 	}
-
-	if srcAttr != nil {
-		if srcMerger, ok := srcAttr.val.(Merger); ok {
-			return srcMerger.Merge(dst), nil
-		}
+	srcExprs, err := extractPlatformStringsExprs(srcAttr.expr.RHS)
+	if err != nil {
+		return nil, err
 	}
-	var srcExprs platformStringsExprs
-	var err error
-	if srcAttr != nil {
-		srcExprs, err = extractPlatformStringsExprs(srcAttr.expr.RHS)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	dstExprs, err := extractPlatformStringsExprs(dst)
 	if err != nil {
 		return nil, err
