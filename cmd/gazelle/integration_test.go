@@ -2476,13 +2476,13 @@ go_library(
 	})
 }
 
-func TestMacroWrapper(t *testing.T) {
+func TestAliasKind(t *testing.T) {
 	for name, tc := range map[string]struct {
 		before []testtools.FileSpec
 		after  []testtools.FileSpec
 		index  bool
 	}{
-		"existing wrapper macro with matching name has deps updated": {
+		"existing aliased kind with matching name has deps updated": {
 			index: false,
 			before: []testtools.FileSpec{
 				{
@@ -2491,7 +2491,7 @@ func TestMacroWrapper(t *testing.T) {
 				{
 					Path: "BUILD.bazel",
 					Content: `
-# gazelle:prefix example.com/mapkind
+# gazelle:prefix example.com/aliaskind
 # gazelle:go_naming_convention go_default_library
 # gazelle:alias_kind my_custom_macro go_library
 load("//custom:def.bzl", "my_custom_macro")
@@ -2499,7 +2499,7 @@ load("//custom:def.bzl", "my_custom_macro")
 my_custom_macro(
     name = "go_default_library",
     srcs = ["file.go"],
-    importpath = "example.com/mapkind",
+    importpath = "example.com/aliaskind",
     visibility = ["//visibility:public"],
 )
 `,
@@ -2507,10 +2507,10 @@ my_custom_macro(
 				{
 					Path:    "file.go",
 					Content: `
-package mapkind
+package aliaskind
 
 import (
-	_ "example.com/mapkind/foo"
+	_ "example.com/aliaskind/foo"
 	_ "github.com/external"
 )
 `,
@@ -2520,7 +2520,7 @@ import (
 				{
 					Path: "BUILD.bazel",
 					Content: `
-# gazelle:prefix example.com/mapkind
+# gazelle:prefix example.com/aliaskind
 # gazelle:go_naming_convention go_default_library
 # gazelle:alias_kind my_custom_macro go_library
 load("//custom:def.bzl", "my_custom_macro")
@@ -2528,7 +2528,7 @@ load("//custom:def.bzl", "my_custom_macro")
 my_custom_macro(
     name = "go_default_library",
     srcs = ["file.go"],
-    importpath = "example.com/mapkind",
+    importpath = "example.com/aliaskind",
     visibility = ["//visibility:public"],
     deps = [
         "//foo:go_default_library",
@@ -2539,7 +2539,7 @@ my_custom_macro(
 				},
 			},
 		},
-		"existing wrapper macro with different name has deps updated": {
+		"existing aliased kind with different name has deps updated": {
 			index: false,
 			before: []testtools.FileSpec{
 				{
@@ -2548,7 +2548,7 @@ my_custom_macro(
 				{
 					Path: "BUILD.bazel",
 					Content: `
-# gazelle:prefix example.com/mapkind
+# gazelle:prefix example.com/aliaskind
 # gazelle:go_naming_convention go_default_library
 # gazelle:alias_kind my_custom_macro go_library
 load("//custom:def.bzl", "my_custom_macro")
@@ -2556,7 +2556,7 @@ load("//custom:def.bzl", "my_custom_macro")
 my_custom_macro(
     name = "custom_lib",
     srcs = ["file.go"],
-    importpath = "example.com/mapkind",
+    importpath = "example.com/aliaskind",
     visibility = ["//visibility:public"],
 )
 `,
@@ -2564,10 +2564,10 @@ my_custom_macro(
 				{
 					Path:    "file.go",
 					Content: `
-package mapkind
+package aliaskind
 
 import (
-	_ "example.com/mapkind/foo"
+	_ "example.com/aliaskind/foo"
 	_ "github.com/external"
 )
 `,
@@ -2577,7 +2577,7 @@ import (
 				{
 					Path: "BUILD.bazel",
 					Content: `
-# gazelle:prefix example.com/mapkind
+# gazelle:prefix example.com/aliaskind
 # gazelle:go_naming_convention go_default_library
 # gazelle:alias_kind my_custom_macro go_library
 load("//custom:def.bzl", "my_custom_macro")
@@ -2585,7 +2585,7 @@ load("//custom:def.bzl", "my_custom_macro")
 my_custom_macro(
     name = "custom_lib",
     srcs = ["file.go"],
-    importpath = "example.com/mapkind",
+    importpath = "example.com/aliaskind",
     visibility = ["//visibility:public"],
     deps = [
         "//foo:go_default_library",
@@ -2596,7 +2596,7 @@ my_custom_macro(
 				},
 			},
 		},
-			"existing wrapper macro is indexed for deps": {
+			"existing aliased kind is indexed for deps": {
 				index: true,
 				before: []testtools.FileSpec{
 					{
@@ -2606,14 +2606,14 @@ my_custom_macro(
 						Path: "BUILD.bazel",
 						Content: `
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
-# gazelle:prefix example.com/mapkind
+# gazelle:prefix example.com/aliaskind
 # gazelle:go_naming_convention go_default_library
 # gazelle:alias_kind my_custom_macro go_library
 
 go_library(
     name = "go_default_library",
     srcs = ["file.go"],
-    importpath = "example.com/mapkind",
+    importpath = "example.com/aliaskind",
     visibility = ["//visibility:public"],
 )
 			`,
@@ -2621,10 +2621,10 @@ go_library(
 					{
 						Path:    "file.go",
 						Content: `
-package mapkind
+package aliaskind
 
 import (
-	_ "example.com/mapkind/foo"
+	_ "example.com/aliaskind/foo"
 	_ "github.com/external"
 )
 			`,
@@ -2637,7 +2637,7 @@ load("//custom:def.bzl", "my_custom_macro")
 my_custom_macro(
     name = "go_default_library",
     srcs = ["foo.go"],
-    importpath = "example.com/mapkind/foo",
+    importpath = "example.com/aliaskind/foo",
     visibility = ["//visibility:public"],
 )
 			`,
@@ -2652,14 +2652,14 @@ my_custom_macro(
 						Path: "BUILD.bazel",
 						Content: `
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
-# gazelle:prefix example.com/mapkind
+# gazelle:prefix example.com/aliaskind
 # gazelle:go_naming_convention go_default_library
 # gazelle:alias_kind my_custom_macro go_library
 
 go_library(
     name = "go_default_library",
     srcs = ["file.go"],
-    importpath = "example.com/mapkind",
+    importpath = "example.com/aliaskind",
     visibility = ["//visibility:public"],
     deps = [
         "//foo:go_default_library",
@@ -2670,7 +2670,7 @@ go_library(
 					},
 				},
 			},
-		"wrapper macro wraps a mapped_kind": {
+		"alias_kind around a mapped_kind": {
 			index: false,
 			before: []testtools.FileSpec{
 				{
@@ -2679,7 +2679,7 @@ go_library(
 				{
 					Path: "BUILD.bazel",
 					Content: `
-# gazelle:prefix example.com/mapkind
+# gazelle:prefix example.com/aliaskind
 # gazelle:go_naming_convention go_default_library
 # gazelle:map_kind go_library my_library //tools:go:def.bzl
 # gazelle:alias_kind my_custom_macro my_library
@@ -2688,7 +2688,7 @@ load("//custom:def.bzl", "my_custom_macro")
 my_custom_macro(
     name = "go_default_library",
     srcs = ["file.go"],
-    importpath = "example.com/mapkind",
+    importpath = "example.com/aliaskind",
     visibility = ["//visibility:public"],
 )
 `,
@@ -2696,10 +2696,10 @@ my_custom_macro(
 				{
 					Path:    "file.go",
 					Content: `
-package mapkind
+package aliaskind
 
 import (
-	_ "example.com/mapkind/foo"
+	_ "example.com/aliaskind/foo"
 	_ "github.com/external"
 )
 `,
@@ -2709,7 +2709,7 @@ import (
 				{
 					Path: "BUILD.bazel",
 					Content: `
-# gazelle:prefix example.com/mapkind
+# gazelle:prefix example.com/aliaskind
 # gazelle:go_naming_convention go_default_library
 # gazelle:map_kind go_library my_library //tools:go:def.bzl
 # gazelle:alias_kind my_custom_macro my_library
@@ -2718,7 +2718,7 @@ load("//custom:def.bzl", "my_custom_macro")
 my_custom_macro(
     name = "go_default_library",
     srcs = ["file.go"],
-    importpath = "example.com/mapkind",
+    importpath = "example.com/aliaskind",
     visibility = ["//visibility:public"],
     deps = [
         "//foo:go_default_library",
