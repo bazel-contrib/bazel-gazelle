@@ -2476,6 +2476,275 @@ go_library(
 	})
 }
 
+func TestAliasKind(t *testing.T) {
+	for name, tc := range map[string]struct {
+		before []testtools.FileSpec
+		after  []testtools.FileSpec
+		index  bool
+	}{
+		"existing aliased kind with matching name has deps updated": {
+			index: false,
+			before: []testtools.FileSpec{
+				{
+					Path: "WORKSPACE",
+				},
+				{
+					Path: "BUILD.bazel",
+					Content: `
+# gazelle:prefix example.com/aliaskind
+# gazelle:go_naming_convention go_default_library
+# gazelle:alias_kind my_custom_macro go_library
+load("//custom:def.bzl", "my_custom_macro")
+
+my_custom_macro(
+    name = "go_default_library",
+    srcs = ["file.go"],
+    importpath = "example.com/aliaskind",
+    visibility = ["//visibility:public"],
+)
+`,
+				},
+				{
+					Path:    "file.go",
+					Content: `
+package aliaskind
+
+import (
+	_ "example.com/aliaskind/foo"
+	_ "github.com/external"
+)
+`,
+				},
+			},
+			after: []testtools.FileSpec{
+				{
+					Path: "BUILD.bazel",
+					Content: `
+# gazelle:prefix example.com/aliaskind
+# gazelle:go_naming_convention go_default_library
+# gazelle:alias_kind my_custom_macro go_library
+load("//custom:def.bzl", "my_custom_macro")
+
+my_custom_macro(
+    name = "go_default_library",
+    srcs = ["file.go"],
+    importpath = "example.com/aliaskind",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//foo:go_default_library",
+        "//vendor/github.com/external:go_default_library",
+    ],
+)
+`,
+				},
+			},
+		},
+		"existing aliased kind with different name has deps updated": {
+			index: false,
+			before: []testtools.FileSpec{
+				{
+					Path: "WORKSPACE",
+				},
+				{
+					Path: "BUILD.bazel",
+					Content: `
+# gazelle:prefix example.com/aliaskind
+# gazelle:go_naming_convention go_default_library
+# gazelle:alias_kind my_custom_macro go_library
+load("//custom:def.bzl", "my_custom_macro")
+
+my_custom_macro(
+    name = "custom_lib",
+    srcs = ["file.go"],
+    importpath = "example.com/aliaskind",
+    visibility = ["//visibility:public"],
+)
+`,
+				},
+				{
+					Path:    "file.go",
+					Content: `
+package aliaskind
+
+import (
+	_ "example.com/aliaskind/foo"
+	_ "github.com/external"
+)
+`,
+				},
+			},
+			after: []testtools.FileSpec{
+				{
+					Path: "BUILD.bazel",
+					Content: `
+# gazelle:prefix example.com/aliaskind
+# gazelle:go_naming_convention go_default_library
+# gazelle:alias_kind my_custom_macro go_library
+load("//custom:def.bzl", "my_custom_macro")
+
+my_custom_macro(
+    name = "custom_lib",
+    srcs = ["file.go"],
+    importpath = "example.com/aliaskind",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//foo:go_default_library",
+        "//vendor/github.com/external:go_default_library",
+    ],
+)
+`,
+				},
+			},
+		},
+			"existing aliased kind is indexed for deps": {
+				index: true,
+				before: []testtools.FileSpec{
+					{
+						Path: "WORKSPACE",
+					},
+					{
+						Path: "BUILD.bazel",
+						Content: `
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+# gazelle:prefix example.com/aliaskind
+# gazelle:go_naming_convention go_default_library
+# gazelle:alias_kind my_custom_macro go_library
+
+go_library(
+    name = "go_default_library",
+    srcs = ["file.go"],
+    importpath = "example.com/aliaskind",
+    visibility = ["//visibility:public"],
+)
+			`,
+					},
+					{
+						Path:    "file.go",
+						Content: `
+package aliaskind
+
+import (
+	_ "example.com/aliaskind/foo"
+	_ "github.com/external"
+)
+			`,
+					},
+					{
+						Path: "foo/BUILD.bazel",
+						Content: `
+load("//custom:def.bzl", "my_custom_macro")
+
+my_custom_macro(
+    name = "go_default_library",
+    srcs = ["foo.go"],
+    importpath = "example.com/aliaskind/foo",
+    visibility = ["//visibility:public"],
+)
+			`,
+					},
+					{
+						Path:    "foo/foo.go",
+						Content: "package foo",
+					},
+				},
+				after: []testtools.FileSpec{
+					{
+						Path: "BUILD.bazel",
+						Content: `
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+# gazelle:prefix example.com/aliaskind
+# gazelle:go_naming_convention go_default_library
+# gazelle:alias_kind my_custom_macro go_library
+
+go_library(
+    name = "go_default_library",
+    srcs = ["file.go"],
+    importpath = "example.com/aliaskind",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//foo:go_default_library",
+        "//vendor/github.com/external:go_default_library",
+    ],
+)
+			`,
+					},
+				},
+			},
+		"alias_kind around a mapped_kind": {
+			index: false,
+			before: []testtools.FileSpec{
+				{
+					Path: "WORKSPACE",
+				},
+				{
+					Path: "BUILD.bazel",
+					Content: `
+# gazelle:prefix example.com/aliaskind
+# gazelle:go_naming_convention go_default_library
+# gazelle:map_kind go_library my_library //tools:go:def.bzl
+# gazelle:alias_kind my_custom_macro my_library
+load("//custom:def.bzl", "my_custom_macro")
+
+my_custom_macro(
+    name = "go_default_library",
+    srcs = ["file.go"],
+    importpath = "example.com/aliaskind",
+    visibility = ["//visibility:public"],
+)
+`,
+				},
+				{
+					Path:    "file.go",
+					Content: `
+package aliaskind
+
+import (
+	_ "example.com/aliaskind/foo"
+	_ "github.com/external"
+)
+`,
+				},
+			},
+			after: []testtools.FileSpec{
+				{
+					Path: "BUILD.bazel",
+					Content: `
+# gazelle:prefix example.com/aliaskind
+# gazelle:go_naming_convention go_default_library
+# gazelle:map_kind go_library my_library //tools:go:def.bzl
+# gazelle:alias_kind my_custom_macro my_library
+load("//custom:def.bzl", "my_custom_macro")
+
+my_custom_macro(
+    name = "go_default_library",
+    srcs = ["file.go"],
+    importpath = "example.com/aliaskind",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//foo:go_default_library",
+        "//vendor/github.com/external:go_default_library",
+    ],
+)
+`,
+				},
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir, cleanup := testtools.CreateFiles(t, tc.before)
+			t.Cleanup(cleanup)
+			args := []string{"-external=vendored"}
+			if !tc.index {
+				args = append(args, "-index=false")
+			}
+			if err := runGazelle(dir, args); err != nil {
+				t.Fatal(err)
+			}
+			testtools.CheckFiles(t, dir, tc.after)
+		})
+	}
+}
+
 func TestMapKindEdgeCases(t *testing.T) {
 	for name, tc := range map[string]struct {
 		before []testtools.FileSpec

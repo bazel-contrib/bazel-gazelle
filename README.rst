@@ -40,6 +40,7 @@ Gazelle build file generator
 .. _rules_swift_package_manager: https://github.com/cgrindel/rules_swift_package_manager
 .. _gazelle_rust: https://github.com/Calsign/gazelle_rust
 .. _rules_rust: https://github.com/bazelbuild/rules_rust
+.. _Verbs Tutorial: https://bazel.build/rules/verbs-tutorial
 
 .. role:: cmd(code)
 .. role:: flag(code)
@@ -881,6 +882,28 @@ The following directives are recognized:
 |                                                                                            |
 | Existing rules of the old kind will be ignored. To switch your codebase from a builtin     |
 | kind to a mapped kind, use `buildozer`_.                                                   |
++------------------------------------------------------------+-------------------------------+
+| :direc:`# gazelle:alias_kind macro_name wrapped_kind`      | n/a                           |
++------------------------------------------------------------+-------------------------------+
+| Denotes that a macro aliases / wraps a given rule.                                         |
+|                                                                                            |
+| If you have a wrapper macro around a rule that gazelle knows how to update the attrs for,  |
+| the alias_kind directive will instruct gazelle that it should treat the particular marco   |
+| like the underlying wrapped kind.                                                          |
+|                                                                                            |
+| ``alias_kind`` is different from the ``map_kind`` directive in that it does not force the  |
+| rule to be generated as the wrapped kind. Instead, it just instructs gazelle that it       |
+| should index and update the attrs for rules that match the macro.                          |
+|                                                                                            |
+| For example, if you use ``# gazelle:alias_kind my_foo_binary foo_binary``, Gazelle will    |
+| still generate ``foo_binary`` targets when generating new targets from new source files.   |
+| It is up to a person to update the ``foo_binary`` targets to ``my_foo_binary`` targets.    |
+| Once this manual step is done, Gazelle will continue to update the ``my_foo_binary``       |
+| targets as if they were ``foo_binary`` targets.                                            |
+|                                                                                            |
+| Wrapper macros are commonly used to handle common boilerplate or to add deploy/release     |
+| verbs, as described in the bazel `Verbs Tutorial`_.                                        |
+|                                                                                            |
 +---------------------------------------------------+----------------------------------------+
 | :direc:`# gazelle:prefix path`                    | n/a                                    |
 +---------------------------------------------------+----------------------------------------+

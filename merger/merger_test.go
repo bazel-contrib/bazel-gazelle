@@ -945,7 +945,8 @@ func TestMergeFile(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%s: %v", tc.desc, err)
 			}
-			merger.MergeFile(f, emptyFile.Rules, genFile.Rules, merger.PreResolve, testKinds)
+            // TODO: Make a real test here
+			merger.MergeFile(f, emptyFile.Rules, genFile.Rules, merger.PreResolve, testKinds, map[string]string{})
 			merger.FixLoads(f, testLoads)
 
 			want := tc.expected
@@ -999,6 +1000,7 @@ func TestMatch(t *testing.T) {
 		desc, gen, old string
 		wantIndex      int
 		wantError      bool
+        wrapperMacros  map[string]string
 	}{
 		{
 			desc:      "no_match",
@@ -1054,7 +1056,23 @@ go_binary(name = "z")
 			gen:       `selects.config_setting_group(name = "conf_group_1", match_any = ["//:config_a", "//:config_b"])`,
 			old:       `selects.config_setting_group(name = "conf_group_1", match_any = ["//:config_c", "//:config_d"])`,
 			wantIndex: 0,
-		},
+		}, {
+            desc: "wrapper macro name match",
+            gen:  `go_library(name = "lib", srcs = ["lib.go"])`,
+            old:  `custom_go_library(name = "lib", srcs = ["lib.go"])`,
+            wantIndex: 0,
+            wrapperMacros: map[string]string{
+                "custom_go_library": "go_library",
+            },
+		}, {
+            desc: "wrapper macro importpath match",
+            gen:  `go_library(name = "lib", srcs = ["lib.go"], importpath = "example.com/repo/foo")`,
+            old:  `custom_go_library(name = "old_lib", srcs = ["lib.go"], importpath = "example.com/repo/foo")`,
+            wantIndex: 0,
+            wrapperMacros: map[string]string{
+                "custom_go_library": "go_library",
+            },
+        },
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			genFile, err := rule.LoadData(filepath.Join("gen", "BUILD.bazel"), "", []byte(tc.gen))
@@ -1067,7 +1085,7 @@ go_binary(name = "z")
 			}
 			r := genFile.Rules[0]
 			info := testKinds[r.Kind()]
-			if got, gotErr := merger.Match(oldFile.Rules, r, info); gotErr != nil {
+			if got, gotErr := merger.Match(oldFile.Rules, r, info, tc.wrapperMacros); gotErr != nil {
 				if !tc.wantError {
 					t.Errorf("unexpected error: %v", gotErr)
 				}
