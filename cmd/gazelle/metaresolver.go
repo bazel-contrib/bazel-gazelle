@@ -31,15 +31,15 @@ type metaResolver struct {
 	// mappedKinds provides a list of replacements used by File.Pkg.
 	mappedKinds map[string][]config.MappedKind
 
-	// wrapperMacros provides a dict of configured wrapper macros for each package
-	wrapperMacros map[string]map[string]string
+	// aliasedKinds provides a dict of configured wrapper macros for each package
+	aliasedKinds map[string]map[string]string
 }
 
 func newMetaResolver() *metaResolver {
 	return &metaResolver{
 		builtins:      make(map[string]resolve.Resolver),
 		mappedKinds:   make(map[string][]config.MappedKind),
-		wrapperMacros: make(map[string]map[string]string),
+		aliasedKinds: make(map[string]map[string]string),
 	}
 }
 
@@ -54,8 +54,8 @@ func (mr *metaResolver) MappedKind(pkgRel string, kind config.MappedKind) {
 	mr.mappedKinds[pkgRel] = append(mr.mappedKinds[pkgRel], kind)
 }
 
-// WrapperMacros records the configured wrapper macros for a package
-func (mr *metaResolver) WrapperMacros(pkgRel string, wrapperMacros map[string]string) {
+// AliasedKinds records the configured wrapper macros for a package
+func (mr *metaResolver) AliasedKinds(pkgRel string, aliasedKinds map[string]string) {
 	// Note: it is somewhat of a hack to store the wrapper macros in the metaResolver
 	// by each package. A more appropriate place for this would be to keep it in the
 	// config.Config struct. However, the config.Config struct is not available at
@@ -63,7 +63,7 @@ func (mr *metaResolver) WrapperMacros(pkgRel string, wrapperMacros map[string]st
 	//
 	// For example, when the RuleIndex is finalizing and collecting information about
 	// embedded targets, it does this once across the entire index. 
-	mr.wrapperMacros[pkgRel] = wrapperMacros
+	mr.aliasedKinds[pkgRel] = aliasedKinds
 }
 
 // Resolver returns a resolver for the given rule and package, and a bool
@@ -73,7 +73,7 @@ func (mr *metaResolver) Resolver(r *rule.Rule, pkgRel string) resolve.Resolver {
 	ruleKind := r.Kind()
 	// if the kind is a wrapped macro, use the underlying macro kind for resolving
 	isWrappedMacro := false
-	if wrappedKind, ok := mr.wrapperMacros[pkgRel][ruleKind]; ok {
+	if wrappedKind, ok := mr.aliasedKinds[pkgRel][ruleKind]; ok {
 		ruleKind = wrappedKind
 		isWrappedMacro = true
 	}

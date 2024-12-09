@@ -315,7 +315,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 
 	var errorsFromWalk []error
 	walk.Walk(c, cexts, uc.dirs, uc.walkMode, func(dir, rel string, c *config.Config, update bool, f *rule.File, subdirs, regularFiles, genFiles []string) {
-		mrslv.WrapperMacros(rel, c.WrapperMap)
+		mrslv.AliasedKinds(rel, c.AliasMap)
 		// If this file is ignored or if Gazelle was not asked to update this
 		// directory, just index the build file and move on.
 		if !update {
@@ -436,7 +436,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		} else {
 			merger.MergeFile(f, empty, gen, merger.PreResolve,
 				unionKindInfoMaps(kinds, mappedKindInfo),
-				c.WrapperMap,
+				c.AliasMap,
 			)
 		}
 		visits = append(visits, visitRecord{
@@ -499,7 +499,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		}
 		merger.MergeFile(v.file, v.empty, v.rules, merger.PostResolve,
 			unionKindInfoMaps(kinds, v.mappedKindInfo),
-			v.c.WrapperMap,
+			v.c.AliasMap,
 		)
 	}
 	for _, lang := range languages {

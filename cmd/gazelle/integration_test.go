@@ -2493,7 +2493,7 @@ func TestMacroWrapper(t *testing.T) {
 					Content: `
 # gazelle:prefix example.com/mapkind
 # gazelle:go_naming_convention go_default_library
-# gazelle:macro my_custom_macro wraps go_library
+# gazelle:alias_kind my_custom_macro go_library
 load("//custom:def.bzl", "my_custom_macro")
 
 my_custom_macro(
@@ -2522,7 +2522,7 @@ import (
 					Content: `
 # gazelle:prefix example.com/mapkind
 # gazelle:go_naming_convention go_default_library
-# gazelle:macro my_custom_macro wraps go_library
+# gazelle:alias_kind my_custom_macro go_library
 load("//custom:def.bzl", "my_custom_macro")
 
 my_custom_macro(
@@ -2550,7 +2550,7 @@ my_custom_macro(
 					Content: `
 # gazelle:prefix example.com/mapkind
 # gazelle:go_naming_convention go_default_library
-# gazelle:macro my_custom_macro wraps go_library
+# gazelle:alias_kind my_custom_macro go_library
 load("//custom:def.bzl", "my_custom_macro")
 
 my_custom_macro(
@@ -2579,7 +2579,7 @@ import (
 					Content: `
 # gazelle:prefix example.com/mapkind
 # gazelle:go_naming_convention go_default_library
-# gazelle:macro my_custom_macro wraps go_library
+# gazelle:alias_kind my_custom_macro go_library
 load("//custom:def.bzl", "my_custom_macro")
 
 my_custom_macro(
@@ -2608,7 +2608,7 @@ my_custom_macro(
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 # gazelle:prefix example.com/mapkind
 # gazelle:go_naming_convention go_default_library
-# gazelle:macro my_custom_macro wraps go_library
+# gazelle:alias_kind my_custom_macro go_library
 
 go_library(
     name = "go_default_library",
@@ -2654,7 +2654,7 @@ my_custom_macro(
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 # gazelle:prefix example.com/mapkind
 # gazelle:go_naming_convention go_default_library
-# gazelle:macro my_custom_macro wraps go_library
+# gazelle:alias_kind my_custom_macro go_library
 
 go_library(
     name = "go_default_library",
@@ -2682,7 +2682,7 @@ go_library(
 # gazelle:prefix example.com/mapkind
 # gazelle:go_naming_convention go_default_library
 # gazelle:map_kind go_library my_library //tools:go:def.bzl
-# gazelle:macro my_custom_macro wraps my_library
+# gazelle:alias_kind my_custom_macro my_library
 load("//custom:def.bzl", "my_custom_macro")
 
 my_custom_macro(
@@ -2712,7 +2712,7 @@ import (
 # gazelle:prefix example.com/mapkind
 # gazelle:go_naming_convention go_default_library
 # gazelle:map_kind go_library my_library //tools:go:def.bzl
-# gazelle:macro my_custom_macro wraps my_library
+# gazelle:alias_kind my_custom_macro my_library
 load("//custom:def.bzl", "my_custom_macro")
 
 my_custom_macro(
