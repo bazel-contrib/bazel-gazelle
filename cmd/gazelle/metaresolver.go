@@ -37,8 +37,8 @@ type metaResolver struct {
 
 func newMetaResolver() *metaResolver {
 	return &metaResolver{
-		builtins:      make(map[string]resolve.Resolver),
-		mappedKinds:   make(map[string][]config.MappedKind),
+		builtins:     make(map[string]resolve.Resolver),
+		mappedKinds:  make(map[string][]config.MappedKind),
 		aliasedKinds: make(map[string]map[string]string),
 	}
 }
@@ -56,13 +56,13 @@ func (mr *metaResolver) MappedKind(pkgRel string, kind config.MappedKind) {
 
 // AliasedKinds records the configured wrapper macros for a package
 func (mr *metaResolver) AliasedKinds(pkgRel string, aliasedKinds map[string]string) {
-	// Note: it is somewhat of a hack to store the wrapper macros in the metaResolver
+	// Note: it is somewhat of a hack to store the aliased kinds in the metaResolver
 	// by each package. A more appropriate place for this would be to keep it in the
 	// config.Config struct. However, the config.Config struct is not available at
 	// all of the call sites where the Resolve method is called.
 	//
 	// For example, when the RuleIndex is finalizing and collecting information about
-	// embedded targets, it does this once across the entire index. 
+	// embedded targets, it does this once across the entire index.
 	mr.aliasedKinds[pkgRel] = aliasedKinds
 }
 
@@ -71,30 +71,34 @@ func (mr *metaResolver) AliasedKinds(pkgRel string, aliasedKinds map[string]stri
 // which results in consulting the builtin kinds only.
 func (mr *metaResolver) Resolver(r *rule.Rule, pkgRel string) resolve.Resolver {
 	ruleKind := r.Kind()
-	// if the kind is a wrapped macro, use the underlying macro kind for resolving
-	isWrappedMacro := false
+
 	if wrappedKind, ok := mr.aliasedKinds[pkgRel][ruleKind]; ok {
 		ruleKind = wrappedKind
-		isWrappedMacro = true
 	}
+
+	// Once we have checked alias kinds, still look through our mapped kinds so that we can handle
+	// an aliased kind that points to a mapped kind:
+	// e.g other_macro should use the go_library resolver here:
+	//   # gazelle:map_kind my_go_library go_library //:foo.bzl
+	//   # gazelle:alias_kind other_macro my_go_library
 	for _, mappedKind := range mr.mappedKinds[pkgRel] {
 		if mappedKind.KindName == ruleKind {
-			fromKindResolver := mr.builtins[mappedKind.FromKind]
-			if fromKindResolver == nil {
-				return nil
-			}
-			return inverseMapKindResolver{
-				fromKind: mappedKind.FromKind,
-				delegate: fromKindResolver,
-			}
+			ruleKind = mappedKind.FromKind
+			break
 		}
 	}
-	if isWrappedMacro {
-		// if the kind is a wrapped macro, we need an inverseMapKindResolver
-		// to resolve the underlying macro kind
+
+	// If the underlying kind is different, we need to apply the inverse map_kind operation so that
+	// we get the Resolver for the underlying kind, not the mapped or aliased one that we see in the
+	// existing BUILD file.
+	if ruleKind != r.Kind() {
+		fromKindResolver := mr.builtins[ruleKind]
+		if fromKindResolver == nil {
+			return nil
+		}
 		return inverseMapKindResolver{
 			fromKind: ruleKind,
-			delegate: mr.builtins[ruleKind],
+			delegate: fromKindResolver,
 		}
 	}
 
