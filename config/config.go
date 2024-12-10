@@ -302,14 +302,21 @@ func (cc *CommonConfigurer) Configure(c *Config, rel string, f *rule.File) {
 		case "alias_kind":
 			vals := strings.Fields(d.Value)
 			if len(vals) != 2 {
-				log.Printf("expected two arguments (gazelle:alias_kind macro_name wrapped_kind), got %v", vals)
+				log.Printf("expected two arguments (gazelle:alias_kind alias_kind underlying_kind), got %v", vals)
+				continue
+			}
+
+			aliasName := vals[0]
+			underlyingKind := vals[1]
+			if aliasName == underlyingKind {
+				log.Printf("alias_kind: alias kind %q is the same as the underlying kind %q", aliasName, underlyingKind)
 				continue
 			}
 
 			if c.AliasMap == nil {
 				c.AliasMap = make(map[string]string)
 			}
-			c.AliasMap[vals[0]] = vals[1]
+			c.AliasMap[aliasName] = underlyingKind
 
 		case "lang":
 			if len(d.Value) > 0 {
