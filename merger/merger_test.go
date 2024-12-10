@@ -33,6 +33,7 @@ import (
 
 type testCase struct {
 	desc, previous, current, empty, expected string
+	aliasedKinds                             map[string]string
 }
 
 var testCases = []testCase{
@@ -927,6 +928,50 @@ selects.config_setting_group(
     ],
 )
 `,
+	}, {
+		desc: "aliased kind with new underlying kind",
+		previous: `
+load("//:defs.bzl", "my_go_library")
+
+my_go_library(
+    name = "go_default_library",
+    srcs = ["lib.go"],
+)
+`,
+		current: `
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["lib.go"],
+    deps = [":dep"],
+)
+
+go_library(
+    name = "another_lib",
+    srcs = ["another.go"],
+    deps = [":dep"],
+)
+`,
+		expected: `
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("//:defs.bzl", "my_go_library")
+
+my_go_library(
+    name = "go_default_library",
+    srcs = ["lib.go"],
+    deps = [":dep"],
+)
+
+go_library(
+    name = "another_lib",
+    srcs = ["another.go"],
+    deps = [":dep"],
+)
+`,
+		aliasedKinds: map[string]string{
+			"my_go_library": "go_library",
+		},
 	},
 }
 
@@ -945,8 +990,7 @@ func TestMergeFile(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%s: %v", tc.desc, err)
 			}
-            // TODO: Make a real test here
-			merger.MergeFile(f, emptyFile.Rules, genFile.Rules, merger.PreResolve, testKinds, map[string]string{})
+			merger.MergeFile(f, emptyFile.Rules, genFile.Rules, merger.PreResolve, testKinds, tc.aliasedKinds)
 			merger.FixLoads(f, testLoads)
 
 			want := tc.expected
@@ -1000,7 +1044,7 @@ func TestMatch(t *testing.T) {
 		desc, gen, old string
 		wantIndex      int
 		wantError      bool
-        wrapperMacros  map[string]string
+		aliasedKinds   map[string]string
 	}{
 		{
 			desc:      "no_match",
@@ -1057,22 +1101,22 @@ go_binary(name = "z")
 			old:       `selects.config_setting_group(name = "conf_group_1", match_any = ["//:config_c", "//:config_d"])`,
 			wantIndex: 0,
 		}, {
-            desc: "wrapper macro name match",
-            gen:  `go_library(name = "lib", srcs = ["lib.go"])`,
-            old:  `custom_go_library(name = "lib", srcs = ["lib.go"])`,
-            wantIndex: 0,
-            wrapperMacros: map[string]string{
-                "custom_go_library": "go_library",
-            },
+			desc:      "wrapper macro name match",
+			gen:       `go_library(name = "lib", srcs = ["lib.go"])`,
+			old:       `custom_go_library(name = "lib", srcs = ["lib.go"])`,
+			wantIndex: 0,
+			aliasedKinds: map[string]string{
+				"custom_go_library": "go_library",
+			},
 		}, {
-            desc: "wrapper macro importpath match",
-            gen:  `go_library(name = "lib", srcs = ["lib.go"], importpath = "example.com/repo/foo")`,
-            old:  `custom_go_library(name = "old_lib", srcs = ["lib.go"], importpath = "example.com/repo/foo")`,
-            wantIndex: 0,
-            wrapperMacros: map[string]string{
-                "custom_go_library": "go_library",
-            },
-        },
+			desc:      "wrapper macro importpath match",
+			gen:       `go_library(name = "lib", srcs = ["lib.go"], importpath = "example.com/repo/foo")`,
+			old:       `custom_go_library(name = "old_lib", srcs = ["lib.go"], importpath = "example.com/repo/foo")`,
+			wantIndex: 0,
+			aliasedKinds: map[string]string{
+				"custom_go_library": "go_library",
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			genFile, err := rule.LoadData(filepath.Join("gen", "BUILD.bazel"), "", []byte(tc.gen))
@@ -1085,7 +1129,7 @@ go_binary(name = "z")
 			}
 			r := genFile.Rules[0]
 			info := testKinds[r.Kind()]
-			if got, gotErr := merger.Match(oldFile.Rules, r, info, tc.wrapperMacros); gotErr != nil {
+			if got, gotErr := merger.Match(oldFile.Rules, r, info, tc.aliasedKinds); gotErr != nil {
 				if !tc.wantError {
 					t.Errorf("unexpected error: %v", gotErr)
 				}
