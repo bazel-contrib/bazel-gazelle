@@ -91,6 +91,12 @@ type Config struct {
 	// # gazelle:map_kind.
 	KindMap map[string]MappedKind
 
+	// AliasMap maps a wrapper macro name to the kind of rule that it wraps.
+	// It provides a way for users to define custom macros that generate rules
+	// that are understood by gazelle, while still allowing gazelle to update
+	// the attrs for the macro calls. Configured via # gazelle:macro.
+	AliasMap map[string]string
+
 	// Repos is a list of repository rules declared in the main WORKSPACE file
 	// or in macros called by the main WORKSPACE file. This may affect rule
 	// generation and dependency resolution.
@@ -266,7 +272,7 @@ func (cc *CommonConfigurer) CheckFlags(fs *flag.FlagSet, c *Config) error {
 }
 
 func (cc *CommonConfigurer) KnownDirectives() []string {
-	return []string{"build_file_name", "map_kind", "lang"}
+	return []string{"build_file_name", "map_kind", "alias_kind", "lang"}
 }
 
 func (cc *CommonConfigurer) Configure(c *Config, rel string, f *rule.File) {
@@ -292,6 +298,25 @@ func (cc *CommonConfigurer) Configure(c *Config, rel string, f *rule.File) {
 				KindName: vals[1],
 				KindLoad: vals[2],
 			}
+
+		case "alias_kind":
+			vals := strings.Fields(d.Value)
+			if len(vals) != 2 {
+				log.Printf("expected two arguments (gazelle:alias_kind alias_kind underlying_kind), got %v", vals)
+				continue
+			}
+
+			aliasName := vals[0]
+			underlyingKind := vals[1]
+			if aliasName == underlyingKind {
+				log.Printf("alias_kind: alias kind %q is the same as the underlying kind %q", aliasName, underlyingKind)
+				continue
+			}
+
+			if c.AliasMap == nil {
+				c.AliasMap = make(map[string]string)
+			}
+			c.AliasMap[aliasName] = underlyingKind
 
 		case "lang":
 			if len(d.Value) > 0 {
