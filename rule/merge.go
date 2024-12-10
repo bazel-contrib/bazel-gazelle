@@ -86,14 +86,14 @@ func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 //
 // The following kinds of expressions are recognized.
 //
-//   * nil
-//   * strings (can only be merged with strings)
-//   * lists of strings
-//   * a call to select with a dict argument. The dict keys must be strings,
+//   - nil
+//   - strings (can only be merged with strings)
+//   - lists of strings
+//   - a call to select with a dict argument. The dict keys must be strings,
 //     and the values must be lists of strings.
-//   * a list of strings combined with a select call using +. The list must
+//   - a list of strings combined with a select call using +. The list must
 //     be the left operand.
-//   * an attr value that implements the Merger interface.
+//   - an attr value that implements the Merger interface.
 //
 // An error is returned if the expressions can't be merged, for example
 // because they are not in one of the above formats.
@@ -102,7 +102,7 @@ func mergeAttrValues(srcAttr, dstAttr *attrValue) (bzl.Expr, error) {
 		return nil, nil
 	}
 	dst := dstAttr.expr.RHS
-	if srcAttr == nil && (dst == nil || isScalar(dst)) {
+	if srcAttr == nil && (dst == nil || !shouldKeepRecursively(dst)) {
 		return nil, nil
 	}
 	if srcAttr != nil && isScalar(srcAttr.expr.RHS) {
@@ -136,6 +136,43 @@ func mergeAttrValues(srcAttr, dstAttr *attrValue) (bzl.Expr, error) {
 		return nil, err
 	}
 	return makePlatformStringsExpr(mergedExprs), nil
+}
+
+func shouldKeepRecursively(e bzl.Expr) bool {
+	if ShouldKeep(e) {
+		return true
+	}
+	switch e := e.(type) {
+	case *bzl.AssignExpr:
+		if shouldKeepRecursively(e.RHS) {
+			return true
+		}
+	case *bzl.DictExpr:
+		for _, kv := range e.List {
+			if shouldKeepRecursively(kv.Value) {
+				return true
+			}
+		}
+	case *bzl.ListExpr:
+		for _, el := range e.List {
+			if shouldKeepRecursively(el) {
+				return true
+			}
+		}
+	case *bzl.CallExpr:
+		for _, arg := range e.List {
+			if shouldKeepRecursively(arg) {
+				return true
+			}
+		}
+	case *bzl.BinaryExpr:
+		if shouldKeepRecursively(e.X) || shouldKeepRecursively(e.Y) {
+			return true
+		}
+	default:
+		fmt.Printf("unexpected expression type %T\n", e)
+	}
+	return false
 }
 
 func mergePlatformStringsExprs(src, dst platformStringsExprs) (platformStringsExprs, error) {
