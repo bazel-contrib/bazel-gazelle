@@ -169,8 +169,6 @@ func shouldKeepRecursively(e bzl.Expr) bool {
 		if shouldKeepRecursively(e.X) || shouldKeepRecursively(e.Y) {
 			return true
 		}
-	default:
-		fmt.Printf("unexpected expression type %T\n", e)
 	}
 	return false
 }
