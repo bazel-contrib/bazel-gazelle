@@ -729,8 +729,6 @@ func countParallel(funcDecl *ast.FuncDecl) int {
 	if !strings.HasPrefix(funcDecl.Name.Name, "Test") {
 		return 0
 	}
-	fmt.Println("funcDecl:", funcDecl.Name.Name)
-
 	ast.Inspect(funcDecl, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
