@@ -128,7 +128,7 @@ func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode,
 		log.Fatalf("error walking the file system: %v\n", err)
 	}
 
-	visit(c, cexts, knownDirectives, updateRels, trie, wf, "", false)
+	visit(c, cexts, knownDirectives, updateRels, trie, wf, nil, "", false)
 }
 
 // Recursively traverse a trie to:
@@ -140,7 +140,7 @@ func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode,
 //
 // Traversal may skip subtrees or files based on the config.Config exclude/ignore/follow options
 // as well as the UpdateFilter callbacks.
-func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, rel string, updateParent bool) {
+func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, relParts []string, rel string, updateParent bool) {
 	haveError := false
 
 	// Absolute path to the directory being visited
@@ -160,11 +160,26 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 	configure(cexts, knownDirectives, c, rel, f)
 	wc := getWalkConfig(c)
 
+	// Collect gitignore files in this directory before traversing the files/dirs.
+	for _, ent := range trie.files {
+		if ent.Name() == ".gitignore" {
+			ignoreFilePath := path.Join(c.RepoRoot, rel, ".gitignore")
+			if ignoreReader, ignoreErr := os.Open(ignoreFilePath); ignoreErr == nil {
+				defer ignoreReader.Close()
+				wc.loadGitIgnore(rel, ignoreReader)
+			}
+			break
+		}
+	}
+
 	if wc.isExcluded(rel) {
 		return
 	}
 
-	// Filter and collect files
+	// Append an additional element to the relParts array to allow swapping the trailing entry
+	// in each iteration of the loop below.
+	entParts := append(relParts, ".")
+
 	var regularFiles []string
 	for _, ent := range trie.files {
 		base := ent.Name()
@@ -172,6 +187,12 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		if wc.isExcluded(entRel) {
 			continue
 		}
+
+		entParts[len(entParts)-1] = base
+		if wc.isGitIgnored(entParts, ent.IsDir()) {
+			continue
+		}
+
 		if ent := resolveFileInfo(wc, dir, entRel, ent); ent != nil {
 			regularFiles = append(regularFiles, base)
 		}
@@ -187,11 +208,17 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		if wc.isExcluded(entRel) {
 			continue
 		}
+
+		entParts[len(entParts)-1] = base
+		if wc.isGitIgnored(entParts, t.entry.IsDir()) {
+			continue
+		}
+
 		if ent := resolveFileInfo(wc, dir, entRel, t.entry); ent != nil {
 			subdirs = append(subdirs, base)
 
 			if updateRels.shouldVisit(entRel, shouldUpdate) {
-				visit(c.Clone(), cexts, knownDirectives, updateRels, t, wf, entRel, shouldUpdate)
+				visit(c.Clone(), cexts, knownDirectives, updateRels, t, wf, entParts, entRel, shouldUpdate)
 			}
 		}
 	}
