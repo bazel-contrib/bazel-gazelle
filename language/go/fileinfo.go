@@ -311,7 +311,7 @@ func goFileInfo(path, srcdir string) fileInfo {
 					break
 				}
 				if info.isTest {
-					info.numParallel = max(info.numParallel, countParallel(fdecl))
+					info.numParallel += countParallel(fdecl)
 				}
 			}
 		}
