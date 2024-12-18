@@ -122,7 +122,7 @@ func (pkg *goPackage) addFile(c *config.Config, er *embedResolver, info fileInfo
 			test.hasInternalTest = true
 		}
 		if info.numParallel > 0 {
-			test.numParallel += info.numParallel
+			test.numParallel = max(test.numParallel, info.numParallel)
 		}
 	default:
 		pkg.hasMainFunction = pkg.hasMainFunction || info.hasMainFunction
