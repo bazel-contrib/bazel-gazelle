@@ -233,7 +233,7 @@ import "second.proto";`,
 				t.Fatal(err)
 			}
 
-			got := protoFileInfo(dir, tc.name)
+			got := ProtoFileInfo(dir, tc.name)
 
 			// Clear fields we don't care about for testing.
 			got = FileInfo{

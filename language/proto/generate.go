@@ -119,7 +119,7 @@ func RuleName(names ...string) string {
 func buildPackages(pc *ProtoConfig, dir, rel string, protoFiles, genFiles []string) []*Package {
 	packageMap := make(map[string]*Package)
 	for _, name := range protoFiles {
-		info := protoFileInfo(dir, name)
+		info := ProtoFileInfo(dir, name)
 		key := info.PackageName
 
 		if pc.Mode == FileMode {

@@ -50,7 +50,7 @@ type Option struct {
 
 var protoRe = buildProtoRegexp()
 
-func protoFileInfo(dir, name string) FileInfo {
+func ProtoFileInfo(dir, name string) FileInfo {
 	info := FileInfo{
 		Path: filepath.Join(dir, name),
 		Name: name,
