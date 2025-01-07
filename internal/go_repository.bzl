@@ -192,7 +192,7 @@ def _go_repository_impl(ctx):
                 fail("cannot specify both version and %s" % key)
         if not ctx.attr.sum:
             if is_module_extension_repo:
-                fail("No sum for {}@{} found, run bazel run @rules_go//go -- mod tidy to generate it".format(ctx.attr.importpath, ctx.attr.version))
+                fail("No sum for {}@{} found, update go.sum with:\n  bazel run".format(ctx.attr.importpath, ctx.attr.version), Label("@io_bazel_rules_go//go"), "-- mod tidy")
             else:
                 fail("if version is specified, sum must also be")
 
