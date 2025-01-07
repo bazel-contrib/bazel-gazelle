@@ -13,7 +13,7 @@
 # limitations under the License.
 
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "patch", "read_user_netrc", "use_netrc")
-load("//internal:common.bzl", "env_execute", "executable_extension")
+load("//internal:common.bzl", "env_execute", "executable_extension", "watch")
 load("//internal:go_repository_cache.bzl", "read_cache_env")
 
 _DOC = """
@@ -319,6 +319,10 @@ def _go_repository_impl(ctx):
             repo_config = ctx.path(Label("@@" + extension_repo_prefix + "bazel_gazelle_go_repository_config//:WORKSPACE"))
         else:
             repo_config = ctx.path(ctx.attr.build_config)
+
+        watch(ctx, gazelle_path)
+        watch(ctx, repo_config)
+
         cmd = [
             gazelle_path,
             "-go_repository_mode",
@@ -389,6 +393,7 @@ def _generate_package_info(*, importpath, version):
     # TODO: Consider adding support for custom remotes.
     package_url = "https://{}".format(importpath) if version else None
     package_version = version.removeprefix("v") if version else None
+
     # See specification:
     # https://github.com/package-url/purl-spec/blob/master/PURL-TYPES.rst#golang
     # scheme:type/namespace/name@version?qualifiers#subpath

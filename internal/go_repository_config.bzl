@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//internal:common.bzl", "env_execute", "executable_extension")
+load("//internal:common.bzl", "env_execute", "executable_extension", "watch")
 load("//internal:go_repository_cache.bzl", "read_cache_env")
 
 def _go_repository_config_impl(ctx):
@@ -25,15 +25,17 @@ def _go_repository_config_impl(ctx):
         config_path = ctx.path(ctx.attr.config)
 
     if config_path:
-        env = read_cache_env(ctx, str(ctx.path(Label("@bazel_gazelle_go_repository_cache//:go.env"))))
-        generate_repo_config = str(ctx.path(Label("@bazel_gazelle_go_repository_tools//:bin/generate_repo_config{}".format(executable_extension(ctx)))))
+        watch(ctx, config_path)
+        env = read_cache_env(ctx, ctx.path(Label("@bazel_gazelle_go_repository_cache//:go.env")))
+        generate_repo_config = ctx.path(Label("@bazel_gazelle_go_repository_tools//:bin/generate_repo_config{}".format(executable_extension(ctx))))
+        watch(ctx, generate_repo_config)
         list_repos_args = [
             "-config_source=" + str(config_path),
             "-config_dest=" + str(ctx.path("WORKSPACE")),
         ]
         result = env_execute(
             ctx,
-            [generate_repo_config] + list_repos_args,
+            [str(generate_repo_config)] + list_repos_args,
             environment = env,
         )
         if result.return_code:
@@ -47,7 +49,7 @@ def _go_repository_config_impl(ctx):
                     config_label = str(ctx.attr.config)
                     macro_label_prefix = config_label[:config_label.find("//")]
                     macro_label_str = macro_label_prefix + "//:" + f
-                    ctx.path(Label(macro_label_str))
+                    watch(ctx, ctx.path(Label(macro_label_str)))
 
     else:
         ctx.file(

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//internal:common.bzl", "env_execute", "executable_extension")
+load("//internal:common.bzl", "env_execute", "executable_extension", "watch")
 load("//internal:go_repository_cache.bzl", "read_cache_env")
 load("//internal:go_repository_tools_srcs.bzl", "GO_REPOSITORY_TOOLS_SRCS")
 
@@ -38,10 +38,14 @@ exports_files(["ROOT"])
 """
 
 def _go_repository_tools_impl(ctx):
+    for src in ctx.attr._go_repository_tools_srcs:
+        watch(ctx, src)
+
     # Create a link to the gazelle repo. This will be our GOPATH.
     env = read_cache_env(ctx, str(ctx.path(ctx.attr.go_cache)))
     extension = executable_extension(ctx)
     go_tool = env["GOROOT"] + "/bin/go" + extension
+    watch(ctx, go_tool)
 
     ctx.symlink(
         ctx.path(Label("//:WORKSPACE")).dirname,
@@ -70,6 +74,7 @@ def _go_repository_tools_impl(ctx):
     # rule each time. Compiling the script is relatively slow.
     # Don't try this on Windows: bazel does not set up symbolic links.
     if "windows" not in ctx.os.name:
+        watch(ctx, ctx.attr._list_repository_tools_srcs)
         result = env_execute(
             ctx,
             [

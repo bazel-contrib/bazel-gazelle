@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//internal:common.bzl", "executable_extension")
+load("//internal:common.bzl", "executable_extension", "watch")
 
 # Change to trigger cache invalidation: 1
 
@@ -96,6 +96,7 @@ go_repository_cache = repository_rule(
 )
 
 def read_go_env(ctx, go_tool, var):
+    watch(ctx, go_tool)
     res = ctx.execute([go_tool, "env", var])
     if res.return_code:
         fail("failed to read go environment: " + res.stderr)

@@ -36,3 +36,10 @@ def executable_extension(ctx):
     if ctx.os.name.startswith("windows"):
         extension = ".exe"
     return extension
+
+def watch(ctx, path):
+    # Versions of Bazel that have ctx.watch may no longer explicitly watch
+    # labels on which ctx.path is called and/or labels in attributes. Do so
+    # explicitly here, duplicate watches are no-ops.
+    if hasattr(ctx, "watch"):
+        ctx.watch(path)
