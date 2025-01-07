@@ -15,6 +15,7 @@
 visibility("private")
 
 DEFAULT_BUILD_FILE_GENERATION_BY_PATH = {
+    "github.com/bazelbuild/bazelisk": "on",
     "github.com/envoyproxy/protoc-gen-validate": "on",
     "github.com/google/safetext": "on",
     "github.com/grpc-ecosystem/grpc-gateway/v2": "on",

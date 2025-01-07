@@ -237,6 +237,16 @@ foo_binary(
 )
 `,
 		},
+		"incorrect load": {
+			input: `load("@not_foo", "foo_binary")
+
+foo_binary(name = "a")
+`,
+			want: `load("@foo", "foo_binary")
+
+foo_binary(name = "a")
+`,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			f, err := rule.LoadData("", "", []byte(tc.input))

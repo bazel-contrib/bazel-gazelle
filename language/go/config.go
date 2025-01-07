@@ -492,6 +492,10 @@ func (*goLang) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
 		gc.submodules = append(gc.submodules, m)
 	}
 
+	// This is a hack to inject into the ApparentLoads function, which does not
+	// receive the configuration - other languages shouldn't need to do this.
+	isGoRepositoryMode = gc.goRepositoryMode
+
 	return nil
 }
 

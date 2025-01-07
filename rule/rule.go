@@ -604,6 +604,11 @@ func (l *Load) Name() string {
 	return l.name
 }
 
+func (l *Load) SetName(name string) {
+	l.name = name
+	l.updated = true
+}
+
 // Symbols returns a sorted list of symbols this statement loads.
 // If the symbol is loaded with a name different from its definition, the
 // loaded name is returned, not the original name.

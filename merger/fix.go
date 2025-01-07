@@ -42,9 +42,9 @@ func FixLoads(f *rule.File, knownLoads []rule.LoadInfo) {
 	// statements and not deleted statements.
 	f.Sync()
 
-	// Scan load statements in the file. Keep track of loads of known files,
-	// since these may be changed. Keep track of symbols loaded from unknown
-	// files; we will not add loads for these.
+	// Scan load statements in the file. Keep track of loads of known files
+	// and symbols since these may be changed. Keep track of symbols loaded
+	// from unknown files; we will not add loads for these.
 	var loads []*rule.Load
 	otherLoadedKinds := make(map[string]bool)
 	for _, l := range f.Loads {
@@ -52,8 +52,16 @@ func FixLoads(f *rule.File, knownLoads []rule.LoadInfo) {
 			loads = append(loads, l)
 			continue
 		}
+		seenKnownSymbol := false
 		for _, sym := range l.Symbols() {
-			otherLoadedKinds[sym] = true
+			if _, ok := knownSymbols[sym]; ok {
+				if !seenKnownSymbol {
+					loads = append(loads, l)
+					seenKnownSymbol = true
+				}
+			} else {
+				otherLoadedKinds[sym] = true
+			}
 		}
 	}
 
@@ -146,6 +154,8 @@ func fixLoad(load *rule.Load, file string, symbols map[string]bool, knownSymbols
 			return nil
 		}
 		load = rule.NewLoad(file)
+	} else if load.Name() != file {
+		load.SetName(file)
 	}
 
 	for k := range symbols {

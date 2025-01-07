@@ -7,6 +7,7 @@ import (
 
 	"example.org/hello"
 	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/bazelbuild/bazelisk/httputil"
 	"github.com/bazelbuild/bazel-gazelle/tests/bcr/go_mod/pkg/data"
 	"github.com/bazelbuild/buildtools/labels"
 	"github.com/bazelbuild/rules_go/go/runfiles"
@@ -88,4 +89,10 @@ func TestGodModReplaceToFilePath(t *testing.T) {
 	// This test is used to validate that the go.mod replace directive is being used to replace
 	// the module path with a file path.
 	require.Equal(t, "Hello, world.", hello.Hello())
+}
+
+func TestDepWithRewrittenLoad(t *testing.T) {
+	// Bazelisk's httputil package refers to rules_go as `@rules_go` in its load statement, not as
+	// `@io_bazel_rules_go`.
+	require.NotEmpty(t, httputil.UserAgent)
 }
