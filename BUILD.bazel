@@ -51,11 +51,16 @@ nogo(
     deps = ["@org_golang_x_tools//go/analysis/passes/copylock"],
 )
 
-exports_files([
-    "WORKSPACE",
-    "extend.md",
-    "repository.md",
-])
+exports_files(
+    [
+        "WORKSPACE",
+        "extend.md",
+        "repository.md",
+        "extensions.md",
+        "extensions.bzl",
+    ],
+    visibility = ["//:__subpackages__"],
+)
 
 filegroup(
     name = "all_files",
@@ -75,10 +80,8 @@ filegroup(
         "WORKSPACE",
         "def.bzl",
         "deps.bzl",
-        "extend.rst",
         "go.mod",
         "go.sum",
-        "repository.rst",
         "//cmd:all_files",
         "//config:all_files",
         "//flag:all_files",

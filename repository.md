@@ -7,22 +7,12 @@ Repository rules are Bazel rules that can be used in WORKSPACE files to import
 projects in external repositories. Repository rules may download projects
 and transform them by applying patches or generating build files.
 
-The Gazelle repository provides three rules:
+The Gazelle repository provides the following repository rule:
 
 * [`go_repository`](#go_repository) downloads a Go project using either `go mod download`, a
   version control tool like `git`, or a direct HTTP download. It understands
   Go import path redirection. If build files are not already present, it can
   generate them with Gazelle.
-* [`git_repository`](#git_repository) downloads a project with git. Unlike the native
-  `git_repository`, this rule allows you to specify an "overlay": a set of
-  files to be copied into the downloaded project. This may be used to add
-  pre-generated build files to a project that doesn't have them.
-* [`http_archive`](#http_archive) downloads a project via HTTP. It also lets you specify
-  overlay files.
-
-**NOTE:** `git_repository` and `http_archive` are deprecated in favor of the
-rules of the same name in [@bazel_tools//tools/build_defs/repo:git.bzl] and
-[@bazel_tools//tools/build_defs/repo:http.bzl].
 
 Repository rules can be loaded and used in WORKSPACE like this:
 
@@ -42,58 +32,6 @@ Gazelle can add and update some of these rules automatically using the
 ```shell
 $ gazelle update-repos github.com/pkg/errors
 ```
-
-[http_archive.strip_prefix]: https://docs.bazel.build/versions/master/be/workspace.html#http_archive.strip_prefix
-[native git_repository rule]: https://docs.bazel.build/versions/master/be/workspace.html#git_repository
-[native http_archive rule]: https://docs.bazel.build/versions/master/be/workspace.html#http_archive
-[manifest.bzl]: third_party/manifest.bzl
-[Directives]: /README.rst#directives
-[@bazel_tools//tools/build_defs/repo:git.bzl]: https://github.com/bazelbuild/bazel/blob/master/tools/build_defs/repo/git.bzl
-[@bazel_tools//tools/build_defs/repo:http.bzl]: https://github.com/bazelbuild/bazel/blob/master/tools/build_defs/repo/http.bzl
-
-<a id="git_repository"></a>
-
-## git_repository
-
-<pre>
-git_repository(<a href="#git_repository-name">name</a>, <a href="#git_repository-commit">commit</a>, <a href="#git_repository-overlay">overlay</a>, <a href="#git_repository-remote">remote</a>, <a href="#git_repository-repo_mapping">repo_mapping</a>, <a href="#git_repository-tag">tag</a>)
-</pre>
-
-**NOTE:** `git_repository` is deprecated in favor of the rule of the same name
-in [@bazel_tools//tools/build_defs/repo:git.bzl].
-
-`git_repository` downloads a project with git. It has the same features as the
-[native git_repository rule], but it also allows you to copy a set of files
-into the repository after download. This is particularly useful for placing
-pre-generated build files.
-
-**Example**
-
-```starlark
-load("@bazel_gazelle//:deps.bzl", "git_repository")
-
-git_repository(
-    name = "com_github_pkg_errors",
-    remote = "https://github.com/pkg/errors",
-    commit = "816c9085562cd7ee03e7f8188a1cfd942858cded",
-    overlay = {
-        "@my_repo//third_party:com_github_pkg_errors/BUILD.bazel.in" : "BUILD.bazel",
-    },
-)
-```
-
-**ATTRIBUTES**
-
-
-| Name  | Description | Type | Mandatory | Default |
-| :------------- | :------------- | :------------- | :------------- | :------------- |
-| <a id="git_repository-name"></a>name |  A unique name for this repository.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="git_repository-commit"></a>commit |  The git commit to check out. Either `commit` or `tag` may be specified.   | String | optional |  `""`  |
-| <a id="git_repository-overlay"></a>overlay |  A set of files to copy into the downloaded repository. The keys in this dictionary are Bazel labels that point to the files to copy. These must be fully qualified labels (i.e., `@repo//pkg:name`) because relative labels are interpreted in the checked out repository, not the repository containing the WORKSPACE file. The values in this dictionary are root-relative paths where the overlay files should be written.<br><br>It's convenient to store the overlay dictionaries for all repositories in a separate .bzl file. See Gazelle's `manifest.bzl`_ for an example.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: Label -> String</a> | optional |  `{}`  |
-| <a id="git_repository-remote"></a>remote |  The remote repository to download.   | String | required |  |
-| <a id="git_repository-repo_mapping"></a>repo_mapping |  In `WORKSPACE` context only: a dictionary from local repository name to global repository name. This allows controls over workspace dependency resolution for dependencies of this repository.<br><br>For example, an entry `"@foo": "@bar"` declares that, for any time this repository depends on `@foo` (such as a dependency on `@foo//some:target`, it should actually resolve that dependency within globally-declared `@bar` (`@bar//some:target`).<br><br>This attribute is _not_ supported in `MODULE.bazel` context (when invoking a repository rule inside a module extension's implementation function).   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  |
-| <a id="git_repository-tag"></a>tag |  The git tag to check out. Either `commit` or `tag` may be specified.   | String | optional |  `""`  |
-
 
 <a id="go_repository"></a>
 
@@ -205,51 +143,5 @@ go_repository(
 | <a id="go_repository-urls"></a>urls |  A list of HTTP(S) URLs where an archive containing the project can be downloaded. Bazel will attempt to download from the first URL; the others are mirrors.   | List of strings | optional |  `[]`  |
 | <a id="go_repository-vcs"></a>vcs |  One of `"git"`, `"hg"`, `"svn"`, `"bzr"`.<br><br>The version control system to use. This is usually determined automatically, but it may be necessary to set this when `remote` is set and the VCS cannot be inferred. You must have the corresponding tool installed on your host.   | String | optional |  `""`  |
 | <a id="go_repository-version"></a>version |  If specified, `go_repository` will download the module at this version using `go mod download`. `sum` must also be set. `commit`, `tag`, and `urls` may not be set.   | String | optional |  `""`  |
-
-
-<a id="http_archive"></a>
-
-## http_archive
-
-<pre>
-http_archive(<a href="#http_archive-name">name</a>, <a href="#http_archive-overlay">overlay</a>, <a href="#http_archive-repo_mapping">repo_mapping</a>, <a href="#http_archive-sha256">sha256</a>, <a href="#http_archive-strip_prefix">strip_prefix</a>, <a href="#http_archive-type">type</a>, <a href="#http_archive-urls">urls</a>)
-</pre>
-
-**NOTE:** `http_archive` is deprecated in favor of the rule of the same name
-in [@bazel_tools//tools/build_defs/repo:http.bzl].
-
-`http_archive` downloads a project over HTTP(S). It has the same features as
-the [native http_archive rule], but it also allows you to copy a set of files
-into the repository after download. This is particularly useful for placing
-pre-generated build files.
-
-**Example**
-
-```starlark
-load("@bazel_gazelle//:deps.bzl", "http_archive")
-
-http_archive(
-    name = "com_github_pkg_errors",
-    urls = ["https://codeload.github.com/pkg/errors/zip/816c9085562cd7ee03e7f8188a1cfd942858cded"],
-    strip_prefix = "errors-816c9085562cd7ee03e7f8188a1cfd942858cded",
-    type = "zip",
-    overlay = {
-        "@my_repo//third_party:com_github_pkg_errors/BUILD.bazel.in" : "BUILD.bazel",
-    },
-)
-```
-
-**ATTRIBUTES**
-
-
-| Name  | Description | Type | Mandatory | Default |
-| :------------- | :------------- | :------------- | :------------- | :------------- |
-| <a id="http_archive-name"></a>name |  A unique name for this repository.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="http_archive-overlay"></a>overlay |  A set of files to copy into the downloaded repository. The keys in this dictionary are Bazel labels that point to the files to copy. These must be fully qualified labels (i.e., `@repo//pkg:name`) because relative labels are interpreted in the checked out repository, not the repository containing the WORKSPACE file. The values in this dictionary are root-relative paths where the overlay files should be written.<br><br>It's convenient to store the overlay dictionaries for all repositories in a separate .bzl file. See Gazelle's `manifest.bzl`_ for an example.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: Label -> String</a> | optional |  `{}`  |
-| <a id="http_archive-repo_mapping"></a>repo_mapping |  In `WORKSPACE` context only: a dictionary from local repository name to global repository name. This allows controls over workspace dependency resolution for dependencies of this repository.<br><br>For example, an entry `"@foo": "@bar"` declares that, for any time this repository depends on `@foo` (such as a dependency on `@foo//some:target`, it should actually resolve that dependency within globally-declared `@bar` (`@bar//some:target`).<br><br>This attribute is _not_ supported in `MODULE.bazel` context (when invoking a repository rule inside a module extension's implementation function).   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  |
-| <a id="http_archive-sha256"></a>sha256 |  The SHA-256 sum of the downloaded archive. When set, Bazel will verify the archive against this sum before extracting it.<br><br>**CAUTION:** Do not use this with services that prepare source archives on demand, such as codeload.github.com. Any minor change in the server software can cause differences in file order, alignment, and compression that break SHA-256 sums.   | String | optional |  `""`  |
-| <a id="http_archive-strip_prefix"></a>strip_prefix |  A directory prefix to strip. See [http_archive.strip_prefix].   | String | optional |  `""`  |
-| <a id="http_archive-type"></a>type |  One of `"zip"`, `"tar.gz"`, `"tgz"`, `"tar.bz2"`, `"tar.xz"`.<br><br>The file format of the repository archive. This is normally inferred from the downloaded file name.   | String | optional |  `""`  |
-| <a id="http_archive-urls"></a>urls |  A list of HTTP(S) URLs where the project can be downloaded. Bazel will attempt to download the first URL; the others are mirrors.   | List of strings | optional |  `[]`  |
 
 

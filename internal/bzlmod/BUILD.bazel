@@ -21,7 +21,9 @@ bzl_library(
     visibility = ["//:__subpackages__"],
     deps = [
         ":default_gazelle_overrides",
+        ":go_mod",
         ":semver",
+        ":utils",
         "//internal:go_repository",
     ],
 )

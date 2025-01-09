@@ -727,8 +727,17 @@ def _canonicalize_raw_version(raw_version):
     return raw_version
 
 _config_tag = tag_class(
+    doc = """
+    Configures the general behavior of the go_deps extension.
+
+    Only the root module's config tag is used.
+    """,
     attrs = {
         "check_direct_dependencies": attr.string(
+            doc = """
+            The way in which warnings about version mismatches for direct dependencies and Go modules that are
+            also Bazel modules are reported.
+            """,
             values = ["off", "warning", "error"],
         ),
         "go_env": attr.string_dict(
@@ -739,6 +748,13 @@ _config_tag = tag_class(
 )
 
 _from_file_tag = tag_class(
+    doc = """
+    Imports Go module dependencies from either a go.mod file or a go.work file.
+
+    All direct and indirect dependencies of the specified module will be imported, but only direct dependencies should
+    be imported into the scope of the using module via `use_repo` calls. Use `bazel mod tidy` to update these calls
+    automatically.
+    """,
     attrs = {
         "go_mod": attr.label(mandatory = False),
         "go_work": attr.label(mandatory = False),
@@ -750,8 +766,12 @@ _from_file_tag = tag_class(
 )
 
 _module_tag = tag_class(
+    doc = """Declare a single Go module dependency. Prefer using `from_file` instead.""",
     attrs = {
-        "path": attr.string(mandatory = True),
+        "path": attr.string(
+            doc = """The module path.""",
+            mandatory = True,
+        ),
         "version": attr.string(mandatory = True),
         "sum": attr.string(),
         "indirect": attr.bool(

@@ -14,6 +14,8 @@ Gazelle build file generator
 .. _gazelle rule: #bazel-rule
 .. _doublestar.Match: https://github.com/bmatcuk/doublestar#match
 .. _Extending Gazelle: extend.md
+.. _extensions.md: extensions.md#go_deps
+.. _Go Bzlmod docs: https://github.com/bazel-contrib/rules_go/blob/master/docs/go/core/bzlmod.md
 .. _extended: `Extending Gazelle`_
 .. _gazelle_binary: extend.md#gazelle_binary
 .. _import_prefix: https://docs.bazel.build/versions/master/be/protocol-buffer.html#proto_library.import_prefix
@@ -160,8 +162,15 @@ See discussion in `#1030`_.
 Setup
 -----
 
-Running Gazelle with Bazel
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+Bzlmod
+~~~~~~
+
+See the `Go Bzlmod docs`_.
+
+The full documentation for the ``go_deps``` extension is in `extensions.md`_.
+
+WORKSPACE
+~~~~~~~~~
 
 To use Gazelle in a new project, add the ``bazel_gazelle`` repository and its
 dependencies to your WORKSPACE file and call ``gazelle_dependencies``. It
