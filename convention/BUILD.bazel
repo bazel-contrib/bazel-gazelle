@@ -1,0 +1,55 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "convention",
+    srcs = [
+        "check.go",
+        "config.go",
+        "dir_set.go",
+    ],
+    importpath = "github.com/bazelbuild/bazel-gazelle/convention",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//config",
+        "//label",
+        "//resolve",
+        "//rule",
+    ],
+)
+
+alias(
+    name = "go_default_library",
+    actual = ":convention",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "convention_test",
+    srcs = [
+        "check_test.go",
+        "config_test.go",
+    ],
+    embed = [":convention"],
+    deps = [
+        "//config",
+        "//label",
+        "//language/go",
+        "//language/proto",
+        "//resolve",
+        "//rule",
+    ],
+)
+
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "check.go",
+        "check_test.go",
+        "config.go",
+        "config_test.go",
+        "dir_set.go",
+    ],
+    visibility = ["//visibility:public"],
+)

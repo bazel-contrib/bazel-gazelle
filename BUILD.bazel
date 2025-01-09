@@ -81,6 +81,7 @@ filegroup(
         "repository.rst",
         "//cmd:all_files",
         "//config:all_files",
+        "//convention:all_files",
         "//flag:all_files",
         "//internal:all_files",
         "//label:all_files",
