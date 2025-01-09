@@ -12,9 +12,9 @@ tasks:
     name: Ubuntu 22.04 with WORKSPACE
     platform: ubuntu2204
     build_flags:
-    - "--noexperimental_enable_bzlmod"
+    - "--noenable_bzlmod"
     test_flags:
-    - "--noexperimental_enable_bzlmod"
+    - "--noenable_bzlmod"
     build_targets:
     - "..."
     run_targets:
@@ -91,14 +91,13 @@ tasks:
     test_targets:
     - "..."
     - "-//internal:bazel_test"
-    - "-//cmd/gazelle:gazelle_test"
   macos_arm64:
     name: Mac OS Arm 64 with WORKSPACE
     platform: macos_arm64
     build_flags:
-    - "--noexperimental_enable_bzlmod"
+    - "--noenable_bzlmod"
     test_flags:
-    - "--noexperimental_enable_bzlmod"
+    - "--noenable_bzlmod"
     build_targets:
     - "..."
     test_targets:
@@ -114,7 +113,6 @@ tasks:
     test_targets:
     - "..."
     - "-//internal:bazel_test"
-    - "-//cmd/gazelle:gazelle_test"
   macos:
     name: Mac OS with WORKSPACE
     platform: macos
@@ -136,7 +134,6 @@ tasks:
     test_targets:
     - "--"
     - "..."
-    - "-//cmd/gazelle:gazelle_test"
     # autogazelle is only supported on UNIX-like platforms.
     # It requires UNIX domain sockets.
     - "-//cmd/autogazelle/..."
@@ -179,14 +176,14 @@ tasks:
     name: Ubuntu 22.04 with WORKSPACE and --config=incompatible
     platform: ubuntu2204
     build_flags:
-      - "--noexperimental_enable_bzlmod"
+      - "--noenable_bzlmod"
       - "--config=incompatible"
     build_targets:
       - "..."
     run_targets:
       - "//:gazelle_ci"
     test_flags:
-      - "--noexperimental_enable_bzlmod"
+      - "--noenable_bzlmod"
       - "--config=incompatible"
     test_targets:
       - "..."
