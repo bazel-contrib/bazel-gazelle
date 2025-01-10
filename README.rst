@@ -167,7 +167,7 @@ Bzlmod
 
 See the `Go Bzlmod docs`_.
 
-The full documentation for the ``go_deps``` extension is in `extensions.md`_.
+The full documentation for the ``go_deps`` extension is in `extensions.md`_.
 
 WORKSPACE
 ~~~~~~~~~
