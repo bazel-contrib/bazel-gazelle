@@ -495,11 +495,12 @@ The following flags are accepted:
 +-------------------------------------------------------------------+----------------------------------------+
 | :flag:`-build_tags tag1,tag2`                                     |                                        |
 +-------------------------------------------------------------------+----------------------------------------+
-| List of Go build tags Gazelle will consider to be true. Gazelle applies                                    |
+| List of Go build tags Gazelle will defer to Bazel for evaluation. Gazelle applies                          |
 | constraints when generating Go rules. It assumes certain tags are true on                                  |
 | certain platforms (for example, ``amd64,linux``). It assumes all Go release                                |
 | tags are true (for example, ``go1.8``). It considers other tags to be false                                |
-| (for example, ``ignore``). This flag overrides that behavior.                                              |
+| (for example, ``ignore``). This flag allows custom tags to be evaluated by                                 |
+| Bazel at build time.                                                                                       |
 |                                                                                                            |
 | Bazel may still filter sources with these tags. Use                                                        |
 | ``bazel build --define gotags=foo,bar`` to set tags at build time.                                         |
@@ -761,11 +762,12 @@ The following directives are recognized:
 +---------------------------------------------------+----------------------------------------+
 | :direc:`# gazelle:build_tags foo,bar`             | none                                   |
 +---------------------------------------------------+----------------------------------------+
-| List of Go build tags Gazelle will consider to be true. Gazelle applies                    |
+| List of Go build tags Gazelle will defer to Bazel for evaluation. Gazelle applies          |
 | constraints when generating Go rules. It assumes certain tags are true on                  |
 | certain platforms (for example, ``amd64,linux``). It assumes all Go release                |
 | tags are true (for example, ``go1.8``). It considers other tags to be false                |
-| (for example, ``ignore``). This flag overrides that behavior.                              |
+| (for example, ``ignore``). This flag allows custom tags to be evaluated by                 |
+| Bazel at build time.                                                                       |
 |                                                                                            |
 | Bazel may still filter sources with these tags. Use                                        |
 | ``bazel build --define gotags=foo,bar`` to set tags at build time.                         |
