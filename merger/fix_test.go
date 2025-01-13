@@ -237,6 +237,21 @@ foo_binary(
 )
 `,
 		},
+		"load ident": {
+			input: `foo_binary(
+    name = "a",
+    field = magic_macro,
+)
+`,
+			want: `load("@bar", "magic_macro")
+load("@foo", "foo_binary")
+
+foo_binary(
+    name = "a",
+    field = magic_macro,
+)
+`,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			f, err := rule.LoadData("", "", []byte(tc.input))
