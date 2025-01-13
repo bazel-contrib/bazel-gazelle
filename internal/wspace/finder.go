@@ -20,6 +20,8 @@ import (
 )
 
 var workspaceFiles = []string{"WORKSPACE.bazel", "WORKSPACE"}
+// See https://bazel.build/versions/8.0.0/external/overview#repository
+var repoBoundaryMarkerFiles = []string{"WORKSPACE.bazel", "WORKSPACE", "REPO.bazel", "MODULE.bazel"}
 
 // IsWORKSPACE checks whether path is named WORKSPACE or WORKSPACE.bazel
 func IsWORKSPACE(path string) bool {
@@ -45,7 +47,8 @@ func FindWORKSPACEFile(root string) string {
 	return filepath.Join(root, "WORKSPACE")
 }
 
-// FindRepoRoot searches from the given dir and up for a directory containing a WORKSPACE file
+// FindRepoRoot searches from the given dir and up for a directory containing a "boundary marker file"
+// which delimit a repository as of Bazel 8,
 // returning the directory containing it, or an error if none found in the tree.
 func FindRepoRoot(dir string) (string, error) {
 	dir, err := filepath.Abs(dir)
@@ -54,8 +57,8 @@ func FindRepoRoot(dir string) (string, error) {
 	}
 
 	for {
-		for _, workspaceFile := range workspaceFiles {
-			filepath := filepath.Join(dir, workspaceFile)
+		for _, boundaryFile := range repoBoundaryMarkerFiles {
+			filepath := filepath.Join(dir, boundaryFile)
 			info, err := os.Stat(filepath)
 			if err == nil && !info.IsDir() {
 				return dir, nil
