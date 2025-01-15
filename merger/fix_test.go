@@ -237,7 +237,7 @@ foo_binary(
 )
 `,
 		},
-		"load ident": {
+		"assignment expr rhs": {
 			input: `foo_binary(
     name = "a",
     field = magic_macro,
