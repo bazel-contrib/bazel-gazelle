@@ -140,7 +140,7 @@ func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode,
 //
 // Traversal may skip subtrees or files based on the config.Config exclude/ignore/follow options
 // as well as the UpdateFilter callbacks.
-func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, rel string, updateParent bool) {
+func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, rel string, updateParent bool) ([]string, bool) {
 	haveError := false
 
 	// Absolute path to the directory being visited
@@ -157,11 +157,16 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		haveError = true
 	}
 
-	configure(cexts, knownDirectives, c, rel, f)
-	wc := getWalkConfig(c)
+	collectionOnly := f == nil && getWalkConfig(c).updateOnly
 
+	// Configure the current directory if not only collecting files
+	if !collectionOnly {
+		configure(cexts, knownDirectives, c, rel, f)
+	}
+
+	wc := getWalkConfig(c)
 	if wc.isExcluded(rel) {
-		return
+		return nil, false
 	}
 
 	// Filter and collect files
@@ -188,12 +193,21 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 			continue
 		}
 		if ent := resolveFileInfo(wc, dir, entRel, t.entry); ent != nil {
-			subdirs = append(subdirs, base)
-
 			if updateRels.shouldVisit(entRel, shouldUpdate) {
-				visit(c.Clone(), cexts, knownDirectives, updateRels, t, wf, entRel, shouldUpdate)
+				subFiles, shouldMerge := visit(c.Clone(), cexts, knownDirectives, updateRels, t, wf, entRel, shouldUpdate)
+				if shouldMerge {
+					for _, f := range subFiles {
+						regularFiles = append(regularFiles, path.Join(base, f))
+					}
+				} else {
+					subdirs = append(subdirs, base)
+				}
 			}
 		}
+	}
+
+	if collectionOnly {
+		return regularFiles, true
 	}
 
 	update := !haveError && !wc.ignore && shouldUpdate
@@ -201,6 +215,7 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		genFiles := findGenFiles(wc, f)
 		wf(dir, rel, c, update, f, subdirs, regularFiles, genFiles)
 	}
+	return nil, false
 }
 
 // An UpdateFilter tracks which directories need to be updated
