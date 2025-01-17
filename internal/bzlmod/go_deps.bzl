@@ -486,9 +486,6 @@ def _go_deps_impl(module_ctx):
         paths = {}
 
         for module_tag in module.tags.module + additional_module_tags:
-            if module_tag.path in bazel_deps:
-                continue
-
             raw_version = _canonicalize_raw_version(module_tag.version)
 
             # For modules imported from a go.sum, we know which ones are direct
@@ -567,39 +564,94 @@ def _go_deps_impl(module_ctx):
             # TODO: Consider adding a warning here. Users should patch the bazel_dep instead.
             continue
 
+        bazel_dep_is_older = path in module_resolutions and bazel_dep.version < module_resolutions[path].version
+
         # Version mismatches between the Go module and the bazel_dep can confuse Go tooling. If the bazel_dep version
         # is lower, it won't be used, which can result in unexpected builds and should thus always be reported, even for
         # indirect deps. Explicitly overridden modules are not reported as this requires manual action.
         if (path in module_resolutions and
             bazel_dep.version != module_resolutions[path].version and
             bazel_dep.version != _HIGHEST_VERSION_SENTINEL and
-            (bazel_dep.version < module_resolutions[path].version or path in root_versions)):
-            outdated_direct_dep_printer("\n\nMismatch between versions requested for module {module}\nBazel dependency version requested in MODULE.bazel: {bazel_dep_version}\nGo module version requested in go.mod: {go_module_version}\nPlease resolve this mismatch to prevent discrepancies between native Go and Bazel builds\n\n".format(
+            (bazel_dep_is_older or path in root_versions)):
+            bazel_dep_name = bazel_dep.module_name
+            bazel_dep_version = bazel_dep.raw_version
+            go_module_version = module_resolutions[path].raw_version
+            if bazel_dep_is_older:
+                remediation = [
+                    """
+Either ensure that you have
+
+  bazel_dep(module_name = "{bazel_dep_name}", version = "{go_module_version}")
+
+in your MODULE.bazel file or downgrade the Go module version via
+
+  bazel run""".format(
+                        bazel_dep_name = bazel_dep_name,
+                        go_module_version = go_module_version,
+                    ),
+                    Label("@io_bazel_rules_go//go"),
+                    "-- get {path}@v{bazel_dep_version}\n\n".format(
+                        path = path,
+                        bazel_dep_version = bazel_dep_version,
+                    ),
+                ]
+            else:
+                remediation = [
+                    """
+Update the Go module version via
+
+  bazel run""",
+                    Label("@io_bazel_rules_go//go"),
+                    "-- get {path}@v{bazel_dep_version}\n\n".format(
+                        path = path,
+                        bazel_dep_version = bazel_dep_version,
+                    ),
+                ]
+
+            outdated_direct_dep_printer("""
+Mismatch between versions requested for Go module {module}:
+
+  bazel_dep version (MODULE.bazel): {bazel_dep_version} (as "{bazel_dep_name}")
+  Go module version (go.mod):       {go_module_version}
+""".format(
                 module = path,
-                bazel_dep_version = bazel_dep.raw_version,
-                go_module_version = module_resolutions[path].raw_version,
-            ))
+                bazel_dep_name = bazel_dep_name,
+                bazel_dep_version = bazel_dep_version,
+                go_module_version = go_module_version,
+            ), *remediation)
 
         # Only use the Bazel module if it is at least as high as the required Go module version.
-        if path in module_resolutions and bazel_dep.version < module_resolutions[path].version:
+        if bazel_dep_is_older:
             continue
 
         # TODO: We should update root_versions if the bazel_dep is a direct dependency of the root
         #   module. However, we currently don't have a way to determine that.
         module_resolutions[path] = bazel_dep
 
+    recommended_updates = []
     for path, root_version in root_versions.items():
         resolved_version = module_resolutions[path].version
 
         # Do not report version mismatches for overridden Bazel modules.
         if resolved_version != _HIGHEST_VERSION_SENTINEL and semver.to_comparable(root_version) < resolved_version:
-            outdated_direct_dep_printer(
-                "For Go module \"{path}\", the root module requires module version v{root_version}, but got v{resolved_version} in the resolved dependency graph.".format(
-                    path = path,
-                    root_version = root_version,
-                    resolved_version = module_resolutions[path].raw_version,
-                ),
+            recommended_updates.append((path, root_version, module_resolutions[path].raw_version))
+    if recommended_updates:
+        outdated_direct_dep_printer(
+            "The following Go modules were required by the root module at the given versions, but were implicitly updated to higher versions due to transitive dependencies:\n",
+            *(
+                [
+                    "\n  {path}: v{root_version} -> v{resolved_version}".format(
+                        path = path,
+                        root_version = root_version,
+                        resolved_version = resolved_version,
+                    )
+                    for path, root_version, resolved_version in recommended_updates
+                ] + ["\n\nUpdate the root module's dependencies to match the resolved versions via:\n\n  bazel run", Label("@io_bazel_rules_go//go"), "-- get " + " ".join([
+                    "{path}@v{resolved_version}".format(path = path, resolved_version = resolved_version)
+                    for path, _, resolved_version in recommended_updates
+                ] + ["\n\n"])]
             )
+        )
 
     repos_processed = {}
     for path, module in module_resolutions.items():
@@ -711,7 +763,7 @@ def _get_sum_from_module(path, module, sums):
         elif module.local_path == None:
             # When updating a dependency, its sum may not be in go.sum and we can't hard fail here
             # since we need Bazel to tidy the module
-            print("No sum for {}@{} found, run bazel run @rules_go//go -- mod tidy to generate it".format(path, module.raw_version))
+            print("No sum for {}@{} found, run bazel run".format(path, module.raw_version), Label("@io_bazel_rules_go//go"), "-- mod tidy to generate it")
             return None
 
     return sums[entry]
