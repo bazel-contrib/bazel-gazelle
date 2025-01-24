@@ -46,6 +46,9 @@ func TestLabelString(t *testing.T) {
 		}, {
 			l:    Label{Repo: "@", Pkg: "foo/bar", Name: "baz"},
 			want: "@//foo/bar:baz",
+		}, {
+			l:    Label{Repo: "@", Pkg: "foo/bar", Name: "baz"},
+			want: "@//foo/bar:baz",
 		},
 	} {
 		if got, want := spec.l.String(), spec.want; got != want {
@@ -91,6 +94,7 @@ func TestParse(t *testing.T) {
 		{str: "@rules_python++pip+name_dep//:_pkg", want: Label{Repo: "rules_python++pip+name_dep", Name: "_pkg"}},
 		{str: "@rules_python++pip+name//:dep_pkg", want: Label{Repo: "rules_python++pip+name", Name: "dep_pkg"}},
 		{str: "@@rules_python++python+python_3_10_x86_64-unknown-linux-gnu//:python_runtimes", want: Label{Repo: "rules_python++python+python_3_10_x86_64-unknown-linux-gnu", Name: "python_runtimes", Canonical: true}},
+		{str: "@@+toolchains+jfrog_linux_amd64//:jfrog_toolchain", want: Label{Repo: "+toolchains+jfrog_linux_amd64", Name: "jfrog_toolchain", Canonical: true}},
 	} {
 		got, err := Parse(tc.str)
 		if err != nil && !tc.wantErr {
