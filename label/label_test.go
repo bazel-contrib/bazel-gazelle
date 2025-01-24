@@ -46,9 +46,6 @@ func TestLabelString(t *testing.T) {
 		}, {
 			l:    Label{Repo: "@", Pkg: "foo/bar", Name: "baz"},
 			want: "@//foo/bar:baz",
-		}, {
-			l:    Label{Repo: "@", Pkg: "foo/bar", Name: "baz"},
-			want: "@//foo/bar:baz",
 		},
 	} {
 		if got, want := spec.l.String(), spec.want; got != want {
