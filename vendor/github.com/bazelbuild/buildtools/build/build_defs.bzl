@@ -19,12 +19,6 @@ load(
     "@io_bazel_rules_go//go:def.bzl",
     "GoSource",
 )
-load("@rules_shell//shell:sh_binary.bzl",
-    "sh_binary"
-)
-load("@rules_shell//shell:sh_test.bzl",
-    "sh_test"
-)
 
 _GO_YACC_TOOL = "@org_golang_x_tools//cmd/goyacc"
 
@@ -136,7 +130,7 @@ diff -q "$$F1" "$$F2"
 eof
 """,
     )
-    sh_test(
+    native.sh_test(
         name = src + "_checkshtest",
         size = "small",
         srcs = [src + "_check.sh"],
@@ -153,7 +147,7 @@ eof
         cmd = "echo 'cp $${BUILD_WORKSPACE_DIRECTORY}/$(location " + gen +
               ") $${BUILD_WORKSPACE_DIRECTORY}/" + native.package_name() + "/" + src + "' > $@",
     )
-    sh_binary(
+    native.sh_binary(
         name = src + "_copy",
         srcs = [src + "_copysh"],
         data = [gen],
