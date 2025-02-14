@@ -1171,8 +1171,7 @@ below to resolve dependencies:
 
    a) Imports of Well Known Types are mapped to rules in
       ``@io_bazel_rules_go//proto/wkt``.
-   b) Imports of Google APIs are mapped to ``@go_googleapis``.
-   c) Imports of ``github.com/golang/protobuf/ptypes``, ``descriptor``, and
+   b) Imports of ``github.com/golang/protobuf/ptypes``, ``descriptor``, and
       ``jsonpb`` are mapped to special rules in ``@com_github_golang_protobuf``.
       See `Avoiding conflicts with proto rules`_.
 
