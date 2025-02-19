@@ -2,8 +2,8 @@ filegroup(
     name = "all_files",
     testonly = True,
     srcs = [
-        "file3",
-        "//sub2/repo1:all_files",
+        "file4",
+        "repo2",
     ],
     visibility = ["//visibility:public"],
 )

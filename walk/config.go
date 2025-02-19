@@ -28,6 +28,7 @@ import (
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/rule"
+	bzl "github.com/bazelbuild/buildtools/build"
 	"github.com/bmatcuk/doublestar/v4"
 
 	gzflag "github.com/bazelbuild/bazel-gazelle/flag"
@@ -166,12 +167,75 @@ func loadBazelIgnore(repoRoot string) (isIgnoredFunc, error) {
 		excludes[ignore] = struct{}{}
 	}
 
-	isIgnored := func(p string) bool {
+	isBazelIgnored := func(p string) bool {
 		_, ok := excludes[p]
 		return ok
 	}
 
-	return isIgnored, nil
+	return isBazelIgnored, nil
+}
+
+func loadRepoDirectoryIgnore(repoRoot string) (isIgnoredFunc, error) {
+	repoFilePath := path.Join(repoRoot, "REPO.bazel")
+	repoFileContent, err := os.ReadFile(repoFilePath)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nothingIgnored, nil
+	}
+	if err != nil {
+		return nothingIgnored, fmt.Errorf("REPO.bazel exists but couldn't be read: %v", err)
+	}
+
+	ast, err := bzl.Parse(repoRoot, repoFileContent)
+	if err != nil {
+		return nothingIgnored, fmt.Errorf("failed to parse REPO.bazel: %v", err)
+	}
+
+	var ignoreDirectories []string
+
+	// Search for ignore_directories([...ignore strings...])
+	for _, expr := range ast.Stmt {
+		if call, isCall := expr.(*bzl.CallExpr); isCall {
+			if inv, isIdentCall := call.X.(*bzl.Ident); isIdentCall && inv.Name == "ignore_directories" {
+				if len(call.List) != 1 {
+					return nothingIgnored, fmt.Errorf("REPO.bazel ignore_directories() expects one argument")
+				}
+
+				list, isList := call.List[0].(*bzl.ListExpr)
+				if !isList {
+					return nothingIgnored, fmt.Errorf("REPO.bazel ignore_directories() unexpected argument type: %T", call.List[0])
+				}
+
+				for _, item := range list.List {
+					if strExpr, isStr := item.(*bzl.StringExpr); isStr {
+						if err := checkPathMatchPattern(strExpr.Value); err != nil {
+							log.Printf("the ignore_directories() pattern %q is not valid: %s", strExpr.Value, err)
+							continue
+						}
+
+						ignoreDirectories = append(ignoreDirectories, strExpr.Value)
+					}
+				}
+
+				// Only a single ignore_directories() is supported in REPO.bazel and searching can stop.
+				break
+			}
+		}
+	}
+
+	if len(ignoreDirectories) == 0 {
+		return nothingIgnored, nil
+	}
+
+	isRepoIgnored := func(p string) bool {
+		for _, ignore := range ignoreDirectories {
+			if doublestar.MatchUnvalidated(ignore, p) {
+				return true
+			}
+		}
+		return false
+	}
+
+	return isRepoIgnored, nil
 }
 
 func checkPathMatchPattern(pattern string) error {

@@ -4,6 +4,7 @@ filegroup(
     srcs = [
         ".bazelignore",
         "MODULE.bazel",
+        "REPO.bazel",
         "//sub2:all_files",
     ],
     visibility = ["//visibility:public"],
