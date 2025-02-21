@@ -16,8 +16,10 @@ limitations under the License.
 package walk
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"reflect"
@@ -408,4 +410,77 @@ func (*testConfigurer) KnownDirectives() []string { return nil }
 
 func (tc *testConfigurer) Configure(c *config.Config, rel string, f *rule.File) {
 	tc.configure(c, rel, f)
+}
+
+// BenchmarkWalk measures how long it takes Walk to traverse a synthetic repo.
+//
+// There are 10 top-level directories. Each has 10 subdirectories. Each of
+// those has 10 subdirectories (so 1001 directories in total).
+//
+// Each directory has 10 files and a BUILD file with a filegroup that includes
+// those files (the content isn't really important, we just want to exercise
+// the parser a little bit.)
+//
+// This is somewhat unrealistic: the whole tree is likely to be in the kernel's
+// in memory in the kernel's file cache, so this doesn't measure I/O to disk.
+// Still, this is frequently true for real projects where Gazelle is invoked.
+func BenchmarkWalk(b *testing.B) {
+	// Create a fake repo to walk.
+	subdirCount := 10
+	fileCount := 10
+	levelCount := 3
+
+	buildFileBuilder := &bytes.Buffer{}
+	fmt.Fprintf(buildFileBuilder, "filegroup(\n    srcs = [\n")
+	for i := range fileCount {
+		fmt.Fprintf(buildFileBuilder, "        \"f%d\",\n", i)
+	}
+	fmt.Fprintf(buildFileBuilder, "    ],\n)\n")
+	buildFileContent := buildFileBuilder.Bytes()
+
+	rootDir := b.TempDir()
+	var createDir func(string, int)
+	createDir = func(dir string, level int) {
+		buildFilePath := filepath.Join(dir, "BUILD")
+		if err := os.WriteFile(buildFilePath, buildFileContent, 0666); err != nil {
+			b.Fatal(err)
+		}
+
+		for i := range fileCount {
+			filePath := filepath.Join(dir, fmt.Sprintf("f%d", i))
+			if err := os.WriteFile(filePath, nil, 0666); err != nil {
+				b.Fatal(err)
+			}
+		}
+
+		if level < levelCount {
+			for i := range subdirCount {
+				subdir := filepath.Join(dir, fmt.Sprintf("d%d", i))
+				if err := os.Mkdir(subdir, 0777); err != nil {
+					b.Fatal(err)
+				}
+				createDir(subdir, level+1)
+			}
+		}
+	}
+	createDir(rootDir, 0)
+
+	cexts := []config.Configurer{&Configurer{}}
+	c := config.New()
+	c.RepoRoot = rootDir
+	c.RepoRoot = rootDir
+	c.IndexLibraries = true
+	fs := flag.NewFlagSet("gazelle", flag.ContinueOnError)
+	for _, cext := range cexts {
+		cext.RegisterFlags(fs, "update", c)
+	}
+
+	// Benchmark calling Walk with a trivial callback function.
+	wf := func(dir, rel string, c *config.Config, update bool, f *rule.File, subdirs, regularFiles, genFiles []string) {
+	}
+
+	b.ResetTimer()
+	for range b.N {
+		Walk(c, nil, []string{rootDir}, VisitAllUpdateSubdirsMode, wf)
+	}
 }
