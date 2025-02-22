@@ -130,9 +130,39 @@ func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
 	c.Exts[walkName] = wcCopy
 }
 
+type ignoreFilter struct {
+	isBazelIgnored         isIgnoredFunc
+	isRepoDirectoryIgnored isIgnoredFunc
+}
+
 type isIgnoredFunc = func(string) bool
 
 var nothingIgnored isIgnoredFunc = func(string) bool { return false }
+
+func newIgnoreFilter(repoRoot string) *ignoreFilter {
+	isBazelIgnored, err := loadBazelIgnore(repoRoot)
+	if err != nil {
+		log.Printf("error loading .bazelignore: %v", err)
+	}
+
+	isRepoDirectoryIgnored, err := loadRepoDirectoryIgnore(repoRoot)
+	if err != nil {
+		log.Printf("error loading REPO.bazel ignore_directories(): %v", err)
+	}
+
+	return &ignoreFilter{
+		isBazelIgnored:         isBazelIgnored,
+		isRepoDirectoryIgnored: isRepoDirectoryIgnored,
+	}
+}
+
+func (f *ignoreFilter) isDirectoryIgnored(p string) bool {
+	return f.isBazelIgnored(p) || f.isRepoDirectoryIgnored(p)
+}
+
+func (f *ignoreFilter) isFileIgnored(p string) bool {
+	return f.isBazelIgnored(p)
+}
 
 func loadBazelIgnore(repoRoot string) (isIgnoredFunc, error) {
 	ignorePath := path.Join(repoRoot, ".bazelignore")
