@@ -404,14 +404,14 @@ func buildTrie(c *config.Config, updateRels *UpdateFilter, isBazelIgnored, isRep
 	// An error group to handle error propagation
 	eg := errgroup.Group{}
 	eg.Go(func() error {
-		return walkDir(c.RepoRoot, "", &eg, limitCh, updateRels, isBazelIgnored, isRepoDirectoryIgnored, trie)
+		return trie.walkDir(c.RepoRoot, "", &eg, limitCh, updateRels, isBazelIgnored, isRepoDirectoryIgnored)
 	})
 
 	return trie, eg.Wait()
 }
 
 // walkDir recursively and concurrently descends into the 'rel' directory and builds a trie
-func walkDir(root, rel string, eg *errgroup.Group, limitCh chan struct{}, updateRels *UpdateFilter, isBazelIgnored, isRepoDirectoryIgnored isIgnoredFunc, trie *pathTrie) error {
+func (trie *pathTrie) walkDir(root, rel string, eg *errgroup.Group, limitCh chan struct{}, updateRels *UpdateFilter, isBazelIgnored, isRepoDirectoryIgnored isIgnoredFunc) error {
 	limitCh <- struct{}{}
 	defer (func() { <-limitCh })()
 
@@ -442,7 +442,7 @@ func walkDir(root, rel string, eg *errgroup.Group, limitCh chan struct{}, update
 			entryTrie := newTrie(entry)
 			trie.children = append(trie.children, entryTrie)
 			eg.Go(func() error {
-				return walkDir(root, entryPath, eg, limitCh, updateRels, isBazelIgnored, isRepoDirectoryIgnored, entryTrie)
+				return entryTrie.walkDir(root, entryPath, eg, limitCh, updateRels, isBazelIgnored, isRepoDirectoryIgnored)
 			})
 		} else {
 			trie.files = append(trie.files, entry)
