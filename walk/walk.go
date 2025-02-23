@@ -399,7 +399,10 @@ func buildTrie(c *config.Config, updateRels *UpdateFilter, isBazelIgnored, isRep
 	trie := &pathTrie{}
 
 	// A channel to limit the number of concurrent goroutines
-	limitCh := make(chan struct{}, 100)
+	// Value chosen by running BenchmarkWalk on a MacBook Pro M1.
+	// In most cases, walking a tree is memory or I/O bound, not CPU bound,
+	// so this should be lower than the number of cores.
+	limitCh := make(chan struct{}, 6)
 
 	// An error group to handle error propagation
 	eg := errgroup.Group{}
