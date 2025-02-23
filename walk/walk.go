@@ -151,7 +151,7 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 	// Absolute path to the directory being visited
 	dir := filepath.Join(c.RepoRoot, rel)
 
-	f, err := loadBuildFile(c, rel, dir, trie.files)
+	f, err := trie.build, trie.buildFileErr
 	if err != nil {
 		log.Print(err)
 		if c.Strict {
@@ -305,7 +305,7 @@ func (u *UpdateFilter) shouldVisit(rel string, updateParent bool) bool {
 	}
 }
 
-func loadBuildFile(c *config.Config, pkg, dir string, ents []fs.DirEntry) (*rule.File, error) {
+func loadBuildFile(c *config.Config, validBuildFileNames []string, pkg, dir string, ents []fs.DirEntry) (*rule.File, error) {
 	var err error
 	readDir := dir
 	readEnts := ents
@@ -316,7 +316,7 @@ func loadBuildFile(c *config.Config, pkg, dir string, ents []fs.DirEntry) (*rule
 			return nil, err
 		}
 	}
-	path := rule.MatchBuildFile(readDir, c.ValidBuildFileNames, readEnts)
+	path := rule.MatchBuildFile(readDir, validBuildFileNames, readEnts)
 	if path == "" {
 		return nil, nil
 	}
@@ -386,6 +386,9 @@ type pathTrie struct {
 	entry    fs.DirEntry
 	files    []fs.DirEntry
 	children []*pathTrie
+
+	build        *rule.File
+	buildFileErr error
 }
 
 // Basic factory method to ensure the entry is properly copied
@@ -404,20 +407,35 @@ func buildTrie(c *config.Config, updateRels *UpdateFilter, isBazelIgnored, isRep
 	// An error group to handle error propagation
 	eg := errgroup.Group{}
 	eg.Go(func() error {
-		return walkDir(c.RepoRoot, "", &eg, limitCh, updateRels, isBazelIgnored, isRepoDirectoryIgnored, trie)
+		return walkDir(c, c.ValidBuildFileNames, "", &eg, limitCh, updateRels, isBazelIgnored, isRepoDirectoryIgnored, trie)
 	})
 
 	return trie, eg.Wait()
 }
 
 // walkDir recursively and concurrently descends into the 'rel' directory and builds a trie
-func walkDir(root, rel string, eg *errgroup.Group, limitCh chan struct{}, updateRels *UpdateFilter, isBazelIgnored, isRepoDirectoryIgnored isIgnoredFunc, trie *pathTrie) error {
+func walkDir(c *config.Config, validBuildFileNames []string, rel string, eg *errgroup.Group, limitCh chan struct{}, updateRels *UpdateFilter, isBazelIgnored, isRepoDirectoryIgnored isIgnoredFunc, trie *pathTrie) error {
 	limitCh <- struct{}{}
 	defer (func() { <-limitCh })()
 
-	entries, err := os.ReadDir(filepath.Join(root, rel))
+	// Absolute path to the directory being visited
+	dir := filepath.Join(c.RepoRoot, rel)
+
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
+	}
+
+	trie.build, trie.buildFileErr = loadBuildFile(c, validBuildFileNames, rel, dir, entries)
+
+	if trie.build != nil {
+		// Update the `validBuildFileNames` config while traversing the tree.
+		for _, d := range trie.build.Directives {
+			if d.Key == "build_file_name" {
+				validBuildFileNames = strings.Split(d.Value, ",")
+				break
+			}
+		}
 	}
 
 	for _, entry := range entries {
@@ -442,7 +460,7 @@ func walkDir(root, rel string, eg *errgroup.Group, limitCh chan struct{}, update
 			entryTrie := newTrie(entry)
 			trie.children = append(trie.children, entryTrie)
 			eg.Go(func() error {
-				return walkDir(root, entryPath, eg, limitCh, updateRels, isBazelIgnored, isRepoDirectoryIgnored, entryTrie)
+				return walkDir(c, validBuildFileNames, entryPath, eg, limitCh, updateRels, isBazelIgnored, isRepoDirectoryIgnored, entryTrie)
 			})
 		} else {
 			trie.files = append(trie.files, entry)
