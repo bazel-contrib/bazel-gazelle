@@ -422,7 +422,7 @@ func (tc *testConfigurer) Configure(c *config.Config, rel string, f *rule.File) 
 // the parser a little bit.)
 //
 // This is somewhat unrealistic: the whole tree is likely to be in the kernel's
-// in memory in the kernel's file cache, so this doesn't measure I/O to disk.
+// memory in the kernel's file cache, so this doesn't measure I/O to disk.
 // Still, this is frequently true for real projects where Gazelle is invoked.
 func BenchmarkWalk(b *testing.B) {
 	// Create a fake repo to walk.
