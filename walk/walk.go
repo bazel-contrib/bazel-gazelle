@@ -23,6 +23,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -399,10 +400,14 @@ func buildTrie(c *config.Config, updateRels *UpdateFilter, isBazelIgnored, isRep
 	trie := &pathTrie{}
 
 	// A channel to limit the number of concurrent goroutines
-	// Value chosen by running BenchmarkWalk on a MacBook Pro M1.
-	// In most cases, walking a tree is memory or I/O bound, not CPU bound,
-	// so this should be lower than the number of cores.
-	limitCh := make(chan struct{}, 6)
+	//
+	// This operation is likely to be limited by memory bandwidth and I/O,
+	// not CPU. On a MacBook Pro M1, 6 was the lowest value with best performance,
+	// but higher values didn't degrade performacne. Higher values may benefit
+	// machines with more memory bandwidth.
+	//
+	// Use BenchmarkWalk to test changes here.
+	limitCh := make(chan struct{}, runtime.GOMAXPROCS(0))
 
 	// An error group to handle error propagation
 	eg := errgroup.Group{}
