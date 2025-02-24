@@ -403,7 +403,7 @@ func buildTrie(c *config.Config, updateRels *UpdateFilter, isBazelIgnored, isRep
 	//
 	// This operation is likely to be limited by memory bandwidth and I/O,
 	// not CPU. On a MacBook Pro M1, 6 was the lowest value with best performance,
-	// but higher values didn't degrade performacne. Higher values may benefit
+	// but higher values didn't degrade performance. Higher values may benefit
 	// machines with more memory bandwidth.
 	//
 	// Use BenchmarkWalk to test changes here.
