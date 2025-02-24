@@ -24,6 +24,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -73,18 +74,48 @@ func (wc *walkConfig) shouldFollow(p string) bool {
 
 var _ config.Configurer = (*Configurer)(nil)
 
-type Configurer struct{}
+type Configurer struct {
+	// Excludes and BUILD filenames specified on the command line.
+	// May be extending with BUILD directives.
+	cliExcludes       []string
+	cliBuildFileNames string
 
-func (*Configurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
-	wc := &walkConfig{}
-	c.Exts[walkName] = wc
-	fs.Var(&gzflag.MultiFlag{Values: &wc.excludes}, "exclude", "pattern that should be ignored (may be repeated)")
+	// Alternate BUILD read/write directories
+	readBuildFilesDir, writeBuildFilesDir string
 }
 
-func (*Configurer) CheckFlags(fs *flag.FlagSet, c *config.Config) error { return nil }
+func (wc *Configurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
+	fs.Var(&gzflag.MultiFlag{Values: &wc.cliExcludes}, "exclude", "pattern that should be ignored (may be repeated)")
+	fs.StringVar(&wc.cliBuildFileNames, "build_file_name", strings.Join(config.DefaultValidBuildFileNames, ","), "comma-separated list of valid build file names.\nThe first element of the list is the name of output build files to generate.")
+	fs.StringVar(&wc.readBuildFilesDir, "experimental_read_build_files_dir", "", "path to a directory where build files should be read from (instead of -repo_root)")
+	fs.StringVar(&wc.writeBuildFilesDir, "experimental_write_build_files_dir", "", "path to a directory where build files should be written to (instead of -repo_root)")
+}
+
+func (wc *Configurer) CheckFlags(_ *flag.FlagSet, c *config.Config) error {
+	c.ValidBuildFileNames = strings.Split(wc.cliBuildFileNames, ",")
+	if wc.readBuildFilesDir != "" {
+		if filepath.IsAbs(wc.readBuildFilesDir) {
+			c.ReadBuildFilesDir = wc.readBuildFilesDir
+		} else {
+			c.ReadBuildFilesDir = filepath.Join(c.WorkDir, wc.readBuildFilesDir)
+		}
+	}
+	if wc.writeBuildFilesDir != "" {
+		if filepath.IsAbs(wc.writeBuildFilesDir) {
+			c.WriteBuildFilesDir = wc.writeBuildFilesDir
+		} else {
+			c.WriteBuildFilesDir = filepath.Join(c.WorkDir, wc.writeBuildFilesDir)
+		}
+	}
+
+	c.Exts[walkName] = &walkConfig{
+		excludes: wc.cliExcludes,
+	}
+	return nil
+}
 
 func (*Configurer) KnownDirectives() []string {
-	return []string{"generation_mode", "exclude", "follow", "ignore"}
+	return []string{"build_file_name", "generation_mode", "exclude", "follow", "ignore"}
 }
 
 func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
@@ -96,6 +127,8 @@ func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
 	if f != nil {
 		for _, d := range f.Directives {
 			switch d.Key {
+			case "build_file_name":
+				c.ValidBuildFileNames = strings.Split(d.Value, ",")
 			case "generation_mode":
 				switch generationModeType(strings.TrimSpace(d.Value)) {
 				case generationModeUpdate:
