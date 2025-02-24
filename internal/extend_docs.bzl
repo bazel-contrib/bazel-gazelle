@@ -51,7 +51,7 @@ libraries through the `DEFAULT_LANGUAGES` list (you may want to use
 load("@bazel_gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle_binary")
 
 gazelle_binary(
-    name = "gazelle",
+    name = "my_gazelle_binary",
     languages = [
         "@rules_python//gazelle",  # Use gazelle from rules_python.
         "@bazel_gazelle//language/go",  # Built-in rule from gazelle for Golang.
@@ -71,7 +71,7 @@ load("@bazel_gazelle//:def.bzl", "gazelle")
 # gazelle:prefix example.com/project
 gazelle(
     name = "gazelle",
-    gazelle = "//:my_gazelle_binary",
+    gazelle = ":my_gazelle_binary",
 )
 ```
 
