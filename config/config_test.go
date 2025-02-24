@@ -69,17 +69,12 @@ func TestCommonConfigurerFlags(t *testing.T) {
 func TestCommonConfigurerDirectives(t *testing.T) {
 	c := New()
 	cc := &CommonConfigurer{}
-	buildData := []byte(`# gazelle:build_file_name x,y
-# gazelle:lang go`)
+	buildData := []byte(`# gazelle:lang go`)
 	f, err := rule.LoadData(filepath.Join("test", "BUILD.bazel"), "", buildData)
 	if err != nil {
 		t.Fatal(err)
 	}
 	cc.Configure(c, "", f)
-	want := []string{"x", "y"}
-	if !reflect.DeepEqual(c.ValidBuildFileNames, want) {
-		t.Errorf("for ValidBuildFileNames, got %#v, want %#v", c.ValidBuildFileNames, want)
-	}
 
 	wantLangs := []string{"go"}
 	if !reflect.DeepEqual(c.Langs, wantLangs) {

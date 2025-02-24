@@ -66,19 +66,14 @@ func TestGenerateRules(t *testing.T) {
 	c, langs, cexts := testConfig(
 		t,
 		"-build_file_name=BUILD.old",
+		// runfiles are symbolic links, which we need Walk to follow.
+		// TODO: switch to testtools.CreateFiles and drop -follow
+		"-follow=**",
 		"-go_prefix=example.com/repo",
 		"-repo_root="+testdataDir)
 
-	// runfiles are symbolic links, which we need Walk to follow.
-	content := []byte(`
-# gazelle:follow **
-`)
-	f, err := rule.LoadData(filepath.FromSlash("BUILD.config"), "config", content)
-	if err != nil {
-		t.Fatal(err)
-	}
 	for _, cext := range cexts {
-		cext.Configure(c, "", f)
+		cext.Configure(c, "", nil)
 	}
 
 	var loads []rule.LoadInfo

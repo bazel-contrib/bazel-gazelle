@@ -162,14 +162,16 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		haveError = true
 	}
 
-	collectionOnly := f == nil && getWalkConfig(c).updateOnly
+	c.ValidBuildFileNames = trie.walkConfig.validBuildFileNames
+
+	collectionOnly := f == nil && trie.walkConfig.updateOnly
 
 	// Configure the current directory if not only collecting files
 	if !collectionOnly {
 		configure(cexts, knownDirectives, c, rel, f)
 	}
 
-	wc := getWalkConfig(c)
+	wc := trie.walkConfig
 	if wc.isExcluded(rel) {
 		return nil, false
 	}
@@ -305,12 +307,12 @@ func (u *UpdateFilter) shouldVisit(rel string, updateParent bool) bool {
 	}
 }
 
-func loadBuildFile(c *config.Config, validBuildFileNames []string, pkg, dir string, ents []fs.DirEntry) (*rule.File, error) {
+func loadBuildFile(readBuildFilesDir string, validBuildFileNames []string, pkg, dir string, ents []fs.DirEntry) (*rule.File, error) {
 	var err error
 	readDir := dir
 	readEnts := ents
-	if c.ReadBuildFilesDir != "" {
-		readDir = filepath.Join(c.ReadBuildFilesDir, filepath.FromSlash(pkg))
+	if readBuildFilesDir != "" {
+		readDir = filepath.Join(readBuildFilesDir, filepath.FromSlash(pkg))
 		readEnts, err = os.ReadDir(readDir)
 		if err != nil {
 			return nil, err
@@ -387,19 +389,28 @@ type pathTrie struct {
 	files    []fs.DirEntry
 	children []*pathTrie
 
+	walkConfig   *walkConfig
 	build        *rule.File
 	buildFileErr error
 }
 
 // Basic factory method to ensure the entry is properly copied
-func newTrie(entry fs.DirEntry) *pathTrie {
+func (trie *pathTrie) newChild(entry fs.DirEntry) *pathTrie {
 	return &pathTrie{
-		entry: entry,
+		entry:      entry,
+		walkConfig: trie.walkConfig.newChild(),
 	}
 }
 
 func buildTrie(c *config.Config, updateRels *UpdateFilter, isBazelIgnored, isRepoDirectoryIgnored isIgnoredFunc) (*pathTrie, error) {
-	trie := &pathTrie{}
+	trie := &pathTrie{
+		// Initial walk config based on root config.Config and walk.Configurer
+		walkConfig: &walkConfig{
+			validBuildFileNames: c.ValidBuildFileNames,
+			excludes:            c.Exts[walkConfigurerName].(*Configurer).cliExcludes,
+			follow:              c.Exts[walkConfigurerName].(*Configurer).cliFollow,
+		},
+	}
 
 	// A channel to limit the number of concurrent goroutines
 	limitCh := make(chan struct{}, 100)
@@ -407,35 +418,29 @@ func buildTrie(c *config.Config, updateRels *UpdateFilter, isBazelIgnored, isRep
 	// An error group to handle error propagation
 	eg := errgroup.Group{}
 	eg.Go(func() error {
-		return walkDir(c, c.ValidBuildFileNames, "", &eg, limitCh, updateRels, isBazelIgnored, isRepoDirectoryIgnored, trie)
+		return walkDir(c.RepoRoot, c.ReadBuildFilesDir, "", &eg, limitCh, updateRels, isBazelIgnored, isRepoDirectoryIgnored, trie)
 	})
 
 	return trie, eg.Wait()
 }
 
 // walkDir recursively and concurrently descends into the 'rel' directory and builds a trie
-func walkDir(c *config.Config, validBuildFileNames []string, rel string, eg *errgroup.Group, limitCh chan struct{}, updateRels *UpdateFilter, isBazelIgnored, isRepoDirectoryIgnored isIgnoredFunc, trie *pathTrie) error {
+func walkDir(root, readBuildFilesDir string, rel string, eg *errgroup.Group, limitCh chan struct{}, updateRels *UpdateFilter, isBazelIgnored, isRepoDirectoryIgnored isIgnoredFunc, trie *pathTrie) error {
 	limitCh <- struct{}{}
 	defer (func() { <-limitCh })()
 
 	// Absolute path to the directory being visited
-	dir := filepath.Join(c.RepoRoot, rel)
+	dir := filepath.Join(root, rel)
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
 	}
 
-	trie.build, trie.buildFileErr = loadBuildFile(c, validBuildFileNames, rel, dir, entries)
+	trie.build, trie.buildFileErr = loadBuildFile(readBuildFilesDir, trie.walkConfig.validBuildFileNames, rel, dir, entries)
 
 	if trie.build != nil {
-		// Update the `validBuildFileNames` config while traversing the tree.
-		for _, d := range trie.build.Directives {
-			if d.Key == "build_file_name" {
-				validBuildFileNames = strings.Split(d.Value, ",")
-				break
-			}
-		}
+		trie.walkConfig.readConfig(rel, trie.build)
 	}
 
 	for _, entry := range entries {
@@ -457,10 +462,10 @@ func walkDir(c *config.Config, validBuildFileNames []string, rel string, eg *err
 				continue
 			}
 
-			entryTrie := newTrie(entry)
+			entryTrie := trie.newChild(entry)
 			trie.children = append(trie.children, entryTrie)
 			eg.Go(func() error {
-				return walkDir(c, validBuildFileNames, entryPath, eg, limitCh, updateRels, isBazelIgnored, isRepoDirectoryIgnored, entryTrie)
+				return walkDir(root, readBuildFilesDir, entryPath, eg, limitCh, updateRels, isBazelIgnored, isRepoDirectoryIgnored, entryTrie)
 			})
 		} else {
 			trie.files = append(trie.files, entry)

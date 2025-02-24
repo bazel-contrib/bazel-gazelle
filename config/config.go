@@ -206,6 +206,7 @@ var _ Configurer = (*CommonConfigurer)(nil)
 // CommonConfigurer handles language-agnostic command-line flags and directives,
 // i.e., those that apply to Config itself and not to Config.Exts.
 type CommonConfigurer struct {
+	// TODO: move buildFileNames, readBuildFilesDir, writeBuildFilesDir CLI args to walk.Config?
 	repoRoot, buildFileNames, readBuildFilesDir, writeBuildFilesDir string
 	indexLibraries, strict                                          bool
 	langCsv                                                         string
@@ -272,7 +273,7 @@ func (cc *CommonConfigurer) CheckFlags(fs *flag.FlagSet, c *Config) error {
 }
 
 func (cc *CommonConfigurer) KnownDirectives() []string {
-	return []string{"build_file_name", "map_kind", "alias_kind", "lang"}
+	return []string{"map_kind", "alias_kind", "lang"}
 }
 
 func (cc *CommonConfigurer) Configure(c *Config, rel string, f *rule.File) {
@@ -281,9 +282,6 @@ func (cc *CommonConfigurer) Configure(c *Config, rel string, f *rule.File) {
 	}
 	for _, d := range f.Directives {
 		switch d.Key {
-		case "build_file_name":
-			c.ValidBuildFileNames = strings.Split(d.Value, ",")
-
 		case "map_kind":
 			vals := strings.Fields(d.Value)
 			if len(vals) != 3 {

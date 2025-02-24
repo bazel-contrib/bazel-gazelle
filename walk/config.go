@@ -51,17 +51,14 @@ const (
 // declared generated files, so we can't just stat.
 
 type walkConfig struct {
-	updateOnly bool
-	excludes   []string
-	ignore     bool
-	follow     []string
+	updateOnly          bool
+	excludes            []string
+	ignore              bool
+	follow              []string
+	validBuildFileNames []string
 }
 
-const walkName = "_walk"
-
-func getWalkConfig(c *config.Config) *walkConfig {
-	return c.Exts[walkName].(*walkConfig)
-}
+const walkConfigurerName = "_walk"
 
 func (wc *walkConfig) isExcluded(p string) bool {
 	return matchAnyGlob(wc.excludes, p)
@@ -73,35 +70,44 @@ func (wc *walkConfig) shouldFollow(p string) bool {
 
 var _ config.Configurer = (*Configurer)(nil)
 
-type Configurer struct{}
+type Configurer struct {
+	cliExcludes []string
+	cliFollow   []string
+}
 
-func (*Configurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
-	wc := &walkConfig{}
-	c.Exts[walkName] = wc
-	fs.Var(&gzflag.MultiFlag{Values: &wc.excludes}, "exclude", "pattern that should be ignored (may be repeated)")
+func (cc *Configurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
+	c.Exts[walkConfigurerName] = cc
+	fs.Var(&gzflag.MultiFlag{Values: &cc.cliExcludes}, "exclude", "pattern that should be ignored (may be repeated)")
+	fs.Var(&gzflag.MultiFlag{Values: &cc.cliFollow}, "follow", "pattern that should be followed (may be repeated)")
 }
 
 func (*Configurer) CheckFlags(fs *flag.FlagSet, c *config.Config) error { return nil }
 
 func (*Configurer) KnownDirectives() []string {
-	return []string{"generation_mode", "exclude", "follow", "ignore"}
+	return []string{"build_file_name", "generation_mode", "exclude", "follow", "ignore"}
 }
 
-func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
-	wc := getWalkConfig(c)
+func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {}
+
+func (wc *walkConfig) newChild() *walkConfig {
 	wcCopy := &walkConfig{}
 	*wcCopy = *wc
 	wcCopy.ignore = false
+	return wcCopy
+}
 
+func (wc *walkConfig) readConfig(rel string, f *rule.File) {
 	if f != nil {
 		for _, d := range f.Directives {
 			switch d.Key {
+			case "build_file_name":
+				wc.validBuildFileNames = strings.Split(strings.TrimSpace(d.Value), ",")
 			case "generation_mode":
 				switch generationModeType(strings.TrimSpace(d.Value)) {
 				case generationModeUpdate:
-					wcCopy.updateOnly = true
+					wc.updateOnly = true
 				case generationModeCreate:
-					wcCopy.updateOnly = false
+					wc.updateOnly = false
 				default:
 					log.Fatalf("unknown generation_mode %q in //%s", d.Value, f.Pkg)
 					continue
@@ -111,23 +117,21 @@ func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
 					log.Printf("the exclusion pattern is not valid %q: %s", path.Join(rel, d.Value), err)
 					continue
 				}
-				wcCopy.excludes = append(wcCopy.excludes, path.Join(rel, d.Value))
+				wc.excludes = append(wc.excludes, path.Join(rel, d.Value))
 			case "follow":
 				if err := checkPathMatchPattern(path.Join(rel, d.Value)); err != nil {
 					log.Printf("the follow pattern is not valid %q: %s", path.Join(rel, d.Value), err)
 					continue
 				}
-				wcCopy.follow = append(wcCopy.follow, path.Join(rel, d.Value))
+				wc.follow = append(wc.follow, path.Join(rel, d.Value))
 			case "ignore":
 				if d.Value != "" {
 					log.Printf("the ignore directive does not take any arguments. Did you mean to use gazelle:exclude instead? in //%s '# gazelle:ignore %s'", f.Pkg, d.Value)
 				}
-				wcCopy.ignore = true
+				wc.ignore = true
 			}
 		}
 	}
-
-	c.Exts[walkName] = wcCopy
 }
 
 type isIgnoredFunc = func(string) bool
