@@ -960,6 +960,7 @@ func (r *Rule) SetAttr(key string, value interface{}) {
 	if attr, ok := r.attrs[key]; ok {
 		attr.expr.RHS = rhs
 		attr.val = value
+		r.attrs[key] = attr
 	} else {
 		r.attrs[key] = attrValue{
 			expr: &bzl.AssignExpr{
