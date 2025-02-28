@@ -118,18 +118,9 @@ func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode,
 	}
 
 	updateRels := NewUpdateFilter(c.RepoRoot, dirs, mode)
+	ignoreFilter := newIgnoreFilter(c.RepoRoot)
 
-	isBazelIgnored, err := loadBazelIgnore(c.RepoRoot)
-	if err != nil {
-		log.Printf("error loading .bazelignore: %v", err)
-	}
-
-	isRepoDirectoryIgnored, err := loadRepoDirectoryIgnore(c.RepoRoot)
-	if err != nil {
-		log.Printf("error loading REPO.bazel ignore_directories(): %v", err)
-	}
-
-	trie, err := buildTrie(c, updateRels, isBazelIgnored, isRepoDirectoryIgnored)
+	trie, err := buildTrie(c, updateRels, ignoreFilter)
 	if err != nil {
 		log.Fatalf("error walking the file system: %v\n", err)
 	}
@@ -403,7 +394,7 @@ func (trie *pathTrie) newChild(entry fs.DirEntry) *pathTrie {
 	}
 }
 
-func buildTrie(c *config.Config, updateRels *UpdateFilter, isBazelIgnored, isRepoDirectoryIgnored isIgnoredFunc) (*pathTrie, error) {
+func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) (*pathTrie, error) {
 	trie := &pathTrie{
 		// Initial walk config based on root config.Config and walk.Configurer
 		walkConfig: &walkConfig{
@@ -426,14 +417,14 @@ func buildTrie(c *config.Config, updateRels *UpdateFilter, isBazelIgnored, isRep
 	// An error group to handle error propagation
 	eg := errgroup.Group{}
 	eg.Go(func() error {
-		return walkDir(c.RepoRoot, c.ReadBuildFilesDir, "", &eg, limitCh, updateRels, isBazelIgnored, isRepoDirectoryIgnored, trie)
+		return trie.walkDir(c.RepoRoot, c.ReadBuildFilesDir, "", &eg, limitCh, updateRels, ignoreFilter)
 	})
 
 	return trie, eg.Wait()
 }
 
 // walkDir recursively and concurrently descends into the 'rel' directory and builds a trie
-func walkDir(root, readBuildFilesDir string, rel string, eg *errgroup.Group, limitCh chan struct{}, updateRels *UpdateFilter, isBazelIgnored, isRepoDirectoryIgnored isIgnoredFunc, trie *pathTrie) error {
+func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel string, eg *errgroup.Group, limitCh chan struct{}, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
 	limitCh <- struct{}{}
 	defer (func() { <-limitCh })()
 
@@ -455,13 +446,13 @@ func walkDir(root, readBuildFilesDir string, rel string, eg *errgroup.Group, lim
 		entryName := entry.Name()
 		entryPath := path.Join(rel, entryName)
 
-		// Ignore .git, empty names and ignored paths
-		if entryName == "" || entryName == ".git" || isBazelIgnored(entryPath) {
+		// Ignore .git and empty names
+		if entryName == "" || entryName == ".git" {
 			continue
 		}
 
 		if entry.IsDir() {
-			if isRepoDirectoryIgnored(entryPath) {
+			if ignoreFilter.isDirectoryIgnored(entryPath) {
 				continue
 			}
 
@@ -473,9 +464,13 @@ func walkDir(root, readBuildFilesDir string, rel string, eg *errgroup.Group, lim
 			entryTrie := trie.newChild(entry)
 			trie.children = append(trie.children, entryTrie)
 			eg.Go(func() error {
-				return walkDir(root, readBuildFilesDir, entryPath, eg, limitCh, updateRels, isBazelIgnored, isRepoDirectoryIgnored, entryTrie)
+				return entryTrie.walkDir(root, readBuildFilesDir, entryPath, eg, limitCh, updateRels, ignoreFilter)
 			})
 		} else {
+			if ignoreFilter.isFileIgnored(entryPath) {
+				continue
+			}
+
 			trie.files = append(trie.files, entry)
 		}
 	}
