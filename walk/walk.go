@@ -163,7 +163,7 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 	wc := trie.walkConfig
 
 	// Filter and collect files
-	var regularFiles []string
+	regularFiles := make([]string, 0, len(trie.files))
 	for entSub := range trie.files {
 		regularFiles = append(regularFiles, entSub)
 	}
