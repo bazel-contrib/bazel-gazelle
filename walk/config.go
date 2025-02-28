@@ -24,6 +24,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -71,17 +72,45 @@ func (wc *walkConfig) shouldFollow(p string) bool {
 var _ config.Configurer = (*Configurer)(nil)
 
 type Configurer struct {
-	cliExcludes []string
-	cliFollow   []string
+	// Excludes and BUILD filenames specified on the command line.
+	// May be extending with BUILD directives.
+	cliExcludes       []string
+	cliFollow         []string
+	cliBuildFileNames string
+
+	// Alternate BUILD read/write directories
+	readBuildFilesDir, writeBuildFilesDir string
 }
 
-func (cc *Configurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
-	c.Exts[walkConfigurerName] = cc
-	fs.Var(&gzflag.MultiFlag{Values: &cc.cliExcludes}, "exclude", "pattern that should be ignored (may be repeated)")
-	fs.Var(&gzflag.MultiFlag{Values: &cc.cliFollow}, "follow", "pattern that should be followed (may be repeated)")
+func (wc *Configurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
+	c.Exts[walkConfigurerName] = wc
+
+	fs.Var(&gzflag.MultiFlag{Values: &wc.cliExcludes}, "exclude", "pattern that should be ignored (may be repeated)")
+	fs.Var(&gzflag.MultiFlag{Values: &wc.cliFollow}, "follow", "pattern that should be followed (may be repeated)")
+	fs.StringVar(&wc.cliBuildFileNames, "build_file_name", strings.Join(config.DefaultValidBuildFileNames, ","), "comma-separated list of valid build file names.\nThe first element of the list is the name of output build files to generate.")
+	fs.StringVar(&wc.readBuildFilesDir, "experimental_read_build_files_dir", "", "path to a directory where build files should be read from (instead of -repo_root)")
+	fs.StringVar(&wc.writeBuildFilesDir, "experimental_write_build_files_dir", "", "path to a directory where build files should be written to (instead of -repo_root)")
 }
 
-func (*Configurer) CheckFlags(fs *flag.FlagSet, c *config.Config) error { return nil }
+func (wc *Configurer) CheckFlags(_ *flag.FlagSet, c *config.Config) error {
+	c.ValidBuildFileNames = strings.Split(wc.cliBuildFileNames, ",")
+	if wc.readBuildFilesDir != "" {
+		if filepath.IsAbs(wc.readBuildFilesDir) {
+			c.ReadBuildFilesDir = wc.readBuildFilesDir
+		} else {
+			c.ReadBuildFilesDir = filepath.Join(c.WorkDir, wc.readBuildFilesDir)
+		}
+	}
+	if wc.writeBuildFilesDir != "" {
+		if filepath.IsAbs(wc.writeBuildFilesDir) {
+			c.WriteBuildFilesDir = wc.writeBuildFilesDir
+		} else {
+			c.WriteBuildFilesDir = filepath.Join(c.WorkDir, wc.writeBuildFilesDir)
+		}
+	}
+
+	return nil
+}
 
 func (*Configurer) KnownDirectives() []string {
 	return []string{"build_file_name", "generation_mode", "exclude", "follow", "ignore"}

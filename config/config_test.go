@@ -43,7 +43,7 @@ func TestCommonConfigurerFlags(t *testing.T) {
 	cc := &CommonConfigurer{}
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cc.RegisterFlags(fs, "test", c)
-	args := []string{"-repo_root", dir, "-build_file_name", "x,y", "-lang", "go"}
+	args := []string{"-repo_root", dir, "-lang", "go"}
 	if err := fs.Parse(args); err != nil {
 		t.Fatal(err)
 	}
@@ -53,11 +53,6 @@ func TestCommonConfigurerFlags(t *testing.T) {
 
 	if c.RepoRoot != dir {
 		t.Errorf("for RepoRoot, got %#v, want %#v", c.RepoRoot, dir)
-	}
-
-	wantBuildFileNames := []string{"x", "y"}
-	if !reflect.DeepEqual(c.ValidBuildFileNames, wantBuildFileNames) {
-		t.Errorf("for ValidBuildFileNames, got %#v, want %#v", c.ValidBuildFileNames, wantBuildFileNames)
 	}
 
 	wantLangs := []string{"go"}
