@@ -125,7 +125,7 @@ func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode,
 		log.Fatalf("error walking the file system: %v\n", err)
 	}
 
-	visit(c, cexts, knownDirectives, updateRels, trie, wf, "", false)
+	visit(c, cexts, knownDirectives, updateRels, trie, wf, false)
 }
 
 // Recursively traverse a trie to:
@@ -137,11 +137,11 @@ func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode,
 //
 // Traversal may skip subtrees or files based on the config.Config exclude/ignore/follow options
 // as well as the UpdateFilter callbacks.
-func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, rel string, updateParent bool) ([]string, bool) {
+func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, updateParent bool) ([]string, bool) {
 	haveError := false
 
 	// Absolute path to the directory being visited
-	dir := filepath.Join(c.RepoRoot, rel)
+	dir := filepath.Join(c.RepoRoot, trie.rel)
 
 	f, err := trie.build, trie.buildFileErr
 	if err != nil {
@@ -156,63 +156,39 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 
 	c.ValidBuildFileNames = trie.walkConfig.validBuildFileNames
 
-	collectionOnly := f == nil && trie.walkConfig.updateOnly
-
 	// Configure the current directory if not only collecting files
-	if !collectionOnly {
-		configure(cexts, knownDirectives, c, rel, f)
-	}
+	configure(cexts, knownDirectives, c, trie.rel, f)
 
 	wc := trie.walkConfig
-	if wc.isExcluded(rel) {
-		return nil, false
-	}
 
 	// Filter and collect files
 	var regularFiles []string
-	for _, ent := range trie.files {
-		base := ent.Name()
-		entRel := path.Join(rel, base)
-		if wc.isExcluded(entRel) {
-			continue
-		}
+	for entSub, ent := range trie.files {
+		entRel := path.Join(trie.rel, entSub)
 		if ent := resolveFileInfo(wc, dir, entRel, ent); ent != nil {
-			regularFiles = append(regularFiles, base)
+			regularFiles = append(regularFiles, entSub)
 		}
 	}
 
-	shouldUpdate := updateRels.shouldUpdate(rel, updateParent)
+	shouldUpdate := updateRels.shouldUpdate(trie.rel, updateParent)
 
 	// Filter and collect subdirectories
 	var subdirs []string
 	for _, t := range trie.children {
 		base := t.entry.Name()
-		entRel := path.Join(rel, base)
-		if wc.isExcluded(entRel) {
-			continue
-		}
+		entRel := path.Join(trie.rel, base)
 		if ent := resolveFileInfo(wc, dir, entRel, t.entry); ent != nil {
 			if updateRels.shouldVisit(entRel, shouldUpdate) {
-				subFiles, shouldMerge := visit(c.Clone(), cexts, knownDirectives, updateRels, t, wf, entRel, shouldUpdate)
-				if shouldMerge {
-					for _, f := range subFiles {
-						regularFiles = append(regularFiles, path.Join(base, f))
-					}
-				} else {
-					subdirs = append(subdirs, base)
-				}
+				visit(c.Clone(), cexts, knownDirectives, updateRels, t, wf, shouldUpdate)
+				subdirs = append(subdirs, base)
 			}
 		}
 	}
 
-	if collectionOnly {
-		return regularFiles, true
-	}
-
 	update := !haveError && !wc.ignore && shouldUpdate
-	if updateRels.shouldCall(rel, updateParent) {
+	if updateRels.shouldCall(trie.rel, updateParent) {
 		genFiles := findGenFiles(wc, f)
-		wf(dir, rel, c, update, f, subdirs, regularFiles, genFiles)
+		wf(dir, trie.rel, c, update, f, subdirs, regularFiles, genFiles)
 	}
 	return nil, false
 }
@@ -377,8 +353,10 @@ func resolveFileInfo(wc *walkConfig, dir, rel string, ent fs.DirEntry) fs.DirEnt
 }
 
 type pathTrie struct {
+	rel string
+
 	entry    fs.DirEntry
-	files    []fs.DirEntry
+	files    map[string]fs.DirEntry
 	children []*pathTrie
 
 	walkConfig   *walkConfig
@@ -387,8 +365,10 @@ type pathTrie struct {
 }
 
 // Basic factory method to ensure the entry is properly copied
-func (trie *pathTrie) newChild(entry fs.DirEntry) *pathTrie {
+func (trie *pathTrie) newChild(rel string, entry fs.DirEntry) *pathTrie {
 	return &pathTrie{
+		rel:        path.Join(trie.rel, rel, entry.Name()),
+		files:      map[string]fs.DirEntry{},
 		entry:      entry,
 		walkConfig: trie.walkConfig.newChild(),
 	}
@@ -396,6 +376,7 @@ func (trie *pathTrie) newChild(entry fs.DirEntry) *pathTrie {
 
 func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) (*pathTrie, error) {
 	trie := &pathTrie{
+		files: map[string]fs.DirEntry{},
 		// Initial walk config based on root config.Config and walk.Configurer
 		walkConfig: &walkConfig{
 			validBuildFileNames: c.ValidBuildFileNames,
@@ -417,14 +398,14 @@ func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreF
 	// An error group to handle error propagation
 	eg := errgroup.Group{}
 	eg.Go(func() error {
-		return trie.walkDir(c.RepoRoot, c.ReadBuildFilesDir, "", &eg, limitCh, updateRels, ignoreFilter)
+		return trie.walkDir(c.RepoRoot, c.ReadBuildFilesDir, "", "", nil, &eg, limitCh, updateRels, ignoreFilter)
 	})
 
 	return trie, eg.Wait()
 }
 
 // walkDir recursively and concurrently descends into the 'rel' directory and builds a trie
-func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel string, eg *errgroup.Group, limitCh chan struct{}, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
+func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, entry os.DirEntry, eg *errgroup.Group, limitCh chan struct{}, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
 	limitCh <- struct{}{}
 	defer (func() { <-limitCh })()
 
@@ -436,10 +417,33 @@ func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel string, eg *errgroup.
 		return err
 	}
 
-	trie.build, trie.buildFileErr = loadBuildFile(readBuildFilesDir, trie.walkConfig.validBuildFileNames, rel, dir, entries)
+	build, buildFileErr := loadBuildFile(readBuildFilesDir, trie.walkConfig.validBuildFileNames, rel, dir, entries)
 
-	if trie.build != nil {
-		trie.walkConfig.readConfig(rel, trie.build)
+	if entry != nil && (build != nil || buildFileErr != nil || !trie.walkConfig.updateOnly) {
+		child := trie.newChild(buildRel, entry)
+		child.build = build
+		child.buildFileErr = buildFileErr
+		child.walkConfig.readConfig(rel, build)
+
+		// Check if a BUILD excluded itself.
+		// Only check if the `readConfig()` added new `excludes` in addition to the parent to avoid
+		// simply duplicating the `isExcluded()` already invoked before recursing into `dir`.
+		// TODO: could also skip `excludes` from the parent BUILD that were already checked before recursing
+		if len(child.walkConfig.excludes) > len(trie.walkConfig.excludes) && child.walkConfig.isExcluded(rel) {
+			return nil
+		}
+
+		trie.children = append(trie.children, child)
+		trie = child
+		buildRel = ""
+	} else {
+		trie.build = build
+		trie.buildFileErr = buildFileErr
+		if entry != nil {
+			buildRel = path.Join(buildRel, entry.Name())
+		} else {
+			trie.walkConfig.readConfig(rel, build)
+		}
 	}
 
 	for _, entry := range entries {
@@ -461,17 +465,23 @@ func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel string, eg *errgroup.
 				continue
 			}
 
-			entryTrie := trie.newChild(entry)
-			trie.children = append(trie.children, entryTrie)
+			if trie.walkConfig.isExcluded(entryPath) {
+				continue
+			}
+
 			eg.Go(func() error {
-				return entryTrie.walkDir(root, readBuildFilesDir, entryPath, eg, limitCh, updateRels, ignoreFilter)
+				return trie.walkDir(root, readBuildFilesDir, entryPath, buildRel, entry, eg, limitCh, updateRels, ignoreFilter)
 			})
 		} else {
 			if ignoreFilter.isFileIgnored(entryPath) {
 				continue
 			}
 
-			trie.files = append(trie.files, entry)
+			if trie.walkConfig.isExcluded(entryPath) {
+				continue
+			}
+
+			trie.files[path.Join(buildRel, entryName)] = entry
 		}
 	}
 	return nil
