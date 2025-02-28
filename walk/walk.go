@@ -24,6 +24,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -163,25 +164,32 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 
 	// Filter and collect files
 	var regularFiles []string
-	for entSub, ent := range trie.files {
-		entRel := path.Join(trie.rel, entSub)
-		if ent := resolveFileInfo(wc, dir, entRel, ent); ent != nil {
-			regularFiles = append(regularFiles, entSub)
-		}
+	for entSub := range trie.files {
+		regularFiles = append(regularFiles, entSub)
 	}
 
 	shouldUpdate := updateRels.shouldUpdate(trie.rel, updateParent)
+
+	// Ensure a deterministic order for regular files and subdirectories.
+	// This includes both the params to the callback as well as the `visit` order.
+	sort.Strings(regularFiles)
+	sort.Slice(trie.children, func(i, j int) bool {
+		ci := trie.children[i]
+		cj := trie.children[j]
+		if ci.rel != cj.rel {
+			return ci.rel < cj.rel
+		}
+		return ci.entry.Name() < cj.entry.Name()
+	})
 
 	// Filter and collect subdirectories
 	var subdirs []string
 	for _, t := range trie.children {
 		base := t.entry.Name()
 		entRel := path.Join(trie.rel, base)
-		if ent := resolveFileInfo(wc, dir, entRel, t.entry); ent != nil {
-			if updateRels.shouldVisit(entRel, shouldUpdate) {
-				visit(c.Clone(), cexts, knownDirectives, updateRels, t, wf, shouldUpdate)
-				subdirs = append(subdirs, base)
-			}
+		if updateRels.shouldVisit(entRel, shouldUpdate) {
+			visit(c.Clone(), cexts, knownDirectives, updateRels, t, wf, shouldUpdate)
+			subdirs = append(subdirs, base)
 		}
 	}
 
@@ -439,10 +447,10 @@ func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, ent
 	} else {
 		trie.build = build
 		trie.buildFileErr = buildFileErr
+		trie.walkConfig.readConfig(rel, build)
+
 		if entry != nil {
 			buildRel = path.Join(buildRel, entry.Name())
-		} else {
-			trie.walkConfig.readConfig(rel, build)
 		}
 	}
 
@@ -470,7 +478,10 @@ func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, ent
 			}
 
 			eg.Go(func() error {
-				return trie.walkDir(root, readBuildFilesDir, entryPath, buildRel, entry, eg, limitCh, updateRels, ignoreFilter)
+				if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, entry); ent != nil {
+					return trie.walkDir(root, readBuildFilesDir, entryPath, buildRel, ent, eg, limitCh, updateRels, ignoreFilter)
+				}
+				return nil
 			})
 		} else {
 			if ignoreFilter.isFileIgnored(entryPath) {
@@ -481,7 +492,9 @@ func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, ent
 				continue
 			}
 
-			trie.files[path.Join(buildRel, entryName)] = entry
+			if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, entry); ent != nil {
+				trie.files[path.Join(buildRel, entryName)] = ent
+			}
 		}
 	}
 	return nil
