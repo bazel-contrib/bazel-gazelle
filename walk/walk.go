@@ -24,6 +24,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 
@@ -172,7 +173,7 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 
 	// Ensure a deterministic order for regular files and subdirectories.
 	// This includes both the params to the callback as well as the `visit` order.
-	sort.Strings(regularFiles)
+	slices.Sort(regularFiles)
 	sort.Slice(trie.children, func(i, j int) bool {
 		ci := trie.children[i]
 		cj := trie.children[j]
