@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -174,13 +173,11 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 	// Ensure a deterministic order for regular files and subdirectories.
 	// This includes both the params to the callback as well as the `visit` order.
 	slices.Sort(regularFiles)
-	sort.Slice(trie.children, func(i, j int) bool {
-		ci := trie.children[i]
-		cj := trie.children[j]
-		if ci.rel != cj.rel {
-			return ci.rel < cj.rel
+	slices.SortFunc(trie.children, func(a, b *pathTrie) int {
+		if a.rel != b.rel {
+			return strings.Compare(a.rel, b.rel)
 		}
-		return ci.entry.Name() < cj.entry.Name()
+		return strings.Compare(a.entry.Name(), b.entry.Name())
 	})
 
 	// Filter and collect subdirectories
