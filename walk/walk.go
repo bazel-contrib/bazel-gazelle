@@ -173,6 +173,8 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 	// Ensure a deterministic order for regular files and subdirectories.
 	// This includes both the params to the callback as well as the `visit` order.
 	slices.Sort(regularFiles)
+
+	// TODO: don't sort content of trie, pre-sort it or sort only a local copy
 	slices.SortFunc(trie.children, func(a, b *pathTrie) int {
 		if a.rel != b.rel {
 			return strings.Compare(a.rel, b.rel)
