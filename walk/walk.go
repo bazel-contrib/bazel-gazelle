@@ -473,10 +473,13 @@ func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, ent
 				continue
 			}
 
+			// Ignored directories excluded by config
+			// Performed after `isDirectoryIgnored` + `shouldVisit` which may be faster.
 			if trie.walkConfig.isExcluded(entryPath) {
 				continue
 			}
 
+			// Asynchrounously walk the subdirectory.
 			eg.Go(func() error {
 				if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, entry); ent != nil {
 					return trie.walkDir(root, readBuildFilesDir, entryPath, buildRel, ent, eg, limitCh, updateRels, ignoreFilter)
@@ -488,6 +491,8 @@ func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, ent
 				continue
 			}
 
+			// Ignored files excluded by config.
+			// Performed after `isFileIgnored` which may be faster.
 			if trie.walkConfig.isExcluded(entryPath) {
 				continue
 			}
