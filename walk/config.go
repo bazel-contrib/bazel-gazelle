@@ -131,47 +131,47 @@ func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
 }
 
 type ignoreFilter struct {
-	isBazelIgnored         isIgnoredFunc
-	isRepoDirectoryIgnored isIgnoredFunc
+	ignoreDirectoryGlobs []string
+	ignorePaths          map[string]struct{}
 }
 
-type isIgnoredFunc = func(string) bool
-
-var nothingIgnored isIgnoredFunc = func(string) bool { return false }
-
 func newIgnoreFilter(repoRoot string) *ignoreFilter {
-	isBazelIgnored, err := loadBazelIgnore(repoRoot)
+	bazelignorePaths, err := loadBazelIgnore(repoRoot)
 	if err != nil {
 		log.Printf("error loading .bazelignore: %v", err)
 	}
 
-	isRepoDirectoryIgnored, err := loadRepoDirectoryIgnore(repoRoot)
+	repoDirectoryIgnores, err := loadRepoDirectoryIgnore(repoRoot)
 	if err != nil {
 		log.Printf("error loading REPO.bazel ignore_directories(): %v", err)
 	}
 
 	return &ignoreFilter{
-		isBazelIgnored:         isBazelIgnored,
-		isRepoDirectoryIgnored: isRepoDirectoryIgnored,
+		ignorePaths:          bazelignorePaths,
+		ignoreDirectoryGlobs: repoDirectoryIgnores,
 	}
 }
 
 func (f *ignoreFilter) isDirectoryIgnored(p string) bool {
-	return f.isBazelIgnored(p) || f.isRepoDirectoryIgnored(p)
+	if _, ok := f.ignorePaths[p]; ok {
+		return true
+	}
+	return matchAnyGlob(f.ignoreDirectoryGlobs, p)
 }
 
 func (f *ignoreFilter) isFileIgnored(p string) bool {
-	return f.isBazelIgnored(p)
+	_, ok := f.ignorePaths[p]
+	return ok
 }
 
-func loadBazelIgnore(repoRoot string) (isIgnoredFunc, error) {
+func loadBazelIgnore(repoRoot string) (map[string]struct{}, error) {
 	ignorePath := path.Join(repoRoot, ".bazelignore")
 	file, err := os.Open(ignorePath)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nothingIgnored, nil
+		return nil, nil
 	}
 	if err != nil {
-		return nothingIgnored, fmt.Errorf(".bazelignore exists but couldn't be read: %v", err)
+		return nil, fmt.Errorf(".bazelignore exists but couldn't be read: %v", err)
 	}
 	defer file.Close()
 
@@ -197,27 +197,22 @@ func loadBazelIgnore(repoRoot string) (isIgnoredFunc, error) {
 		excludes[ignore] = struct{}{}
 	}
 
-	isBazelIgnored := func(p string) bool {
-		_, ok := excludes[p]
-		return ok
-	}
-
-	return isBazelIgnored, nil
+	return excludes, nil
 }
 
-func loadRepoDirectoryIgnore(repoRoot string) (isIgnoredFunc, error) {
+func loadRepoDirectoryIgnore(repoRoot string) ([]string, error) {
 	repoFilePath := path.Join(repoRoot, "REPO.bazel")
 	repoFileContent, err := os.ReadFile(repoFilePath)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nothingIgnored, nil
+		return nil, nil
 	}
 	if err != nil {
-		return nothingIgnored, fmt.Errorf("REPO.bazel exists but couldn't be read: %v", err)
+		return nil, fmt.Errorf("REPO.bazel exists but couldn't be read: %v", err)
 	}
 
 	ast, err := bzl.Parse(repoRoot, repoFileContent)
 	if err != nil {
-		return nothingIgnored, fmt.Errorf("failed to parse REPO.bazel: %v", err)
+		return nil, fmt.Errorf("failed to parse REPO.bazel: %v", err)
 	}
 
 	var ignoreDirectories []string
@@ -227,12 +222,12 @@ func loadRepoDirectoryIgnore(repoRoot string) (isIgnoredFunc, error) {
 		if call, isCall := expr.(*bzl.CallExpr); isCall {
 			if inv, isIdentCall := call.X.(*bzl.Ident); isIdentCall && inv.Name == "ignore_directories" {
 				if len(call.List) != 1 {
-					return nothingIgnored, fmt.Errorf("REPO.bazel ignore_directories() expects one argument")
+					return nil, fmt.Errorf("REPO.bazel ignore_directories() expects one argument")
 				}
 
 				list, isList := call.List[0].(*bzl.ListExpr)
 				if !isList {
-					return nothingIgnored, fmt.Errorf("REPO.bazel ignore_directories() unexpected argument type: %T", call.List[0])
+					return nil, fmt.Errorf("REPO.bazel ignore_directories() unexpected argument type: %T", call.List[0])
 				}
 
 				for _, item := range list.List {
@@ -252,20 +247,7 @@ func loadRepoDirectoryIgnore(repoRoot string) (isIgnoredFunc, error) {
 		}
 	}
 
-	if len(ignoreDirectories) == 0 {
-		return nothingIgnored, nil
-	}
-
-	isRepoIgnored := func(p string) bool {
-		for _, ignore := range ignoreDirectories {
-			if doublestar.MatchUnvalidated(ignore, p) {
-				return true
-			}
-		}
-		return false
-	}
-
-	return isRepoIgnored, nil
+	return ignoreDirectories, nil
 }
 
 func checkPathMatchPattern(pattern string) error {
