@@ -43,7 +43,7 @@ func TestCommonConfigurerFlags(t *testing.T) {
 	cc := &CommonConfigurer{}
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cc.RegisterFlags(fs, "test", c)
-	args := []string{"-repo_root", dir, "-build_file_name", "x,y", "-lang", "go"}
+	args := []string{"-repo_root", dir, "-lang", "go"}
 	if err := fs.Parse(args); err != nil {
 		t.Fatal(err)
 	}
@@ -55,11 +55,6 @@ func TestCommonConfigurerFlags(t *testing.T) {
 		t.Errorf("for RepoRoot, got %#v, want %#v", c.RepoRoot, dir)
 	}
 
-	wantBuildFileNames := []string{"x", "y"}
-	if !reflect.DeepEqual(c.ValidBuildFileNames, wantBuildFileNames) {
-		t.Errorf("for ValidBuildFileNames, got %#v, want %#v", c.ValidBuildFileNames, wantBuildFileNames)
-	}
-
 	wantLangs := []string{"go"}
 	if !reflect.DeepEqual(c.Langs, wantLangs) {
 		t.Errorf("for Langs, got %#v, want %#v", c.Langs, wantLangs)
@@ -69,17 +64,12 @@ func TestCommonConfigurerFlags(t *testing.T) {
 func TestCommonConfigurerDirectives(t *testing.T) {
 	c := New()
 	cc := &CommonConfigurer{}
-	buildData := []byte(`# gazelle:build_file_name x,y
-# gazelle:lang go`)
+	buildData := []byte(`# gazelle:lang go`)
 	f, err := rule.LoadData(filepath.Join("test", "BUILD.bazel"), "", buildData)
 	if err != nil {
 		t.Fatal(err)
 	}
 	cc.Configure(c, "", f)
-	want := []string{"x", "y"}
-	if !reflect.DeepEqual(c.ValidBuildFileNames, want) {
-		t.Errorf("for ValidBuildFileNames, got %#v, want %#v", c.ValidBuildFileNames, want)
-	}
 
 	wantLangs := []string{"go"}
 	if !reflect.DeepEqual(c.Langs, wantLangs) {
