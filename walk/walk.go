@@ -162,29 +162,30 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 
 	wc := trie.walkConfig
 
-	// Filter and collect files
+	// Sorted list of file paths in the directory.
 	regularFiles := make([]string, 0, len(trie.files))
 	for entSub := range trie.files {
 		regularFiles = append(regularFiles, entSub)
 	}
+
+	// Sorted list of subdirectories in the directory.
+	subdirTries := trie.children[:]
 
 	shouldUpdate := updateRels.shouldUpdate(trie.rel, updateParent)
 
 	// Ensure a deterministic order for regular files and subdirectories.
 	// This includes both the params to the callback as well as the `visit` order.
 	slices.Sort(regularFiles)
-
-	// TODO: don't sort content of trie, pre-sort it or sort only a local copy
-	slices.SortFunc(trie.children, func(a, b *pathTrie) int {
+	slices.SortFunc(subdirTries, func(a, b *pathTrie) int {
 		if a.rel != b.rel {
 			return strings.Compare(a.rel, b.rel)
 		}
 		return strings.Compare(a.entry.Name(), b.entry.Name())
 	})
 
-	// Filter and collect subdirectories
+	// Filter visit and collect subdirectories
 	var subdirs []string
-	for _, t := range trie.children {
+	for _, t := range subdirTries {
 		base := t.entry.Name()
 		entRel := path.Join(trie.rel, base)
 		if updateRels.shouldVisit(entRel, shouldUpdate) {
