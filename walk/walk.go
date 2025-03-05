@@ -155,6 +155,7 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		haveError = true
 	}
 
+	// Update this directory config.Config with information from the trie
 	c.ValidBuildFileNames = trie.walkConfig.validBuildFileNames
 
 	// Configure the current directory if not only collecting files
