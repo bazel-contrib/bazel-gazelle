@@ -390,7 +390,6 @@ func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreF
 		walkConfig: &walkConfig{
 			validBuildFileNames: c.ValidBuildFileNames,
 			excludes:            c.Exts[walkConfigurerName].(*Configurer).cliExcludes,
-			follow:              c.Exts[walkConfigurerName].(*Configurer).cliFollow,
 		},
 	}
 

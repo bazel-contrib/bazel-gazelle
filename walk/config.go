@@ -75,7 +75,6 @@ type Configurer struct {
 	// Excludes and BUILD filenames specified on the command line.
 	// May be extending with BUILD directives.
 	cliExcludes       []string
-	cliFollow         []string
 	cliBuildFileNames string
 
 	// Alternate BUILD read/write directories
@@ -86,7 +85,6 @@ func (wc *Configurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Conf
 	c.Exts[walkConfigurerName] = wc
 
 	fs.Var(&gzflag.MultiFlag{Values: &wc.cliExcludes}, "exclude", "pattern that should be ignored (may be repeated)")
-	fs.Var(&gzflag.MultiFlag{Values: &wc.cliFollow}, "follow", "pattern that should be followed (may be repeated)")
 	fs.StringVar(&wc.cliBuildFileNames, "build_file_name", strings.Join(config.DefaultValidBuildFileNames, ","), "comma-separated list of valid build file names.\nThe first element of the list is the name of output build files to generate.")
 	fs.StringVar(&wc.readBuildFilesDir, "experimental_read_build_files_dir", "", "path to a directory where build files should be read from (instead of -repo_root)")
 	fs.StringVar(&wc.writeBuildFilesDir, "experimental_write_build_files_dir", "", "path to a directory where build files should be written to (instead of -repo_root)")
