@@ -389,6 +389,28 @@ unknown_rule(
 	}
 }
 
+func TestConfigurerDirectives(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{
+			Path:    "BUILD.bazel",
+			Content: `# gazelle:build_file_name x,y`,
+		},
+	})
+	defer cleanup()
+
+	c, cexts := testConfig(t, dir)
+
+	var validBuildFileNames []string
+	Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, rel string, c *config.Config, _ bool, _ *rule.File, _, reg, gen []string) {
+		validBuildFileNames = c.ValidBuildFileNames
+	})
+
+	want := []string{"x", "y"}
+	if !reflect.DeepEqual(validBuildFileNames, want) {
+		t.Errorf("for ValidBuildFileNames, got %#v, want %#v", validBuildFileNames, want)
+	}
+}
+
 func testConfig(t *testing.T, dir string) (*config.Config, []config.Configurer) {
 	args := []string{"-repo_root", dir}
 	cexts := []config.Configurer{&config.CommonConfigurer{}, &Configurer{}}
