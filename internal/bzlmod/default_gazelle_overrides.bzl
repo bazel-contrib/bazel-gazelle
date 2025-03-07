@@ -115,6 +115,9 @@ DEFAULT_DIRECTIVES_BY_PATH = {
         "gazelle:go_generate_proto false",
         "gazelle:proto_import_prefix k8s.io/apimachinery",
     ],
+    "k8s.io/kubelet": [
+        "gazelle:proto disable",
+    ],
     "k8s.io/kubernetes": [
         "gazelle:proto disable",
     ],
