@@ -77,6 +77,7 @@ func TestGenerateRules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer os.Remove(path.Join(testdataDir, "BUILD.old"))
 
 	var loads []rule.LoadInfo
 	for _, lang := range langs {
