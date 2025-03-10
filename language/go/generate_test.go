@@ -73,12 +73,9 @@ func TestGenerateRules(t *testing.T) {
 	content := []byte(`
 # gazelle:follow **
 `)
-	f, err := rule.LoadData(filepath.FromSlash("BUILD.config"), "config", content)
+	err := os.WriteFile(path.Join(testdataDir, "BUILD.old"), content, 0644)
 	if err != nil {
 		t.Fatal(err)
-	}
-	for _, cext := range cexts {
-		cext.Configure(c, "", f)
 	}
 
 	var loads []rule.LoadInfo
