@@ -57,6 +57,13 @@ _GO_MOD_21_CONTENT = """go 1.21.0rc1
 module example.com
 
 toolchain go1.22.2
+
+godebug (
+    default=go1.21
+    panicnil=1
+    asynctimerchan=0
+)
+godebug tlsrsakex=1
 """
 
 _EXPECTED_GO_MOD_21_PARSE_RESULT = struct(
@@ -114,6 +121,13 @@ use (
 replace github.com/go-fsnotify/fsnotify => github.com/fsnotify/fsnotify v1.4.2
 replace github.com/bmatcuk/doublestar/v4 v4.0.2 => github.com/bmatcuk/doublestar/v4 v4.0.3
 replace example.org/hello => ../fixtures/hello
+
+godebug (
+    default=go1.21
+    panicnil=1
+    asynctimerchan=0
+)
+godebug tlsrsakex=1
 """
 
 _EXPECTED_GO_WORK_PARSE_RESULT = struct(
