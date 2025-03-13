@@ -16,7 +16,10 @@ limitations under the License.
 package resolve
 
 import (
+	"encoding/json"
+	"io"
 	"log"
+	"os"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/label"
@@ -110,7 +113,8 @@ type RuleIndex struct {
 
 // ruleRecord contains information about a rule relevant to import indexing.
 type ruleRecord struct {
-	rule  *rule.Rule
+	// NOTE: this is not persisted
+	rule *rule.Rule
 
 	Kind  string      `json:"kind"`
 	Label label.Label `json:"label"`
@@ -145,6 +149,66 @@ func NewRuleIndex(mrslv func(r *rule.Rule, pkgRel string) Resolver, exts ...inte
 		mrslv:          mrslv,
 		crossResolvers: crossResolvers,
 	}
+}
+
+func (ix *RuleIndex) LoadIndex(indexDbPath string, isPkgExcluded func(string) bool) (bool, error) {
+	if ix.indexed {
+		log.Fatal("LoadIndex called after Finish")
+	}
+
+	indexDbFile, err := os.Open(indexDbPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	defer indexDbFile.Close()
+
+	indexDbContent, err := io.ReadAll(indexDbFile)
+	if err != nil {
+		return false, err
+	}
+
+	// TODO: read & verify index version
+
+	var rules []*ruleRecord
+
+	err = json.Unmarshal(indexDbContent, &rules)
+	if err != nil {
+		return false, err
+	}
+
+	ix.rules = make([]*ruleRecord, 0, len(rules))
+	for _, r := range rules {
+		if !isPkgExcluded(r.Label.Pkg) {
+			ix.rules = append(ix.rules, r)
+		}
+	}
+
+	return true, nil
+}
+
+func (ix *RuleIndex) SaveIndex(indexDbPath string) error {
+	// TODO: write index version
+
+	indexDbContent, err := json.Marshal(ix.rules)
+	if err != nil {
+		return err
+	}
+
+	indexDbFile, err := os.Create(indexDbPath)
+	if err != nil {
+		return err
+	}
+	defer indexDbFile.Close()
+
+	_, err = indexDbFile.Write(indexDbContent)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // AddRule adds a rule r to the index. The rule will only be indexed if there
