@@ -165,12 +165,19 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 
 	// Sorted list of file paths in the directory.
 	regularFiles := make([]string, 0, len(trie.files))
-	for entSub := range trie.files {
-		regularFiles = append(regularFiles, entSub)
+	for entryPath, entry := range trie.files {
+		if entry := resolveFileInfo(trie.walkConfig, dir, entryPath, entry); entry != nil {
+			regularFiles = append(regularFiles, entryPath)
+		}
 	}
 
 	// Sorted list of subdirectories in the directory.
-	subdirTries := trie.children[:]
+	subdirTries := make([]*pathTrie, 0, len(trie.children))
+	for _, child := range trie.children {
+		if entry := resolveFileInfo(trie.walkConfig, dir, child.rel, child.entry); entry != nil {
+			subdirTries = append(subdirTries, child)
+		}
+	}
 
 	shouldUpdate := updateRels.shouldUpdate(trie.rel, updateParent)
 
@@ -482,10 +489,7 @@ func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, ent
 
 			// Asynchrounously walk the subdirectory.
 			eg.Go(func() error {
-				if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, entry); ent != nil {
-					return trie.walkDir(root, readBuildFilesDir, entryPath, buildRel, ent, eg, limitCh, updateRels, ignoreFilter)
-				}
-				return nil
+				return trie.walkDir(root, readBuildFilesDir, entryPath, buildRel, entry, eg, limitCh, updateRels, ignoreFilter)
 			})
 		} else {
 			if ignoreFilter.isFileIgnored(entryPath) {
@@ -498,9 +502,7 @@ func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, ent
 				continue
 			}
 
-			if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, entry); ent != nil {
-				trie.files[path.Join(buildRel, entryName)] = ent
-			}
+			trie.files[path.Join(buildRel, entryName)] = entry
 		}
 	}
 	return nil
