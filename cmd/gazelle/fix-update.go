@@ -257,6 +257,17 @@ var genericLoads = []rule.LoadInfo{
 	},
 }
 
+var genericKinds = map[string]rule.KindInfo{
+	"alias": {
+		NonEmptyAttrs:  map[string]bool{"actual": true},
+		MergeableAttrs: map[string]bool{"actual": true},
+	},
+	"filegroup": {
+		NonEmptyAttrs:  map[string]bool{"srcs": true},
+		MergeableAttrs: map[string]bool{"srcs": true},
+	},
+}
+
 func runFixUpdate(wd string, cmd command, args []string) (err error) {
 	cexts := make([]config.Configurer, 0, len(languages)+4)
 	cexts = append(cexts,
@@ -276,6 +287,9 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 
 	mrslv := newMetaResolver()
 	kinds := make(map[string]rule.KindInfo)
+	for kind, info := range genericKinds {
+		kinds[kind] = info
+	}
 	loads := genericLoads
 	exts := make([]interface{}, 0, len(languages))
 	for _, lang := range languages {
