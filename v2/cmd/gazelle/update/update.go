@@ -263,6 +263,16 @@ var genericLoads = []rule.LoadInfo{
 		Symbols: []string{"gazelle"},
 	},
 }
+var genericKinds = map[string]rule.KindInfo{
+	"alias": {
+		NonEmptyAttrs:  map[string]bool{"actual": true},
+		MergeableAttrs: map[string]bool{"actual": true},
+	},
+	"filegroup": {
+		NonEmptyAttrs:  map[string]bool{"srcs": true},
+		MergeableAttrs: map[string]bool{"srcs": true},
+	},
+}
 
 func Run(
 	ctx context.Context,
@@ -287,6 +297,9 @@ func Run(
 
 	mrslv := newMetaResolver()
 	kinds := make(map[string]rule.KindInfo)
+	for kind, info := range genericKinds {
+		kinds[kind] = info
+	}
 	loads := genericLoads
 	exts := make([]interface{}, 0, len(languages))
 	for _, lang := range languages {

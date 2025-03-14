@@ -161,8 +161,6 @@ func TestGenerateRulesEmpty(t *testing.T) {
 	f.Sync()
 	got := strings.TrimSpace(string(bzl.Format(f.File)))
 	want := strings.TrimSpace(`
-filegroup(name = "go_default_library_protos")
-
 go_proto_library(name = "foo_go_proto")
 
 go_library(name = "foo")
@@ -284,8 +282,6 @@ proto_library(
 proto_library(name = "dead_proto")
 
 go_proto_library(name = "dead_go_proto")
-
-filegroup(name = "go_default_library_protos")
 
 go_proto_library(name = "foo_go_proto")
 
