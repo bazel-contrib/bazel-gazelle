@@ -481,9 +481,10 @@ func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, ent
 			}
 
 			// Asynchrounously walk the subdirectory.
+			asyncEntry := entry
 			eg.Go(func() error {
 				if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, entry); ent != nil {
-					return trie.walkDir(root, readBuildFilesDir, entryPath, buildRel, ent, eg, limitCh, updateRels, ignoreFilter)
+					return trie.walkDir(root, readBuildFilesDir, entryPath, buildRel, asyncEntry, eg, limitCh, updateRels, ignoreFilter)
 				}
 				return nil
 			})
