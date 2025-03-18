@@ -163,7 +163,7 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 
 	shouldUpdate := updateRels.shouldUpdate(trie.rel, updateParent)
 
-	// Filter visit and collect subdirectories
+	// Filter, visit and collect subdirectories
 	var subdirs []string
 	for _, t := range trie.children {
 		base := t.entry.Name()
@@ -471,13 +471,13 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel, dir string, entrie
 		}
 
 		if entry.IsDir() {
-			// Ignore directories not even being visited
-			if !updateRels.shouldVisit(entryPath, true) {
+			// Ignored directories
+			if ignoreFilter.isDirectoryIgnored(entryPath) {
 				continue
 			}
 
-			// Ignored directories
-			if ignoreFilter.isDirectoryIgnored(entryPath) {
+			// Ignore directories not even being visited
+			if !updateRels.shouldVisit(entryPath, true) {
 				continue
 			}
 
