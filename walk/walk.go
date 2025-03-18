@@ -414,7 +414,7 @@ func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreF
 }
 
 // walkDir recursively and concurrently descends into the 'rel' directory and builds a trie
-func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, entry os.DirEntry, eg *errgroup.Group, limitCh chan struct{}, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
+func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, parentEntry os.DirEntry, eg *errgroup.Group, limitCh chan struct{}, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
 	limitCh <- struct{}{}
 	defer (func() { <-limitCh })()
 
@@ -428,8 +428,8 @@ func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, ent
 
 	build, buildFileErr := loadBuildFile(readBuildFilesDir, trie.walkConfig.validBuildFileNames, rel, dir, entries)
 
-	if entry != nil && (build != nil || buildFileErr != nil || !trie.walkConfig.updateOnly) {
-		child := trie.newChild(buildRel, entry)
+	if parentEntry != nil && (build != nil || buildFileErr != nil || !trie.walkConfig.updateOnly) {
+		child := trie.newChild(buildRel, parentEntry)
 		child.build = build
 		child.buildFileErr = buildFileErr
 		child.walkConfig.readConfig(rel, build)
@@ -450,8 +450,8 @@ func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, ent
 		trie.buildFileErr = buildFileErr
 		trie.walkConfig.readConfig(rel, build)
 
-		if entry != nil {
-			buildRel = path.Join(buildRel, entry.Name())
+		if parentEntry != nil {
+			buildRel = path.Join(buildRel, parentEntry.Name())
 		}
 	}
 
@@ -484,7 +484,7 @@ func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, ent
 			// Asynchrounously walk the subdirectory.
 			asyncEntry := entry
 			eg.Go(func() error {
-				if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, entry); ent != nil {
+				if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, asyncEntry); ent != nil {
 					return trie.walkDir(root, readBuildFilesDir, entryPath, buildRel, asyncEntry, eg, limitCh, updateRels, ignoreFilter)
 				}
 				return nil
