@@ -362,6 +362,16 @@ func resolveFileInfo(wc *walkConfig, dir, rel string, ent fs.DirEntry) fs.DirEnt
 	return fs.FileInfoToDirEntry(fi)
 }
 
+// Information lasting the lifetime of the fs walk
+type buildTrieContext struct {
+	rootDir           string
+	readBuildFilesDir string
+
+	// An error group to handle error propagation
+	eg      *errgroup.Group
+	limitCh chan struct{}
+}
+
 type pathTrie struct {
 	rel string
 
@@ -404,29 +414,35 @@ func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreF
 	// Use BenchmarkWalk to test changes here.
 	limitCh := make(chan struct{}, runtime.GOMAXPROCS(0))
 
+	ctx := &buildTrieContext{
+		rootDir:           c.RepoRoot,
+		readBuildFilesDir: c.ReadBuildFilesDir,
+		eg:                &errgroup.Group{},
+		limitCh:           limitCh,
+	}
+
 	// An error group to handle error propagation
-	eg := errgroup.Group{}
-	eg.Go(func() error {
-		return trie.walkDir(c.RepoRoot, c.ReadBuildFilesDir, "", "", nil, &eg, limitCh, updateRels, ignoreFilter)
+	ctx.eg.Go(func() error {
+		return trie.walkDir(ctx, "", "", nil, updateRels, ignoreFilter)
 	})
 
-	return trie, eg.Wait()
+	return trie, ctx.eg.Wait()
 }
 
 // walkDir recursively and concurrently descends into the 'rel' directory and builds a trie
-func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, parentEntry os.DirEntry, eg *errgroup.Group, limitCh chan struct{}, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
-	limitCh <- struct{}{}
-	defer (func() { <-limitCh })()
+func (trie *pathTrie) walkDir(ctx *buildTrieContext, rel, buildRel string, parentEntry os.DirEntry, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
+	ctx.limitCh <- struct{}{}
+	defer (func() { <-ctx.limitCh })()
 
 	// Absolute path to the directory being visited
-	dir := filepath.Join(root, rel)
+	dir := filepath.Join(ctx.rootDir, rel)
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
 	}
 
-	build, buildFileErr := loadBuildFile(readBuildFilesDir, trie.walkConfig.validBuildFileNames, rel, dir, entries)
+	build, buildFileErr := loadBuildFile(ctx.readBuildFilesDir, trie.walkConfig.validBuildFileNames, rel, dir, entries)
 
 	if parentEntry != nil && (build != nil || buildFileErr != nil || !trie.walkConfig.updateOnly) {
 		child := trie.newChild(buildRel, parentEntry)
@@ -483,9 +499,9 @@ func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, par
 
 			// Asynchrounously walk the subdirectory.
 			asyncEntry := entry
-			eg.Go(func() error {
+			ctx.eg.Go(func() error {
 				if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, asyncEntry); ent != nil {
-					return trie.walkDir(root, readBuildFilesDir, entryPath, buildRel, asyncEntry, eg, limitCh, updateRels, ignoreFilter)
+					return trie.walkDir(ctx, entryPath, buildRel, asyncEntry, updateRels, ignoreFilter)
 				}
 				return nil
 			})
