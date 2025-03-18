@@ -26,6 +26,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/rule"
@@ -361,6 +362,8 @@ type pathTrie struct {
 	walkConfig   *walkConfig
 	build        *rule.File
 	buildFileErr error
+
+	rw *sync.RWMutex
 }
 
 // Basic factory method to ensure the entry is properly copied
@@ -370,11 +373,40 @@ func (trie *pathTrie) newChild(rel string, entry fs.DirEntry) *pathTrie {
 		files:      []string{},
 		entry:      entry,
 		walkConfig: trie.walkConfig.newChild(),
+		rw:         &sync.RWMutex{},
 	}
+}
+
+func (trie *pathTrie) addChild(c *pathTrie) {
+	trie.rw.Lock()
+	defer trie.rw.Unlock()
+
+	trie.children = append(trie.children, c)
+}
+
+func (trie *pathTrie) addFiles(p []string) {
+	trie.rw.Lock()
+	defer trie.rw.Unlock()
+
+	trie.files = append(trie.files, p...)
+}
+
+func (trie *pathTrie) sort() {
+	trie.rw.Lock()
+	defer trie.rw.Unlock()
+
+	slices.Sort(trie.files)
+	slices.SortFunc(trie.children, func(a, b *pathTrie) int {
+		if a.rel != b.rel {
+			return strings.Compare(a.rel, b.rel)
+		}
+		return strings.Compare(a.entry.Name(), b.entry.Name())
+	})
 }
 
 func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) (*pathTrie, error) {
 	trie := &pathTrie{
+		rw:    &sync.RWMutex{},
 		files: []string{},
 		// Initial walk config based on root config.Config and walk.Configurer
 		walkConfig: &walkConfig{
@@ -437,7 +469,7 @@ func (trie *pathTrie) walkDir(ctx *buildTrieContext, rel, buildRel string, paren
 			return nil
 		}
 
-		trie.children = append(trie.children, child)
+		trie.addChild(child)
 		trie = child
 		buildRel = ""
 	} else {
@@ -460,6 +492,9 @@ func (trie *pathTrie) walkDir(ctx *buildTrieContext, rel, buildRel string, paren
 
 func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel, dir string, entries []os.DirEntry, buildRel string, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
 	eg := &errgroup.Group{}
+
+	// Files collected for this directory. Will be added as single locked operation at end.
+	files := []string{}
 
 	for _, entry := range entries {
 		entryName := entry.Name()
@@ -487,13 +522,13 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel, dir string, entrie
 				continue
 			}
 
-			// TODO: make potential stat calls async?
-			if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, entry); ent != nil {
-				// Asynchrounously walk the subdirectory.
-				eg.Go(func() error {
+			// Asynchrounously walk the subdirectory.
+			eg.Go(func() error {
+				if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, entry); ent != nil {
 					return trie.walkDir(ctx, entryPath, buildRel, ent, updateRels, ignoreFilter)
-				})
-			}
+				}
+				return nil
+			})
 		} else {
 			// Ignored files
 			if ignoreFilter.isFileIgnored(entryPath) {
@@ -508,7 +543,7 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel, dir string, entrie
 
 			// TODO: make potential stat calls async?
 			if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, entry); ent != nil {
-				trie.files = append(trie.files, path.Join(buildRel, entryName))
+				files = append(files, path.Join(buildRel, entryName))
 			}
 		}
 	}
@@ -517,15 +552,11 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel, dir string, entrie
 		return err
 	}
 
+	trie.addFiles(files)
+
 	// Ensure a deterministic order for regular files and subdirectories.
 	// This includes both the params to the callback as well as the `visit` order.
-	slices.Sort(trie.files)
-	slices.SortFunc(trie.children, func(a, b *pathTrie) int {
-		if a.rel != b.rel {
-			return strings.Compare(a.rel, b.rel)
-		}
-		return strings.Compare(a.entry.Name(), b.entry.Name())
-	})
+	trie.sort()
 
 	return nil
 }
