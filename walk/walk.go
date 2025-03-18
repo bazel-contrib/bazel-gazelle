@@ -465,16 +465,17 @@ func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, ent
 		}
 
 		if entry.IsDir() {
-			if ignoreFilter.isDirectoryIgnored(entryPath) {
-				continue
-			}
-
 			// Ignore directories not even being visited
 			if !updateRels.shouldVisit(entryPath, true) {
 				continue
 			}
 
-			// Ignored directories excluded by config
+			// Ignored directories
+			if ignoreFilter.isDirectoryIgnored(entryPath) {
+				continue
+			}
+
+			// Excluded directories excluded by config
 			// Performed after `isDirectoryIgnored` + `shouldVisit` which may be faster.
 			if trie.walkConfig.isExcluded(entryPath) {
 				continue
@@ -489,11 +490,12 @@ func (trie *pathTrie) walkDir(root, readBuildFilesDir, rel, buildRel string, ent
 				return nil
 			})
 		} else {
+			// Ignored files
 			if ignoreFilter.isFileIgnored(entryPath) {
 				continue
 			}
 
-			// Ignored files excluded by config.
+			// Excluded files excluded by config.
 			// Performed after `isFileIgnored` which may be faster.
 			if trie.walkConfig.isExcluded(entryPath) {
 				continue
