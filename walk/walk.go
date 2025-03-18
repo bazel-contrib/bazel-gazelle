@@ -487,14 +487,13 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel, dir string, entrie
 				continue
 			}
 
-			// Asynchrounously walk the subdirectory.
-			asyncEntry := entry
-			eg.Go(func() error {
-				if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, asyncEntry); ent != nil {
-					return trie.walkDir(ctx, entryPath, buildRel, asyncEntry, updateRels, ignoreFilter)
-				}
-				return nil
-			})
+			// TODO: make potential stat calls async?
+			if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, entry); ent != nil {
+				// Asynchrounously walk the subdirectory.
+				eg.Go(func() error {
+					return trie.walkDir(ctx, entryPath, buildRel, ent, updateRels, ignoreFilter)
+				})
+			}
 		} else {
 			// Ignored files
 			if ignoreFilter.isFileIgnored(entryPath) {
