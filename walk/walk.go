@@ -161,32 +161,11 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 	// Configure the current directory if not only collecting files
 	configure(cexts, knownDirectives, c, trie.rel, f)
 
-	wc := trie.walkConfig
-
-	// Sorted list of file paths in the directory.
-	regularFiles := make([]string, 0, len(trie.files))
-	for entSub := range trie.files {
-		regularFiles = append(regularFiles, entSub)
-	}
-
-	// Sorted list of subdirectories in the directory.
-	subdirTries := trie.children[:]
-
 	shouldUpdate := updateRels.shouldUpdate(trie.rel, updateParent)
-
-	// Ensure a deterministic order for regular files and subdirectories.
-	// This includes both the params to the callback as well as the `visit` order.
-	slices.Sort(regularFiles)
-	slices.SortFunc(subdirTries, func(a, b *pathTrie) int {
-		if a.rel != b.rel {
-			return strings.Compare(a.rel, b.rel)
-		}
-		return strings.Compare(a.entry.Name(), b.entry.Name())
-	})
 
 	// Filter visit and collect subdirectories
 	var subdirs []string
-	for _, t := range subdirTries {
+	for _, t := range trie.children {
 		base := t.entry.Name()
 		entRel := path.Join(trie.rel, base)
 		if updateRels.shouldVisit(entRel, shouldUpdate) {
@@ -195,10 +174,10 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		}
 	}
 
-	update := !haveError && !wc.ignore && shouldUpdate
+	update := !haveError && !trie.walkConfig.ignore && shouldUpdate
 	if updateRels.shouldCall(trie.rel, updateParent) {
-		genFiles := findGenFiles(wc, f)
-		wf(dir, trie.rel, c, update, f, subdirs, regularFiles, genFiles)
+		genFiles := findGenFiles(trie.walkConfig, f)
+		wf(dir, trie.rel, c, update, f, subdirs, trie.files, genFiles)
 	}
 	return nil, false
 }
@@ -376,7 +355,7 @@ type pathTrie struct {
 	rel string
 
 	entry    fs.DirEntry
-	files    map[string]fs.DirEntry
+	files    []string
 	children []*pathTrie
 
 	walkConfig   *walkConfig
@@ -388,7 +367,7 @@ type pathTrie struct {
 func (trie *pathTrie) newChild(rel string, entry fs.DirEntry) *pathTrie {
 	return &pathTrie{
 		rel:        path.Join(trie.rel, rel, entry.Name()),
-		files:      map[string]fs.DirEntry{},
+		files:      []string{},
 		entry:      entry,
 		walkConfig: trie.walkConfig.newChild(),
 	}
@@ -396,7 +375,7 @@ func (trie *pathTrie) newChild(rel string, entry fs.DirEntry) *pathTrie {
 
 func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) (*pathTrie, error) {
 	trie := &pathTrie{
-		files: map[string]fs.DirEntry{},
+		files: []string{},
 		// Initial walk config based on root config.Config and walk.Configurer
 		walkConfig: &walkConfig{
 			validBuildFileNames: c.ValidBuildFileNames,
@@ -471,6 +450,17 @@ func (trie *pathTrie) walkDir(ctx *buildTrieContext, rel, buildRel string, paren
 		}
 	}
 
+	// Collect + recurse entries async to release the limitCh
+	ctx.eg.Go(func() error {
+		return trie.loadEntries(ctx, rel, dir, entries, buildRel, updateRels, ignoreFilter)
+	})
+
+	return nil
+}
+
+func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel, dir string, entries []os.DirEntry, buildRel string, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
+	eg := &errgroup.Group{}
+
 	for _, entry := range entries {
 		entryName := entry.Name()
 		entryPath := path.Join(rel, entryName)
@@ -499,7 +489,7 @@ func (trie *pathTrie) walkDir(ctx *buildTrieContext, rel, buildRel string, paren
 
 			// Asynchrounously walk the subdirectory.
 			asyncEntry := entry
-			ctx.eg.Go(func() error {
+			eg.Go(func() error {
 				if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, asyncEntry); ent != nil {
 					return trie.walkDir(ctx, entryPath, buildRel, asyncEntry, updateRels, ignoreFilter)
 				}
@@ -517,10 +507,26 @@ func (trie *pathTrie) walkDir(ctx *buildTrieContext, rel, buildRel string, paren
 				continue
 			}
 
+			// TODO: make potential stat calls async?
 			if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, entry); ent != nil {
-				trie.files[path.Join(buildRel, entryName)] = ent
+				trie.files = append(trie.files, path.Join(buildRel, entryName))
 			}
 		}
 	}
+
+	if err := eg.Wait(); err != nil {
+		return err
+	}
+
+	// Ensure a deterministic order for regular files and subdirectories.
+	// This includes both the params to the callback as well as the `visit` order.
+	slices.Sort(trie.files)
+	slices.SortFunc(trie.children, func(a, b *pathTrie) int {
+		if a.rel != b.rel {
+			return strings.Compare(a.rel, b.rel)
+		}
+		return strings.Compare(a.entry.Name(), b.entry.Name())
+	})
+
 	return nil
 }
