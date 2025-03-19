@@ -41,6 +41,10 @@ import (
 // marked with a "# keep" comment, values in the attribute not marked with
 // a "# keep" comment will be dropped. If the attribute is empty afterward,
 // it will be deleted.
+//
+// If src has an attribute not present in 'mergeable' and the attribute
+// does not exist or is not marked with a "# keep" comment, values in the
+// dst attribute will be overwritten.
 func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 	if dst.ShouldKeep() {
 		return
@@ -63,9 +67,20 @@ func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 
 	// Merge attributes from src into dst.
 	for key, srcAttr := range src.attrs {
-		if dstAttr, ok := dst.attrs[key]; !ok {
+		// Always set properties that are not yet set.
+		dstAttr, dstAttrExists := dst.attrs[key]
+		if !dstAttrExists {
 			dst.SetAttr(key, srcAttr.expr.RHS)
-		} else if mergeable[key] && !ShouldKeep(dstAttr.expr) {
+			continue
+		}
+
+		// Do not overwrite attributes marked with "# keep".
+		if ShouldKeep(dstAttr.expr) {
+			continue
+		}
+
+		if attrMergeable, attrKnown := mergeable[key]; attrMergeable {
+			// Merge mergeable attributes.
 			if mergedValue, err := mergeAttrValues(&srcAttr, &dstAttr); err != nil {
 				start, end := dstAttr.expr.RHS.Span()
 				log.Printf("%s:%d.%d-%d.%d: could not merge expression", filename, start.Line, start.LineRune, end.Line, end.LineRune)
@@ -74,6 +89,9 @@ func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 			} else {
 				dst.SetAttr(key, mergedValue)
 			}
+		} else if !attrKnown {
+			// Overwrite unknown attributes.
+			dst.SetAttr(key, srcAttr.expr.RHS)
 		}
 	}
 
