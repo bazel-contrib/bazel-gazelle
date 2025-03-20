@@ -329,7 +329,7 @@ func findGenFiles(wc *walkConfig, f *rule.File) []string {
 	return genFiles
 }
 
-func resolveFileInfo(wc *walkConfig, dir, rel string, ent fs.DirEntry) fs.DirEntry {
+func resolveFileInfo(ctx *buildTrieContext, wc *walkConfig, rel string, ent fs.DirEntry) fs.DirEntry {
 	if ent.Type()&os.ModeSymlink == 0 {
 		// Not a symlink, use the original FileInfo.
 		return ent
@@ -338,7 +338,7 @@ func resolveFileInfo(wc *walkConfig, dir, rel string, ent fs.DirEntry) fs.DirEnt
 		// A symlink, but not one we should follow.
 		return nil
 	}
-	fi, err := os.Stat(path.Join(dir, ent.Name()))
+	fi, err := os.Stat(path.Join(ctx.rootDir, rel, ent.Name()))
 	if err != nil {
 		// A symlink, but not one we could resolve.
 		return nil
@@ -483,13 +483,13 @@ func (trie *pathTrie) walkDir(ctx *buildTrieContext, rel, buildRel string, paren
 
 	// Collect + recurse entries async to release the limitCh
 	ctx.eg.Go(func() error {
-		return trie.loadEntries(ctx, rel, dir, entries, buildRel, updateRels, ignoreFilter)
+		return trie.loadEntries(ctx, rel, entries, buildRel, updateRels, ignoreFilter)
 	})
 
 	return nil
 }
 
-func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel, dir string, entries []os.DirEntry, buildRel string, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
+func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel string, entries []os.DirEntry, buildRel string, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
 	eg := &errgroup.Group{}
 
 	// Files collected for this directory. Will be added as single locked operation at end.
@@ -522,7 +522,7 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel, dir string, entrie
 			}
 
 			// TODO: make potential stat calls async?
-			if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, entry); ent != nil {
+			if ent := resolveFileInfo(ctx, trie.walkConfig, rel, entry); ent != nil {
 				// Asynchrounously walk the subdirectory.
 				eg.Go(func() error {
 					return trie.walkDir(ctx, entryPath, buildRel, ent, updateRels, ignoreFilter)
@@ -541,7 +541,7 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel, dir string, entrie
 			}
 
 			// TODO: make potential stat calls async?
-			if ent := resolveFileInfo(trie.walkConfig, dir, entryPath, entry); ent != nil {
+			if ent := resolveFileInfo(ctx, trie.walkConfig, rel, entry); ent != nil {
 				files = append(files, path.Join(buildRel, entryName))
 			}
 		}
