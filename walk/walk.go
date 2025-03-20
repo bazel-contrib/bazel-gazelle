@@ -359,7 +359,6 @@ type buildTrieContext struct {
 type pathTrie struct {
 	rel string
 
-	entry    fs.DirEntry
 	files    []string
 	children []*pathTrie
 
@@ -375,7 +374,6 @@ func (trie *pathTrie) newChild(rel string, entry fs.DirEntry) *pathTrie {
 	return &pathTrie{
 		rel:        path.Join(trie.rel, rel, entry.Name()),
 		files:      []string{},
-		entry:      entry,
 		walkConfig: trie.walkConfig.newChild(),
 		rw:         &sync.RWMutex{},
 	}
@@ -401,10 +399,7 @@ func (trie *pathTrie) sort() {
 
 	slices.Sort(trie.files)
 	slices.SortFunc(trie.children, func(a, b *pathTrie) int {
-		if a.rel != b.rel {
-			return strings.Compare(a.rel, b.rel)
-		}
-		return strings.Compare(a.entry.Name(), b.entry.Name())
+		return strings.Compare(a.rel, b.rel)
 	})
 }
 
