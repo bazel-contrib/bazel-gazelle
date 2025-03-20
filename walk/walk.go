@@ -167,11 +167,16 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 	// Filter, visit and collect subdirectories
 	var subdirs []string
 	for _, t := range trie.children {
-		base := t.entry.Name()
-		entRel := path.Join(trie.rel, base)
-		if updateRels.shouldVisit(entRel, shouldUpdate) {
+		if updateRels.shouldVisit(t.rel, shouldUpdate) {
 			visit(c.Clone(), cexts, knownDirectives, updateRels, t, wf, shouldUpdate)
-			subdirs = append(subdirs, base)
+
+			var subdir string
+			if trie.rel == "" {
+				subdir = t.rel
+			} else {
+				subdir = t.rel[len(trie.rel)+1:]
+			}
+			subdirs = append(subdirs, subdir)
 		}
 	}
 
