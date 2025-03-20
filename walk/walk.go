@@ -139,7 +139,7 @@ func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode,
 //
 // Traversal may skip subtrees or files based on the config.Config exclude/ignore/follow options
 // as well as the UpdateFilter callbacks.
-func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, updateParent bool) ([]string, bool) {
+func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, updateParent bool) {
 	haveError := false
 
 	// Absolute path to the directory being visited
@@ -180,7 +180,6 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		genFiles := findGenFiles(trie.walkConfig, f)
 		wf(dir, trie.rel, c, update, f, subdirs, trie.files, genFiles)
 	}
-	return nil, false
 }
 
 // An UpdateFilter tracks which directories need to be updated
