@@ -264,18 +264,18 @@ func (u *UpdateFilter) shouldVisit(rel string, updateParent bool) bool {
 	}
 }
 
-func loadBuildFile(readBuildFilesDir string, validBuildFileNames []string, pkg, dir string, ents []fs.DirEntry) (*rule.File, error) {
+func loadBuildFile(ctx *buildTrieContext, wc *walkConfig, pkg, dir string, ents []fs.DirEntry) (*rule.File, error) {
 	var err error
 	readDir := dir
 	readEnts := ents
-	if readBuildFilesDir != "" {
-		readDir = filepath.Join(readBuildFilesDir, filepath.FromSlash(pkg))
+	if ctx.readBuildFilesDir != "" {
+		readDir = filepath.Join(ctx.readBuildFilesDir, filepath.FromSlash(pkg))
 		readEnts, err = os.ReadDir(readDir)
 		if err != nil {
 			return nil, err
 		}
 	}
-	path := rule.MatchBuildFile(readDir, validBuildFileNames, readEnts)
+	path := rule.MatchBuildFile(readDir, wc.validBuildFileNames, readEnts)
 	if path == "" {
 		return nil, nil
 	}
@@ -452,7 +452,7 @@ func (trie *pathTrie) walkDir(ctx *buildTrieContext, rel, buildRel string, paren
 		return err
 	}
 
-	build, buildFileErr := loadBuildFile(ctx.readBuildFilesDir, trie.walkConfig.validBuildFileNames, rel, dir, entries)
+	build, buildFileErr := loadBuildFile(ctx, trie.walkConfig, rel, dir, entries)
 
 	if parentEntry != nil && (build != nil || buildFileErr != nil || !trie.walkConfig.updateOnly) {
 		child := trie.newChild(buildRel, parentEntry)
