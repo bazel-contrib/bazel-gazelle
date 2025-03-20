@@ -329,21 +329,20 @@ func findGenFiles(wc *walkConfig, f *rule.File) []string {
 	return genFiles
 }
 
-func resolveFileInfo(ctx *buildTrieContext, wc *walkConfig, rel string, ent fs.DirEntry) fs.DirEntry {
+func shouldFollow(ctx *buildTrieContext, wc *walkConfig, rel string, ent fs.DirEntry) bool {
 	if ent.Type()&os.ModeSymlink == 0 {
-		// Not a symlink, use the original FileInfo.
-		return ent
+		// Not a symlink
+		return true
 	}
 	if !wc.shouldFollow(rel) {
 		// A symlink, but not one we should follow.
-		return nil
+		return false
 	}
-	fi, err := os.Stat(path.Join(ctx.rootDir, rel, ent.Name()))
-	if err != nil {
+	if _, err := os.Stat(path.Join(ctx.rootDir, rel, ent.Name())); err != nil {
 		// A symlink, but not one we could resolve.
-		return nil
+		return false
 	}
-	return fs.FileInfoToDirEntry(fi)
+	return true
 }
 
 // Information lasting the lifetime of the fs walk
@@ -522,10 +521,11 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel string, entries []o
 			}
 
 			// TODO: make potential stat calls async?
-			if ent := resolveFileInfo(ctx, trie.walkConfig, rel, entry); ent != nil {
+			if shouldFollow(ctx, trie.walkConfig, rel, entry) {
+				dirEntry := entry
 				// Asynchrounously walk the subdirectory.
 				eg.Go(func() error {
-					return trie.walkDir(ctx, entryPath, buildRel, ent, updateRels, ignoreFilter)
+					return trie.walkDir(ctx, entryPath, buildRel, dirEntry, updateRels, ignoreFilter)
 				})
 			}
 		} else {
@@ -541,7 +541,7 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel string, entries []o
 			}
 
 			// TODO: make potential stat calls async?
-			if ent := resolveFileInfo(ctx, trie.walkConfig, rel, entry); ent != nil {
+			if shouldFollow(ctx, trie.walkConfig, rel, entry) {
 				files = append(files, path.Join(buildRel, entryName))
 			}
 		}
