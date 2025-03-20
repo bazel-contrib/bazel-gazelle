@@ -369,20 +369,12 @@ type pathTrie struct {
 }
 
 // Basic factory method to ensure the entry is properly copied
-func (trie *pathTrie) newChild(rel string, entry fs.DirEntry) *pathTrie {
-	return &pathTrie{
-		rel:        path.Join(trie.rel, rel, entry.Name()),
-		files:      []string{},
-		walkConfig: trie.walkConfig.newChild(),
-		rw:         &sync.RWMutex{},
-	}
-}
-
-func (trie *pathTrie) addChild(c *pathTrie) {
+func (trie *pathTrie) addChild(c *pathTrie) *pathTrie {
 	trie.rw.Lock()
 	defer trie.rw.Unlock()
 
 	trie.children = append(trie.children, c)
+	return c
 }
 
 func (trie *pathTrie) addFiles(p []string) {
@@ -432,14 +424,14 @@ func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreF
 
 	// An error group to handle error propagation
 	ctx.eg.Go(func() error {
-		return trie.walkDir(ctx, "", "", nil, updateRels, ignoreFilter)
+		return trie.walkDir(ctx, "", updateRels, ignoreFilter)
 	})
 
 	return trie, ctx.eg.Wait()
 }
 
 // walkDir recursively and concurrently descends into the 'rel' directory and builds a trie
-func (trie *pathTrie) walkDir(ctx *buildTrieContext, rel, buildRel string, parentEntry os.DirEntry, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
+func (trie *pathTrie) walkDir(ctx *buildTrieContext, rel string, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
 	ctx.limitCh <- struct{}{}
 	defer (func() { <-ctx.limitCh })()
 
@@ -453,46 +445,55 @@ func (trie *pathTrie) walkDir(ctx *buildTrieContext, rel, buildRel string, paren
 
 	build, buildFileErr := loadBuildFile(ctx, trie.walkConfig, rel, dir, entries)
 
-	if parentEntry != nil && (build != nil || buildFileErr != nil || !trie.walkConfig.updateOnly) {
-		child := trie.newChild(buildRel, parentEntry)
-		child.build = build
-		child.buildFileErr = buildFileErr
-		child.walkConfig.readConfig(rel, build)
+	t := trie
+
+	if build != nil || buildFileErr != nil || !trie.walkConfig.updateOnly {
+		if rel != "" {
+			t = &pathTrie{
+				rel:        rel,
+				files:      []string{},
+				walkConfig: trie.walkConfig.newChild(),
+				rw:         &sync.RWMutex{},
+			}
+		}
+		t.build = build
+		t.buildFileErr = buildFileErr
+		t.walkConfig.readConfig(rel, build)
 
 		// Check if a BUILD excluded itself.
 		// Only check if the `readConfig()` added new `excludes` in addition to the parent to avoid
 		// simply duplicating the `isExcluded()` already invoked before recursing into `dir`.
 		// TODO: could also skip `excludes` from the parent BUILD that were already checked before recursing
-		if len(child.walkConfig.excludes) > len(trie.walkConfig.excludes) && child.walkConfig.isExcluded(rel) {
-			return nil
+		if rel == "" || len(t.walkConfig.excludes) > len(trie.walkConfig.excludes) {
+			if t.walkConfig.isExcluded(rel) {
+				return nil
+			}
 		}
 
-		trie.addChild(child)
-		trie = child
-		buildRel = ""
-	} else {
-		trie.build = build
-		trie.buildFileErr = buildFileErr
-		trie.walkConfig.readConfig(rel, build)
-
-		if parentEntry != nil {
-			buildRel = path.Join(buildRel, parentEntry.Name())
+		if t != trie {
+			trie.addChild(t)
 		}
 	}
 
 	// Collect + recurse entries async to release the limitCh
 	ctx.eg.Go(func() error {
-		return trie.loadEntries(ctx, rel, entries, buildRel, updateRels, ignoreFilter)
+		return t.loadEntries(ctx, rel, entries, updateRels, ignoreFilter)
 	})
 
 	return nil
 }
 
-func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel string, entries []os.DirEntry, buildRel string, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
+func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel string, entries []os.DirEntry, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
 	eg := &errgroup.Group{}
 
 	// Files collected for this directory. Will be added as single locked operation at end.
 	files := []string{}
+
+	// If the trie is a parent directory we must prefix subdirectories
+	buildRel := ""
+	if rel != trie.rel {
+		buildRel = rel[len(trie.rel)+1:]
+	}
 
 	for _, entry := range entries {
 		entryName := entry.Name()
@@ -522,10 +523,9 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel string, entries []o
 
 			// TODO: make potential stat calls async?
 			if shouldFollow(ctx, trie.walkConfig, rel, entry) {
-				dirEntry := entry
 				// Asynchrounously walk the subdirectory.
 				eg.Go(func() error {
-					return trie.walkDir(ctx, entryPath, buildRel, dirEntry, updateRels, ignoreFilter)
+					return trie.walkDir(ctx, entryPath, updateRels, ignoreFilter)
 				})
 			}
 		} else {
