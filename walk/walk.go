@@ -174,7 +174,7 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		if wc.isExcluded(entRel) {
 			continue
 		}
-		if ent := resolveFileInfo(wc, dir, entRel, ent); ent != nil {
+		if shouldFollow(wc, dir, entRel, ent) {
 			regularFiles = append(regularFiles, base)
 		}
 	}
@@ -189,7 +189,7 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		if wc.isExcluded(entRel) {
 			continue
 		}
-		if ent := resolveFileInfo(wc, dir, entRel, t.entry); ent != nil {
+		if shouldFollow(wc, dir, entRel, t.entry) {
 			if updateRels.shouldVisit(entRel, shouldUpdate) {
 				subFiles, shouldMerge := visit(c.Clone(), cexts, knownDirectives, updateRels, t, wf, entRel, shouldUpdate)
 				if shouldMerge {
@@ -357,21 +357,20 @@ func findGenFiles(wc *walkConfig, f *rule.File) []string {
 	return genFiles
 }
 
-func resolveFileInfo(wc *walkConfig, dir, rel string, ent fs.DirEntry) fs.DirEntry {
+func shouldFollow(wc *walkConfig, dir, rel string, ent fs.DirEntry) bool {
 	if ent.Type()&os.ModeSymlink == 0 {
-		// Not a symlink, use the original FileInfo.
-		return ent
+		// Not a symlink
+		return true
 	}
 	if !wc.shouldFollow(rel) {
 		// A symlink, but not one we should follow.
-		return nil
+		return false
 	}
-	fi, err := os.Stat(path.Join(dir, ent.Name()))
-	if err != nil {
+	if _, err := os.Stat(path.Join(dir, ent.Name())); err != nil {
 		// A symlink, but not one we could resolve.
-		return nil
+		return false
 	}
-	return fs.FileInfoToDirEntry(fi)
+	return true
 }
 
 type pathTrie struct {
