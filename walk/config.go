@@ -116,14 +116,20 @@ func (*Configurer) KnownDirectives() []string {
 
 func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {}
 
-func (wc *walkConfig) newChild() *walkConfig {
-	wcCopy := &walkConfig{}
-	*wcCopy = *wc
-	wcCopy.ignore = false
-	return wcCopy
-}
+func (wcp *walkConfig) newChild(rel string, f *rule.File) *walkConfig {
+	wc := &walkConfig{
+		// Always false by default.
+		ignore: false,
 
-func (wc *walkConfig) readConfig(rel string, f *rule.File) {
+		// Ineritied, potentially overwritten with directives.
+		updateOnly:          wcp.updateOnly,
+		validBuildFileNames: wcp.validBuildFileNames,
+
+		// Will potentially be extended with directives, must fully clone.
+		excludes: append([]string(nil), wcp.excludes...),
+		follow:   append([]string(nil), wcp.follow...),
+	}
+
 	if f != nil {
 		for _, d := range f.Directives {
 			switch d.Key {
@@ -159,6 +165,8 @@ func (wc *walkConfig) readConfig(rel string, f *rule.File) {
 			}
 		}
 	}
+
+	return wc
 }
 
 type ignoreFilter struct {

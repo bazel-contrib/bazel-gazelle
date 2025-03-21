@@ -478,11 +478,10 @@ func walkDir(ctx *buildTrieContext, trie *pathTrie, rel string, updateRels *Upda
 			build:        build,
 			buildFileErr: buildFileErr,
 			rel:          rel,
-			walkConfig:   wc.newChild(),
+			walkConfig:   wc.newChild(rel, build),
 
 			rw: &sync.RWMutex{},
 		}
-		t.walkConfig.readConfig(rel, build)
 
 		// Check if a BUILD excluded itself.
 		// Only check if the `readConfig()` added new `excludes` in addition to the parent to avoid
