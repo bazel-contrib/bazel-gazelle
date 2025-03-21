@@ -20,6 +20,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -42,6 +43,9 @@ type updateReposConfig struct {
 	pruneRules    bool
 	workspace     *rule.File
 	repoFileMap   map[string]*rule.File
+	cpuProfile    string
+	memProfile    string
+	profile       profiler
 }
 
 const updateReposName = "_update-repos"
@@ -82,10 +86,19 @@ func (*updateReposConfigurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *con
 	fs.StringVar(&uc.repoFilePath, "from_file", "", "Gazelle will translate repositories listed in this file into repository rules in WORKSPACE or a .bzl macro function. Gopkg.lock and go.mod files are supported")
 	fs.Var(macroFlag{macroFileName: &uc.macroFileName, macroDefName: &uc.macroDefName}, "to_macro", "Tells Gazelle to write repository rules into a .bzl macro function rather than the WORKSPACE file. . The expected format is: macroFile%defName")
 	fs.BoolVar(&uc.pruneRules, "prune", false, "When enabled, Gazelle will remove rules that no longer have equivalent repos in the go.mod file. Can only used with -from_file.")
+
+	fs.StringVar(&uc.cpuProfile, "cpuprofile", "", "write cpu profile to `file`")
+	fs.StringVar(&uc.memProfile, "memprofile", "", "write memory profile to `file`")
 }
 
 func (*updateReposConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
 	uc := getUpdateReposConfig(c)
+	p, err := newProfiler(uc.cpuProfile, uc.memProfile)
+	if err != nil {
+		return err
+	}
+	uc.profile = p
+
 	switch {
 	case uc.repoFilePath != "":
 		if len(fs.Args()) != 0 {
@@ -105,7 +118,6 @@ func (*updateReposConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) err
 		uc.importPaths = fs.Args()
 	}
 
-	var err error
 	workspacePath := wspace.FindWORKSPACEFile(c.RepoRoot)
 	uc.workspace, err = rule.LoadWorkspaceFile(workspacePath, "")
 	if err != nil {
@@ -141,6 +153,11 @@ func updateRepos(wd string, args []string) (err error) {
 		return err
 	}
 	uc := getUpdateReposConfig(c)
+	defer func() {
+		if err := uc.profile.stop(); err != nil {
+			log.Printf("stopping profiler: %v", err)
+		}
+	}()
 
 	kinds := make(map[string]rule.KindInfo)
 	loads := []rule.LoadInfo{}
