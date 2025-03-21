@@ -117,6 +117,8 @@ func (*Configurer) KnownDirectives() []string {
 func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {}
 
 func (wcp *walkConfig) newChild(rel string, f *rule.File) *walkConfig {
+	// MUST BE THREAD SAFE - will be invoked concurrently while fs-walking and BUILD-parsing.
+
 	wc := &walkConfig{
 		// Always false by default.
 		ignore: false,
