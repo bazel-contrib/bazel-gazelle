@@ -356,10 +356,10 @@ type buildTrieContext struct {
 	// The global/initial validBuildFileNames
 	rootValidBuildFileNames []string
 
-	// An error group to handle error propagation
+	// An error group to handle error propagation and concurrent
 	eg *errgroup.Group
 
-	// A channel to limit concurrency
+	// A channel to limit concurrency of IO operations
 	limitCh chan struct{}
 }
 
@@ -376,7 +376,6 @@ type pathTrie struct {
 	rw *sync.RWMutex
 }
 
-// Basic factory method to ensure the entry is properly copied
 func (trie *pathTrie) addChild(c *pathTrie) *pathTrie {
 	trie.rw.Lock()
 	defer trie.rw.Unlock()
@@ -437,6 +436,9 @@ func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreF
 		return nil, err
 	}
 
+	// Freeze the full pathTrie only once fully built.
+	// TODO: could freeze incrementally as each directory is built but becomes
+	// complicated determining when all children are added.
 	trie.freeze()
 
 	return trie, nil
@@ -479,8 +481,7 @@ func walkDir(ctx *buildTrieContext, trie *pathTrie, rel string, updateRels *Upda
 			buildFileErr: buildFileErr,
 			rel:          rel,
 			walkConfig:   wc.newChild(rel, build),
-
-			rw: &sync.RWMutex{},
+			rw:           &sync.RWMutex{},
 		}
 
 		// Check if a BUILD excluded itself.
@@ -493,7 +494,7 @@ func walkDir(ctx *buildTrieContext, trie *pathTrie, rel string, updateRels *Upda
 			}
 		}
 
-		// Add to the parent trie only if not excluded
+		// Add to the parent trie AFTER checking if excluded
 		if trie != nil {
 			trie.addChild(t)
 		}
