@@ -476,17 +476,16 @@ func walkDir(ctx *buildTrieContext, trie *pathTrie, rel string, updateRels *Upda
 	if trie == nil || build != nil || buildFileErr != nil || !wc.updateOnly {
 		// A new pathTrie for this directory, possibly with a new BUILD and configuration.
 		t = &pathTrie{
+			rel:          rel,
 			build:        build,
 			buildFileErr: buildFileErr,
-			rel:          rel,
 			walkConfig:   wc.newChild(rel, build),
 			rw:           &sync.RWMutex{},
 		}
 
 		// Check if a BUILD excluded itself.
-		// Only check if the `readConfig()` added new `excludes` in addition to the parent to avoid
-		// simply duplicating the `isExcluded()` already invoked before recursing into `dir`.
-		// TODO: could also skip `excludes` from the parent BUILD that were already checked before recursing
+		// Only check if the `walkConfig` contains additional excludes not already checked
+		// in the parent config before recursing into the directory.
 		if trie == nil || len(t.walkConfig.excludes) > len(trie.walkConfig.excludes) {
 			if t.walkConfig.isExcluded(rel) {
 				return t, nil
@@ -529,17 +528,17 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel string, entries []o
 		}
 
 		if entry.IsDir() {
+			// Non-visited directories
+			if !updateRels.shouldVisit(entryPath, true) {
+				continue
+			}
+
 			// Ignored directories
 			if ignoreFilter.isDirectoryIgnored(entryPath) {
 				continue
 			}
 
-			// Ignore directories not even being visited
-			if !updateRels.shouldVisit(entryPath, true) {
-				continue
-			}
-
-			// Excluded directories excluded by config
+			// Directories excluded by config.
 			// Performed after `isDirectoryIgnored` + `shouldVisit` which may be faster.
 			if trie.walkConfig.isExcluded(entryPath) {
 				continue
@@ -559,7 +558,7 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel string, entries []o
 				continue
 			}
 
-			// Excluded files excluded by config.
+			// Files excluded by config.
 			// Performed after `isFileIgnored` which may be faster.
 			if trie.walkConfig.isExcluded(entryPath) {
 				continue
