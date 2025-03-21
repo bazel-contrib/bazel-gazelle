@@ -437,8 +437,7 @@ func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreF
 	}
 
 	// Freeze the full pathTrie only once fully built.
-	// TODO: could freeze incrementally as each directory is built but becomes
-	// complicated determining when all children are added.
+	// TODO: freeze while concurrently walking the fs directories
 	trie.freeze()
 
 	return trie, nil
