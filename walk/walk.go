@@ -457,20 +457,21 @@ func walkDir(ctx *buildTrieContext, trie *pathTrie, rel string, updateRels *Upda
 	}
 
 	var wc *walkConfig
+	var t *pathTrie
 
 	// The root initializes the root walkConfig
 	if trie == nil {
+		t = nil
 		wc = &walkConfig{
 			validBuildFileNames: ctx.rootValidBuildFileNames,
 			excludes:            ctx.rootExcludes,
 		}
 	} else {
+		t = trie
 		wc = trie.walkConfig
 	}
 
 	build, buildFileErr := loadBuildFile(ctx, wc, rel, dir, entries)
-
-	t := trie
 
 	// A new pathTrie is required: at the root, when a BUILD is found, or when generating a BUILD.
 	if trie == nil || build != nil || buildFileErr != nil || !wc.updateOnly {
