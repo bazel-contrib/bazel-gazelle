@@ -394,6 +394,10 @@ func (trie *pathTrie) sort() {
 	})
 }
 
+func (trie *pathTrie) freeze() {
+	trie.rw = nil
+}
+
 func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) (*pathTrie, error) {
 	trie := &pathTrie{
 		rw:    &sync.RWMutex{},
@@ -556,6 +560,9 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel string, entries []o
 	// Ensure a deterministic order for regular files and subdirectories.
 	// This includes both the params to the callback as well as the `visit` order.
 	trie.sort()
+
+	// All modifications to the trie are complete
+	trie.freeze()
 
 	return nil
 }
