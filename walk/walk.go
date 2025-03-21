@@ -350,8 +350,16 @@ type buildTrieContext struct {
 	rootDir           string
 	readBuildFilesDir string
 
+	// The global/root excludes
+	rootExcludes []string
+
+	// The global/initial validBuildFileNames
+	rootValidBuildFileNames []string
+
 	// An error group to handle error propagation
-	eg      *errgroup.Group
+	eg *errgroup.Group
+
+	// A channel to limit concurrency
 	limitCh chan struct{}
 }
 
@@ -384,31 +392,23 @@ func (trie *pathTrie) addFiles(p []string) {
 	trie.files = append(trie.files, p...)
 }
 
-func (trie *pathTrie) sort() {
+func (trie *pathTrie) freeze() {
 	trie.rw.Lock()
 	defer trie.rw.Unlock()
+
+	trie.rw = nil
 
 	slices.Sort(trie.files)
 	slices.SortFunc(trie.children, func(a, b *pathTrie) int {
 		return strings.Compare(a.rel, b.rel)
 	})
-}
 
-func (trie *pathTrie) freeze() {
-	trie.rw = nil
+	for _, c := range trie.children {
+		c.freeze()
+	}
 }
 
 func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) (*pathTrie, error) {
-	trie := &pathTrie{
-		rw:    &sync.RWMutex{},
-		files: []string{},
-		// Initial walk config based on root config.Config and walk.Configurer
-		walkConfig: &walkConfig{
-			validBuildFileNames: c.ValidBuildFileNames,
-			excludes:            c.Exts[walkConfigurerName].(*Configurer).cliExcludes,
-		},
-	}
-
 	// A channel to limit the number of concurrent goroutines
 	//
 	// This operation is likely to be limited by memory bandwidth and I/O,
@@ -420,22 +420,30 @@ func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreF
 	limitCh := make(chan struct{}, runtime.GOMAXPROCS(0))
 
 	ctx := &buildTrieContext{
-		rootDir:           c.RepoRoot,
-		readBuildFilesDir: c.ReadBuildFilesDir,
-		eg:                &errgroup.Group{},
-		limitCh:           limitCh,
+		rootDir:                 c.RepoRoot,
+		readBuildFilesDir:       c.ReadBuildFilesDir,
+		rootValidBuildFileNames: c.ValidBuildFileNames,
+		rootExcludes:            c.Exts[walkConfigurerName].(*Configurer).cliExcludes,
+		limitCh:                 limitCh,
+		eg:                      &errgroup.Group{},
 	}
 
 	// An error group to handle error propagation
-	ctx.eg.Go(func() error {
-		return trie.walkDir(ctx, "", updateRels, ignoreFilter)
-	})
+	trie, err := walkDir(ctx, nil, "", updateRels, ignoreFilter)
+	if err != nil {
+		return nil, err
+	}
+	if err := ctx.eg.Wait(); err != nil {
+		return nil, err
+	}
 
-	return trie, ctx.eg.Wait()
+	trie.freeze()
+
+	return trie, nil
 }
 
 // walkDir recursively and concurrently descends into the 'rel' directory and builds a trie
-func (trie *pathTrie) walkDir(ctx *buildTrieContext, rel string, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
+func walkDir(ctx *buildTrieContext, trie *pathTrie, rel string, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) (*pathTrie, error) {
 	ctx.limitCh <- struct{}{}
 	defer (func() { <-ctx.limitCh })()
 
@@ -444,37 +452,50 @@ func (trie *pathTrie) walkDir(ctx *buildTrieContext, rel string, updateRels *Upd
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	build, buildFileErr := loadBuildFile(ctx, trie.walkConfig, rel, dir, entries)
+	var wc *walkConfig
+
+	// The root initializes the root walkConfig
+	if trie == nil {
+		wc = &walkConfig{
+			validBuildFileNames: ctx.rootValidBuildFileNames,
+			excludes:            ctx.rootExcludes,
+		}
+	} else {
+		wc = trie.walkConfig
+	}
+
+	build, buildFileErr := loadBuildFile(ctx, wc, rel, dir, entries)
 
 	t := trie
 
-	if build != nil || buildFileErr != nil || !trie.walkConfig.updateOnly {
-		if rel != "" {
-			t = &pathTrie{
-				rel:        rel,
-				files:      []string{},
-				walkConfig: trie.walkConfig.newChild(),
-				rw:         &sync.RWMutex{},
-			}
+	// A new pathTrie is required: at the root, when a BUILD is found, or when generating a BUILD.
+	if trie == nil || build != nil || buildFileErr != nil || !wc.updateOnly {
+		// A new pathTrie for this directory, possibly with a new BUILD and configuration.
+		t = &pathTrie{
+			build:        build,
+			buildFileErr: buildFileErr,
+			rel:          rel,
+			walkConfig:   wc.newChild(),
+
+			rw: &sync.RWMutex{},
 		}
-		t.build = build
-		t.buildFileErr = buildFileErr
 		t.walkConfig.readConfig(rel, build)
 
 		// Check if a BUILD excluded itself.
 		// Only check if the `readConfig()` added new `excludes` in addition to the parent to avoid
 		// simply duplicating the `isExcluded()` already invoked before recursing into `dir`.
 		// TODO: could also skip `excludes` from the parent BUILD that were already checked before recursing
-		if rel == "" || len(t.walkConfig.excludes) > len(trie.walkConfig.excludes) {
+		if trie == nil || len(t.walkConfig.excludes) > len(trie.walkConfig.excludes) {
 			if t.walkConfig.isExcluded(rel) {
-				return nil
+				return t, nil
 			}
 		}
 
-		if t != trie {
+		// Add to the parent trie only if not excluded
+		if trie != nil {
 			trie.addChild(t)
 		}
 	}
@@ -484,7 +505,7 @@ func (trie *pathTrie) walkDir(ctx *buildTrieContext, rel string, updateRels *Upd
 		return t.loadEntries(ctx, rel, entries, updateRels, ignoreFilter)
 	})
 
-	return nil
+	return t, nil
 }
 
 func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel string, entries []os.DirEntry, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
@@ -529,7 +550,8 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel string, entries []o
 			if shouldFollow(ctx, trie.walkConfig, rel, entry) {
 				// Asynchrounously walk the subdirectory.
 				eg.Go(func() error {
-					return trie.walkDir(ctx, entryPath, updateRels, ignoreFilter)
+					_, err := walkDir(ctx, trie, entryPath, updateRels, ignoreFilter)
+					return err
 				})
 			}
 		} else {
@@ -551,18 +573,7 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel string, entries []o
 		}
 	}
 
-	if err := eg.Wait(); err != nil {
-		return err
-	}
-
 	trie.addFiles(files)
 
-	// Ensure a deterministic order for regular files and subdirectories.
-	// This includes both the params to the callback as well as the `visit` order.
-	trie.sort()
-
-	// All modifications to the trie are complete
-	trie.freeze()
-
-	return nil
+	return eg.Wait()
 }
