@@ -55,6 +55,9 @@ type updateConfig struct {
 	patchBuffer    bytes.Buffer
 	print0         bool
 	profile        profiler
+
+	// EXPERIMENTAL: caching of the rule index across runs
+	ruleIndexFile string
 }
 
 type emitFunc func(c *config.Config, f *rule.File) error
@@ -96,6 +99,7 @@ func (ucr *updateConfigurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *conf
 	fs.StringVar(&ucr.memProfile, "memprofile", "", "write memory profile to `file`")
 	fs.Var(&gzflag.MultiFlag{Values: &ucr.knownImports}, "known_import", "import path for which external resolution is skipped (can specify multiple times)")
 	fs.StringVar(&ucr.repoConfigPath, "repo_config", "", "file where Gazelle should load repository configuration. Defaults to WORKSPACE.")
+	fs.StringVar(&uc.ruleIndexFile, "indexdb", "", "EXPERIMENTAL: file to cache the rule index")
 }
 
 func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
@@ -111,6 +115,9 @@ func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) erro
 	}
 	if uc.patchPath != "" && !filepath.IsAbs(uc.patchPath) {
 		uc.patchPath = filepath.Join(c.WorkDir, uc.patchPath)
+	}
+	if uc.ruleIndexFile != "" && !filepath.IsAbs(uc.ruleIndexFile) {
+		uc.ruleIndexFile = filepath.Join(c.WorkDir, uc.ruleIndexFile)
 	}
 	p, err := newProfiler(ucr.cpuProfile, ucr.memProfile)
 	if err != nil {
@@ -313,8 +320,31 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		}
 	}()
 
+	walkMode := uc.walkMode
+
+	updateRels := walk.NewUpdateFilter(c.RepoRoot, uc.dirs, uc.walkMode)
+	preindexed := false
+
+	// Load the rule index file if it exists.
+	if c.IndexLibraries && uc.ruleIndexFile != "" {
+		// Do not load index entries from directories that are being updated.
+		indexLoaded, err := ruleIndex.LoadIndex(uc.ruleIndexFile, updateRels.ShouldReIndex)
+		if err != nil {
+			log.Printf("Failed to load index file %s: %v", uc.ruleIndexFile, err)
+		} else if indexLoaded {
+			// Drop "visit all" since indexing has been loaded from disk.
+			if walkMode == walk.VisitAllUpdateSubdirsMode {
+				walkMode = walk.UpdateSubdirsMode
+			} else if walkMode == walk.VisitAllUpdateDirsMode {
+				walkMode = walk.UpdateDirsMode
+			}
+
+			preindexed = true
+		}
+	}
+
 	var errorsFromWalk []error
-	walk.Walk(c, cexts, uc.dirs, uc.walkMode, func(dir, rel string, c *config.Config, update bool, f *rule.File, subdirs, regularFiles, genFiles []string) {
+	walk.Walk(c, cexts, uc.dirs, walkMode, func(dir, rel string, c *config.Config, update bool, f *rule.File, subdirs, regularFiles, genFiles []string) {
 		mrslv.AliasedKinds(rel, c.AliasMap)
 		// If this file is ignored or if Gazelle was not asked to update this
 		// directory, just index the build file and move on.
@@ -322,7 +352,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 			for _, repl := range c.KindMap {
 				mrslv.MappedKind(rel, repl)
 			}
-			if c.IndexLibraries && f != nil {
+			if c.IndexLibraries && f != nil && (!preindexed || updateRels.ShouldReIndex(rel)) {
 				for _, r := range f.Rules {
 					ruleIndex.AddRule(c, r, f)
 				}
@@ -451,7 +481,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		})
 
 		// Add library rules to the dependency resolution table.
-		if c.IndexLibraries {
+		if c.IndexLibraries && (!preindexed || updateRels.ShouldReIndex(rel)) {
 			for _, r := range f.Rules {
 				ruleIndex.AddRule(c, r, f)
 			}
@@ -479,6 +509,14 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 
 	// Finish building the index for dependency resolution.
 	ruleIndex.Finish()
+
+	// Persist the index for future runs.
+	if c.IndexLibraries && uc.ruleIndexFile != "" {
+		err := ruleIndex.SaveIndex(uc.ruleIndexFile)
+		if err != nil {
+			fmt.Printf("Failed to save index file %s: %v", uc.ruleIndexFile, err)
+		}
+	}
 
 	// Resolve dependencies.
 	rc, cleanupRc := repo.NewRemoteCache(uc.repos)
