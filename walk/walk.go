@@ -374,6 +374,7 @@ type pathTrie struct {
 	buildFileErr error
 
 	rw *sync.RWMutex
+	wg *sync.WaitGroup
 }
 
 func (trie *pathTrie) addChild(c *pathTrie) *pathTrie {
@@ -395,16 +396,15 @@ func (trie *pathTrie) freeze() {
 	trie.rw.Lock()
 	defer trie.rw.Unlock()
 
+	// Release resources no longer required
 	trie.rw = nil
+	trie.wg = nil
 
+	// Finalize state of the pathTrie
 	slices.Sort(trie.files)
 	slices.SortFunc(trie.children, func(a, b *pathTrie) int {
 		return strings.Compare(a.rel, b.rel)
 	})
-
-	for _, c := range trie.children {
-		c.freeze()
-	}
 }
 
 func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) (*pathTrie, error) {
@@ -432,15 +432,7 @@ func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreF
 	if err != nil {
 		return nil, err
 	}
-	if err := ctx.eg.Wait(); err != nil {
-		return nil, err
-	}
-
-	// Freeze the full pathTrie only once fully built.
-	// TODO: freeze while concurrently walking the fs directories
-	trie.freeze()
-
-	return trie, nil
+	return trie, ctx.eg.Wait()
 }
 
 // walkDir recursively and concurrently descends into the 'rel' directory and builds a trie
@@ -482,6 +474,7 @@ func walkDir(ctx *buildTrieContext, trie *pathTrie, rel string, updateRels *Upda
 			buildFileErr: buildFileErr,
 			walkConfig:   wc.newChild(rel, build),
 			rw:           &sync.RWMutex{},
+			wg:           &sync.WaitGroup{},
 		}
 
 		// Check if a BUILD excluded itself.
@@ -500,16 +493,26 @@ func walkDir(ctx *buildTrieContext, trie *pathTrie, rel string, updateRels *Upda
 	}
 
 	// Collect + recurse entries async to release the limitCh
+	t.wg.Add(1)
 	ctx.eg.Go(func() error {
+		defer t.wg.Done()
 		return t.loadEntries(ctx, rel, entries, updateRels, ignoreFilter)
 	})
+
+	// Each pathTrie instance must invoke .freeze() once all children have been added.
+	// Must be done after the above .Go() to ensure initial goroutines have been started.
+	if trie != t {
+		ctx.eg.Go(func() error {
+			t.wg.Wait()
+			t.freeze()
+			return nil
+		})
+	}
 
 	return t, nil
 }
 
 func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel string, entries []os.DirEntry, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
-	eg := &errgroup.Group{}
-
 	// Files collected for this directory. Will be added as single locked operation at end.
 	files := []string{}
 
@@ -548,7 +551,9 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel string, entries []o
 			// TODO: make potential stat calls async?
 			if shouldFollow(ctx, trie.walkConfig, rel, entry) {
 				// Asynchrounously walk the subdirectory.
-				eg.Go(func() error {
+				trie.wg.Add(1)
+				ctx.eg.Go(func() error {
+					defer trie.wg.Done()
 					_, err := walkDir(ctx, trie, entryPath, updateRels, ignoreFilter)
 					return err
 				})
@@ -574,5 +579,5 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel string, entries []o
 
 	trie.addFiles(files)
 
-	return eg.Wait()
+	return nil
 }
