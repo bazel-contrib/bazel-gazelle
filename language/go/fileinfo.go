@@ -569,7 +569,7 @@ func checkConstraints(c *config.Config, os, arch, osSuffix, archSuffix string, t
 	}
 
 	goConf := getGoConfig(c)
-	checker := func(tag string, ts tagSet) bool {
+	checker := func(tag string) bool {
 		if isIgnoredTag(tag) {
 			return true
 		}
@@ -585,19 +585,13 @@ func checkConstraints(c *config.Config, os, arch, osSuffix, archSuffix string, t
 				return false
 			}
 			return arch == tag
+
 		}
 
-		_, ok := ts[tag]
-		return ok
+		return goConf.genericTags[tag]
 	}
 
-	for _, ts := range goConf.genericTags {
-		c := func(tag string) bool { return checker(tag, ts) }
-		if tags.eval(c) && cgoTags.eval(c) {
-			return true
-		}
-	}
-	return false
+	return tags.eval(checker) && cgoTags.eval(checker)
 }
 
 // rulesGoSupportsOS returns whether the os tag is recognized by the version of
