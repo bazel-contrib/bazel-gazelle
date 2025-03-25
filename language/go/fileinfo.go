@@ -575,8 +575,14 @@ func checkConstraints(c *config.Config, os, arch, osSuffix, archSuffix string, t
 	}
 
 	if tags != nil && tags.expr != nil {
-		replacedExpr, _ := dropNegationForIgnoredTags(tags.expr, isIgnoredTag)
-		tags, _ = newBuildTags(replacedExpr)
+		replacedExpr, err := dropNegationForIgnoredTags(tags.expr, isIgnoredTag)
+		if err != nil {
+			panic(fmt.Sprintf("unexpected error while dropping negation for generic tags: %s", err))
+		}
+		tags, err = newBuildTags(replacedExpr)
+		if err != nil {
+			panic(fmt.Sprintf("unexpected error while dropping negation for generic tags: %s", err))
+		}
 	}
 
 	checker := func(tag string) bool {
