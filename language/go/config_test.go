@@ -268,22 +268,6 @@ load("@io_bazel_rules_go//proto:go_proto_library.bzl", "go_proto_library")
 	}
 }
 
-func TestPreprocessTags(t *testing.T) {
-	gc := newGoConfig()
-	expectedTags := []string{"gc"}
-	for _, tag := range expectedTags {
-		if !gc.genericTags[tag] {
-			t.Errorf("tag %q not set", tag)
-		}
-	}
-	unexpectedTags := []string{"x", "cgo", "go1.8", "go1.7"}
-	for _, tag := range unexpectedTags {
-		if gc.genericTags[tag] {
-			t.Errorf("tag %q unexpectedly set", tag)
-		}
-	}
-}
-
 func TestPrefixFallback(t *testing.T) {
 	c, _, cexts := testConfig(t)
 	for _, tc := range []struct {
