@@ -570,19 +570,14 @@ func checkConstraints(c *config.Config, os, arch, osSuffix, archSuffix string, t
 
 	goConf := getGoConfig(c)
 
-	isIgnoredTag := func(tag string) bool {
-		return goConf.genericTags[tag]
-	}
+	if tags != nil {
+		// Treat provided generic tags as "ignored tags", meaning that both
+		// `tag` and `!tag` are considered true when evaluating build constraints
+		isIgnoredTag := func(tag string) bool {
+			return goConf.genericTags[tag]
+		}
 
-	if tags != nil && tags.expr != nil {
-		replacedExpr, err := dropNegationForIgnoredTags(tags.expr, isIgnoredTag)
-		if err != nil {
-			panic(fmt.Sprintf("unexpected error while dropping negation for generic tags: %s", err))
-		}
-		tags, err = newBuildTags(replacedExpr)
-		if err != nil {
-			panic(fmt.Sprintf("unexpected error while dropping negation for generic tags: %s", err))
-		}
+		tags = newBuildTags(dropNegationForIgnoredTags(tags.expr, isIgnoredTag))
 	}
 
 	checker := func(tag string) bool {
