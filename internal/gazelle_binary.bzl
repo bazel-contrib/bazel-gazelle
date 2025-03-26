@@ -37,8 +37,9 @@ var languages = []language.Language{{
 	{lang_calls},
 }}
 """
-    lang_imports = [format_import(d[GoArchive].data.importpath) for d in ctx.attr.languages]
-    lang_calls = [format_call(d[GoArchive].data.importpath) for d in ctx.attr.languages]
+    languages = ctx.attr.languages
+    lang_imports = [format_import(d[GoArchive].data.importpath) for d in languages]
+    lang_calls = [format_call(d[GoArchive].data.importpath) for d in languages]
     langs_content = langs_content_tpl.format(
         lang_imports = "\n\t".join(lang_imports),
         lang_calls = ",\n\t".join(lang_calls),
@@ -49,12 +50,12 @@ var languages = []language.Language{{
     library = go.new_library(go, is_main = True)
     attr = struct(
         srcs = [struct(files = [langs_file])],
-        deps = ctx.attr.languages,
+        deps = languages,
         embed = [ctx.attr._srcs],
     )
     source = go.library_to_source(go, attr, library, ctx.coverage_instrumented())
 
-    archive, executable, runfiles = go.binary(
+    archive, executable, _ = go.binary(
         go,
         name = ctx.label.name,
         source = source,
@@ -62,14 +63,16 @@ var languages = []language.Language{{
         info_file = ctx.info_file,
     )
 
+    files = [executable]
+
     return [
-        library,
-        source,
         archive,
         OutputGroupInfo(compilation_outputs = [archive.data.file]),
         DefaultInfo(
-            files = depset([executable]),
-            runfiles = runfiles,
+            files = depset(files),
+            runfiles = ctx.runfiles(files).merge_all(
+                [lang[DefaultInfo].default_runfiles for lang in languages]
+            ),
             executable = executable,
         ),
     ]
