@@ -80,6 +80,8 @@ def parse_go_work(content, go_work_label):
                 state["use"].append(tokens[0])
             elif current_directive == "replace":
                 _parse_replace_directive(state, tokens, go_work_label.name, line_no)
+            elif current_directive == "godebug":
+                pass
             else:
                 fail("{}:{}: unexpected directive '{}'".format(go_work_label.name, line_no, current_directive))
         elif tokens[0] == "go":
@@ -101,6 +103,9 @@ def parse_go_work(content, go_work_label):
                 state["use"].append(tokens[1])
         elif tokens[0] == "toolchain":
             continue
+        elif tokens[0] == "godebug":
+            if tokens[1] == "(":
+                current_directive = tokens[0]
         else:
             fail("{}:{}: unexpected directive '{}'".format(go_work_label.name, line_no, tokens[0]))
 
@@ -210,7 +215,7 @@ def parse_go_mod(content, path):
             continue
 
         if not current_directive:
-            if tokens[0] not in ["module", "go", "require", "replace", "exclude", "retract", "toolchain"]:
+            if tokens[0] not in ["module", "go", "require", "replace", "exclude", "retract", "toolchain", "godebug"]:
                 fail("{}:{}: unexpected token '{}' at start of line".format(path, line_no, tokens[0]))
             if len(tokens) == 1:
                 fail("{}:{}: expected another token after '{}'".format(path, line_no, tokens[0]))
