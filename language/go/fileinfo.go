@@ -569,8 +569,19 @@ func checkConstraints(c *config.Config, os, arch, osSuffix, archSuffix string, t
 	}
 
 	goConf := getGoConfig(c)
-	checker := func(tag string, ts tagSet) bool {
-		if isIgnoredTag(tag) {
+
+	if tags != nil {
+		// Treat provided generic tags as "ignored tags", meaning that both
+		// `tag` and `!tag` are considered true when evaluating build constraints
+		isIgnoredTag := func(tag string) bool {
+			return goConf.genericTags[tag]
+		}
+
+		tags = newBuildTags(dropNegationForIgnoredTags(tags.expr, isIgnoredTag))
+	}
+
+	checker := func(tag string) bool {
+		if isDefaultIgnoredTag(tag) {
 			return true
 		}
 		if _, ok := rule.KnownOSSet[tag]; ok || tag == "unix" {
@@ -585,19 +596,13 @@ func checkConstraints(c *config.Config, os, arch, osSuffix, archSuffix string, t
 				return false
 			}
 			return arch == tag
+
 		}
 
-		_, ok := ts[tag]
-		return ok
+		return goConf.genericTags[tag]
 	}
 
-	for _, ts := range goConf.genericTags {
-		c := func(tag string) bool { return checker(tag, ts) }
-		if tags.eval(c) && cgoTags.eval(c) {
-			return true
-		}
-	}
-	return false
+	return tags.eval(checker) && cgoTags.eval(checker)
 }
 
 // rulesGoSupportsOS returns whether the os tag is recognized by the version of

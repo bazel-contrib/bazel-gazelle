@@ -59,21 +59,6 @@ func testConfig(t *testing.T, args ...string) (*config.Config, []language.Langua
 	return c, langs, cexts
 }
 
-func newTagSet(tags ...string) tagSet {
-	ts := make(tagSet)
-	for _, t := range tags {
-		ts[t] = struct{}{}
-	}
-	return ts
-}
-
-var expectedBuildTags = []tagSet{
-	newTagSet("gc"),
-	newTagSet("gc", "foo"),
-	newTagSet("gc", "bar"),
-	newTagSet("gc", "foo", "bar"),
-}
-
 func TestCommandLine(t *testing.T) {
 	c, _, _ := testConfig(
 		t,
@@ -83,8 +68,10 @@ func TestCommandLine(t *testing.T) {
 		"-external=vendored",
 		"-repo_root=.")
 	gc := getGoConfig(c)
-	if diff := cmp.Diff(expectedBuildTags, gc.genericTags); diff != "" {
-		t.Errorf("(-want, +got): %s", diff)
+	for _, tag := range []string{"foo", "bar", "gc"} {
+		if !gc.genericTags[tag] {
+			t.Errorf("expected tag %q to be set", tag)
+		}
 	}
 	if gc.prefix != "example.com/repo" {
 		t.Errorf(`got prefix %q; want "example.com/repo"`, gc.prefix)
@@ -114,8 +101,10 @@ func TestDirectives(t *testing.T) {
 		cext.Configure(c, "test", f)
 	}
 	gc := getGoConfig(c)
-	if diff := cmp.Diff(expectedBuildTags, gc.genericTags); diff != "" {
-		t.Errorf("(-want, +got): %s", diff)
+	for _, tag := range []string{"foo", "bar", "gc"} {
+		if !gc.genericTags[tag] {
+			t.Errorf("expected tag %q to be set", tag)
+		}
 	}
 	if gc.prefix != "y" {
 		t.Errorf(`got prefix %q; want "y"`, gc.prefix)

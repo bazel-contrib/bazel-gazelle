@@ -52,7 +52,7 @@ func readTags(path string) (*buildTags, error) {
 			return nil, err
 		}
 
-		return newBuildTags(x)
+		return newBuildTags(x), nil
 	}
 
 	var fullConstraint constraint.Expr
@@ -88,7 +88,7 @@ func readTags(path string) (*buildTags, error) {
 		return nil, nil
 	}
 
-	return newBuildTags(fullConstraint)
+	return newBuildTags(fullConstraint), nil
 }
 
 // buildTags represents the build tags specified in a file.
@@ -103,21 +103,14 @@ type buildTags struct {
 
 // newBuildTags will return a new buildTags structure with any
 // ignored tags filtered out from the provided constraints.
-func newBuildTags(x constraint.Expr) (*buildTags, error) {
-	modified, err := dropNegationForIgnoredTags(pushNot(x, false))
-	if err != nil {
-		return nil, err
-	}
-
-	rawTags, err := collectTags(modified)
-	if err != nil {
-		return nil, err
-	}
+func newBuildTags(x constraint.Expr) *buildTags {
+	modified := dropNegationForIgnoredTags(pushNot(x, false), isDefaultIgnoredTag)
+	rawTags := collectTags(modified)
 
 	return &buildTags{
 		expr:    modified,
 		rawTags: rawTags,
-	}, nil
+	}
 }
 
 func (b *buildTags) tags() []string {
@@ -149,16 +142,16 @@ func (b *buildTags) empty() bool {
 // without having to worry that the result will be negated later on. Ignored tags should always
 // evaluate to true, regardless of whether they are negated or not leaving the final evaluation
 // to happen at compile time by the compiler.
-func dropNegationForIgnoredTags(expr constraint.Expr) (constraint.Expr, error) {
+func dropNegationForIgnoredTags(expr constraint.Expr, isIgnoredTag func(tag string) bool) constraint.Expr {
 	if expr == nil {
-		return nil, nil
+		return nil
 	}
 
 	switch x := expr.(type) {
 	case *constraint.TagExpr:
 		return &constraint.TagExpr{
 			Tag: x.Tag,
-		}, nil
+		}
 
 	case *constraint.NotExpr:
 		var toRet constraint.Expr
@@ -168,58 +161,40 @@ func dropNegationForIgnoredTags(expr constraint.Expr) (constraint.Expr, error) {
 				Tag: tag.Tag,
 			}
 		} else {
-			fixed, err := dropNegationForIgnoredTags(x.X)
-			if err != nil {
-				return nil, err
-			}
+			fixed := dropNegationForIgnoredTags(x.X, isIgnoredTag)
 			toRet = &constraint.NotExpr{X: fixed}
 		}
 
-		return toRet, nil
+		return toRet
 
 	case *constraint.AndExpr:
-		a, err := dropNegationForIgnoredTags(x.X)
-		if err != nil {
-			return nil, err
-		}
-
-		b, err := dropNegationForIgnoredTags(x.Y)
-		if err != nil {
-			return nil, err
-		}
+		a := dropNegationForIgnoredTags(x.X, isIgnoredTag)
+		b := dropNegationForIgnoredTags(x.Y, isIgnoredTag)
 
 		return &constraint.AndExpr{
 			X: a,
 			Y: b,
-		}, nil
+		}
 
 	case *constraint.OrExpr:
-		a, err := dropNegationForIgnoredTags(x.X)
-		if err != nil {
-			return nil, err
-		}
-
-		b, err := dropNegationForIgnoredTags(x.Y)
-		if err != nil {
-			return nil, err
-		}
-
+		a := dropNegationForIgnoredTags(x.X, isIgnoredTag)
+		b := dropNegationForIgnoredTags(x.Y, isIgnoredTag)
 		return &constraint.OrExpr{
 			X: a,
 			Y: b,
-		}, nil
+		}
 
 	default:
-		return nil, fmt.Errorf("unknown constraint type: %T", x)
+		panic(fmt.Errorf("unknown constraint type: %T", x))
 	}
 }
 
-// filterTags will traverse the provided constraint.Expr, recursively, and call
+// visitTags will traverse the provided constraint.Expr, recursively, and call
 // the user provided ok func on concrete constraint.TagExpr structures. If the provided
 // func returns true, the tag in question is kept, otherwise it is filtered out.
-func visitTags(expr constraint.Expr, visit func(string)) (err error) {
+func visitTags(expr constraint.Expr, visit func(string)) {
 	if expr == nil {
-		return nil
+		return
 	}
 
 	switch x := expr.(type) {
@@ -227,37 +202,29 @@ func visitTags(expr constraint.Expr, visit func(string)) (err error) {
 		visit(x.Tag)
 
 	case *constraint.NotExpr:
-		err = visitTags(x.X, visit)
+		visitTags(x.X, visit)
 
 	case *constraint.AndExpr:
-		err = visitTags(x.X, visit)
-		if err == nil {
-			err = visitTags(x.Y, visit)
-		}
+		visitTags(x.X, visit)
+		visitTags(x.Y, visit)
 
 	case *constraint.OrExpr:
-		err = visitTags(x.X, visit)
-		if err == nil {
-			err = visitTags(x.Y, visit)
-		}
+		visitTags(x.X, visit)
+		visitTags(x.Y, visit)
 
 	default:
-		return fmt.Errorf("unknown constraint type: %T", x)
+		panic(fmt.Errorf("unknown constraint type: %T", x))
 	}
 
 	return
 }
 
-func collectTags(expr constraint.Expr) ([]string, error) {
+func collectTags(expr constraint.Expr) []string {
 	var tags []string
-	err := visitTags(expr, func(tag string) {
+	visitTags(expr, func(tag string) {
 		tags = append(tags, tag)
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	return tags, err
+	return tags
 }
 
 // cgoTagsAndOpts contains compile or link options which should only be applied
@@ -304,15 +271,15 @@ func matchAuto(tokens []string) (*buildTags, error) {
 		return nil, err
 	}
 
-	return newBuildTags(x)
+	return newBuildTags(x), nil
 }
 
-// isIgnoredTag returns whether the tag is "cgo", "purego", "race", "msan"  or is a release tag.
+// isDefaultIgnoredTag returns whether the tag is "cgo", "purego", "race", "msan"  or is a release tag.
 // Release tags match the pattern "go[0-9]\.[0-9]+".
 // Gazelle won't consider whether an ignored tag is satisfied when evaluating
 // build constraints for a file and will instead defer to the compiler at compile
 // time.
-func isIgnoredTag(tag string) bool {
+func isDefaultIgnoredTag(tag string) bool {
 	if tag == "cgo" || tag == "purego" || tag == "race" || tag == "msan" {
 		return true
 	}

@@ -41,16 +41,6 @@ import (
 
 var minimumRulesGoVersion = version.Version{0, 29, 0}
 
-type tagSet map[string]struct{}
-
-func (ts tagSet) clone() tagSet {
-	c := make(tagSet, len(ts))
-	for k, v := range ts {
-		c[k] = v
-	}
-	return c
-}
-
 // goConfig contains configuration values related to Go rules.
 type goConfig struct {
 	// The name under which the rules_go repository can be referenced from the
@@ -63,7 +53,7 @@ type goConfig struct {
 
 	// genericTags is a set of tags that Gazelle considers to be true. Set with
 	// -build_tags or # gazelle:build_tags. Some tags, like gc, are always on.
-	genericTags []tagSet
+	genericTags map[string]bool
 
 	// prefix is a prefix of an import path, used to generate importpath
 	// attributes. Set with -go_prefix or # gazelle:prefix.
@@ -188,10 +178,12 @@ func newGoConfig() *goConfig {
 		goProtoCompilers: defaultGoProtoCompilers,
 		goGrpcCompilers:  defaultGoGrpcCompilers,
 		goGenerateProto:  true,
-		genericTags: []tagSet{
-			{"gc": struct{}{}},
-		},
 	}
+	if gc.genericTags == nil {
+		gc.genericTags = make(map[string]bool)
+	}
+	// Add default tags
+	gc.genericTags["gc"] = true
 	return gc
 }
 
@@ -201,9 +193,9 @@ func getGoConfig(c *config.Config) *goConfig {
 
 func (gc *goConfig) clone() *goConfig {
 	gcCopy := *gc
-	gcCopy.genericTags = make([]tagSet, 0, len(gc.genericTags))
-	for _, ts := range gc.genericTags {
-		gcCopy.genericTags = append(gcCopy.genericTags, ts.clone())
+	gcCopy.genericTags = make(map[string]bool)
+	for k, v := range gc.genericTags {
+		gcCopy.genericTags[k] = v
 	}
 	gcCopy.goProtoCompilers = gc.goProtoCompilers[:len(gc.goProtoCompilers):len(gc.goProtoCompilers)]
 	gcCopy.goGrpcCompilers = gc.goGrpcCompilers[:len(gc.goGrpcCompilers):len(gc.goGrpcCompilers)]
@@ -221,13 +213,7 @@ func (gc *goConfig) setBuildTags(tags string) error {
 		if strings.HasPrefix(t, "!") {
 			return fmt.Errorf("build tags can't be negated: %s", t)
 		}
-		var newSets []tagSet
-		for _, ts := range gc.genericTags {
-			c := ts.clone()
-			c[t] = struct{}{}
-			newSets = append(newSets, c)
-		}
-		gc.genericTags = append(gc.genericTags, newSets...)
+		gc.genericTags[t] = true
 	}
 	return nil
 }
@@ -594,6 +580,7 @@ Update io_bazel_rules_go to a newer version in your WORKSPACE file.`
 			case "build_tags":
 				if err := gc.setBuildTags(d.Value); err != nil {
 					log.Print(err)
+					continue
 				}
 
 			case "go_generate_proto":
