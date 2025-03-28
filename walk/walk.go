@@ -519,7 +519,11 @@ func (trie *pathTrie) loadEntries(ctx *buildTrieContext, rel string, entries []o
 	// If the trie is a parent directory we must prefix subdirectories
 	buildRel := ""
 	if rel != trie.rel {
-		buildRel = rel[len(trie.rel)+1:]
+		if trie.rel == "" {
+			buildRel = rel
+		} else {
+			buildRel = rel[len(trie.rel)+1:]
+		}
 	}
 
 	for _, entry := range entries {
