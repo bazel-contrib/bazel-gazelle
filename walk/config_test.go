@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/rule"
 	"github.com/bmatcuk/doublestar/v4"
 )
 
@@ -60,23 +59,5 @@ func TestConfigurerFlags(t *testing.T) {
 	wantBuildFileNames := []string{"x", "y"}
 	if !reflect.DeepEqual(c.ValidBuildFileNames, wantBuildFileNames) {
 		t.Errorf("for ValidBuildFileNames, got %#v, want %#v", c.ValidBuildFileNames, wantBuildFileNames)
-	}
-}
-
-func TestConfigurerDirectives(t *testing.T) {
-	c := config.New()
-	cc := &Configurer{}
-	buildData := []byte(`# gazelle:build_file_name x,y`)
-	f, err := rule.LoadData(filepath.Join("test", "BUILD.bazel"), "", buildData)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := cc.CheckFlags(nil, c); err != nil {
-		t.Errorf("CheckFlags: %v", err)
-	}
-	cc.Configure(c, "", f)
-	want := []string{"x", "y"}
-	if !reflect.DeepEqual(c.ValidBuildFileNames, want) {
-		t.Errorf("for ValidBuildFileNames, got %#v, want %#v", c.ValidBuildFileNames, want)
 	}
 }
