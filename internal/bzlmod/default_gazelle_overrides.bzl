@@ -85,6 +85,9 @@ DEFAULT_DIRECTIVES_BY_PATH = {
         "gazelle:go_naming_convention import_alias",
         "gazelle:proto disable",
     ],
+    "github.com/hashicorp/go-plugin": [
+        "gazelle:proto disable",
+    ],
     "github.com/prometheus/alertmanager": [
         "gazelle:proto disable",
     ],
