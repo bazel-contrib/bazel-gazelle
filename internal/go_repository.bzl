@@ -125,14 +125,17 @@ def _go_repository_impl(ctx):
 
     is_module_extension_repo = bool(ctx.attr.internal_only_do_not_use_apparent_name)
 
-    # Declare Label dependencies at the top of function to avoid unnecessary fetching:
-    # https://docs.bazel.build/versions/main/skylark/repository_rules.html#when-is-the-implementation-function-executed
+    # Explicitly watch label dependencies as they are only used as execute arguments.
+    # https://bazel.build/extending/repo#when_is_the_implementation_function_executed
     go_env_cache = str(ctx.path(Label("@bazel_gazelle_go_repository_cache//:go.env")))
+    watch(ctx, go_env_cache)
     fetch_repo = str(ctx.path(Label("@bazel_gazelle_go_repository_tools//:bin/fetch_repo{}".format(executable_extension(ctx)))))
+    watch(ctx, fetch_repo)
     generate = ctx.attr.build_file_generation in ["on", "clean"]
     _gazelle = "@bazel_gazelle_go_repository_tools//:bin/gazelle{}".format(executable_extension(ctx))
     if generate:
         gazelle_path = ctx.path(Label(_gazelle))
+        watch(ctx, gazelle_path)
 
     if ctx.attr.local_path:
         if hasattr(ctx, "watch_tree"):

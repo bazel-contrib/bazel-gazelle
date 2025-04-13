@@ -425,7 +425,7 @@ def _go_deps_impl(module_ctx):
 
             # Collect the relative path of the root module's go.mod file if it lives in the main
             # repository.
-            if module.is_root and not from_file_tag.go_mod.workspace_name:
+            if module.is_root and not from_file_tag.go_mod.repo_name:
                 go_mod = "go.mod"
                 if from_file_tag.go_mod.package:
                     go_mod = from_file_tag.go_mod.package + "/" + go_mod
@@ -453,7 +453,7 @@ def _go_deps_impl(module_ctx):
                 if module_path not in bazel_deps or version > bazel_deps[module_path].version:
                     bazel_deps[module_path] = struct(
                         module_name = module.name,
-                        repo_name = "@" + from_file_tag.go_mod.workspace_name,
+                        repo_name = "@" + from_file_tag.go_mod.repo_name,
                         version = version,
                         raw_version = raw_version,
                     )

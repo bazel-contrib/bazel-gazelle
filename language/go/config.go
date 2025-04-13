@@ -179,7 +179,11 @@ func newGoConfig() *goConfig {
 		goGrpcCompilers:  defaultGoGrpcCompilers,
 		goGenerateProto:  true,
 	}
-	gc.preprocessTags()
+	if gc.genericTags == nil {
+		gc.genericTags = make(map[string]bool)
+	}
+	// Add default tags
+	gc.genericTags["gc"] = true
 	return gc
 }
 
@@ -199,18 +203,8 @@ func (gc *goConfig) clone() *goConfig {
 	return &gcCopy
 }
 
-// preprocessTags adds some tags which are on by default before they are
-// used to match files.
-func (gc *goConfig) preprocessTags() {
-	if gc.genericTags == nil {
-		gc.genericTags = make(map[string]bool)
-	}
-	gc.genericTags["gc"] = true
-}
-
 // setBuildTags sets genericTags by parsing as a comma separated list. An
 // error will be returned for tags that wouldn't be recognized by "go build".
-// preprocessTags should be called before this.
 func (gc *goConfig) setBuildTags(tags string) error {
 	if tags == "" {
 		return nil
@@ -587,10 +581,6 @@ Update io_bazel_rules_go to a newer version in your WORKSPACE file.`
 				if err := gc.setBuildTags(d.Value); err != nil {
 					log.Print(err)
 					continue
-				}
-				gc.preprocessTags()
-				if err := gc.setBuildTags(d.Value); err != nil {
-					log.Print(err)
 				}
 
 			case "go_generate_proto":

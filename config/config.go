@@ -206,19 +206,16 @@ var _ Configurer = (*CommonConfigurer)(nil)
 // CommonConfigurer handles language-agnostic command-line flags and directives,
 // i.e., those that apply to Config itself and not to Config.Exts.
 type CommonConfigurer struct {
-	repoRoot, buildFileNames, readBuildFilesDir, writeBuildFilesDir string
-	indexLibraries, strict                                          bool
-	langCsv                                                         string
-	bzlmod                                                          bool
+	repoRoot               string
+	indexLibraries, strict bool
+	langCsv                string
+	bzlmod                 bool
 }
 
 func (cc *CommonConfigurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *Config) {
 	fs.StringVar(&cc.repoRoot, "repo_root", "", "path to a directory which corresponds to go_prefix, otherwise gazelle searches for it.")
-	fs.StringVar(&cc.buildFileNames, "build_file_name", strings.Join(DefaultValidBuildFileNames, ","), "comma-separated list of valid build file names.\nThe first element of the list is the name of output build files to generate.")
 	fs.BoolVar(&cc.indexLibraries, "index", true, "when true, gazelle will build an index of libraries in the workspace for dependency resolution")
 	fs.BoolVar(&cc.strict, "strict", false, "when true, gazelle will exit with none-zero value for build file syntax errors or unknown directives")
-	fs.StringVar(&cc.readBuildFilesDir, "experimental_read_build_files_dir", "", "path to a directory where build files should be read from (instead of -repo_root)")
-	fs.StringVar(&cc.writeBuildFilesDir, "experimental_write_build_files_dir", "", "path to a directory where build files should be written to (instead of -repo_root)")
 	fs.StringVar(&cc.langCsv, "lang", "", "if non-empty, process only these languages (e.g. \"go,proto\")")
 	fs.BoolVar(&cc.bzlmod, "bzlmod", false, "for internal usage only")
 }
@@ -243,21 +240,6 @@ func (cc *CommonConfigurer) CheckFlags(fs *flag.FlagSet, c *Config) error {
 	if err != nil {
 		return fmt.Errorf("%s: failed to resolve symlinks: %v", cc.repoRoot, err)
 	}
-	c.ValidBuildFileNames = strings.Split(cc.buildFileNames, ",")
-	if cc.readBuildFilesDir != "" {
-		if filepath.IsAbs(cc.readBuildFilesDir) {
-			c.ReadBuildFilesDir = cc.readBuildFilesDir
-		} else {
-			c.ReadBuildFilesDir = filepath.Join(c.WorkDir, cc.readBuildFilesDir)
-		}
-	}
-	if cc.writeBuildFilesDir != "" {
-		if filepath.IsAbs(cc.writeBuildFilesDir) {
-			c.WriteBuildFilesDir = cc.writeBuildFilesDir
-		} else {
-			c.WriteBuildFilesDir = filepath.Join(c.WorkDir, cc.writeBuildFilesDir)
-		}
-	}
 	c.IndexLibraries = cc.indexLibraries
 	c.Strict = cc.strict
 	if len(cc.langCsv) > 0 {
@@ -272,7 +254,7 @@ func (cc *CommonConfigurer) CheckFlags(fs *flag.FlagSet, c *Config) error {
 }
 
 func (cc *CommonConfigurer) KnownDirectives() []string {
-	return []string{"build_file_name", "map_kind", "alias_kind", "lang"}
+	return []string{"map_kind", "alias_kind", "lang"}
 }
 
 func (cc *CommonConfigurer) Configure(c *Config, rel string, f *rule.File) {
@@ -281,9 +263,6 @@ func (cc *CommonConfigurer) Configure(c *Config, rel string, f *rule.File) {
 	}
 	for _, d := range f.Directives {
 		switch d.Key {
-		case "build_file_name":
-			c.ValidBuildFileNames = strings.Split(d.Value, ",")
-
 		case "map_kind":
 			vals := strings.Fields(d.Value)
 			if len(vals) != 3 {

@@ -23,6 +23,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -117,13 +118,9 @@ func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode,
 	}
 
 	updateRels := NewUpdateFilter(c.RepoRoot, dirs, mode)
+	ignoreFilter := newIgnoreFilter(c.RepoRoot)
 
-	isBazelIgnored, err := loadBazelIgnore(c.RepoRoot)
-	if err != nil {
-		log.Printf("error loading .bazelignore: %v", err)
-	}
-
-	trie, err := buildTrie(c, isBazelIgnored)
+	trie, err := buildTrie(c, updateRels, ignoreFilter)
 	if err != nil {
 		log.Fatalf("error walking the file system: %v\n", err)
 	}
@@ -140,7 +137,7 @@ func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode,
 //
 // Traversal may skip subtrees or files based on the config.Config exclude/ignore/follow options
 // as well as the UpdateFilter callbacks.
-func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, rel string, updateParent bool) {
+func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, rel string, updateParent bool) ([]string, bool) {
 	haveError := false
 
 	// Absolute path to the directory being visited
@@ -157,11 +154,16 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		haveError = true
 	}
 
-	configure(cexts, knownDirectives, c, rel, f)
-	wc := getWalkConfig(c)
+	collectionOnly := f == nil && getWalkConfig(c).updateOnly
 
+	// Configure the current directory if not only collecting files
+	if !collectionOnly {
+		configure(cexts, knownDirectives, c, rel, f)
+	}
+
+	wc := getWalkConfig(c)
 	if wc.isExcluded(rel) {
-		return
+		return nil, false
 	}
 
 	// Filter and collect files
@@ -172,7 +174,7 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		if wc.isExcluded(entRel) {
 			continue
 		}
-		if ent := resolveFileInfo(wc, dir, entRel, ent); ent != nil {
+		if shouldFollow(wc, dir, entRel, ent) {
 			regularFiles = append(regularFiles, base)
 		}
 	}
@@ -187,13 +189,22 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		if wc.isExcluded(entRel) {
 			continue
 		}
-		if ent := resolveFileInfo(wc, dir, entRel, t.entry); ent != nil {
-			subdirs = append(subdirs, base)
-
+		if shouldFollow(wc, dir, entRel, t.entry) {
 			if updateRels.shouldVisit(entRel, shouldUpdate) {
-				visit(c.Clone(), cexts, knownDirectives, updateRels, t, wf, entRel, shouldUpdate)
+				subFiles, shouldMerge := visit(c.Clone(), cexts, knownDirectives, updateRels, t, wf, entRel, shouldUpdate)
+				if shouldMerge {
+					for _, f := range subFiles {
+						regularFiles = append(regularFiles, path.Join(base, f))
+					}
+				} else {
+					subdirs = append(subdirs, base)
+				}
 			}
 		}
+	}
+
+	if collectionOnly {
+		return regularFiles, true
 	}
 
 	update := !haveError && !wc.ignore && shouldUpdate
@@ -201,6 +212,7 @@ func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[stri
 		genFiles := findGenFiles(wc, f)
 		wf(dir, rel, c, update, f, subdirs, regularFiles, genFiles)
 	}
+	return nil, false
 }
 
 // An UpdateFilter tracks which directories need to be updated
@@ -345,21 +357,20 @@ func findGenFiles(wc *walkConfig, f *rule.File) []string {
 	return genFiles
 }
 
-func resolveFileInfo(wc *walkConfig, dir, rel string, ent fs.DirEntry) fs.DirEntry {
+func shouldFollow(wc *walkConfig, dir, rel string, ent fs.DirEntry) bool {
 	if ent.Type()&os.ModeSymlink == 0 {
-		// Not a symlink, use the original FileInfo.
-		return ent
+		// Not a symlink
+		return true
 	}
 	if !wc.shouldFollow(rel) {
 		// A symlink, but not one we should follow.
-		return nil
+		return false
 	}
-	fi, err := os.Stat(path.Join(dir, ent.Name()))
-	if err != nil {
+	if _, err := os.Stat(path.Join(dir, ent.Name())); err != nil {
 		// A symlink, but not one we could resolve.
-		return nil
+		return false
 	}
-	return fs.FileInfoToDirEntry(fi)
+	return true
 }
 
 type pathTrie struct {
@@ -375,23 +386,30 @@ func newTrie(entry fs.DirEntry) *pathTrie {
 	}
 }
 
-func buildTrie(c *config.Config, isIgnored isIgnoredFunc) (*pathTrie, error) {
+func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) (*pathTrie, error) {
 	trie := &pathTrie{}
 
 	// A channel to limit the number of concurrent goroutines
-	limitCh := make(chan struct{}, 100)
+	//
+	// This operation is likely to be limited by memory bandwidth and I/O,
+	// not CPU. On a MacBook Pro M1, 6 was the lowest value with best performance,
+	// but higher values didn't degrade performance. Higher values may benefit
+	// machines with more memory bandwidth.
+	//
+	// Use BenchmarkWalk to test changes here.
+	limitCh := make(chan struct{}, runtime.GOMAXPROCS(0))
 
 	// An error group to handle error propagation
 	eg := errgroup.Group{}
 	eg.Go(func() error {
-		return walkDir(c.RepoRoot, "", &eg, limitCh, isIgnored, trie)
+		return trie.walkDir(c.RepoRoot, "", &eg, limitCh, updateRels, ignoreFilter)
 	})
 
 	return trie, eg.Wait()
 }
 
 // walkDir recursively and concurrently descends into the 'rel' directory and builds a trie
-func walkDir(root, rel string, eg *errgroup.Group, limitCh chan struct{}, isIgnored isIgnoredFunc, trie *pathTrie) error {
+func (trie *pathTrie) walkDir(root, rel string, eg *errgroup.Group, limitCh chan struct{}, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
 	limitCh <- struct{}{}
 	defer (func() { <-limitCh })()
 
@@ -404,18 +422,31 @@ func walkDir(root, rel string, eg *errgroup.Group, limitCh chan struct{}, isIgno
 		entryName := entry.Name()
 		entryPath := path.Join(rel, entryName)
 
-		// Ignore .git, empty names and ignored paths
-		if entryName == "" || entryName == ".git" || isIgnored(entryPath) {
+		// Ignore .git and empty names
+		if entryName == "" || entryName == ".git" {
 			continue
 		}
 
 		if entry.IsDir() {
+			if ignoreFilter.isDirectoryIgnored(entryPath) {
+				continue
+			}
+
+			// Ignore directories not even being visited
+			if !updateRels.shouldVisit(entryPath, true) {
+				continue
+			}
+
 			entryTrie := newTrie(entry)
 			trie.children = append(trie.children, entryTrie)
 			eg.Go(func() error {
-				return walkDir(root, entryPath, eg, limitCh, isIgnored, entryTrie)
+				return entryTrie.walkDir(root, entryPath, eg, limitCh, updateRels, ignoreFilter)
 			})
 		} else {
+			if ignoreFilter.isFileIgnored(entryPath) {
+				continue
+			}
+
 			trie.files = append(trie.files, entry)
 		}
 	}

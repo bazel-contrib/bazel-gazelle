@@ -16,9 +16,13 @@ limitations under the License.
 package walk
 
 import (
+	"bytes"
 	"flag"
+	"fmt"
+	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -139,6 +143,69 @@ func TestUpdateDirs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGenMode(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{Path: "mode-create/"},
+		{Path: "mode-create/a.go"},
+		{Path: "mode-create/sub/"},
+		{Path: "mode-create/sub/b.go"},
+		{Path: "mode-create/sub/sub2/"},
+		{Path: "mode-create/sub/sub2/sub3/c.go"},
+		{Path: "mode-update/"},
+		{
+			Path:    "mode-update/BUILD.bazel",
+			Content: "# gazelle:generation_mode update_only",
+		},
+		{Path: "mode-update/a.go"},
+		{Path: "mode-update/sub/"},
+		{Path: "mode-update/sub/b.go"},
+		{Path: "mode-update/sub/sub2/"},
+		{Path: "mode-update/sub/sub2/sub3/c.go"},
+		{Path: "mode-update/sub/sub3/"},
+		{Path: "mode-update/sub/sub3/BUILD.bazel"},
+		{Path: "mode-update/sub/sub3/d.go"},
+		{Path: "mode-update/sub/sub3/sub4/"},
+		{Path: "mode-update/sub/sub3/sub4/e.go"},
+	})
+	defer cleanup()
+
+	type visitSpec struct {
+		subdirs, files []string
+	}
+
+	t.Run("generation_mode create vs update", func(t *testing.T) {
+		c, cexts := testConfig(t, dir)
+		var visits []visitSpec
+		Walk(c, cexts, []string{"."}, VisitAllUpdateSubdirsMode, func(_ string, rel string, _ *config.Config, update bool, _ *rule.File, subdirs, regularFiles, _ []string) {
+			visits = append(visits, visitSpec{
+				subdirs: subdirs,
+				files:   regularFiles,
+			})
+		})
+
+		if len(visits) != 7 {
+			t.Error(fmt.Sprintf("Expected 7 visits, got %v", len(visits)))
+		}
+
+		if !reflect.DeepEqual(visits[len(visits)-1].subdirs, []string{"mode-create", "mode-update"}) {
+			t.Errorf("Last visit should be root dir with 2 subdirs")
+		}
+
+		if len(visits[0].subdirs) != 0 || len(visits[0].files) != 1 || visits[0].files[0] != "c.go" {
+			t.Errorf("Leaf visit should be only files: %v", visits[0])
+		}
+		modeUpdateFiles1 := []string{"BUILD.bazel", "d.go", "sub4/e.go"}
+		if !reflect.DeepEqual(visits[4].files, modeUpdateFiles1) {
+			t.Errorf("update mode should contain files in subdirs. Want %v, got: %v", modeUpdateFiles1, visits[5].files)
+		}
+
+		modeUpdateFiles2 := []string{"BUILD.bazel", "a.go", "sub/b.go", "sub/sub2/sub3/c.go"}
+		if !reflect.DeepEqual(visits[5].files, modeUpdateFiles2) {
+			t.Errorf("update mode should contain files in subdirs. Want %v, got: %v", modeUpdateFiles2, visits[5].files)
+		}
+	})
 }
 
 func TestCustomBuildName(t *testing.T) {
@@ -343,4 +410,77 @@ func (*testConfigurer) KnownDirectives() []string { return nil }
 
 func (tc *testConfigurer) Configure(c *config.Config, rel string, f *rule.File) {
 	tc.configure(c, rel, f)
+}
+
+// BenchmarkWalk measures how long it takes Walk to traverse a synthetic repo.
+//
+// There are 10 top-level directories. Each has 10 subdirectories. Each of
+// those has 10 subdirectories (so 1001 directories in total).
+//
+// Each directory has 10 files and a BUILD file with a filegroup that includes
+// those files (the content isn't really important, we just want to exercise
+// the parser a little bit.)
+//
+// This is somewhat unrealistic: the whole tree is likely to be in the kernel's
+// memory in the kernel's file cache, so this doesn't measure I/O to disk.
+// Still, this is frequently true for real projects where Gazelle is invoked.
+func BenchmarkWalk(b *testing.B) {
+	// Create a fake repo to walk.
+	subdirCount := 10
+	fileCount := 10
+	levelCount := 3
+
+	buildFileBuilder := &bytes.Buffer{}
+	fmt.Fprintf(buildFileBuilder, "filegroup(\n    srcs = [\n")
+	for i := range fileCount {
+		fmt.Fprintf(buildFileBuilder, "        \"f%d\",\n", i)
+	}
+	fmt.Fprintf(buildFileBuilder, "    ],\n)\n")
+	buildFileContent := buildFileBuilder.Bytes()
+
+	rootDir := b.TempDir()
+	var createDir func(string, int)
+	createDir = func(dir string, level int) {
+		buildFilePath := filepath.Join(dir, "BUILD")
+		if err := os.WriteFile(buildFilePath, buildFileContent, 0666); err != nil {
+			b.Fatal(err)
+		}
+
+		for i := range fileCount {
+			filePath := filepath.Join(dir, fmt.Sprintf("f%d", i))
+			if err := os.WriteFile(filePath, nil, 0666); err != nil {
+				b.Fatal(err)
+			}
+		}
+
+		if level < levelCount {
+			for i := range subdirCount {
+				subdir := filepath.Join(dir, fmt.Sprintf("d%d", i))
+				if err := os.Mkdir(subdir, 0777); err != nil {
+					b.Fatal(err)
+				}
+				createDir(subdir, level+1)
+			}
+		}
+	}
+	createDir(rootDir, 0)
+
+	cexts := []config.Configurer{&Configurer{}}
+	c := config.New()
+	c.RepoRoot = rootDir
+	c.RepoRoot = rootDir
+	c.IndexLibraries = true
+	fs := flag.NewFlagSet("gazelle", flag.ContinueOnError)
+	for _, cext := range cexts {
+		cext.RegisterFlags(fs, "update", c)
+	}
+
+	// Benchmark calling Walk with a trivial callback function.
+	wf := func(dir, rel string, c *config.Config, update bool, f *rule.File, subdirs, regularFiles, genFiles []string) {
+	}
+
+	b.ResetTimer()
+	for range b.N {
+		Walk(c, nil, []string{rootDir}, VisitAllUpdateSubdirsMode, wf)
+	}
 }

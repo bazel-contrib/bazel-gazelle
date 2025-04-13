@@ -65,7 +65,12 @@ func TestFullGeneration(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to find runfile %s. Error: %v", path, err)
 			}
+			// absolutePathToTestDirectory is the absolute
+			// path to the test case directory. For example, /home/<user>/wksp/path/to/test_data/my_test_case
 			absolutePathToTestDirectory := filepath.Dir(actualFilePath)
+			// relativePathToTestDirectory is the workspace relative path
+			// to this test case directory. For example, path/to/test_data/my_test_case
+			relativePathToTestDirectory := filepath.Dir(path[strings.IndexRune(path, '/')+1:])
 			// name is the name of the test directory. For example, my_test_case.
 			// The name of the directory doubles as the name of the test.
 			name := filepath.Base(absolutePathToTestDirectory)
@@ -79,8 +84,7 @@ func TestFullGeneration(t *testing.T) {
 				tests = append(tests, &testtools.TestGazelleGenerationArgs{
 					Name:                 name,
 					TestDataPathAbsolute: absolutePathToTestDirectory,
-					// Drop the repository name from the rlocationpath.
-					TestDataPathRelative: path[strings.IndexRune(path, '/')+1:],
+					TestDataPathRelative: relativePathToTestDirectory,
 					GazelleBinaryPath:    absoluteGazelleBinary,
 					BuildInSuffix:        *buildInSuffix,
 					BuildOutSuffix:       *buildOutSuffix,

@@ -71,7 +71,7 @@ var NoLabel = Label{}
 var (
 	// This was taken from https://github.com/bazelbuild/bazel/blob/71fb1e4188b01e582a308cfe4bcbf1c730eded1b/src/main/java/com/google/devtools/build/lib/cmdline/RepositoryName.java#L159C1-L164
 	// ~ and + are both allowed as the former is used in canonical repo names by Bazel 7 and earlier and the latter in Bazel 8.
-	labelRepoRegexp = regexp.MustCompile(`^@$|^[A-Za-z0-9_.-][A-Za-z0-9_.~+-]*$`)
+	labelRepoRegexp = regexp.MustCompile(`^@$|^[A-Za-z0-9_.~+-]*$`)
 	// This was taken from https://github.com/bazelbuild/bazel/blob/master/src/main/java/com/google/devtools/build/lib/cmdline/LabelValidator.java
 	// Package names may contain all 7-bit ASCII characters except:
 	// 0-31 (control characters)

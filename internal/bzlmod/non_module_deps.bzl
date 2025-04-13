@@ -42,8 +42,8 @@ visibility("//")
 def _non_module_deps_impl(module_ctx):
     go_repository_cache(
         name = "bazel_gazelle_go_repository_cache",
-        # Label.workspace_name is always a canonical name, so use a canonical label.
-        go_sdk_name = "@" + HOST_COMPATIBLE_SDK.workspace_name,
+        # Label.repo_name is always a canonical name, so use a canonical label.
+        go_sdk_name = "@" + HOST_COMPATIBLE_SDK.repo_name,
         go_env = GO_ENV,
     )
     go_repository_tools(

@@ -1,0 +1,9 @@
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "file4",
+        "repo2",
+    ],
+    visibility = ["//visibility:public"],
+)

@@ -482,7 +482,7 @@ func TestCheckConstraints(t *testing.T) {
 			desc:        "tag satisfied negated",
 			genericTags: map[string]bool{"a": true},
 			content:     "// +build !a\n\npackage foo",
-			want:        false,
+			want:        true,
 		}, {
 			desc:    "tag double negative",
 			content: "// +build !!a\n\npackage foo",
@@ -506,7 +506,7 @@ func TestCheckConstraints(t *testing.T) {
 			desc:        "tag line or unsatisfied",
 			genericTags: map[string]bool{"foo": true},
 			content:     "// +build !foo bar\n\npackage foo",
-			want:        false,
+			want:        true,
 		}, {
 			desc:        "tag lines and satisfied",
 			genericTags: map[string]bool{"foo": true, "bar": true},

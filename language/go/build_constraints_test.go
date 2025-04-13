@@ -60,10 +60,7 @@ func TestFilterBuildTags(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			bt, err := newBuildTags(tc.input)
-			if err != nil {
-				t.Fatal(err)
-			}
+			bt := newBuildTags(tc.input)
 			if diff := cmp.Diff(tc.want, bt.expr); diff != "" {
 				t.Errorf("(-want, +got): %s", diff)
 			}

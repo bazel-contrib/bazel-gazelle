@@ -1,0 +1,14 @@
+repo()
+
+# A single ignore_directories() with various comments and syntaxes
+ignore_directories([
+    "repo1",
+    # single line comment within array
+    "**/repo2",
+    "**/repo3/**", # trailing comment within array and doublestars
+    "sub*/repo4-*",
+])
+
+# Only a single ignore_directories() is supported so add a few more to ensure they are ignored
+ignore_directories(["*", "**", "**/repo1"])
+ignore_directories("very", "invalid", 42)

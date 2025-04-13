@@ -495,11 +495,12 @@ The following flags are accepted:
 +-------------------------------------------------------------------+----------------------------------------+
 | :flag:`-build_tags tag1,tag2`                                     |                                        |
 +-------------------------------------------------------------------+----------------------------------------+
-| List of Go build tags Gazelle will consider to be true. Gazelle applies                                    |
+| List of Go build tags Gazelle will defer to Bazel for evaluation. Gazelle applies                          |
 | constraints when generating Go rules. It assumes certain tags are true on                                  |
 | certain platforms (for example, ``amd64,linux``). It assumes all Go release                                |
 | tags are true (for example, ``go1.8``). It considers other tags to be false                                |
-| (for example, ``ignore``). This flag overrides that behavior.                                              |
+| (for example, ``ignore``). This flag allows custom tags to be evaluated by                                 |
+| Bazel at build time.                                                                                       |
 |                                                                                                            |
 | Bazel may still filter sources with these tags. Use                                                        |
 | ``bazel build --define gotags=foo,bar`` to set tags at build time.                                         |
@@ -759,13 +760,19 @@ The following directives are recognized:
 | your project contains non-Bazel files named ``BUILD`` (or ``build`` on                     |
 | case-insensitive file systems).                                                            |
 +---------------------------------------------------+----------------------------------------+
+| :direc:`# gazelle:generation_mode`                | ``create_and_update``                  |
++---------------------------------------------------+----------------------------------------+
+| Declares if gazelle should create and update BUILD files per directory or only update      |
+| existing BUILD files. Valid values are: ``create_and_update`` and ``update_only``.         |
++---------------------------------------------------+----------------------------------------+
 | :direc:`# gazelle:build_tags foo,bar`             | none                                   |
 +---------------------------------------------------+----------------------------------------+
-| List of Go build tags Gazelle will consider to be true. Gazelle applies                    |
+| List of Go build tags Gazelle will defer to Bazel for evaluation. Gazelle applies          |
 | constraints when generating Go rules. It assumes certain tags are true on                  |
 | certain platforms (for example, ``amd64,linux``). It assumes all Go release                |
 | tags are true (for example, ``go1.8``). It considers other tags to be false                |
-| (for example, ``ignore``). This flag overrides that behavior.                              |
+| (for example, ``ignore``). This flag allows custom tags to be evaluated by                 |
+| Bazel at build time.                                                                       |
 |                                                                                            |
 | Bazel may still filter sources with these tags. Use                                        |
 | ``bazel build --define gotags=foo,bar`` to set tags at build time.                         |
@@ -1169,8 +1176,7 @@ below to resolve dependencies:
 
    a) Imports of Well Known Types are mapped to rules in
       ``@io_bazel_rules_go//proto/wkt``.
-   b) Imports of Google APIs are mapped to ``@go_googleapis``.
-   c) Imports of ``github.com/golang/protobuf/ptypes``, ``descriptor``, and
+   b) Imports of ``github.com/golang/protobuf/ptypes``, ``descriptor``, and
       ``jsonpb`` are mapped to special rules in ``@com_github_golang_protobuf``.
       See `Avoiding conflicts with proto rules`_.
 

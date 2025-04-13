@@ -24,13 +24,27 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/rule"
+	bzl "github.com/bazelbuild/buildtools/build"
 	"github.com/bmatcuk/doublestar/v4"
 
 	gzflag "github.com/bazelbuild/bazel-gazelle/flag"
+)
+
+// generationModeType represents one of the generation modes.
+type generationModeType string
+
+// Generation modes
+const (
+	// Update: update and maintain existing BUILD files
+	generationModeUpdate generationModeType = "update_only"
+
+	// Create: create new and update existing BUILD files
+	generationModeCreate generationModeType = "create_and_update"
 )
 
 // TODO(#472): store location information to validate each exclude. They
@@ -38,9 +52,10 @@ import (
 // declared generated files, so we can't just stat.
 
 type walkConfig struct {
-	excludes []string
-	ignore   bool
-	follow   []string
+	updateOnly bool
+	excludes   []string
+	ignore     bool
+	follow     []string
 }
 
 const walkName = "_walk"
@@ -59,18 +74,48 @@ func (wc *walkConfig) shouldFollow(p string) bool {
 
 var _ config.Configurer = (*Configurer)(nil)
 
-type Configurer struct{}
+type Configurer struct {
+	// Excludes and BUILD filenames specified on the command line.
+	// May be extending with BUILD directives.
+	cliExcludes       []string
+	cliBuildFileNames string
 
-func (*Configurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
-	wc := &walkConfig{}
-	c.Exts[walkName] = wc
-	fs.Var(&gzflag.MultiFlag{Values: &wc.excludes}, "exclude", "pattern that should be ignored (may be repeated)")
+	// Alternate BUILD read/write directories
+	readBuildFilesDir, writeBuildFilesDir string
 }
 
-func (*Configurer) CheckFlags(fs *flag.FlagSet, c *config.Config) error { return nil }
+func (wc *Configurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
+	fs.Var(&gzflag.MultiFlag{Values: &wc.cliExcludes}, "exclude", "pattern that should be ignored (may be repeated)")
+	fs.StringVar(&wc.cliBuildFileNames, "build_file_name", strings.Join(config.DefaultValidBuildFileNames, ","), "comma-separated list of valid build file names.\nThe first element of the list is the name of output build files to generate.")
+	fs.StringVar(&wc.readBuildFilesDir, "experimental_read_build_files_dir", "", "path to a directory where build files should be read from (instead of -repo_root)")
+	fs.StringVar(&wc.writeBuildFilesDir, "experimental_write_build_files_dir", "", "path to a directory where build files should be written to (instead of -repo_root)")
+}
+
+func (wc *Configurer) CheckFlags(_ *flag.FlagSet, c *config.Config) error {
+	c.ValidBuildFileNames = strings.Split(wc.cliBuildFileNames, ",")
+	if wc.readBuildFilesDir != "" {
+		if filepath.IsAbs(wc.readBuildFilesDir) {
+			c.ReadBuildFilesDir = wc.readBuildFilesDir
+		} else {
+			c.ReadBuildFilesDir = filepath.Join(c.WorkDir, wc.readBuildFilesDir)
+		}
+	}
+	if wc.writeBuildFilesDir != "" {
+		if filepath.IsAbs(wc.writeBuildFilesDir) {
+			c.WriteBuildFilesDir = wc.writeBuildFilesDir
+		} else {
+			c.WriteBuildFilesDir = filepath.Join(c.WorkDir, wc.writeBuildFilesDir)
+		}
+	}
+
+	c.Exts[walkName] = &walkConfig{
+		excludes: wc.cliExcludes,
+	}
+	return nil
+}
 
 func (*Configurer) KnownDirectives() []string {
-	return []string{"exclude", "follow", "ignore"}
+	return []string{"build_file_name", "generation_mode", "exclude", "follow", "ignore"}
 }
 
 func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
@@ -82,6 +127,18 @@ func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
 	if f != nil {
 		for _, d := range f.Directives {
 			switch d.Key {
+			case "build_file_name":
+				c.ValidBuildFileNames = strings.Split(d.Value, ",")
+			case "generation_mode":
+				switch generationModeType(strings.TrimSpace(d.Value)) {
+				case generationModeUpdate:
+					wcCopy.updateOnly = true
+				case generationModeCreate:
+					wcCopy.updateOnly = false
+				default:
+					log.Fatalf("unknown generation_mode %q in //%s", d.Value, f.Pkg)
+					continue
+				}
 			case "exclude":
 				if err := checkPathMatchPattern(path.Join(rel, d.Value)); err != nil {
 					log.Printf("the exclusion pattern is not valid %q: %s", path.Join(rel, d.Value), err)
@@ -106,18 +163,48 @@ func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
 	c.Exts[walkName] = wcCopy
 }
 
-type isIgnoredFunc = func(string) bool
+type ignoreFilter struct {
+	ignoreDirectoryGlobs []string
+	ignorePaths          map[string]struct{}
+}
 
-var nothingIgnored isIgnoredFunc = func(string) bool { return false }
+func newIgnoreFilter(repoRoot string) *ignoreFilter {
+	bazelignorePaths, err := loadBazelIgnore(repoRoot)
+	if err != nil {
+		log.Printf("error loading .bazelignore: %v", err)
+	}
 
-func loadBazelIgnore(repoRoot string) (isIgnoredFunc, error) {
+	repoDirectoryIgnores, err := loadRepoDirectoryIgnore(repoRoot)
+	if err != nil {
+		log.Printf("error loading REPO.bazel ignore_directories(): %v", err)
+	}
+
+	return &ignoreFilter{
+		ignorePaths:          bazelignorePaths,
+		ignoreDirectoryGlobs: repoDirectoryIgnores,
+	}
+}
+
+func (f *ignoreFilter) isDirectoryIgnored(p string) bool {
+	if _, ok := f.ignorePaths[p]; ok {
+		return true
+	}
+	return matchAnyGlob(f.ignoreDirectoryGlobs, p)
+}
+
+func (f *ignoreFilter) isFileIgnored(p string) bool {
+	_, ok := f.ignorePaths[p]
+	return ok
+}
+
+func loadBazelIgnore(repoRoot string) (map[string]struct{}, error) {
 	ignorePath := path.Join(repoRoot, ".bazelignore")
 	file, err := os.Open(ignorePath)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nothingIgnored, nil
+		return nil, nil
 	}
 	if err != nil {
-		return nothingIgnored, fmt.Errorf(".bazelignore exists but couldn't be read: %v", err)
+		return nil, fmt.Errorf(".bazelignore exists but couldn't be read: %v", err)
 	}
 	defer file.Close()
 
@@ -143,12 +230,57 @@ func loadBazelIgnore(repoRoot string) (isIgnoredFunc, error) {
 		excludes[ignore] = struct{}{}
 	}
 
-	isIgnored := func(p string) bool {
-		_, ok := excludes[p]
-		return ok
+	return excludes, nil
+}
+
+func loadRepoDirectoryIgnore(repoRoot string) ([]string, error) {
+	repoFilePath := path.Join(repoRoot, "REPO.bazel")
+	repoFileContent, err := os.ReadFile(repoFilePath)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("REPO.bazel exists but couldn't be read: %v", err)
 	}
 
-	return isIgnored, nil
+	ast, err := bzl.Parse(repoRoot, repoFileContent)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse REPO.bazel: %v", err)
+	}
+
+	var ignoreDirectories []string
+
+	// Search for ignore_directories([...ignore strings...])
+	for _, expr := range ast.Stmt {
+		if call, isCall := expr.(*bzl.CallExpr); isCall {
+			if inv, isIdentCall := call.X.(*bzl.Ident); isIdentCall && inv.Name == "ignore_directories" {
+				if len(call.List) != 1 {
+					return nil, fmt.Errorf("REPO.bazel ignore_directories() expects one argument")
+				}
+
+				list, isList := call.List[0].(*bzl.ListExpr)
+				if !isList {
+					return nil, fmt.Errorf("REPO.bazel ignore_directories() unexpected argument type: %T", call.List[0])
+				}
+
+				for _, item := range list.List {
+					if strExpr, isStr := item.(*bzl.StringExpr); isStr {
+						if err := checkPathMatchPattern(strExpr.Value); err != nil {
+							log.Printf("the ignore_directories() pattern %q is not valid: %s", strExpr.Value, err)
+							continue
+						}
+
+						ignoreDirectories = append(ignoreDirectories, strExpr.Value)
+					}
+				}
+
+				// Only a single ignore_directories() is supported in REPO.bazel and searching can stop.
+				break
+			}
+		}
+	}
+
+	return ignoreDirectories, nil
 }
 
 func checkPathMatchPattern(pattern string) error {

@@ -106,7 +106,7 @@ def parse_go_work(content, go_work_label):
 
     major, minor = go.split(".")[:2]
 
-    go_mods = [use_spec_to_label(go_work_label.workspace_name, use) for use in state["use"]]
+    go_mods = [use_spec_to_label(go_work_label.repo_name, use) for use in state["use"]]
     from_file_tags = [struct(go_mod = go_mod, _is_dev_dependency = False) for go_mod in go_mods]
 
     module_tags = [struct(version = mod.version, path = mod.to_path, _parent_label = go_work_label, local_path = mod.local_path, indirect = False) for mod in state["replace"].values()]
@@ -432,7 +432,7 @@ def parse_sumfile(module_ctx, label, sumfile):
     # changes. We have to use a canonical label as we may not have visibility
     # into the module that provides the sumfile
     sum_label = Label("@@{}//{}:{}".format(
-        label.workspace_name,
+        label.repo_name,
         label.package,
         sumfile,
     ))
