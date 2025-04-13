@@ -210,7 +210,7 @@ def parse_go_mod(content, path):
             continue
 
         if not current_directive:
-            if tokens[0] not in ["module", "go", "require", "replace", "exclude", "retract", "toolchain"]:
+            if tokens[0] not in ["module", "go", "require", "replace", "exclude", "retract", "toolchain", "tool"]:
                 fail("{}:{}: unexpected token '{}' at start of line".format(path, line_no, tokens[0]))
             if len(tokens) == 1:
                 fail("{}:{}: expected another token after '{}'".format(path, line_no, tokens[0]))
