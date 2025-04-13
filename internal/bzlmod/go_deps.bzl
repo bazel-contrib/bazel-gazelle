@@ -563,9 +563,8 @@ def _go_deps_impl(module_ctx):
 
         bazel_dep_is_older = path in module_resolutions and bazel_dep.version < module_resolutions[path].version
 
-        # Version mismatches between the Go module and the bazel_dep can confuse Go tooling. If the bazel_dep version
-        # is lower, it won't be used, which can result in unexpected builds and should thus always be reported, even for
-        # indirect deps. Explicitly overridden modules are not reported as this requires manual action.
+        # Version mismatches between the Go module and the bazel_dep are problematic. For consistency always
+        # prefer the bazel_dep version and report any mismatch to the user.
         if (path in module_resolutions and
             bazel_dep.version != module_resolutions[path].version and
             bazel_dep.version != _HIGHEST_VERSION_SENTINEL and
@@ -616,10 +615,6 @@ Mismatch between versions requested for Go module {module}:
                 bazel_dep_version = bazel_dep_version,
                 go_module_version = go_module_version,
             ), *remediation)
-
-        # Only use the Bazel module if it is at least as high as the required Go module version.
-        if bazel_dep_is_older:
-            continue
 
         # TODO: We should update root_versions if the bazel_dep is a direct dependency of the root
         #   module. However, we currently don't have a way to determine that.
