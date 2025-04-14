@@ -569,8 +569,11 @@ def _go_deps_impl(module_ctx):
         # Version mismatches between the Go module and the bazel_dep can confuse Go tooling. If the bazel_dep version
         # is lower, it won't be used, which can result in unexpected builds and should thus always be reported, even for
         # indirect deps. Explicitly overridden modules are not reported as this requires manual action.
+        #
+        # The bazel_dep version can be relaxed semver (e.g. 1.2.3.bcr.1), which would always differ from valid Go
+        # versions. We assume that the extra segments don't affect Go compatibility and thus ignore them.
         if (path in module_resolutions and
-            bazel_dep.version != module_resolutions[path].version and
+            semver.make_strict(bazel_dep.version) != module_resolutions[path].version and
             bazel_dep.version != _HIGHEST_VERSION_SENTINEL and
             (bazel_dep_is_older or path in root_versions)):
             bazel_dep_name = bazel_dep.module_name
