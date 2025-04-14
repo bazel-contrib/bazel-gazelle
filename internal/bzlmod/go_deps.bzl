@@ -400,9 +400,6 @@ def _go_deps_impl(module_ctx):
             if from_file_tag.go_mod:
                 from_file_tags.append(from_file_tag)
             elif from_file_tag.go_work:
-                if module.is_root != True:
-                    fail("go_deps.from_file(go_work = '{}') tag can only be used from a root module but: '{}' is not a root module.".format(from_file_tag.go_work, module.name))
-
                 go_work = go_work_from_label(module_ctx, from_file_tag.go_work)
 
                 # this ensures go.work replacements are considered
