@@ -376,6 +376,24 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		}
 		rules = append(rules, g.generateBin(pkg, libName))
 		rules = append(rules, g.generateTests(pkg, libName)...)
+
+		// Generate test rules for test packages that are not in the main package.
+		for _, testPkg := range goPackageMap {
+			// Only handle _test packages that we haven't already handled.
+			if strings.HasSuffix(testPkg.name, "_test") && testPkg != pkg {
+				if testPkg.importPath == "" {
+					if err := testPkg.inferImportPath(c); err != nil {
+						log.Print(err)
+					}
+				}
+				tests := g.generateTests(testPkg, libName)
+				if len(tests) > 1 {
+					panic(fmt.Sprintf("multiple tests generated for %s", testPkg.name))
+				}
+				tests[0].SetAttr("name", fmt.Sprintf("%s_test", testPkg.name))
+				rules = append(rules, tests...)
+			}
+		}
 	}
 
 	for _, r := range rules {
