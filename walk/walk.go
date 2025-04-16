@@ -260,6 +260,22 @@ func NewUpdateFilter(root string, dirs []string, mode Mode) *UpdateFilter {
 	return &UpdateFilter{mode, relMap}
 }
 
+func (u *UpdateFilter) ShouldReIndex(rel string) bool {
+	if rel == "." {
+		rel = ""
+	}
+
+	if should, found := u.updateRels[rel]; found {
+		return should
+	}
+
+	if rel != "" && (u.mode == UpdateSubdirsMode || u.mode == VisitAllUpdateSubdirsMode) {
+		return u.ShouldReIndex(path.Dir(rel))
+	}
+
+	return false
+}
+
 // shouldCall returns true if Walk should call the callback in the
 // directory rel.
 func (u *UpdateFilter) shouldCall(rel string, updateParent bool) bool {
