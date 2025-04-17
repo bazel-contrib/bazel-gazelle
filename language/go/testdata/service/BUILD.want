@@ -18,7 +18,7 @@ go_proto_library(
         "google/protobuf/any.proto",
         "service/sub/sub.proto",
     ],
-    compilers = ["@io_bazel_rules_go//proto:go_grpc"],
+    compilers = ["@io_bazel_rules_go//proto:go_grpc_v2"],
     importpath = "example.com/repo/service",
     proto = ":service_proto",
     visibility = ["//visibility:public"],
