@@ -313,8 +313,16 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		}
 	}()
 
-	var errorsFromWalk []error
-	walk.Walk(c, cexts, uc.dirs, uc.walkMode, func(dir, rel string, c *config.Config, update bool, f *rule.File, subdirs, regularFiles, genFiles []string) {
+	walkErr := walk.Walk2(c, cexts, uc.dirs, uc.walkMode, func(args walk.Walk2FuncArgs) walk.Walk2FuncResult {
+		dir := args.Dir
+		rel := args.Rel
+		c := args.Config
+		update := args.Update
+		f := args.File
+		subdirs := args.Subdirs
+		regularFiles := args.RegularFiles
+		genFiles := args.GenFiles
+
 		mrslv.AliasedKinds(rel, c.AliasMap)
 		// If this file is ignored or if Gazelle was not asked to update this
 		// directory, just index the build file and move on.
@@ -327,7 +335,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 					ruleIndex.AddRule(c, r, f)
 				}
 			}
-			return
+			return walk.Walk2FuncResult{}
 		}
 
 		// Fix any problems in the file.
@@ -360,7 +368,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 			imports = append(imports, res.Imports...)
 		}
 		if f == nil && len(gen) == 0 {
-			return
+			return walk.Walk2FuncResult{}
 		}
 
 		// Apply and record relevant kind mappings.
@@ -390,9 +398,10 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 			return nil, nil
 		}
 
+		var errs []error
 		for _, r := range allRules {
 			if replacementName, err := maybeRecordReplacement(r.Kind()); err != nil {
-				errorsFromWalk = append(errorsFromWalk, fmt.Errorf("looking up mapped kind: %w", err))
+				errs = append(errs, fmt.Errorf("looking up mapped kind: %w", err))
 			} else if replacementName != nil {
 				r.SetKind(*replacementName)
 			}
@@ -409,7 +418,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 						continue
 					}
 					if replacementName, err := maybeRecordReplacement(ident.Name); err != nil {
-						errorsFromWalk = append(errorsFromWalk, fmt.Errorf("looking up mapped kind: %w", err))
+						errs = append(errs, fmt.Errorf("looking up mapped kind: %w", err))
 					} else if replacementName != nil {
 						if err := r.UpdateArg(i, &build.Ident{Name: *replacementName}); err != nil {
 							log.Panicf("%s: %v", rel, err)
@@ -456,6 +465,10 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 				ruleIndex.AddRule(c, r, f)
 			}
 		}
+
+		return walk.Walk2FuncResult{
+			Err: errors.Join(errs...),
+		}
 	})
 
 	for _, lang := range languages {
@@ -464,17 +477,8 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		}
 	}
 
-	if len(errorsFromWalk) == 1 {
-		return errorsFromWalk[0]
-	}
-
-	if len(errorsFromWalk) > 1 {
-		var additionalErrors []string
-		for _, err = range errorsFromWalk[1:] {
-			additionalErrors = append(additionalErrors, err.Error())
-		}
-
-		return fmt.Errorf("encountered multiple errors: %w, %v", errorsFromWalk[0], strings.Join(additionalErrors, ", "))
+	if walkErr != nil {
+		return walkErr
 	}
 
 	// Finish building the index for dependency resolution.
