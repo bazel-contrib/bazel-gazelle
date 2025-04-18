@@ -210,6 +210,58 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 		return errors.Join(w.errs...)
 	}
 
+	// Visit additional directories that extensions requested for indexing.
+	for len(w.relsToVisit) > 0 {
+		// Don't simply range over relsToVisit. We may append more.
+		relToVisit := w.relsToVisit[0]
+		w.relsToVisit = w.relsToVisit[1:]
+
+		dirToVisit := filepath.Join(c.RepoRoot, relToVisit)
+		if fi, err := os.Stat(dirToVisit); err != nil || !fi.IsDir() {
+			// Silently skip non-existant directory.
+			continue
+		}
+
+		// Make sure to visit prefixes of relToVisit as well so we apply
+		// configuration directives.
+		slash := -1
+		for {
+			var rel string
+			i := strings.Index(relToVisit[slash+1:], "/")
+			if i < 0 {
+				rel = relToVisit
+			} else {
+				rel = relToVisit[:slash+1+i]
+				slash = slash + 1 + i
+			}
+
+			if _, ok := w.visits[rel]; !ok {
+				parentRel := path.Dir(rel)
+				if parentRel == "." {
+					parentRel = ""
+				}
+				parentCfg := w.visits[parentRel].c
+				if getWalkConfig(parentCfg).isExcludedDir(rel) {
+					break
+				}
+				c := parentCfg.Clone()
+				w.visit(c, rel, false)
+			}
+
+			if rel == relToVisit {
+				break
+			}
+		}
+
+		if _, ok := w.visits[relToVisit]; ok {
+			// Already visited.
+			continue
+		}
+		w.visit(c, relToVisit, false)
+		if c.Strict && len(w.errs) > 0 {
+			return errors.Join(w.errs...)
+		}
+	}
 	return errors.Join(w.errs...)
 }
 
@@ -249,6 +301,15 @@ type walker struct {
 	// the same directory more than once and tracks information that's needed
 	// by parents.
 	visits map[string]visitInfo
+
+	// relsToVisit is a list of slash-separated repo-root-relative paths to
+	// additional directories to visit. These directories are not visited
+	// recursively. wf is called with Walk2FuncArgs.Update false.
+	relsToVisit []string
+
+	// relsToVisitSeen indicates whether a string was added to relsToVisit.
+	// It's used to avoid appending a path more than once.
+	relsToVisitSeen map[string]struct{}
 
 	// errs is a list of errors encountered while walking the directory tree.
 	// If the Config.Strict flag is set in the root configuration, we return
@@ -313,6 +374,7 @@ func newWalker(c *config.Config, cexts []config.Configurer, dirs []string, mode 
 		wf:              wf,
 		shouldUpdateRel: shouldUpdateRel,
 		visits:          make(map[string]visitInfo),
+		relsToVisitSeen: make(map[string]struct{}),
 	}
 	if mode == VisitAllUpdateSubdirsMode || mode == UpdateSubdirsMode {
 		w.populateCache(rels)
@@ -358,9 +420,11 @@ func (w *walker) shouldCall(rel string, updateParent bool) bool {
 	case VisitAllUpdateSubdirsMode, VisitAllUpdateDirsMode:
 		return true
 	case UpdateSubdirsMode:
-		return updateParent || w.shouldUpdateRel[rel]
+		_, isRelToVisit := w.relsToVisitSeen[rel]
+		return updateParent || w.shouldUpdateRel[rel] || isRelToVisit
 	default: // UpdateDirsMode
-		return w.shouldUpdateRel[rel]
+		_, isRelToVisit := w.relsToVisitSeen[rel]
+		return w.shouldUpdateRel[rel] || isRelToVisit
 	}
 }
 
@@ -460,6 +524,12 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 		})
 		if result.Err != nil {
 			w.errs = append(w.errs, result.Err)
+		}
+		for _, relToVisit := range result.RelsToVisit {
+			if _, ok := w.relsToVisitSeen[relToVisit]; !ok {
+				w.relsToVisit = append(w.relsToVisit, relToVisit)
+				w.relsToVisitSeen[relToVisit] = struct{}{}
+			}
 		}
 	}
 }

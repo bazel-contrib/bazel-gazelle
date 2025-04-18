@@ -138,13 +138,15 @@ func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) erro
 		uc.dirs[i] = dir
 	}
 
-	if ucr.recursive && c.IndexLibraries {
+	indexAll := c.IndexLibraries && !c.IndexLazy
+	switch {
+	case ucr.recursive && indexAll:
 		uc.walkMode = walk.VisitAllUpdateSubdirsMode
-	} else if c.IndexLibraries {
+	case !ucr.recursive && indexAll:
 		uc.walkMode = walk.VisitAllUpdateDirsMode
-	} else if ucr.recursive {
+	case ucr.recursive && !indexAll:
 		uc.walkMode = walk.UpdateSubdirsMode
-	} else {
+	case !ucr.recursive && !indexAll:
 		uc.walkMode = walk.UpdateDirsMode
 	}
 
@@ -348,6 +350,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		// Generate rules.
 		var empty, gen []*rule.Rule
 		var imports []interface{}
+		var relsToVisit []string
 		for _, l := range filterLanguages(c, languages) {
 			res := l.GenerateRules(language.GenerateArgs{
 				Config:       c,
@@ -366,9 +369,12 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 			empty = append(empty, res.Empty...)
 			gen = append(gen, res.Gen...)
 			imports = append(imports, res.Imports...)
+			if c.IndexLibraries {
+				relsToVisit = append(relsToVisit, res.RelsToIndex...)
+			}
 		}
 		if f == nil && len(gen) == 0 {
-			return walk.Walk2FuncResult{}
+			return walk.Walk2FuncResult{RelsToVisit: relsToVisit}
 		}
 
 		// Apply and record relevant kind mappings.
@@ -467,7 +473,8 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		}
 
 		return walk.Walk2FuncResult{
-			Err: errors.Join(errs...),
+			RelsToVisit: relsToVisit,
+			Err:         errors.Join(errs...),
 		}
 	})
 
