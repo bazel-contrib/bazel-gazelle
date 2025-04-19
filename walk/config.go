@@ -52,20 +52,29 @@ const (
 // declared generated files, so we can't just stat.
 
 type walkConfig struct {
-	updateOnly bool
-	excludes   []string
-	ignore     bool
-	follow     []string
+	updateOnly          bool
+	ignoreFilter        *ignoreFilter
+	excludes            []string
+	ignore              bool
+	follow              []string
+	validBuildFileNames []string // to be copied to config.Config
 }
 
-const walkName = "_walk"
+const (
+	walkName       = "_walk"
+	walkNameCached = "_walkCached"
+)
 
 func getWalkConfig(c *config.Config) *walkConfig {
 	return c.Exts[walkName].(*walkConfig)
 }
 
-func (wc *walkConfig) isExcluded(p string) bool {
-	return matchAnyGlob(wc.excludes, p)
+func (wc *walkConfig) isExcludedDir(p string) bool {
+	return path.Base(p) == ".git" || wc.ignoreFilter.isDirectoryIgnored(p) || matchAnyGlob(wc.excludes, p)
+}
+
+func (wc *walkConfig) isExcludedFile(p string) bool {
+	return wc.ignoreFilter.isFileIgnored(p) || matchAnyGlob(wc.excludes, p)
 }
 
 func (wc *walkConfig) shouldFollow(p string) bool {
@@ -84,33 +93,38 @@ type Configurer struct {
 	readBuildFilesDir, writeBuildFilesDir string
 }
 
-func (wc *Configurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
-	fs.Var(&gzflag.MultiFlag{Values: &wc.cliExcludes}, "exclude", "pattern that should be ignored (may be repeated)")
-	fs.StringVar(&wc.cliBuildFileNames, "build_file_name", strings.Join(config.DefaultValidBuildFileNames, ","), "comma-separated list of valid build file names.\nThe first element of the list is the name of output build files to generate.")
-	fs.StringVar(&wc.readBuildFilesDir, "experimental_read_build_files_dir", "", "path to a directory where build files should be read from (instead of -repo_root)")
-	fs.StringVar(&wc.writeBuildFilesDir, "experimental_write_build_files_dir", "", "path to a directory where build files should be written to (instead of -repo_root)")
+func (cr *Configurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
+	fs.Var(&gzflag.MultiFlag{Values: &cr.cliExcludes}, "exclude", "pattern that should be ignored (may be repeated)")
+	fs.StringVar(&cr.cliBuildFileNames, "build_file_name", strings.Join(config.DefaultValidBuildFileNames, ","), "comma-separated list of valid build file names.\nThe first element of the list is the name of output build files to generate.")
+	fs.StringVar(&cr.readBuildFilesDir, "experimental_read_build_files_dir", "", "path to a directory where build files should be read from (instead of -repo_root)")
+	fs.StringVar(&cr.writeBuildFilesDir, "experimental_write_build_files_dir", "", "path to a directory where build files should be written to (instead of -repo_root)")
 }
 
-func (wc *Configurer) CheckFlags(_ *flag.FlagSet, c *config.Config) error {
-	c.ValidBuildFileNames = strings.Split(wc.cliBuildFileNames, ",")
-	if wc.readBuildFilesDir != "" {
-		if filepath.IsAbs(wc.readBuildFilesDir) {
-			c.ReadBuildFilesDir = wc.readBuildFilesDir
+func (cr *Configurer) CheckFlags(_ *flag.FlagSet, c *config.Config) error {
+	c.ValidBuildFileNames = strings.Split(cr.cliBuildFileNames, ",")
+	if cr.readBuildFilesDir != "" {
+		if filepath.IsAbs(cr.readBuildFilesDir) {
+			c.ReadBuildFilesDir = cr.readBuildFilesDir
 		} else {
-			c.ReadBuildFilesDir = filepath.Join(c.WorkDir, wc.readBuildFilesDir)
+			c.ReadBuildFilesDir = filepath.Join(c.WorkDir, cr.readBuildFilesDir)
 		}
 	}
-	if wc.writeBuildFilesDir != "" {
-		if filepath.IsAbs(wc.writeBuildFilesDir) {
-			c.WriteBuildFilesDir = wc.writeBuildFilesDir
+	if cr.writeBuildFilesDir != "" {
+		if filepath.IsAbs(cr.writeBuildFilesDir) {
+			c.WriteBuildFilesDir = cr.writeBuildFilesDir
 		} else {
-			c.WriteBuildFilesDir = filepath.Join(c.WorkDir, wc.writeBuildFilesDir)
+			c.WriteBuildFilesDir = filepath.Join(c.WorkDir, cr.writeBuildFilesDir)
 		}
 	}
 
-	c.Exts[walkName] = &walkConfig{
-		excludes: wc.cliExcludes,
+	ignoreFilter := newIgnoreFilter(c.RepoRoot)
+
+	wc := &walkConfig{
+		ignoreFilter:        ignoreFilter,
+		excludes:            cr.cliExcludes,
+		validBuildFileNames: c.ValidBuildFileNames,
 	}
+	c.Exts[walkName] = wc
 	return nil
 }
 
@@ -119,22 +133,38 @@ func (*Configurer) KnownDirectives() []string {
 }
 
 func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
-	wc := getWalkConfig(c)
-	wcCopy := &walkConfig{}
-	*wcCopy = *wc
-	wcCopy.ignore = false
+	if c.Exts[walkNameCached] != nil {
+		// A normal Configurer implementation would process directives and set
+		// c.Exts[walkName] here. However, we've parallelized the tree walk and
+		// processed the configuration ahead of time in configureForWalk. So instead,
+		// the caller of this method (configure) sets c.Exts[walkNameCache] to the
+		// preprocessed configuration. We copy it to c.Exts[walkName] instead of
+		// re-processing directives.
+		c.Exts[walkName] = c.Exts[walkNameCached]
+	} else {
+		// If c.Exts[walkNameCached] was not set, process directives normally.
+		// This uses the same code.
+		c.Exts[walkName] = configureForWalk(getWalkConfig(c), rel, f)
+	}
+	c.ValidBuildFileNames = getWalkConfig(c).validBuildFileNames
+}
+
+func configureForWalk(parent *walkConfig, rel string, f *rule.File) *walkConfig {
+	wc := &walkConfig{}
+	*wc = *parent
+	wc.ignore = false
 
 	if f != nil {
 		for _, d := range f.Directives {
 			switch d.Key {
 			case "build_file_name":
-				c.ValidBuildFileNames = strings.Split(d.Value, ",")
+				wc.validBuildFileNames = strings.Split(d.Value, ",")
 			case "generation_mode":
 				switch generationModeType(strings.TrimSpace(d.Value)) {
 				case generationModeUpdate:
-					wcCopy.updateOnly = true
+					wc.updateOnly = true
 				case generationModeCreate:
-					wcCopy.updateOnly = false
+					wc.updateOnly = false
 				default:
 					log.Fatalf("unknown generation_mode %q in //%s", d.Value, f.Pkg)
 					continue
@@ -144,23 +174,23 @@ func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
 					log.Printf("the exclusion pattern is not valid %q: %s", path.Join(rel, d.Value), err)
 					continue
 				}
-				wcCopy.excludes = append(wcCopy.excludes, path.Join(rel, d.Value))
+				wc.excludes = append(wc.excludes, path.Join(rel, d.Value))
 			case "follow":
 				if err := checkPathMatchPattern(path.Join(rel, d.Value)); err != nil {
 					log.Printf("the follow pattern is not valid %q: %s", path.Join(rel, d.Value), err)
 					continue
 				}
-				wcCopy.follow = append(wcCopy.follow, path.Join(rel, d.Value))
+				wc.follow = append(wc.follow, path.Join(rel, d.Value))
 			case "ignore":
 				if d.Value != "" {
 					log.Printf("the ignore directive does not take any arguments. Did you mean to use gazelle:exclude instead? in //%s '# gazelle:ignore %s'", f.Pkg, d.Value)
 				}
-				wcCopy.ignore = true
+				wc.ignore = true
 			}
 		}
 	}
 
-	c.Exts[walkName] = wcCopy
+	return wc
 }
 
 type ignoreFilter struct {
