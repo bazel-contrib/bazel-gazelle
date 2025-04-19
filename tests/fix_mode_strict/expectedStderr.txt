@@ -1,2 +1,1 @@
 gazelle: %WORKSPACEPATH%/BUILD.bazel:3:13: syntax error near visibility
-gazelle: Exit as strict mode is on
