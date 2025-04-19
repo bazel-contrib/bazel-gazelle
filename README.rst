@@ -479,7 +479,7 @@ for details.
 
 Both commands accept a list of directories to process as positional arguments.
 If no directories are specified, Gazelle will process the current directory.
-Subdirectories will be processed recursively.
+Subdirectories will be processed recursively by default (unless ``-r=false``).
 
 The following flags are accepted:
 
@@ -522,11 +522,20 @@ The following flags are accepted:
 | current repository. May be :value:`external`, :value:`static` or :value:`vendored`. See                    |
 | `Dependency resolution`_.                                                                                  |
 +-------------------------------------------------------------------+----------------------------------------+
-| :flag:`-index true|false`                                         | :value:`true`                          |
+| :flag:`-index none|lazy|all`                                      | :value:`true`                          |
 +-------------------------------------------------------------------+----------------------------------------+
 | Determines whether Gazelle should index the libraries in the current repository and whether it             |
-| should use the index to resolve dependencies. If this is switched off, Gazelle would rely on               |
-| ``# gazelle:prefix`` directive or ``-go_prefix`` flag to resolve dependencies.                             |
+| should use the index to resolve dependencies.                                                              |
+|                                                                                                            |
+| If `none` or `false`, indexing is disabled, and Gazelle relies purely on conventions to translate          |
+| language-specific import strings into dependency labels.                                                   |
+|                                                                                                            |
+| If `lazy`, Gazelle indexes libraries in directories it visits explicitly. Language extensions may be       |
+| configured to index additional directories through directives like ``# gazelle:go_search``. This mode      |
+| is very fast when recursion is disabled with ``-r=false``.                                                 |
+|                                                                                                            |
+| If `all` or `true`, Gazelle indexes all directories in the repository, even when recursion is disabled.    |
+| This makes dependency resolution simple but can be slow for large repositories.                            |
 +-------------------------------------------------------------------+----------------------------------------+
 | :flag:`-go_grpc_compiler`                                         | ``@io_bazel_rules_go//proto:go_grpc``  |
 +-------------------------------------------------------------------+----------------------------------------+
@@ -598,6 +607,17 @@ The following flags are accepted:
 | This adds a prefix to the string used to import ``.proto`` files listed in                                 |
 | the ``srcs`` attribute of generated rules. Equivalent to the                                               |
 | ``# gazelle:proto_import_prefix`` directive. See details in `Directives`_ below.                           |
++-------------------------------------------------------------------+----------------------------------------+
+| :flag:`-r`                                                        | :value:`true`                          |
++-------------------------------------------------------------------+----------------------------------------+
+| Controls whether Gazelle recurses into subdirectories of the directories named                             |
+| on the command line. This is enabled by default, so when Gazelle is run from                               |
+| the repository root directory without arguments, it visits and updates all                                 |
+| directories. This can be slow for large repositories.                                                      |
+|                                                                                                            |
+| When recursion is disabled, Gazelle only visits specific named directories.                                |
+| This can be very fast, but you may also want to use lazy indexing                                          |
+| (``-index=lazy``) or disable indexing altogether (``-index=none``).                                        |
 +-------------------------------------------------------------------+----------------------------------------+
 | :flag:`-repo_root dir`                                            |                                        |
 +-------------------------------------------------------------------+----------------------------------------+
@@ -803,6 +823,28 @@ The following directives are recognized:
 | ``# gazelle:proto``. When this directive is ``false``, the Go extension will ignore any    |
 | ``proto_library`` rules. If there are any pre-generated Go files, they will be treated as  |
 | regular Go files.                                                                          |
++---------------------------------------------------+----------------------------------------+
+| :direc:`# gazelle:go_search dir prefix`           | n/a                                    |
++---------------------------------------------------+----------------------------------------+
+| When lazy indexing is enabled (``-index=lazy``), this directive tells Gazelle about        |
+| additional directories containing Go libraries that should be indexed for dependency       |
+| resolution. Specific directories are indexed as needed based on Go import directives seen. |
+|                                                                                            |
+| The ``dir`` argument is a slash-separated path relative to the directory containing the    |
+| build file. The ``prefix`` argument is optional. It indicates a Go prefix for the named    |
+| directory, which is useful for nested modules or module replacement directories.           |
+|                                                                                            |
+| ``go_search`` may be used multiple times. Each setting adds to the search path for the     |
+| current directory and subdirectories. If ``go_search`` is used without arguments,          |
+| it clears the current list of search paths.                                                |
+|                                                                                            |
+| As an example, suppose you have a vendor directory with a non-standard name,               |
+| ``third_party/go``, and a module replacement directory ``replace/b``. You can index        |
+| these directories with:                                                                    |
+|                                                                                            |
+| .. code:: bzl                                                                              |
+|   # gazelle:go_search third_party/go                                                       |
+|   # gazelle:go_search replace/b example.com/b                                              |
 +---------------------------------------------------+----------------------------------------+
 | :direc:`# gazelle:go_test mode`                   | ``default``                            |
 +---------------------------------------------------+----------------------------------------+

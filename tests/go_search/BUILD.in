@@ -1,0 +1,3 @@
+# gazelle:prefix example.com/use
+# gazelle:go_search third_party
+# gazelle:go_search replace/b example.com/b

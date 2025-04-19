@@ -82,24 +82,11 @@ func (ps *PlatformStrings) IsEmpty() bool {
 // Flat returns all the strings in the set, sorted and de-duplicated.
 func (ps *PlatformStrings) Flat() []string {
 	unique := make(map[string]struct{})
-	for _, s := range ps.Generic {
+	// TODO: refactor to for-iterator loop after Go 1.23 is the minimum version.
+	ps.Each()(func(s string) bool {
 		unique[s] = struct{}{}
-	}
-	for _, ss := range ps.OS {
-		for _, s := range ss {
-			unique[s] = struct{}{}
-		}
-	}
-	for _, ss := range ps.Arch {
-		for _, s := range ss {
-			unique[s] = struct{}{}
-		}
-	}
-	for _, ss := range ps.Platform {
-		for _, s := range ss {
-			unique[s] = struct{}{}
-		}
-	}
+		return true
+	})
 	flat := make([]string, 0, len(unique))
 	for s := range unique {
 		flat = append(flat, s)
@@ -213,6 +200,39 @@ func (ps *PlatformStrings) MapSlice(f func([]string) ([]string, error)) (Platfor
 		Platform: mapPlatformMap(ps.Platform),
 	}
 	return result, errors
+}
+
+// Each returns an iterator (satisfying iter.Seq) over the strings in
+// PlatformStrings. No sorting or deduplication is performed here.
+func (ps *PlatformStrings) Each() func(yield func(string) bool) {
+	return func(yield func(string) bool) {
+		for _, s := range ps.Generic {
+			if !yield(s) {
+				return
+			}
+		}
+		for _, ss := range ps.OS {
+			for _, s := range ss {
+				if !yield(s) {
+					return
+				}
+			}
+		}
+		for _, ss := range ps.Arch {
+			for _, s := range ss {
+				if !yield(s) {
+					return
+				}
+			}
+		}
+		for _, ss := range ps.Platform {
+			for _, s := range ss {
+				if !yield(s) {
+					return
+				}
+			}
+		}
+	}
 }
 
 func (ps PlatformStrings) BzlExpr() bzl.Expr {
