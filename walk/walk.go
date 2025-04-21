@@ -258,7 +258,8 @@ type walker struct {
 
 type visitInfo struct {
 	// containedByParent is true if the directory does not (and should not)
-	// contain a build file. The parent directory may use regularFiles.
+	// contain a build file. The parent directory may use regularFiles
+	// and subdirs.
 	containedByParent bool
 
 	c                     *config.Config
@@ -435,6 +436,9 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 			for _, f := range vi.regularFiles {
 				regularFiles = append(regularFiles, path.Join(prefix, f))
 			}
+			for _, f := range vi.subdirs {
+				subdirs = append(subdirs, path.Join(prefix, f))
+			}
 			for _, subdir := range vi.subdirs {
 				collect(path.Join(rel, subdir), path.Join(prefix, subdir))
 			}
@@ -525,7 +529,15 @@ func findGenFiles(wc *walkConfig, f *rule.File) []string {
 	return genFiles
 }
 
-func resolveFileInfo(wc *walkConfig, dir, rel string, ent fs.DirEntry) fs.DirEntry {
+// maybeResolveSymlink conditionally resolves a symbolic link.
+//
+// If ent is a symbolic link and Gazelle is configured to follow it (with
+// # gazelle:follow), then maybeResolveSymlink resolves the link and returns it.
+// The returned entry has the original name, but other metadata describes
+// the target file or directory.
+//
+// Otherwise, maybeResolveSymlink returns ent as-is.
+func maybeResolveSymlink(wc *walkConfig, dir, rel string, ent fs.DirEntry) fs.DirEntry {
 	if ent.Type()&os.ModeSymlink == 0 {
 		// Not a symlink, use the original FileInfo.
 		return ent

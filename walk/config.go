@@ -141,9 +141,10 @@ func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
 		// preprocessed configuration. We copy it to c.Exts[walkName] instead of
 		// re-processing directives.
 		c.Exts[walkName] = c.Exts[walkNameCached]
+		delete(c.Exts, walkNameCached)
 	} else {
-		// If c.Exts[walkNameCached] was not set, process directives normally.
-		// This uses the same code.
+		// In some unit tests, c.Exts[walkNameCached] is not set.
+		// Process directives normally using the same code.
 		c.Exts[walkName] = configureForWalk(getWalkConfig(c), rel, f)
 	}
 	c.ValidBuildFileNames = getWalkConfig(c).validBuildFileNames

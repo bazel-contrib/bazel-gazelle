@@ -550,6 +550,70 @@ unknown_rule(
 	})
 }
 
+func TestFollow(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{
+			Path: "BUILD.bazel",
+			Content: `
+# gazelle:follow a
+# gazelle:exclude _*
+`,
+		},
+		{Path: "_a/"},
+		{Path: "_b/"},
+		{Path: "_c"},
+		{
+			Path:    "a",
+			Symlink: "_a",
+		},
+		{
+			Path:    "b",
+			Symlink: "_b",
+		},
+		{
+			Path:    "c",
+			Symlink: "_c",
+		},
+	})
+	defer cleanup()
+
+	check := func(t *testing.T, regularFiles, subdirs []string) {
+		t.Helper()
+		wantRegularFiles := []string{"BUILD.bazel", "b", "c"}
+		if diff := cmp.Diff(wantRegularFiles, regularFiles); diff != "" {
+			t.Errorf("regular files (-want, +got):\n%s", diff)
+		}
+		wantSubdirs := []string{"a"}
+		if diff := cmp.Diff(wantSubdirs, subdirs); diff != "" {
+			t.Errorf("subdirs (-want, +got):\n%s", diff)
+		}
+	}
+
+	t.Run("Walk", func(t *testing.T) {
+		c, cexts := testConfig(t, dir)
+		var gotRegularFiles, gotSubdirs []string
+		Walk(c, cexts, []string{dir}, UpdateDirsMode, func(_, _ string, _ *config.Config, _ bool, _ *rule.File, subdirs, regularFiles, _ []string) {
+			gotRegularFiles = regularFiles
+			gotSubdirs = subdirs
+		})
+		check(t, gotRegularFiles, gotSubdirs)
+	})
+
+	t.Run("Walk2", func(t *testing.T) {
+		c, cexts := testConfig(t, dir)
+		var gotRegularFiles, gotSubdirs []string
+		err := Walk2(c, cexts, []string{dir}, UpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+			gotRegularFiles = args.RegularFiles
+			gotSubdirs = args.Subdirs
+			return Walk2FuncResult{}
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		check(t, gotRegularFiles, gotSubdirs)
+	})
+}
+
 func testConfig(t *testing.T, dir string) (*config.Config, []config.Configurer) {
 	args := []string{"-repo_root", dir}
 	cexts := []config.Configurer{&config.CommonConfigurer{}, &Configurer{}}
