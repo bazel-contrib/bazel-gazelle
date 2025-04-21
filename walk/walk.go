@@ -152,7 +152,7 @@ type Walk2FuncArgs struct {
 	Subdirs []string
 
 	// regularFiles is a list of base names of regular files within dir, not
-	// including excluded files or symlinks.
+	// including symlinks or excluded files.
 	RegularFiles []string
 
 	// GenFiles is a list of names of generated files, found by reading
@@ -176,7 +176,7 @@ type Walk2FuncResult struct {
 	// be false unless the directory was already going to be visited with the
 	// Update flag true as part of the walk.
 	//
-	// This list may contain non-existant directories.
+	// This list may contain non-existent directories.
 	RelsToVisit []string
 }
 
