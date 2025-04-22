@@ -9,7 +9,7 @@ require (
 	github.com/bazelbuild/rules_go v0.44.0
 	// NOTE: keep <4.7.0 to test the 'replace'
 	github.com/bmatcuk/doublestar/v4 v4.6.1
-	github.com/cloudflare/circl v1.3.7
+	github.com/cloudflare/circl v1.6.1
 	github.com/envoyproxy/protoc-gen-validate v1.0.4
 	github.com/fmeum/dep_on_gazelle v1.0.0
 	github.com/google/safetext v0.0.0-20240104143208-7a7d9b3d812f

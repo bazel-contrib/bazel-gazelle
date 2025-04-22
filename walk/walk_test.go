@@ -474,6 +474,13 @@ func BenchmarkWalk(b *testing.B) {
 	for _, cext := range cexts {
 		cext.RegisterFlags(fs, "update", c)
 	}
+	args := []string{rootDir}
+	if err := fs.Parse(args); err != nil {
+		b.Fatal(err)
+	}
+	for _, cext := range cexts {
+		cext.CheckFlags(fs, c)
+	}
 
 	// Benchmark calling Walk with a trivial callback function.
 	wf := func(dir, rel string, c *config.Config, update bool, f *rule.File, subdirs, regularFiles, genFiles []string) {
@@ -481,6 +488,6 @@ func BenchmarkWalk(b *testing.B) {
 
 	b.ResetTimer()
 	for range b.N {
-		Walk(c, nil, []string{rootDir}, VisitAllUpdateSubdirsMode, wf)
+		Walk(c, nil, fs.Args(), VisitAllUpdateSubdirsMode, wf)
 	}
 }
