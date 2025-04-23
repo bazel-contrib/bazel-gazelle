@@ -395,21 +395,23 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 	}
 	hasBuildFileError := err != nil
 
-	configure(w.cexts, w.knownDirectives, c, rel, info.file, info.config)
 	wc := info.config
+	containedByParent := info.file == nil && wc.updateOnly
+	if !containedByParent {
+		configure(w.cexts, w.knownDirectives, c, rel, info.file, info.config)
+	}
 	regularFiles := info.regularFiles
 	subdirs := info.subdirs
 
-	if wc.isExcludedDir(rel) {
-		return
-	}
-
-	containedByParent := info.file == nil && wc.updateOnly
 	w.visits[rel] = visitInfo{
 		c:                 c,
 		containedByParent: containedByParent,
 		regularFiles:      regularFiles,
 		subdirs:           subdirs,
+	}
+
+	if wc.isExcludedDir(rel) {
+		return
 	}
 
 	// Visit subdirectories, as needed.
