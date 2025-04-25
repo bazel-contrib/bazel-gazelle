@@ -196,5 +196,8 @@ type GenerateResult struct {
 	// libraries in these directories are indexed before dependencies are
 	// resolved. Subdirectories are not recursively indexed. This list may
 	// contain non-existant directories.
+	//
+	// Experimental: this functionality may change a bit until it's been tested
+	// with multiple language extensions.
 	RelsToIndex []string
 }
