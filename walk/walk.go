@@ -251,6 +251,11 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 				if getWalkConfig(parentCfg).isExcludedDir(rel) {
 					break
 				}
+				if _, err := w.cache.get(rel, w.loadDirInfo); errors.Is(err, fs.ErrNotExist) {
+					// Directory does not exist.
+					break
+				}
+
 				c := parentCfg.Clone()
 				w.visit(c, rel, false)
 			}
@@ -260,11 +265,6 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 			}
 		}
 
-		if _, ok := w.visits[relToVisit]; ok {
-			// Already visited.
-			continue
-		}
-		w.visit(c, relToVisit, false)
 		if c.Strict && len(w.errs) > 0 {
 			return errors.Join(w.errs...)
 		}
