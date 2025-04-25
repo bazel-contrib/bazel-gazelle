@@ -24,7 +24,10 @@ gazelle(
 gazelle(
     name = "gazelle_ci",
     command = "fix",
-    extra_args = ["--mode=diff"],
+    extra_args = [
+        "--mode=diff",
+        "-do_not_submit_debug",
+    ],
     gazelle = ":gazelle_local",
 )
 

@@ -93,11 +93,20 @@ type Configurer struct {
 	readBuildFilesDir, writeBuildFilesDir string
 }
 
+var doNotSubmitDebug bool
+
+func debugPrintf(format string, args ...any) {
+	if doNotSubmitDebug {
+		fmt.Fprintf(os.Stderr, "!! "+format, args...)
+	}
+}
+
 func (cr *Configurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
 	fs.Var(&gzflag.MultiFlag{Values: &cr.cliExcludes}, "exclude", "pattern that should be ignored (may be repeated)")
 	fs.StringVar(&cr.cliBuildFileNames, "build_file_name", strings.Join(config.DefaultValidBuildFileNames, ","), "comma-separated list of valid build file names.\nThe first element of the list is the name of output build files to generate.")
 	fs.StringVar(&cr.readBuildFilesDir, "experimental_read_build_files_dir", "", "path to a directory where build files should be read from (instead of -repo_root)")
 	fs.StringVar(&cr.writeBuildFilesDir, "experimental_write_build_files_dir", "", "path to a directory where build files should be written to (instead of -repo_root)")
+	fs.BoolVar(&doNotSubmitDebug, "do_not_submit_debug", false, "enable debug prints")
 }
 
 func (cr *Configurer) CheckFlags(_ *flag.FlagSet, c *config.Config) error {
