@@ -470,7 +470,7 @@ func TestExcludeSelf(t *testing.T) {
 	t.Run("Walk2", func(t *testing.T) {
 		c, cexts := testConfig(t, dir)
 		var rels []string
-		err := Walk2(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+		err := Walk2(c, cexts, []string{dir}, VisitAllUpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
 			rels = append(rels, args.Rel)
 			return Walk2FuncResult{}
 		})
@@ -550,10 +550,146 @@ unknown_rule(
 	})
 }
 
+func TestFollow(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{
+			Path: "BUILD.bazel",
+			Content: `
+# gazelle:follow a
+# gazelle:exclude _*
+`,
+		},
+		{Path: "_a/"},
+		{Path: "_b/"},
+		{Path: "_c"},
+		{
+			Path:    "a",
+			Symlink: "_a",
+		},
+		{
+			Path:    "b",
+			Symlink: "_b",
+		},
+		{
+			Path:    "c",
+			Symlink: "_c",
+		},
+	})
+	defer cleanup()
+
+	check := func(t *testing.T, regularFiles, subdirs []string) {
+		t.Helper()
+		wantRegularFiles := []string{"BUILD.bazel", "b", "c"}
+		if diff := cmp.Diff(wantRegularFiles, regularFiles); diff != "" {
+			t.Errorf("regular files (-want, +got):\n%s", diff)
+		}
+		wantSubdirs := []string{"a"}
+		if diff := cmp.Diff(wantSubdirs, subdirs); diff != "" {
+			t.Errorf("subdirs (-want, +got):\n%s", diff)
+		}
+	}
+
+	t.Run("Walk", func(t *testing.T) {
+		c, cexts := testConfig(t, dir)
+		var gotRegularFiles, gotSubdirs []string
+		Walk(c, cexts, []string{dir}, UpdateDirsMode, func(_, _ string, _ *config.Config, _ bool, _ *rule.File, subdirs, regularFiles, _ []string) {
+			gotRegularFiles = regularFiles
+			gotSubdirs = subdirs
+		})
+		check(t, gotRegularFiles, gotSubdirs)
+	})
+
+	t.Run("Walk2", func(t *testing.T) {
+		c, cexts := testConfig(t, dir)
+		var gotRegularFiles, gotSubdirs []string
+		err := Walk2(c, cexts, []string{dir}, UpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+			gotRegularFiles = args.RegularFiles
+			gotSubdirs = args.Subdirs
+			return Walk2FuncResult{}
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		check(t, gotRegularFiles, gotSubdirs)
+	})
+}
+
+func TestSubdirsContained(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{
+			Path: "BUILD.bazel",
+			Content: `
+# gazelle:exclude exclude
+# gazelle:generation_mode update_only
+`,
+		},
+		{
+			Path: "with_build_file/BUILD.bazel",
+		},
+		{
+			Path: "with_build_file/sub/file.txt",
+		},
+		{
+			Path: "without_build_file/file.txt",
+		},
+		{
+			Path: "without_build_file/sub/file.txt",
+		},
+		{
+			Path: "exclude/file.txt",
+		},
+		{
+			Path: "exclude/sub/file.txt",
+		},
+	})
+	defer cleanup()
+
+	wantRegularFiles := []string{"BUILD.bazel", "without_build_file/file.txt", "without_build_file/sub/file.txt"}
+	wantSubdirs := []string{"with_build_file", "without_build_file", "without_build_file/sub"}
+	check := func(t *testing.T, regularFiles, subdirs []string) {
+		if diff := cmp.Diff(wantRegularFiles, regularFiles); diff != "" {
+			t.Errorf("regular files (-want, +got):\n%s", diff)
+		}
+		if diff := cmp.Diff(wantSubdirs, subdirs); diff != "" {
+			t.Errorf("subdirs (-want, +got):\n%s", diff)
+		}
+	}
+
+	t.Run("Walk", func(t *testing.T) {
+		c, cexts := testConfig(t, dir)
+		var rootRegularFiles, rootSubdirs []string
+		Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_, rel string, _ *config.Config, _ bool, _ *rule.File, subdirs, regularFiles, _ []string) {
+			if rel == "" {
+				rootRegularFiles = regularFiles
+				rootSubdirs = subdirs
+			}
+		})
+		check(t, rootRegularFiles, rootSubdirs)
+	})
+
+	t.Run("Walk2", func(t *testing.T) {
+		c, cexts := testConfig(t, dir)
+		var rootRegularFiles, rootSubdirs []string
+		err := Walk2(c, cexts, []string{dir}, VisitAllUpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+			if args.Rel == "" {
+				rootRegularFiles = args.RegularFiles
+				rootSubdirs = args.Subdirs
+			}
+			return Walk2FuncResult{}
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		check(t, rootRegularFiles, rootSubdirs)
+	})
+}
+
 func TestRelsToVisit(t *testing.T) {
 	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
 		{Path: "update/sub/"},
-		{Path: "extra/a/b/"},
+		{Path: "extra/a/sub/"},
+		{Path: "extra/b/sub/"},
+		{Path: "extra/does/not/"},
 	})
 	defer cleanup()
 
@@ -573,8 +709,15 @@ func TestRelsToVisit(t *testing.T) {
 			updatedRels = append(updatedRels, args.Rel)
 		}
 		res := Walk2FuncResult{}
-		if args.Rel == "update" {
-			res.RelsToVisit = []string{"extra/a"}
+		switch args.Rel {
+		case "update":
+			res.RelsToVisit = []string{"update", "extra/a"}
+		case "extra/a":
+			res.RelsToVisit = []string{"update", "extra/b/sub"}
+		case "extra/b/sub":
+			res.RelsToVisit = []string{"update", "extra/b"}
+		case "extra/b":
+			res.RelsToVisit = []string{"extra/does/not/exist"}
 		}
 		return res
 	})
@@ -582,19 +725,18 @@ func TestRelsToVisit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Verify update/ and extra/a/ were configured, as well as their parents.
-	wantConfiguredRels := []string{"", "update", "extra", "extra/a"}
+	// Verify directories mentioned in RelsToVisit were configured, as well as
+	// their parents.
+	wantConfiguredRels := []string{"", "update", "extra", "extra/a", "extra/b", "extra/b/sub", "extra/does", "extra/does/not"}
 	if diff := cmp.Diff(wantConfiguredRels, configuredRels); diff != "" {
 		t.Errorf("configured rels (-want,+got):\n%s", diff)
 	}
-	// Verify update/ and extra/a/ were visited.
-	// update/sub and extra/a/b should not be visited.
-	wantVisitedRels := []string{"update", "extra/a"}
+	// Verify directories mentioned in RelsToVisit were visited.
+	wantVisitedRels := []string{"update", "extra/a", "extra/b/sub", "extra/b"}
 	if diff := cmp.Diff(wantVisitedRels, visitedRels); diff != "" {
 		t.Errorf("visited rels (-want,+got)\n%s", diff)
 	}
-	// Verify update/ was updated.
-	// extra/a should not be updated.
+	// Verify directories mentioned in RelsToVisit were not updated.
 	wantUpdatedRels := []string{"update"}
 	if diff := cmp.Diff(wantUpdatedRels, updatedRels); diff != "" {
 		t.Errorf("updated rels (-want,+got)\n%s", diff)

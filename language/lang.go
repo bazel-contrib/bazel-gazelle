@@ -194,6 +194,7 @@ type GenerateResult struct {
 	// resolution, expressed as slash-separated paths relative to the repository
 	// root, or "" for the root directory itself. If indexing is enabled,
 	// libraries in these directories are indexed before dependencies are
-	// resolved. This list may contain non-existant directories.
+	// resolved. Subdirectories are not recursively indexed. This list may
+	// contain non-existant directories.
 	RelsToIndex []string
 }

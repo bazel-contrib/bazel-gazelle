@@ -2,7 +2,6 @@ package walk
 
 import (
 	"errors"
-	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -14,10 +13,6 @@ import (
 
 // dirInfo holds all the information about a directory that Walk2 needs.
 type dirInfo struct {
-	// entries holds the contents of the directory. Symbolic links are resolved
-	// or not depending on configuration. Excluded and ignored files are included.
-	entries []fs.DirEntry
-
 	// subdirs and regularFiles hold the names of subdirectories and regular files
 	// that are not ignored or excluded.
 	subdirs, regularFiles []string
@@ -49,7 +44,7 @@ func (w *walker) loadDirInfo(rel string) (dirInfo, error) {
 	var errs []error
 	var err error
 	dir := filepath.Join(w.rootConfig.RepoRoot, rel)
-	info.entries, err = os.ReadDir(dir)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -66,17 +61,20 @@ func (w *walker) loadDirInfo(rel string) (dirInfo, error) {
 		parentConfig = parentInfo.config
 	}
 
-	info.file, err = loadBuildFile(parentConfig, w.rootConfig.ReadBuildFilesDir, rel, dir, info.entries)
+	info.file, err = loadBuildFile(parentConfig, w.rootConfig.ReadBuildFilesDir, rel, dir, entries)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
 	info.config = configureForWalk(parentConfig, rel, info.file)
+	if info.config.isExcludedDir(rel) {
+		// Build file excludes the current directory. Ignore contents.
+		entries = nil
+	}
 
-	for i, e := range info.entries {
+	for _, e := range entries {
 		entryRel := path.Join(rel, e.Name())
-		e = resolveFileInfo(info.config, dir, entryRel, e)
-		info.entries[i] = e
+		e = maybeResolveSymlink(info.config, dir, entryRel, e)
 		if e.IsDir() && !info.config.isExcludedDir(entryRel) {
 			info.subdirs = append(info.subdirs, e.Name())
 		} else if !e.IsDir() && !info.config.isExcludedFile(entryRel) {
@@ -90,8 +88,8 @@ func (w *walker) loadDirInfo(rel string) (dirInfo, error) {
 // populateCache loads directory information in a parallel tree traversal.
 // This has no semantic effect but should speed up I/O.
 //
-// populateCache should only be called when recursion is enabled. It attempts
-// to avoid traversing excluded subdirectories.
+// populateCache should only be called when recursion is enabled. It avoids
+// traversing excluded subdirectories.
 func (w *walker) populateCache(rels []string) {
 	// sem is a semaphore.
 	//
@@ -127,8 +125,8 @@ func (w *walker) populateCache(rels []string) {
 		}
 	}
 
-	// Call c.get for all directory prefixes. c.get always requires the parent to
-	// be visited first.
+	// Load each directory prefix. walker.loadDirInfo requires the parent
+	// directory to be visited first so its configuration is known.
 	w.cache.get("", w.loadDirInfo)
 	for _, dir := range rels {
 		slash := 0
