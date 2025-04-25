@@ -79,7 +79,17 @@ func (w *walker) loadDirInfo(rel string) (dirInfo, error) {
 		}
 	}
 
-	debugPrintf("loadDirInfo: rel %s, excludes %s, subdirs %s, regularFiles %s\n", rel, strings.Join(info.config.excludes, ","), strings.Join(info.subdirs, ","), strings.Join(info.regularFiles, ","))
+	var directives string
+	if info.file != nil {
+		b := new(strings.Builder)
+		sep := ""
+		for _, d := range info.file.Directives {
+			fmt.Fprintf(b, "%s%s=%s", sep, d.Key, d.Value)
+			sep = ","
+		}
+		directives = b.String()
+	}
+	debugPrintf("loadDirInfo: rel %s, excludes %s, subdirs %s, regularFiles %s, err %v, directives %s\n", rel, strings.Join(info.config.excludes, ","), strings.Join(info.subdirs, ","), strings.Join(info.regularFiles, ","), errors.Join(errs...), directives)
 
 	return info, errors.Join(errs...)
 }
@@ -105,7 +115,7 @@ func (w *walker) populateCache(rels []string) {
 
 	var visit func(string)
 	visit = func(rel string) {
-		fmt.Fprintf(os.Stderr, "populateCache.visit: rel %s\n", rel)
+		debugPrintf("populateCache.visit: rel %s\n", rel)
 		info, err := w.cache.get(rel, w.loadDirInfo)
 		<-sem // release semaphore for self
 		if err != nil {
