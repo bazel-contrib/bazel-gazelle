@@ -147,12 +147,19 @@ type Walk2FuncArgs struct {
 	// was no file.
 	File *rule.File
 
-	// Subdirs is a list of base names of subdirectories within dir, not
-	// including excluded files.
+	// Subdirs is a list of names of subdirectories within dir, not
+	// including excluded files. A directory is listed here regardless of
+	// whether the subdirectory contains (or will contain) a build file.
+	// If the update_only generation mode is enabled, this list also contains
+	// recursive subdirectories, up to and including those at the edge of the
+	// same Bazel package.
 	Subdirs []string
 
-	// regularFiles is a list of base names of regular files within dir, not
-	// including excluded files or symlinks.
+	// RegularFiles is a list of names of regular files within dir, not
+	// including excluded files. Symbolic links to files and non-followed
+	// directories are included in this list. If the update_only generation mode
+	// is enabled, this list also contains files from recursive subdirectories
+	// within the same Bazel package (those that can be matched by glob).
 	RegularFiles []string
 
 	// GenFiles is a list of names of generated files, found by reading
@@ -176,7 +183,7 @@ type Walk2FuncResult struct {
 	// be false unless the directory was already going to be visited with the
 	// Update flag true as part of the walk.
 	//
-	// This list may contain non-existant directories.
+	// This list may contain non-existent directories.
 	RelsToVisit []string
 }
 
@@ -319,7 +326,8 @@ type walker struct {
 
 type visitInfo struct {
 	// containedByParent is true if the directory does not (and should not)
-	// contain a build file. The parent directory may use regularFiles.
+	// contain a build file. The parent directory may use regularFiles
+	// and subdirs.
 	containedByParent bool
 
 	c                     *config.Config
@@ -458,21 +466,23 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 	}
 	hasBuildFileError := err != nil
 
-	configure(w.cexts, w.knownDirectives, c, rel, info.file, info.config)
 	wc := info.config
+	containedByParent := info.file == nil && wc.updateOnly
+	if !containedByParent {
+		configure(w.cexts, w.knownDirectives, c, rel, info.file, info.config)
+	}
 	regularFiles := info.regularFiles
 	subdirs := info.subdirs
 
-	if wc.isExcludedDir(rel) {
-		return
-	}
-
-	containedByParent := info.file == nil && wc.updateOnly
 	w.visits[rel] = visitInfo{
 		c:                 c,
 		containedByParent: containedByParent,
 		regularFiles:      regularFiles,
 		subdirs:           subdirs,
+	}
+
+	if wc.isExcludedDir(rel) {
+		return
 	}
 
 	// Visit subdirectories, as needed.
@@ -498,6 +508,9 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 			}
 			for _, f := range vi.regularFiles {
 				regularFiles = append(regularFiles, path.Join(prefix, f))
+			}
+			for _, f := range vi.subdirs {
+				subdirs = append(subdirs, path.Join(prefix, f))
 			}
 			for _, subdir := range vi.subdirs {
 				collect(path.Join(rel, subdir), path.Join(prefix, subdir))
@@ -595,7 +608,15 @@ func findGenFiles(wc *walkConfig, f *rule.File) []string {
 	return genFiles
 }
 
-func resolveFileInfo(wc *walkConfig, dir, rel string, ent fs.DirEntry) fs.DirEntry {
+// maybeResolveSymlink conditionally resolves a symbolic link.
+//
+// If ent is a symbolic link and Gazelle is configured to follow it (with
+// # gazelle:follow), then maybeResolveSymlink resolves the link and returns it.
+// The returned entry has the original name, but other metadata describes
+// the target file or directory.
+//
+// Otherwise, maybeResolveSymlink returns ent as-is.
+func maybeResolveSymlink(wc *walkConfig, dir, rel string, ent fs.DirEntry) fs.DirEntry {
 	if ent.Type()&os.ModeSymlink == 0 {
 		// Not a symlink, use the original FileInfo.
 		return ent
