@@ -522,7 +522,7 @@ The following flags are accepted:
 | current repository. May be :value:`external`, :value:`static` or :value:`vendored`. See                    |
 | `Dependency resolution`_.                                                                                  |
 +-------------------------------------------------------------------+----------------------------------------+
-| :flag:`-index none|lazy|all`                                      | :value:`true`                          |
+| :flag:`-index none|lazy|all`                                      | :value:`all`                           |
 +-------------------------------------------------------------------+----------------------------------------+
 | Determines whether Gazelle should index the libraries in the current repository and whether it             |
 | should use the index to resolve dependencies.                                                              |
@@ -1201,14 +1201,16 @@ below to resolve dependencies:
       See `Avoiding conflicts with proto rules`_.
 
 4. If the import to be resolved is in the library index, the import will be resolved
-   to that library. If ``-index=true``, Gazelle builds an index of library rules in
-   the current repository before starting dependency resolution, and this is how
-   most dependencies are resolved.
+   to that library. If ``-index=all``, Gazelle builds an index of library rules in
+   the current repository before starting dependency resolution. This can take a
+   while, since Gazelle visits every directory in the repository. If
+   ``-index=lazy``, then language extensions may hint at specific directories
+   to visit, which can be much faster.
 
    a) For Go, the match is based on the ``importpath`` attribute.
    b) For proto, the match is based on the ``srcs`` attribute.
 
-5. If ``-index=false`` and a package is imported that has the current ``go_prefix``
+5. If ``-index=none`` and a package is imported that has the current ``go_prefix``
    as a prefix, Gazelle generates a label following a convention. For example, if
    the build file in ``//src`` set the prefix with
    ``# gazelle:prefix example.com/repo/foo``, and you import the library
