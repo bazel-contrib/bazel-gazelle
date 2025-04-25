@@ -713,6 +713,8 @@ func TestRelsToVisit(t *testing.T) {
 		case "update":
 			res.RelsToVisit = []string{"update", "extra/a"}
 		case "extra/a":
+			res.RelsToVisit = []string{"update", "extra/b/sub"}
+		case "extra/b/sub":
 			res.RelsToVisit = []string{"update", "extra/b"}
 		case "extra/b":
 			res.RelsToVisit = []string{"extra/does/not/exist"}
@@ -725,12 +727,12 @@ func TestRelsToVisit(t *testing.T) {
 
 	// Verify directories mentioned in RelsToVisit were configured, as well as
 	// their parents.
-	wantConfiguredRels := []string{"", "update", "extra", "extra/a", "extra/b", "extra/does", "extra/does/not"}
+	wantConfiguredRels := []string{"", "update", "extra", "extra/a", "extra/b", "extra/b/sub", "extra/does", "extra/does/not"}
 	if diff := cmp.Diff(wantConfiguredRels, configuredRels); diff != "" {
 		t.Errorf("configured rels (-want,+got):\n%s", diff)
 	}
 	// Verify directories mentioned in RelsToVisit were visited.
-	wantVisitedRels := []string{"update", "extra/a", "extra/b"}
+	wantVisitedRels := []string{"update", "extra/a", "extra/b/sub", "extra/b"}
 	if diff := cmp.Diff(wantVisitedRels, visitedRels); diff != "" {
 		t.Errorf("visited rels (-want,+got)\n%s", diff)
 	}
