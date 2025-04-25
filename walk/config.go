@@ -69,6 +69,16 @@ func getWalkConfig(c *config.Config) *walkConfig {
 	return c.Exts[walkName].(*walkConfig)
 }
 
+func (wc *walkConfig) clone() *walkConfig {
+	wcCopy := *wc
+	// Trim cap of exclude and follow. We may append to these slices in multiple
+	// goroutines. Doing so should allocate a copy of the backing array.
+	// Other slices are either immutable or replaced when written.
+	wcCopy.excludes = wcCopy.excludes[:len(wcCopy.excludes):len(wcCopy.excludes)]
+	wcCopy.follow = wcCopy.follow[:len(wcCopy.follow):len(wcCopy.follow)]
+	return &wcCopy
+}
+
 func (wc *walkConfig) isExcludedDir(p string) bool {
 	return path.Base(p) == ".git" || wc.ignoreFilter.isDirectoryIgnored(p) || matchAnyGlob(wc.excludes, p)
 }
@@ -151,8 +161,7 @@ func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
 }
 
 func configureForWalk(parent *walkConfig, rel string, f *rule.File) *walkConfig {
-	wc := &walkConfig{}
-	*wc = *parent
+	wc := parent.clone()
 	wc.ignore = false
 
 	if f != nil {
