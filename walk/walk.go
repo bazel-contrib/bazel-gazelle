@@ -260,15 +260,14 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 					c = parentCfg.Clone()
 				}
 				w.visit(c, rel, false)
+				if c.Strict && len(w.errs) > 0 {
+					return errors.Join(w.errs...)
+				}
 			}
 
 			if rel == relToVisit {
 				break
 			}
-		}
-
-		if c.Strict && len(w.errs) > 0 {
-			return errors.Join(w.errs...)
 		}
 	}
 	return errors.Join(w.errs...)
