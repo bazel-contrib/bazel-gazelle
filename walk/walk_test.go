@@ -470,7 +470,7 @@ func TestExcludeSelf(t *testing.T) {
 	t.Run("Walk2", func(t *testing.T) {
 		c, cexts := testConfig(t, dir)
 		var rels []string
-		err := Walk2(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+		err := Walk2(c, cexts, []string{dir}, VisitAllUpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
 			rels = append(rels, args.Rel)
 			return Walk2FuncResult{}
 		})
@@ -611,6 +611,76 @@ func TestFollow(t *testing.T) {
 			t.Fatal(err)
 		}
 		check(t, gotRegularFiles, gotSubdirs)
+	})
+}
+
+func TestSubdirsContained(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{
+			Path: "BUILD.bazel",
+			Content: `
+# gazelle:exclude exclude
+# gazelle:generation_mode update_only
+`,
+		},
+		{
+			Path: "with_build_file/BUILD.bazel",
+		},
+		{
+			Path: "with_build_file/sub/file.txt",
+		},
+		{
+			Path: "without_build_file/file.txt",
+		},
+		{
+			Path: "without_build_file/sub/file.txt",
+		},
+		{
+			Path: "exclude/file.txt",
+		},
+		{
+			Path: "exclude/sub/file.txt",
+		},
+	})
+	defer cleanup()
+
+	wantRegularFiles := []string{"BUILD.bazel", "without_build_file/file.txt", "without_build_file/sub/file.txt"}
+	wantSubdirs := []string{"with_build_file", "without_build_file", "without_build_file/sub"}
+	check := func(t *testing.T, regularFiles, subdirs []string) {
+		if diff := cmp.Diff(wantRegularFiles, regularFiles); diff != "" {
+			t.Errorf("regular files (-want, +got):\n%s", diff)
+		}
+		if diff := cmp.Diff(wantSubdirs, subdirs); diff != "" {
+			t.Errorf("subdirs (-want, +got):\n%s", diff)
+		}
+	}
+
+	t.Run("Walk", func(t *testing.T) {
+		c, cexts := testConfig(t, dir)
+		var rootRegularFiles, rootSubdirs []string
+		Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_, rel string, _ *config.Config, _ bool, _ *rule.File, subdirs, regularFiles, _ []string) {
+			if rel == "" {
+				rootRegularFiles = regularFiles
+				rootSubdirs = subdirs
+			}
+		})
+		check(t, rootRegularFiles, rootSubdirs)
+	})
+
+	t.Run("Walk2", func(t *testing.T) {
+		c, cexts := testConfig(t, dir)
+		var rootRegularFiles, rootSubdirs []string
+		err := Walk2(c, cexts, []string{dir}, VisitAllUpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+			if args.Rel == "" {
+				rootRegularFiles = args.RegularFiles
+				rootSubdirs = args.Subdirs
+			}
+			return Walk2FuncResult{}
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		check(t, rootRegularFiles, rootSubdirs)
 	})
 }
 

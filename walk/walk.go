@@ -147,12 +147,19 @@ type Walk2FuncArgs struct {
 	// was no file.
 	File *rule.File
 
-	// Subdirs is a list of base names of subdirectories within dir, not
-	// including excluded files.
+	// Subdirs is a list of names of subdirectories within dir, not
+	// including excluded files. A directory is listed here regardless of
+	// whether the subdirectory contains (or will contain) a build file.
+	// If the update_only generation mode is enabled, this list also contains
+	// recursive subdirectories, up to and including those at the edge of the
+	// same Bazel package.
 	Subdirs []string
 
-	// regularFiles is a list of base names of regular files within dir, not
-	// including symlinks or excluded files.
+	// RegularFiles is a list of names of regular files within dir, not
+	// including excluded files. Symbolic links to files and non-followed
+	// directories are included in this list. If the update_only generation mode
+	// is enabled, this list also contains files from recursive subdirectories
+	// within the same Bazel package (those that can be matched by glob).
 	RegularFiles []string
 
 	// GenFiles is a list of names of generated files, found by reading
