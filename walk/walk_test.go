@@ -687,7 +687,9 @@ func TestSubdirsContained(t *testing.T) {
 func TestRelsToVisit(t *testing.T) {
 	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
 		{Path: "update/sub/"},
-		{Path: "extra/a/b/"},
+		{Path: "extra/a/sub/"},
+		{Path: "extra/b/sub/"},
+		{Path: "extra/does/not/"},
 	})
 	defer cleanup()
 
@@ -707,8 +709,13 @@ func TestRelsToVisit(t *testing.T) {
 			updatedRels = append(updatedRels, args.Rel)
 		}
 		res := Walk2FuncResult{}
-		if args.Rel == "update" {
-			res.RelsToVisit = []string{"extra/a"}
+		switch args.Rel {
+		case "update":
+			res.RelsToVisit = []string{"update", "extra/a"}
+		case "extra/a":
+			res.RelsToVisit = []string{"update", "extra/b"}
+		case "extra/b":
+			res.RelsToVisit = []string{"extra/does/not/exist"}
 		}
 		return res
 	})
@@ -716,19 +723,18 @@ func TestRelsToVisit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Verify update/ and extra/a/ were configured, as well as their parents.
-	wantConfiguredRels := []string{"", "update", "extra", "extra/a"}
+	// Verify directories mentioned in RelsToVisit were configured, as well as
+	// their parents.
+	wantConfiguredRels := []string{"", "update", "extra", "extra/a", "extra/b", "extra/does", "extra/does/not"}
 	if diff := cmp.Diff(wantConfiguredRels, configuredRels); diff != "" {
 		t.Errorf("configured rels (-want,+got):\n%s", diff)
 	}
-	// Verify update/ and extra/a/ were visited.
-	// update/sub and extra/a/b should not be visited.
-	wantVisitedRels := []string{"update", "extra/a"}
+	// Verify directories mentioned in RelsToVisit were visited.
+	wantVisitedRels := []string{"update", "extra/a", "extra/b"}
 	if diff := cmp.Diff(wantVisitedRels, visitedRels); diff != "" {
 		t.Errorf("visited rels (-want,+got)\n%s", diff)
 	}
-	// Verify update/ was updated.
-	// extra/a should not be updated.
+	// Verify directories mentioned in RelsToVisit were not updated.
 	wantUpdatedRels := []string{"update"}
 	if diff := cmp.Diff(wantUpdatedRels, updatedRels); diff != "" {
 		t.Errorf("updated rels (-want,+got)\n%s", diff)

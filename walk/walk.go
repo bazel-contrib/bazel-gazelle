@@ -225,12 +225,6 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 		relToVisit := w.relsToVisit[0]
 		w.relsToVisit = w.relsToVisit[1:]
 
-		dirToVisit := filepath.Join(c.RepoRoot, relToVisit)
-		if fi, err := os.Stat(dirToVisit); err != nil || !fi.IsDir() {
-			// Silently skip non-existant directory.
-			continue
-		}
-
 		// Make sure to visit prefixes of relToVisit as well so we apply
 		// configuration directives.
 		slash := -1
