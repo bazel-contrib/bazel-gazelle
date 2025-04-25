@@ -218,6 +218,8 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 	}
 
 	// Visit additional directories that extensions requested for indexing.
+	// Don't visit subdirectories recursively, even when recursion is enabled.
+	w.mode = UpdateDirsMode
 	for len(w.relsToVisit) > 0 {
 		// Don't simply range over relsToVisit. We may append more.
 		relToVisit := w.relsToVisit[0]
