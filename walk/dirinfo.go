@@ -67,6 +67,10 @@ func (w *walker) loadDirInfo(rel string) (dirInfo, error) {
 	}
 
 	info.config = configureForWalk(parentConfig, rel, info.file)
+	if info.config.isExcludedDir(rel) {
+		// Build file excludes the current directory. Ignore contents.
+		entries = nil
+	}
 
 	for _, e := range entries {
 		entryRel := path.Join(rel, e.Name())
