@@ -195,7 +195,7 @@ type GenerateResult struct {
 	// root, or "" for the root directory itself. If indexing is enabled,
 	// libraries in these directories are indexed before dependencies are
 	// resolved. Subdirectories are not recursively indexed. This list may
-	// contain non-existant directories.
+	// contain non-existent directories.
 	//
 	// Experimental: this functionality may change a bit until it's been tested
 	// with multiple language extensions.
