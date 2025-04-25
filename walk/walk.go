@@ -417,7 +417,6 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 		subdirs:           subdirs,
 	}
 
-	debugPrintf("visit: rel %s, isExcluded %t\n", rel, wc.isExcludedDir(rel))
 	if wc.isExcludedDir(rel) {
 		return
 	}

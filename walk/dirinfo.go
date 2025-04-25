@@ -2,7 +2,6 @@ package walk
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -79,8 +78,6 @@ func (w *walker) loadDirInfo(rel string) (dirInfo, error) {
 		}
 	}
 
-	debugPrintf("loadDirInfo: rel %s, excludes %s, subdirs %s, regularFiles %s\n", rel, strings.Join(info.config.excludes, ","), strings.Join(info.subdirs, ","), strings.Join(info.regularFiles, ","))
-
 	return info, errors.Join(errs...)
 }
 
@@ -90,8 +87,6 @@ func (w *walker) loadDirInfo(rel string) (dirInfo, error) {
 // populateCache should only be called when recursion is enabled. It avoids
 // traversing excluded subdirectories.
 func (w *walker) populateCache(rels []string) {
-	debugPrintf("populateCache: rels %s\n", strings.Join(rels, ","))
-
 	// sem is a semaphore.
 	//
 	// Acquiring the semaphore by sending struct{}{} grants permission to spawn
@@ -105,7 +100,6 @@ func (w *walker) populateCache(rels []string) {
 
 	var visit func(string)
 	visit = func(rel string) {
-		fmt.Fprintf(os.Stderr, "populateCache.visit: rel %s\n", rel)
 		info, err := w.cache.get(rel, w.loadDirInfo)
 		<-sem // release semaphore for self
 		if err != nil {
