@@ -4,6 +4,11 @@
 # TODO: Make all tests work with Bzlmod.
 common --noenable_bzlmod
 
+common --enable_platform_specific_config
+# Workaround for https://github.com/bazelbuild/continuous-integration/issues/2269.
+common:macos --copt=-Dfdopen=fdopen
+common:macos --host_copt=-Dfdopen=fdopen
+
 common:ci --verbose_failures
 common:ci --sandbox_debug
 common:ci --spawn_strategy=standalone
