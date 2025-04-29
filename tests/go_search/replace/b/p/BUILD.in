@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "p",
+    srcs = ["p.go"],
+    importpath = "example.com/b/p",
+    visibility = ["//visibility:public"],
+)

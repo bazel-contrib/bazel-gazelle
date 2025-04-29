@@ -824,6 +824,28 @@ The following directives are recognized:
 | ``proto_library`` rules. If there are any pre-generated Go files, they will be treated as  |
 | regular Go files.                                                                          |
 +---------------------------------------------------+----------------------------------------+
+| :direc:`# gazelle:go_search dir prefix`           | n/a                                    |
++---------------------------------------------------+----------------------------------------+
+| When lazy indexing is enabled (``-index=lazy``), this directive tells Gazelle about        |
+| additional directories containing Go libraries that should be indexed for dependency       |
+| resolution. Specific directories are indexed as needed based on Go import directives seen. |
+|                                                                                            |
+| The ``dir`` argument is a slash-separated path relative to the directory containing the    |
+| build file. The ``prefix`` argument is optional. It indicates a Go prefix for the named    |
+| directory, which is useful for nested modules or module replacement directories.           |
+|                                                                                            |
+| ``go_search`` may be used multiple times. Each setting adds to the search path for the     |
+| current directory and subdirectories. If ``go_search`` is used without arguments,          |
+| it clears the current list of search paths.                                                |
+|                                                                                            |
+| As an example, suppose you have a vendor directory with a non-standard name,               |
+| ``third_party/go``, and a module replacement directory ``replace/b``. You can index        |
+| these directories with:                                                                    |
+|                                                                                            |
+| .. code:: bzl                                                                              |
+|   # gazelle:go_search third_party/go                                                       |
+|   # gazelle:go_search replace/b example.com/b                                              |
++---------------------------------------------------+----------------------------------------+
 | :direc:`# gazelle:go_test mode`                   | ``default``                            |
 +---------------------------------------------------+----------------------------------------+
 | Tells Gazelle how to generate rules for _test.go files. Valid values are:                  |
