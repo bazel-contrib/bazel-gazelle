@@ -374,7 +374,12 @@ def _go_repository_impl(ctx):
         repo_file = ctx.path("REPO.bazel")
         if not repo_file.exists:
             ctx.file("REPO.bazel", """\
-repo(default_package_metadata = ["//:gazelle_generated_package_info"])
+repo(
+    default_package_metadata = [
+        "//:gazelle_generated_package_info",
+        "//:package_metadata",
+    ],
+)
 """)
 
             # Modify the top-level build file after patches have been applied as the
@@ -402,11 +407,20 @@ def _generate_package_info(*, importpath, version):
     # scheme:type/namespace/name@version?qualifiers#subpath
     purl = "pkg:golang/{namespace_and_name}@{version}".format(
         namespace_and_name = importpath,
-        version = version,
-    ) if version else None
+        version = version if version else "unknown",
+    )
 
     return """
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:package_info.bzl", "package_info")
+
+package_metadata(
+    name = "package_metadata",
+    purl = {purl},
+    visibility = [
+        "//:__subpackages__",
+    ],
+)
 
 package_info(
     name = "gazelle_generated_package_info",
