@@ -2,16 +2,20 @@ load("@io_bazel_rules_go//go:def.bzl", "go_context")
 
 def _std_package_list_impl(ctx):
     go = go_context(ctx)
+    package_list = go.sdk.package_list
+    outputs = [ctx.outputs.out]
+
     args = ctx.actions.args()
-    args.add_all([go.package_list, ctx.outputs.out])
+    args.add_all([package_list, ctx.outputs.out])
+
     ctx.actions.run(
-        inputs = [go.package_list],
-        outputs = [ctx.outputs.out],
+        inputs = [package_list],
+        outputs = outputs,
         executable = ctx.executable._gen_std_package_list,
         arguments = [args],
         mnemonic = "GoStdPackageList",
     )
-    return [DefaultInfo(files = depset([ctx.outputs.out]))]
+    return [DefaultInfo(files = depset(outputs))]
 
 std_package_list = rule(
     implementation = _std_package_list_impl,
