@@ -95,6 +95,9 @@ DEFAULT_DIRECTIVES_BY_PATH = {
     "github.com/hashicorp/go-plugin": [
         "gazelle:proto disable",
     ],
+    "github.com/lightstep/lightstep-tracer-common/golang/gogo": [
+        "gazelle:proto disable",
+    ],
     "github.com/prometheus/alertmanager": [
         "gazelle:proto disable",
     ],
@@ -108,6 +111,12 @@ DEFAULT_DIRECTIVES_BY_PATH = {
     ],
     "github.com/stackb/rules_proto": [
         "gazelle:go_naming_convention import",
+    ],
+    "github.com/thanos-io/thanos": [
+        "gazelle:proto disable",
+    ],
+    "github.com/weaveworks/common": [
+        "gazelle:proto disable",
     ],
     "google.golang.org/grpc": [
         "gazelle:proto disable",
