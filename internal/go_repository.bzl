@@ -263,7 +263,7 @@ def _go_repository_impl(ctx):
                 value = "GIT_CONFIG_VALUE_%d" % i
                 for j in [key, value]:
                     if j not in ctx.os.environ:
-                        fail("%s is not defined as an environment variable, but you asked for GIT_COUNT_COUNT=%d" % (j, count))
+                        fail("%s is not defined as an environment variable, but you asked for GIT_CONFIG_COUNT=%d" % (j, count))
                 env_keys = env_keys + [key, value]
 
     env.update({k: ctx.os.environ[k] for k in env_keys if k in ctx.os.environ})
