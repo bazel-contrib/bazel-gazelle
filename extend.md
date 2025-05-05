@@ -52,7 +52,7 @@ load("@bazel_gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle_binary")
 gazelle_binary(
     name = "my_gazelle_binary",
     languages = [
-        "@rules_python//gazelle",  # Use gazelle from rules_python.
+        "@rules_python_gazelle_plugin//python",  # Use gazelle from rules_python.
         "@bazel_gazelle//language/go",  # Built-in rule from gazelle for Golang.
         "@bazel_gazelle//language/proto",  # Built-in rule from gazelle for Protos.
          # Any languages that depend on Gazelle's proto plugin must come after it.
