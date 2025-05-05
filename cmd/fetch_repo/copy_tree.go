@@ -39,6 +39,24 @@ func copyTree(destRoot, srcRoot string) error {
 			return os.Mkdir(dest, 0o777)
 		}
 
+		// Check if the current file is a symlink and if it's a directory
+		if info.Mode()&os.ModeSymlink != 0 {
+			linkTarget, err := filepath.EvalSymlinks(src)
+			if err != nil {
+				return err
+			}
+			linkInfo, err := os.Lstat(linkTarget)
+			if err != nil {
+				return err
+			}
+			if linkInfo.IsDir() {
+				// Rather than copying the directory symlink we create the dir and continue
+				// This resolves an issue where the walk attempts to copy files into the symlinked directory
+				// copy_file_range: is a directory
+				return os.Mkdir(dest, 0o777)
+			}
+		}
+
 		r, err := os.Open(src)
 		if err != nil {
 			return err
