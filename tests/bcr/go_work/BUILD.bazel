@@ -2,4 +2,5 @@ load("@gazelle//:def.bzl", "gazelle")
 
 # gazelle:go_naming_convention import
 # gazelle:go_naming_convention_external import
+# gazelle:go_proto_compilers @my_rules_go//proto:go_proto
 gazelle(name = "gazelle")
