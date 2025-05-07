@@ -610,6 +610,7 @@ proto_library(
 
 go_proto_library(
     name = "repo_go_proto",
+    compilers = ["@io_bazel_rules_go//proto:go_proto"],
     importpath = "example.com/repo",
     proto = ":repo_proto",
     visibility = ["//visibility:public"],
@@ -851,6 +852,7 @@ proto_library(
 
 go_proto_library(
     name = "repo_go_proto",
+    compilers = ["@io_bazel_rules_go//proto:go_proto"],
     importpath = "example.com/repo",
     proto = ":foo_proto",
     visibility = ["//visibility:public"],
@@ -930,6 +932,7 @@ proto_library(
 
 go_proto_library(
     name = "repo_go_proto",
+    compilers = ["@io_bazel_rules_go//proto:go_proto"],
     importpath = "example.com/repo",
     protos = [
         ":bar_proto",
@@ -1063,6 +1066,7 @@ proto_library(
 
 go_proto_library(
     name = "bar_go_proto",
+    compilers = ["@io_bazel_rules_go//proto:go_proto"],
     importpath = "example.com/repo",
     proto = ":bar_proto",
     visibility = ["//visibility:public"],
@@ -1096,6 +1100,7 @@ proto_library(
 
 go_proto_library(
     name = "foo_go_proto",
+    compilers = ["@io_bazel_rules_go//proto:go_proto"],
     importpath = "example.com/repo/somedir/foo",
     proto = ":foo_proto",
     visibility = ["//visibility:public"],
@@ -2505,7 +2510,7 @@ my_custom_macro(
 `,
 				},
 				{
-					Path:    "file.go",
+					Path: "file.go",
 					Content: `
 package aliaskind
 
@@ -2562,7 +2567,7 @@ my_custom_macro(
 `,
 				},
 				{
-					Path:    "file.go",
+					Path: "file.go",
 					Content: `
 package aliaskind
 
@@ -2596,15 +2601,15 @@ my_custom_macro(
 				},
 			},
 		},
-			"existing aliased kind is indexed for deps": {
-				index: true,
-				before: []testtools.FileSpec{
-					{
-						Path: "WORKSPACE",
-					},
-					{
-						Path: "BUILD.bazel",
-						Content: `
+		"existing aliased kind is indexed for deps": {
+			index: true,
+			before: []testtools.FileSpec{
+				{
+					Path: "WORKSPACE",
+				},
+				{
+					Path: "BUILD.bazel",
+					Content: `
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 # gazelle:prefix example.com/aliaskind
 # gazelle:go_naming_convention go_default_library
@@ -2617,10 +2622,10 @@ go_library(
     visibility = ["//visibility:public"],
 )
 			`,
-					},
-					{
-						Path:    "file.go",
-						Content: `
+				},
+				{
+					Path: "file.go",
+					Content: `
 package aliaskind
 
 import (
@@ -2628,10 +2633,10 @@ import (
 	_ "github.com/external"
 )
 			`,
-					},
-					{
-						Path: "foo/BUILD.bazel",
-						Content: `
+				},
+				{
+					Path: "foo/BUILD.bazel",
+					Content: `
 load("//custom:def.bzl", "my_custom_macro")
 
 my_custom_macro(
@@ -2641,16 +2646,16 @@ my_custom_macro(
     visibility = ["//visibility:public"],
 )
 			`,
-					},
-					{
-						Path:    "foo/foo.go",
-						Content: "package foo",
-					},
 				},
-				after: []testtools.FileSpec{
-					{
-						Path: "BUILD.bazel",
-						Content: `
+				{
+					Path:    "foo/foo.go",
+					Content: "package foo",
+				},
+			},
+			after: []testtools.FileSpec{
+				{
+					Path: "BUILD.bazel",
+					Content: `
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 # gazelle:prefix example.com/aliaskind
 # gazelle:go_naming_convention go_default_library
@@ -2667,9 +2672,9 @@ go_library(
     ],
 )
 			`,
-					},
 				},
 			},
+		},
 		"alias_kind around a mapped_kind": {
 			index: false,
 			before: []testtools.FileSpec{
@@ -2694,7 +2699,7 @@ my_custom_macro(
 `,
 				},
 				{
-					Path:    "file.go",
+					Path: "file.go",
 					Content: `
 package aliaskind
 
@@ -3294,6 +3299,7 @@ proto_library(
 
 go_proto_library(
     name = "a_go_proto",
+    compilers = ["@io_bazel_rules_go//proto:go_proto"],
     importpath = "example.com/mapkind/a",
     proto = ":a_proto",
     visibility = ["//visibility:public"],
@@ -3323,6 +3329,7 @@ proto_library(
 
 go_proto_library(
     name = "b_go_proto",
+    compilers = ["@io_bazel_rules_go//proto:go_proto"],
     importpath = "example.com/mapkind/b",
     proto = ":b_proto",
     visibility = ["//visibility:public"],
@@ -3733,6 +3740,7 @@ proto_library(
 
 go_proto_library(
     name = "foo_go_proto",
+    compilers = ["@io_bazel_rules_go//proto:go_proto"],
     importpath = "example.com/foo",
     proto = ":existing_proto",
     visibility = ["//visibility:public"],

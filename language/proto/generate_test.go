@@ -175,7 +175,7 @@ func TestGeneratePackage(t *testing.T) {
 					"protos/sub/sub.proto",
 				},
 				HasServices: true,
-				Services: []string{"Quux"},
+				Services:    []string{"Quux"},
 			},
 		},
 		Imports: map[string]bool{
@@ -236,11 +236,15 @@ func TestFileModeImports(t *testing.T) {
 				Path:        filepath.Join(dir, "foo.proto"),
 				Name:        "foo.proto",
 				PackageName: "file_mode",
-				Messages: []string{"Foo"},
+				Messages:    []string{"Foo"},
+				HasMessages: true,
+				HasServices: false,
 			},
 		},
-		Imports: map[string]bool{},
-		Options: map[string]string{},
+		Imports:     map[string]bool{},
+		Options:     map[string]string{},
+		HasMessages: true,
+		HasServices: false,
 	}
 
 	expectedBar := Package{
@@ -254,7 +258,9 @@ func TestFileModeImports(t *testing.T) {
 				Imports: []string{
 					"file_mode/foo.proto",
 				},
-				Messages: []string{"Bar"},
+				Messages:    []string{"Bar"},
+				HasMessages: true,
+				HasServices: false,
 			},
 		},
 		// Imports should contain foo.proto. This is specific to file mode.
@@ -263,7 +269,9 @@ func TestFileModeImports(t *testing.T) {
 		Imports: map[string]bool{
 			"file_mode/foo.proto": true,
 		},
-		Options: map[string]string{},
+		Options:     map[string]string{},
+		HasMessages: true,
+		HasServices: false,
 	}
 
 	if !reflect.DeepEqual(foo, expectedFoo) {
