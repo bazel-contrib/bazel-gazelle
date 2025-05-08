@@ -40,29 +40,10 @@ go_deps.config(
 # Validate a go.mod replace directive works.
 go_deps.from_file(go_mod = "//:go.mod")
 go_deps.gazelle_default_attributes(
-    build_file_generation = "on",
+    build_file_generation = "clean",
     directives = [
         "gazelle:proto disable",
     ],
-)
-
-# By defining `gazelle_default_attributes`, we also must individually
-# specify certain overrides from internal/bzlmod/default_gazelle_overrides.bzl
-#
-# "build_file_generation" defaults to "on" because we provided a "gazelle_override"
-# (which contains either directives or build extra args).
-go_deps.gazelle_override(
-    directives = [
-        "gazelle:build_file_name BUILD.bazel",
-        "gazelle:build_file_proto_mode disable_global",
-    ],
-    path = "github.com/google/safetext",
-)
-go_deps.gazelle_override(
-    directives = [
-        "gazelle:build_file_name BUILD.bazel",
-    ],
-    path = "github.com/envoyproxy/protoc-gen-validate",
 )
 
 # Verify that the gazelle:go_naming_convention directive in an override is
@@ -90,6 +71,7 @@ go_deps.module_override(
 
 # Test an archive override from a known archive.
 go_deps.gazelle_override(
+    build_file_generation = "off",
     directives = [
         "gazelle:go_naming_convention go_default_library",
     ],
