@@ -21,7 +21,10 @@ go_proto_library(
         "abc/a.proto",
         "xyz/x.proto",
     ],
-    compilers = ["@io_bazel_rules_go//proto:go_grpc_v2"],
+    compilers = [
+        "@io_bazel_rules_go//proto:go_grpc_v2",
+        "@io_bazel_rules_go//proto:go_proto",
+    ],
     importpath = "example.com/repo/proto_file_mode/abc",
     protos = [
         ":a_proto",

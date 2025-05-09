@@ -572,17 +572,36 @@ func (g *generator) generateProto(mode proto.Mode, targets []protoTarget, import
 	}
 
 	g.setImportAttrs(goProtoLibrary, importPath)
-	var atLeastOneTargetHasServices bool
+	var hasMessages, hasServices bool
 	for _, target := range targets {
-		if target.hasServices {
-			atLeastOneTargetHasServices = true
-			break
+		hasMessages = hasMessages || target.hasMessages
+		hasServices = hasServices || target.hasServices
+	}
+	compilers := make(map[string]struct{})
+	if !(hasMessages || hasServices) {
+		// Empty proto file with no messages, enums or services definition
+		// In this case, add the proto compiler to generate empty Go files.
+		for _, c := range gc.goProtoCompilers {
+			compilers[c] = struct{}{}
 		}
 	}
-	if atLeastOneTargetHasServices {
-		goProtoLibrary.SetAttr("compilers", gc.goGrpcCompilers)
-	} else if gc.goProtoCompilersSet {
-		goProtoLibrary.SetAttr("compilers", gc.goProtoCompilers)
+	if hasMessages {
+		for _, c := range gc.goProtoCompilers {
+			compilers[c] = struct{}{}
+		}
+	}
+	if hasServices {
+		for _, c := range gc.goGrpcCompilers {
+			compilers[c] = struct{}{}
+		}
+	}
+	if len(compilers) > 0 {
+		uniqueCompilers := make([]string, 0, len(compilers))
+		for c := range compilers {
+			uniqueCompilers = append(uniqueCompilers, c)
+		}
+		sort.Strings(uniqueCompilers)
+		goProtoLibrary.SetAttr("compilers", uniqueCompilers)
 	}
 	if g.shouldSetVisibility {
 		goProtoLibrary.SetAttr("visibility", visibility)

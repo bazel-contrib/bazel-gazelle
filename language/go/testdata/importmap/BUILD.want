@@ -12,6 +12,7 @@ proto_library(
 go_proto_library(
     name = "hello_go_proto",
     _gazelle_imports = [],
+    compilers = ["@io_bazel_rules_go//proto:go_proto"],
     importmap = "never/gonna/give/you/up",
     importpath = "example.com/repo/importmap",
     proto = ":hello_proto",
