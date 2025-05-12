@@ -235,13 +235,13 @@ type visitRecord struct {
 	// c is the configuration for the directory with directives applied.
 	c *config.Config
 
-	// rules is a list of generated Go rules.
+	// rules is a list of generated rules.
 	rules []*rule.Rule
 
 	// imports contains opaque import information for each rule in rules.
 	imports []interface{}
 
-	// empty is a list of empty Go rules that may be deleted.
+	// empty is a list of empty rules that may be deleted.
 	empty []*rule.Rule
 
 	// file is the build file being processed.

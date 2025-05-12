@@ -13,6 +13,7 @@ var knownImports = map[string]label.Label{
 	"google/protobuf/descriptor.proto":      label.Label{Repo: "com_google_protobuf", Pkg: "", Name: "descriptor_proto"},
 	"google/protobuf/duration.proto":        label.Label{Repo: "com_google_protobuf", Pkg: "", Name: "duration_proto"},
 	"google/protobuf/empty.proto":           label.Label{Repo: "com_google_protobuf", Pkg: "", Name: "empty_proto"},
+	"google/protobuf/go_features.proto":     label.Label{Repo: "com_google_protobuf", Pkg: "", Name: "go_features_proto"},
 	"google/protobuf/field_mask.proto":      label.Label{Repo: "com_google_protobuf", Pkg: "", Name: "field_mask_proto"},
 	"google/protobuf/source_context.proto":  label.Label{Repo: "com_google_protobuf", Pkg: "", Name: "source_context_proto"},
 	"google/protobuf/struct.proto":          label.Label{Repo: "com_google_protobuf", Pkg: "", Name: "struct_proto"},
