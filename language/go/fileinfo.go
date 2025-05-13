@@ -83,6 +83,8 @@ type fileInfo struct {
 	// of CPPFLAGS, CFLAGS, CXXFLAGS, and LDFLAGS directives in cgo comments.
 	cppopts, copts, cxxopts, clinkopts []*cgoTagsAndOpts
 
+	// hasMessages indicates whether a .proto file has message or enum definitions.
+	hasMessages bool
 	// hasServices indicates whether a .proto file has service definitions.
 	hasServices bool
 }

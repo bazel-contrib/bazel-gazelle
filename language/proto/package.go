@@ -25,6 +25,7 @@ type Package struct {
 	Files       map[string]FileInfo
 	Imports     map[string]bool
 	Options     map[string]string
+	HasMessages bool
 	HasServices bool
 }
 
@@ -45,6 +46,7 @@ func (p *Package) addFile(info FileInfo) {
 	for _, opt := range info.Options {
 		p.Options[opt.Key] = opt.Value
 	}
+	p.HasMessages = p.HasMessages || info.HasMessages
 	p.HasServices = p.HasServices || info.HasServices
 }
 

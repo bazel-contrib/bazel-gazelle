@@ -26,6 +26,7 @@ proto_library(
 go_proto_library(
     name = "bar_go_proto",
     _gazelle_imports = [],
+    compilers = ["@io_bazel_rules_go//proto:go_proto"],
     importpath = "example.com/repo/proto_package_mode_extras/bar",
     proto = ":bar_proto",
 )
@@ -36,6 +37,7 @@ go_proto_library(
         "google/protobuf/any.proto",
         "proto_package_mode_extras/bar1.proto",
     ],
+    compilers = ["@io_bazel_rules_go//proto:go_proto"],
     importpath = "example.com/repo/proto_package_mode_extras",
     proto = ":foo_proto",
 )

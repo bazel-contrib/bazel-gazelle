@@ -35,11 +35,12 @@ type FileInfo struct {
 	Options []Option
 	Imports []string
 
+	HasMessages bool
 	HasServices bool
 
 	Services []string
 	Messages []string
-	Enums []string
+	Enums    []string
 }
 
 // Option represents a top-level option statement in a .proto file. Only
@@ -89,6 +90,7 @@ func ProtoFileInfo(dir, name string) FileInfo {
 			}
 
 		case match[messageSubexpIndex] != nil:
+			info.HasMessages = true
 			// match is of the format "message MessageName {".
 			// extract just the message name
 			fullMatch := string(match[messageSubexpIndex])
@@ -96,16 +98,14 @@ func ProtoFileInfo(dir, name string) FileInfo {
 				info.Messages = append(info.Messages, messageName)
 			}
 
-
-
 		case match[enumSubexpIndex] != nil:
+			info.HasMessages = true
 			// match is of the format "enum EnumName {".
 			// extract just the enum name
 			fullMatch := string(match[enumSubexpIndex])
 			if enumName, ok := extractObjectName(fullMatch); ok {
 				info.Enums = append(info.Enums, enumName)
 			}
-
 
 		default:
 			// Comment matched. Nothing to extract.
@@ -123,7 +123,7 @@ const (
 	optvalSubexpIndex  = 4
 	serviceSubexpIndex = 5
 	messageSubexpIndex = 6
-	enumSubexpIndex = 7
+	enumSubexpIndex    = 7
 )
 
 // Based on https://developers.google.com/protocol-buffers/docs/reference/proto3-spec
@@ -174,9 +174,9 @@ func unquoteProtoString(q []byte) string {
 func extractObjectName(fullMatch string) (response string, ok bool) {
 	fields := strings.Fields(fullMatch)
 	if len(fields) < 2 {
-	  // expect as least two fields. Input is malformed
-	  return "", false
+		// expect as least two fields. Input is malformed
+		return "", false
 	}
 
 	return strings.TrimSuffix(fields[1], "{"), true
-  }
+}
