@@ -149,4 +149,5 @@ use_repo(
     go_tools,
     buildtools = "com_github_bazelbuild_buildtools",
     gqlgen = "com_github_99designs_gqlgen",
+    unused = "bazel_gazelle_go_repository_config",
 )
