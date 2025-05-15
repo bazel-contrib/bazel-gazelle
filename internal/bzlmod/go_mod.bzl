@@ -161,7 +161,7 @@ def deps_from_go_mod(module_ctx, go_mod_label):
         go_mod_label: a Label for a `go.mod` file.
 
     Returns:
-        a tuple (Go module path, deps, replace map), where deps is a list of structs representing
+        a tuple (Go module path, deps, replace map, tools), where deps is a list of structs representing
         `require` statements from the go.mod file.
     """
     _check_go_mod_name(go_mod_label.name)
@@ -186,7 +186,7 @@ def deps_from_go_mod(module_ctx, go_mod_label):
             _parent_label = go_mod_label,
         ))
 
-    return go_mod.module, deps, go_mod.replace_map, go_mod.module
+    return go_mod.module, deps, go_mod.replace_map, go_mod.tool
 
 def parse_go_mod(content, path):
     # See https://go.dev/ref/mod#go-mod-file.
@@ -201,6 +201,7 @@ def parse_go_mod(content, path):
         "go": None,
         "require": [],
         "replace": {},
+        "tool": [],
     }
 
     current_directive = None
@@ -255,6 +256,7 @@ def parse_go_mod(content, path):
         go = (int(major), int(minor)),
         require = tuple(state["require"]),
         replace_map = state["replace"],
+        tool = tuple(state["tool"]),
     )
 
 def _parse_directive(state, directive, tokens, comment, path, line_no):
@@ -274,6 +276,10 @@ def _parse_directive(state, directive, tokens, comment, path, line_no):
         ))
     elif directive == "replace":
         _parse_replace_directive(state, tokens, path, line_no)
+    elif directive == "tool":
+        if len(tokens) != 1:
+            fail("{}:{}: expected module path in 'tool' directive".format(path, line_no))
+        state["tool"].append(tokens[0])
 
     # TODO: Handle exclude.
 
