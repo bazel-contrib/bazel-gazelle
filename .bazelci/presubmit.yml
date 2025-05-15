@@ -48,6 +48,8 @@ tasks:
     - touch pkg/BUILD.bazel proto/BUILD.bazel
     - bazel run //:gazelle -- update pkg proto
     - bazel run //:gazelle -- pkg proto
+    # Verify that bazel mod tidy doesn't remove use_repos required to build and test.
+    - bazel mod tidy
     build_targets:
     - "//..."
     - "//:gazelle"
@@ -68,6 +70,8 @@ tasks:
     - rm pkg/BUILD.bazel
     - bazel run //:gazelle -- update pkg
     - bazel run //:gazelle -- pkg
+      # Verify that bazel mod tidy doesn't remove use_repos required to build and test.
+    - bazel mod tidy
     build_flags:
     # Since go_sdk is platform-dependent, the lockfile will differ between
     # platforms. We will skip the check on windows.

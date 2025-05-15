@@ -137,6 +137,9 @@ go_deps.module(
 )
 use_repo(
     go_deps,
+    # Only used for testing.
+    "bazel_gazelle_go_repository_config",
+    "co_honnef_go_tools",
     "com_github_bazelbuild_buildtools",
     "com_github_bmatcuk_doublestar_v4",
     "com_github_datadog_sketches_go",
@@ -145,13 +148,9 @@ use_repo(
     "com_github_google_go_jsonnet",
     "com_github_google_safetext",
     "com_github_stretchr_testify",
+    "org_example_hello",
     "org_golang_google_protobuf",
     "org_golang_x_sys",
-    # It is not necessary to list transitive dependencies here, only direct ones.
-    # "in_gopkg_yaml_v3",
-    # Only used for testing.
-    "bazel_gazelle_go_repository_config",
-    "org_example_hello",
 )
 
 # Use an isolated usage to bring in Go tools from the tools package with their own dependency

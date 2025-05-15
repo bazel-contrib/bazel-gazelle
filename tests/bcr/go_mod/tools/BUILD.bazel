@@ -8,3 +8,8 @@ alias(
     name = "buildifier",
     actual = "@buildtools//buildifier",
 )
+
+alias(
+    name = "staticcheck",
+    actual = "@co_honnef_go_tools//cmd/staticcheck",
+)

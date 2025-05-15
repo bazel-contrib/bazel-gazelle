@@ -161,7 +161,7 @@ def deps_from_go_mod(module_ctx, go_mod_label):
         go_mod_label: a Label for a `go.mod` file.
 
     Returns:
-        a tuple (Go module path, deps, replace map), where deps is a list of structs representing
+        a tuple (Go module path, deps, replace map, tools), where deps is a list of structs representing
         `require` statements from the go.mod file.
     """
     _check_go_mod_name(go_mod_label.name)
@@ -186,7 +186,7 @@ def deps_from_go_mod(module_ctx, go_mod_label):
             _parent_label = go_mod_label,
         ))
 
-    return go_mod.module, deps, go_mod.replace_map, go_mod.module
+    return go_mod.module, deps, go_mod.replace_map, go_mod.tool
 
 def parse_go_mod(content, path):
     # See https://go.dev/ref/mod#go-mod-file.
