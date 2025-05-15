@@ -201,6 +201,7 @@ def parse_go_mod(content, path):
         "go": None,
         "require": [],
         "replace": {},
+        "tool": [],
     }
 
     current_directive = None
@@ -255,6 +256,7 @@ def parse_go_mod(content, path):
         go = (int(major), int(minor)),
         require = tuple(state["require"]),
         replace_map = state["replace"],
+        tool = tuple(state["tool"]),
     )
 
 def _parse_directive(state, directive, tokens, comment, path, line_no):
@@ -274,6 +276,10 @@ def _parse_directive(state, directive, tokens, comment, path, line_no):
         ))
     elif directive == "replace":
         _parse_replace_directive(state, tokens, path, line_no)
+    elif directive == "tool":
+        if len(tokens) != 1:
+            fail("{}:{}: expected module path in 'tool' directive".format(path, line_no))
+        state["tool"].append(tokens[0])
 
     # TODO: Handle exclude.
 

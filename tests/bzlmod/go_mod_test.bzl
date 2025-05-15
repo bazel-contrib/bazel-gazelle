@@ -45,6 +45,9 @@ _EXPECTED_GO_MOD_PARSE_RESULT = struct(
         struct(indirect = False, path = "github.com/go-fsnotify/fsnotify", version = "v1.5.4"),
         struct(indirect = True, path = "golang.org/x/sys", version = "v0.0.0-20220624220833-87e55d714810"),
     ),
+    tool = (
+        "golang.org/x/tools/cmd/bisect",
+    ),
 )
 
 def _go_mod_test_impl(ctx):
@@ -66,6 +69,7 @@ _EXPECTED_GO_MOD_21_PARSE_RESULT = struct(
     module = "example.com",
     replace_map = {},
     require = (),
+    tool = (),
 )
 
 def _use_spec_to_label_test_impl(ctx):
