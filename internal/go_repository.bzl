@@ -270,7 +270,7 @@ def _go_repository_impl(ctx):
 
     # Clean existing build files if requested
     if ctx.attr.build_file_generation == "clean":
-        fetch_repo_args += ["-clean"]
+        fetch_repo_args.append("-clean")
 
     # Disable sumdb in fetch_repo. In module mode, the sum is a mandatory
     # attribute of go_repository, so we don't need to look it up.

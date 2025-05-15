@@ -22,11 +22,11 @@ def _test_package_info_impl(env, target):
     # available.
     if not bazel_features.proto.starlark_proto_info:
         return
-    
+
     # @package_metadata providers
     env.expect.that_target(target).has_provider(PackageMetadataInfo)
 
-    # @rules_license providers 
+    # @rules_license providers
     env.expect.that_target(target).has_provider(PackageInfo)
     subject = env.expect.that_target(target).provider(PackageInfo)
     subject.package_name().equals("github.com/fmeum/dep_on_gazelle")
@@ -40,14 +40,14 @@ def _package_info_aspect_impl(_, ctx):
     elif hasattr(ctx.rule.attr, "package_metadata"):
         attr = ctx.rule.attr.package_metadata
     else:
-      fail("Expected attribute 'package_metadata' or 'applicable_licenses'")
+        fail("Expected attribute 'package_metadata' or 'applicable_licenses'")
 
     providers = []
     for m in attr:
         if PackageInfo in m:
-          providers.append(m[PackageInfo])
+            providers.append(m[PackageInfo])
         if PackageMetadataInfo in m:
-          providers.append(m[PackageMetadataInfo])
+            providers.append(m[PackageMetadataInfo])
 
     return providers
 
