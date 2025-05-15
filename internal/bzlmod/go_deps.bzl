@@ -349,7 +349,7 @@ def _go_deps_impl(module_ctx):
     root_module_direct_dev_deps = {}
 
     first_module = module_ctx.modules[0]
-    if first_module.is_root and first_module.name in ["gazelle", "rules_go"]:
+    if first_module.is_root and first_module.name in ["gazelle", "rules_go", "gazelle_bcr_go_mod_tests"]:
         root_module_direct_deps["bazel_gazelle_go_repository_config"] = None
 
     outdated_direct_dep_printer = print
