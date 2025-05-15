@@ -102,7 +102,7 @@ fi
 # the definitions of go_repository rules from. Instead, we pass the path to
 # the repo config file as a flag.
 if [[ "${is_fix_or_update:-}" == "true"  ]] && [[ -n $REPO_CONFIG_PATH ]]; then
-  ARGS=("${ARGS[0]}" "-repo_config" "$(rlocation "$REPO_CONFIG_PATH")" "${ARGS[@]:1}")
+  ARGS=("${ARGS[0]}" "-bzlmod" "-repo_config" "$(rlocation "$REPO_CONFIG_PATH")" "${ARGS[@]:1}")
 fi
 
 runfiles_export_envvars

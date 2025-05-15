@@ -46,8 +46,8 @@ tasks:
     # Also verify -repo_config are generated correctly in gazelle.bash
     - rm pkg/BUILD.bazel proto/BUILD.bazel
     - touch pkg/BUILD.bazel proto/BUILD.bazel
-    - bazel run //:gazelle -- update pkg proto
     - bazel run //:gazelle -- pkg proto
+    - bazel run //:gazelle -- update pkg proto
     build_targets:
     - "//..."
     - "//:gazelle"
@@ -66,8 +66,8 @@ tasks:
     # Regenerate the BUILD file for the test module using Gazelle.
     # Also verify -repo_config are generated correctly in gazelle.bash
     - rm pkg/BUILD.bazel
-    - bazel run //:gazelle -- update pkg
     - bazel run //:gazelle -- pkg
+    - bazel run //:gazelle -- update pkg
     build_flags:
     # Since go_sdk is platform-dependent, the lockfile will differ between
     # platforms. We will skip the check on windows.
