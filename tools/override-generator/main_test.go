@@ -21,7 +21,7 @@ func TestBzlmodOverride(t *testing.T) {
 
 			go_repository(
 				name = "com_github_apache_thrift",
-				build_file_generation = "auto",
+				build_file_generation = "update",
 				build_file_proto_mode = "default",
 				importpath = "github.com/apache/thrift",
 				sum = "h1:cMd2aj52n+8VoAtvSvLn4kDC3aZ6IAkBuqWQ2IDu7wo=",
@@ -36,7 +36,7 @@ func TestBzlmodOverride(t *testing.T) {
 			go_repository(
 				name = "com_github_apache_thrift",
 				build_extra_args = ["-go_naming_convention_external=go_default_library"],
-				build_file_generation = "on",
+				build_file_generation = "update",
 				build_file_proto_mode = "disable",
 				importpath = "github.com/apache/thrift",
 				sum = "h1:cMd2aj52n+8VoAtvSvLn4kDC3aZ6IAkBuqWQ2IDu7wo=",
@@ -46,7 +46,7 @@ func TestBzlmodOverride(t *testing.T) {
 
 			go_deps.gazelle_override(
 				build_extra_args = ["-go_naming_convention_external=go_default_library"],
-				build_file_generation = "on",
+				build_file_generation = "update",
 				directives = ["gazelle:proto disable"],
 				path = "github.com/apache/thrift",
 			)`,
@@ -95,7 +95,7 @@ func TestBzlmodOverride(t *testing.T) {
 					"gazelle:resolve go github.com/ClickHouse/clickhouse-go/v2/external @com_github_clickhouse_clickhouse_go_v2//external",
 				],
 				build_extra_args = ["-go_naming_convention_external=go_default_library"],
-				build_file_generation = "on",
+				build_file_generation = "update",
 				build_file_proto_mode = "disable",
 				importpath = "github.com/ClickHouse/clickhouse-go/v2",
 				sum = "h1:Nbl/NZwoM6LGJm7smNBgvtdr/rxjlIssSW3eG/Nmb9E=",
@@ -105,7 +105,7 @@ func TestBzlmodOverride(t *testing.T) {
 
 			go_deps.gazelle_override(
 				build_extra_args = ["-go_naming_convention_external=go_default_library"],
-				build_file_generation = "on",
+				build_file_generation = "update",
 				directives = [
 					"gazelle:resolve go github.com/ClickHouse/clickhouse-go/v2/external @com_github_clickhouse_clickhouse_go_v2//external",
 					"gazelle:proto disable",
@@ -121,7 +121,7 @@ func TestBzlmodOverride(t *testing.T) {
 					"-go_prefix=golang.org/x/tools",
 					"-exclude=**/testdata",
 				],
-				build_file_generation = "on",
+				build_file_generation = "update",
 				build_file_proto_mode = "disable",
 				importpath = "golang.org/x/tools/cmd/goimports",
 				patch_args = ["-p1"],
@@ -154,7 +154,7 @@ func TestBzlmodOverride(t *testing.T) {
 					"-go_prefix=golang.org/x/tools",
 					"-exclude=**/testdata",
 				],
-				build_file_generation = "on",
+				build_file_generation = "update",
 				directives = ["gazelle:proto disable"],
 				path = "golang.org/x/tools/cmd/goimports",
 			)`,
