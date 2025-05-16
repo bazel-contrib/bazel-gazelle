@@ -588,6 +588,7 @@ Update io_bazel_rules_go to a newer version in your WORKSPACE file.`
 			gc.prefix = prefix
 			gc.prefixSet = true
 			gc.prefixRel = rel
+			gc.goSearch = append(gc.goSearch, goSearch{rel: rel, prefix: prefix})
 		}
 		for _, d := range f.Directives {
 			switch d.Key {
