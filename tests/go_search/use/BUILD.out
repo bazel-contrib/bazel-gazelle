@@ -9,6 +9,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//replace/b/p",
+        "//self",
         "//third_party/example.com/a/p",
     ],
 )

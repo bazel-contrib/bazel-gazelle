@@ -253,8 +253,11 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 					if getWalkConfig(parentCfg).isExcludedDir(rel) {
 						break
 					}
-					if _, err := w.cache.get(rel, w.loadDirInfo); errors.Is(err, fs.ErrNotExist) {
-						// Directory does not exist.
+					if _, err := w.cache.get(rel, w.loadDirInfo); err != nil {
+						// Error loading directory. Most commonly, this is because the
+						// directory doesn't exist, but it could actually be a file
+						// or we don't have permission, or some other I/O error.
+						// Skip it.
 						break
 					}
 					c = parentCfg.Clone()
