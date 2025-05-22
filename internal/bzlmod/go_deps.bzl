@@ -594,7 +594,7 @@ def _go_deps_impl(module_ctx):
                     """
 Either ensure that you have
 
-  bazel_dep(module_name = "{bazel_dep_name}", version = "{go_module_version}")
+  bazel_dep(name = "{bazel_dep_name}", version = "{go_module_version}")
 
 in your MODULE.bazel file or downgrade the Go module version via
 
