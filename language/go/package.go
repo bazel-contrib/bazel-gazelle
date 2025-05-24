@@ -53,6 +53,7 @@ type protoTarget struct {
 	name        string
 	sources     platformStringsBuilder
 	imports     platformStringsBuilder
+	hasMessages bool
 	hasServices bool
 }
 
@@ -350,6 +351,7 @@ func protoTargetFromProtoPackage(name string, pkg proto.Package) protoTarget {
 	for i := range pkg.Imports {
 		target.imports.addGenericString(i)
 	}
+	target.hasMessages = pkg.HasMessages
 	target.hasServices = pkg.HasServices
 	return target
 }
@@ -359,6 +361,7 @@ func (t *protoTarget) addFile(info fileInfo) {
 	for _, imp := range info.imports {
 		t.imports.addGenericString(imp)
 	}
+	t.hasMessages = t.hasMessages || info.hasMessages
 	t.hasServices = t.hasServices || info.hasServices
 }
 

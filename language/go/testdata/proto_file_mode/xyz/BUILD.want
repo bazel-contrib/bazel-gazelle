@@ -11,6 +11,7 @@ proto_library(
 go_proto_library(
     name = "x_go_proto",
     _gazelle_imports = [],
+    compilers = ["@io_bazel_rules_go//proto:go_proto"],
     importpath = "example.com/repo/proto_file_mode/xyz",
     proto = ":x_proto",
     visibility = ["//visibility:public"],
