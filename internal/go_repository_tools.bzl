@@ -93,6 +93,7 @@ def _go_repository_tools_impl(ctx):
     args = [
         go_tool,
         "install",
+        "-tags=gazelle_bootstrap",
         "-ldflags",
         "-w -s",
         "-gcflags",

@@ -8,6 +8,8 @@ load(
 git_repository(
     name = "bazel_skylib",
     commit = "df3c9e2735f02a7fe8cd80db4db00fec8e13d25f",  # `master` as of 2021-08-19
+    patch_args = ["-p1"],
+    patches = ["//third_party:skylib.patch"],
     remote = "https://github.com/bazelbuild/bazel-skylib",
 )
 
