@@ -183,12 +183,12 @@ func fileNameInfo(path_ string) fileInfo {
 	}
 
 	switch {
-	case n == 2 && rule.KnownOSSet[segments[1]] && rule.KnownArchSet[segments[0]]:
+	case n == 2 && IsKnownOS(segments[1]) && IsKnownArch(segments[0]):
 		goos = segments[1]
 		goarch = segments[0]
-	case n >= 1 && rule.KnownOSSet[segments[0]]:
+	case n >= 1 && IsKnownOS(segments[0]):
 		goos = segments[0]
-	case n >= 1 && rule.KnownArchSet[segments[0]]:
+	case n >= 1 && IsKnownArch(segments[0]):
 		goarch = segments[0]
 	}
 
@@ -529,12 +529,9 @@ func isOSArchSpecific(info fileInfo, cgoTags *cgoTagsAndOpts) (osSpecific, archS
 
 	checkTags := func(tags []string) {
 		for _, tag := range tags {
-			_, osOk := rule.KnownOSSet[tag]
-			if osOk || tag == "unix" {
+			if IsKnownOS(tag) || tag == "unix" {
 				osSpecific = true
-			}
-			_, archOk := rule.KnownArchSet[tag]
-			if archOk {
+			} else if IsKnownArch(tag) {
 				archSpecific = true
 			}
 		}
@@ -599,14 +596,14 @@ func checkConstraints(c *config.Config, os, arch, osSuffix, archSuffix string, t
 		if isDefaultIgnoredTag(tag) {
 			return true
 		}
-		if _, ok := rule.KnownOSSet[tag]; ok || tag == "unix" {
+		if IsKnownOS(tag) || tag == "unix" {
 			if os == "" {
 				return false
 			}
 			return matchesOS(os, tag)
 		}
 
-		if _, ok := rule.KnownArchSet[tag]; ok {
+		if IsKnownArch(tag) {
 			if arch == "" {
 				return false
 			}

@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_binary(
+    name = "platform_info_generator",
+    embed = [":platform_info_generator_lib"],
+    visibility = ["//language/go:__pkg__"],
+)
+
+go_library(
+    name = "platform_info_generator_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/bazelbuild/bazel-gazelle/language/go/platform_info_generator",
+    visibility = ["//visibility:private"],
+    deps = ["//rule"],
+)
+
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "main.go",
+    ],
+    visibility = ["//visibility:public"],
+)
