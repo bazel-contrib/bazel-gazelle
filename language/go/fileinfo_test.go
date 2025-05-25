@@ -65,6 +65,18 @@ func TestOtherFileInfo(t *testing.T) {
 	}
 }
 
+var fi fileInfo
+
+func BenchmarkFileNameInfo(b *testing.B) {
+	b.ReportAllocs()
+	for range b.N {
+		fi = fileNameInfo("path/to/foo_linux_amd64.go")
+		fi = fileNameInfo("path/to/foo_linux.go")
+		fi = fileNameInfo("path/to/foo_linux_amd64_test.go")
+		fi = fileNameInfo("foo_amd64.s")
+	}
+}
+
 func TestFileNameInfo(t *testing.T) {
 	for _, tc := range []struct {
 		desc, name string
