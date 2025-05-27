@@ -732,7 +732,7 @@ func TestRelsToVisit(t *testing.T) {
 		t.Errorf("configured rels (-want,+got):\n%s", diff)
 	}
 	// Verify directories mentioned in RelsToVisit were visited.
-	wantVisitedRels := []string{"update", "extra/a", "extra/b/sub", "extra/b"}
+	wantVisitedRels := []string{"update", "extra/a", "extra/b/sub", "extra/b", "extra/does/not"}
 	if diff := cmp.Diff(wantVisitedRels, visitedRels); diff != "" {
 		t.Errorf("visited rels (-want,+got)\n%s", diff)
 	}
