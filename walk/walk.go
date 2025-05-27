@@ -552,7 +552,7 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 		}
 		for _, relToVisit := range result.RelsToVisit {
 			for relToVisit != "." {
-				if _, err := os.Stat(filepath.Join(c.RepoRoot, relToVisit)); err == nil {
+				if info, err := os.Stat(filepath.Join(c.RepoRoot, relToVisit)); err == nil && info.IsDir() {
 					break
 				}
 				relToVisit = filepath.Dir(relToVisit)
