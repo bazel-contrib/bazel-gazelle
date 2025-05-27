@@ -555,7 +555,7 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 				if info, err := os.Stat(filepath.Join(c.RepoRoot, relToVisit)); err == nil && info.IsDir() {
 					break
 				}
-				relToVisit = filepath.Dir(relToVisit)
+				relToVisit = path.Dir(relToVisit)
 			}
 			if relToVisit == "." {
 				// The directory does not exist.
