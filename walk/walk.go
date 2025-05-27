@@ -551,6 +551,16 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 			w.errs = append(w.errs, result.Err)
 		}
 		for _, relToVisit := range result.RelsToVisit {
+			for relToVisit != "." {
+				if _, err := os.Stat(filepath.Join(c.RepoRoot, relToVisit)); err == nil {
+					break
+				}
+				relToVisit = filepath.Dir(relToVisit)
+			}
+			if relToVisit == "." {
+				// The directory does not exist.
+				continue
+			}
 			if _, ok := w.relsToVisitSeen[relToVisit]; !ok {
 				w.relsToVisit = append(w.relsToVisit, relToVisit)
 				w.relsToVisitSeen[relToVisit] = struct{}{}
