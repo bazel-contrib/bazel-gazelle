@@ -551,6 +551,13 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 			w.errs = append(w.errs, result.Err)
 		}
 		for _, relToVisit := range result.RelsToVisit {
+			// Normalize RelsToVisit to clean relative paths and convert root "."
+			// to an empty string.
+			relToVisit = path.Clean(relToVisit)
+			if relToVisit == "." {
+				relToVisit = ""
+			}
+
 			if _, ok := w.relsToVisitSeen[relToVisit]; !ok {
 				w.relsToVisit = append(w.relsToVisit, relToVisit)
 				w.relsToVisitSeen[relToVisit] = struct{}{}
