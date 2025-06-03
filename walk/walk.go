@@ -409,10 +409,6 @@ func (w *walker) shouldVisit(rel string, parentConfig *walkConfig, updateParent 
 		// Already visited and called.
 		return false
 	}
-	if parentConfig.isExcludedDir(rel) {
-		// Excluded directory.
-		return false
-	}
 
 	switch w.mode {
 	case VisitAllUpdateSubdirsMode, VisitAllUpdateDirsMode:
