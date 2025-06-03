@@ -470,6 +470,11 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 	}
 	hasBuildFileError := err != nil
 	wc := info.config
+
+	if wc.isExcludedDir(rel) {
+		return
+	}
+
 	containedByParent := info.file == nil && wc.updateOnly
 
 	// Configure the directory, if we haven't done so already.
@@ -488,10 +493,6 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 		didCall:           shouldCall,
 		regularFiles:      regularFiles,
 		subdirs:           subdirs,
-	}
-
-	if wc.isExcludedDir(rel) {
-		return
 	}
 
 	// Visit subdirectories, as needed.
