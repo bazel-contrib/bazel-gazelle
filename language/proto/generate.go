@@ -93,8 +93,8 @@ func (*protoLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 // RuleName returns a name for a proto_library derived from the given strings.
 // For each string, RuleName will look for a non-empty suffix of identifier
 // characters and then append "_proto" to that.
+// It replaces non-identifier characters with underscores.
 func RuleName(names ...string) string {
-	base := "root"
 	for _, name := range names {
 		notIdent := func(c rune) bool {
 			return !('A' <= c && c <= 'Z' ||
@@ -102,15 +102,27 @@ func RuleName(names ...string) string {
 				'0' <= c && c <= '9' ||
 				c == '_')
 		}
-		if i := strings.LastIndexFunc(name, notIdent); i >= 0 {
+		// If name is a path, take only the last segment
+		if i := strings.LastIndexAny(name, `/\\`); i != -1 {
 			name = name[i+1:]
 		}
-		if name != "" {
-			base = name
-			break
+		// Replace illegal characters with underscores
+		var b strings.Builder
+		for _, r := range name {
+			if notIdent(r) {
+				b.WriteRune('_')
+			} else {
+				b.WriteRune(r)
+			}
+		}
+		base := strings.Trim(b.String(), "_")
+		// Skip if empty or only underscores
+		if base != "" {
+			return base + "_proto"
 		}
 	}
-	return base + "_proto"
+	// Default name if no valid identifier was found
+	return "root_proto"
 }
 
 // buildPackage extracts metadata from the .proto files in a directory and

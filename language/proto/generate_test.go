@@ -175,7 +175,7 @@ func TestGeneratePackage(t *testing.T) {
 					"protos/sub/sub.proto",
 				},
 				HasServices: true,
-				Services: []string{"Quux"},
+				Services:    []string{"Quux"},
 			},
 		},
 		Imports: map[string]bool{
@@ -236,7 +236,7 @@ func TestFileModeImports(t *testing.T) {
 				Path:        filepath.Join(dir, "foo.proto"),
 				Name:        "foo.proto",
 				PackageName: "file_mode",
-				Messages: []string{"Foo"},
+				Messages:    []string{"Foo"},
 			},
 		},
 		Imports: map[string]bool{},
@@ -350,6 +350,74 @@ proto_library(
 	want := `proto_library(name = "dead_proto")`
 	if got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestRuleName(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    []string
+		expected string
+	}{
+		{
+			name:     "simple valid name",
+			input:    []string{"foo"},
+			expected: "foo_proto",
+		},
+		{
+			name:     "hyphen replaced",
+			input:    []string{"foo-bar"},
+			expected: "foo_bar_proto",
+		},
+		{
+			name:     "slash and dollar replaced",
+			input:    []string{"foo/bar$baz"},
+			expected: "bar_baz_proto",
+		},
+		{
+			name:     "only illegal characters",
+			input:    []string{"-!@#$%^&*()"},
+			expected: "root_proto",
+		},
+		{
+			name:     "underscore and digits preserved",
+			input:    []string{"abc_123"},
+			expected: "abc_123_proto",
+		},
+		{
+			name:     "non-ASCII characters stripped",
+			input:    []string{"测试-example"},
+			expected: "example_proto",
+		},
+		{
+			name:     "unicode characters removed",
+			input:    []string{"foo🔥bar"},
+			expected: "foo_bar_proto",
+		},
+		{
+			name:     "illegal leading characters",
+			input:    []string{"!!bad#name$"},
+			expected: "bad_name_proto",
+		},
+		{
+			name:     "multiple inputs, first valid used",
+			input:    []string{"!!!", "valid_name"},
+			expected: "valid_name_proto",
+		},
+		{
+			name:     "empty input",
+			input:    []string{},
+			expected: "root_proto",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			result := RuleName(tt.input...)
+			if result != tt.expected {
+				t.Errorf("RuleName(%v) = %q; want %q", tt.input, result, tt.expected)
+			}
+		})
 	}
 }
 
