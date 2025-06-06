@@ -3,6 +3,7 @@ load(":tests.bzl", "starlark_tests")
 
 # gazelle:go_naming_convention import
 # gazelle:go_naming_convention_external import
+# gazelle:go_proto_compilers @my_rules_go//proto:go_proto
 gazelle(name = "gazelle")
 
 gazelle_test(
