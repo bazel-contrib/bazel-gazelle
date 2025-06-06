@@ -1,0 +1,14 @@
+diff --git a/rules/run_binary.bzl b/rules/run_binary.bzl
+index c251019e..47c8bc5b 100644
+--- a/rules/run_binary.bzl
++++ b/rules/run_binary.bzl
+@@ -72,7 +72,7 @@ run_binary = rule(
+             executable = True,
+             allow_files = True,
+             mandatory = True,
+-            cfg = "host",
++            cfg = "exec",
+         ),
+         "env": attr.string_dict(
+             doc = "Environment variables of the action.<br/><br/>Subject to " +
+
