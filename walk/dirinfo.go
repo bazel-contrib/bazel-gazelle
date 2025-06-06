@@ -109,13 +109,9 @@ func (w *walker) populateCache(rels []string) {
 		if err != nil {
 			return
 		}
-		wc := info.config
 
 		for _, subdir := range info.subdirs {
 			subdirRel := path.Join(rel, subdir)
-			if wc.isExcludedDir(subdirRel) {
-				continue
-			}
 			sem <- struct{}{} // acquire semaphore for child
 			wg.Add(1)
 			go func() {
