@@ -139,7 +139,9 @@ func TestUpdateDirs(t *testing.T) {
 			mode: UpdateDirsMode,
 			want: []visitSpec{
 				{"update/ignore/sub", true},
+				{"update/ignore", false},
 				{"update", true},
+				{"", false},
 			},
 		}, {
 			desc: "update_subdirs",
@@ -150,6 +152,8 @@ func TestUpdateDirs(t *testing.T) {
 				{"update/ignore", false},
 				{"update/sub/sub", true},
 				{"update/sub", true},
+				{"update", false},
+				{"", false},
 			},
 		},
 	} {
@@ -236,12 +240,12 @@ func TestGenMode(t *testing.T) {
 			t.Errorf("Leaf visit should be only files: %v", visits[0])
 		}
 		modeUpdateFiles1 := []string{"BUILD.bazel", "d.go", "sub4/e.go"}
-		if !reflect.DeepEqual(visits[4].files, modeUpdateFiles1) {
+		if !reflect.DeepEqual(visits[7].files, modeUpdateFiles1) {
 			t.Errorf("update mode should contain files in subdirs. Want %v, got: %v", modeUpdateFiles1, visits[5].files)
 		}
 
 		modeUpdateFiles2 := []string{"BUILD.bazel", "a.go", "sub/b.go", "sub/sub2/sub3/c.go"}
-		if !reflect.DeepEqual(visits[5].files, modeUpdateFiles2) {
+		if !reflect.DeepEqual(visits[9].files, modeUpdateFiles2) {
 			t.Errorf("update mode should contain files in subdirs. Want %v, got: %v", modeUpdateFiles2, visits[5].files)
 		}
 	}
