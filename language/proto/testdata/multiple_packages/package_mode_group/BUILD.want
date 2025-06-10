@@ -1,21 +1,21 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
 proto_library(
+    name = "111_foo_proto",
+    srcs = [
+        "foo1.proto",
+        "foo2.proto",
+    ],
+    _gazelle_imports = ["multiple_packages/package_mode_group/bar1.proto"],
+    visibility = ["//visibility:public"],
+)
+
+proto_library(
     name = "bar_proto",
     srcs = [
         "bar1.proto",
         "bar2.proto",
     ],
     _gazelle_imports = [],
-    visibility = ["//visibility:public"],
-)
-
-proto_library(
-    name = "foo_proto",
-    srcs = [
-        "foo1.proto",
-        "foo2.proto",
-    ],
-    _gazelle_imports = ["multiple_packages/package_mode_group/bar1.proto"],
     visibility = ["//visibility:public"],
 )
