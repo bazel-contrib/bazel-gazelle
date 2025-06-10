@@ -978,7 +978,7 @@ func (g *generator) addRelsToIndex(ps rule.PlatformStrings) {
 	// TODO: refactor to for-iterator loop after Go 1.23 is the minimum version.
 	ps.Each()(func(imp string) bool {
 		for _, goSearch := range g.gc.goSearch {
-			if trimmed := pathtools.TrimPrefix(imp, goSearch.prefix); trimmed != imp {
+			if trimmed := pathtools.TrimPrefix(imp, goSearch.prefix); trimmed != goSearch.prefix {
 				rel := path.Join(goSearch.rel, trimmed)
 				if _, ok := g.relsToIndexSeen[rel]; !ok {
 					g.relsToIndexSeen[rel] = struct{}{}
