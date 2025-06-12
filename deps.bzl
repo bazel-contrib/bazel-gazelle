@@ -64,6 +64,17 @@ def gazelle_dependencies(
         sha256 = "26d4021f6898e23b82ef953078389dd49ac2b5618ac564ade4ef87cced147b38",
     )
 
+    _maybe(
+        http_archive,
+        name = "package_metadata",
+        urls = [
+            "https://mirror.bazel.build/github.com/bazel-contrib/supply-chain/releases/download/v0.0.2/supply-chain-v0.0.2.tar.gz",
+            "https://github.com/bazel-contrib/supply-chain/releases/download/v0.0.2/supply-chain-v0.0.2.tar.gz",
+        ],
+        sha256 = "32299ff025ceb859328557fbb3dd42464ad2520e25969188c230b45638feb949",
+        strip_prefix = "supply-chain-0.0.2/metadata",
+    )
+
     # We are not able to call rules_shell's dependency macros without introducing new levels of
     # such macros to gazelle. With Bazel < 8, rules_shell forwards to the native sh_* rules, so
     # its dependencies are not needed. With Bazel 8, rules_shell is automatically loaded by Bazel.

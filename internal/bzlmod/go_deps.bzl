@@ -349,7 +349,12 @@ def _go_deps_impl(module_ctx):
     root_module_direct_dev_deps = {}
 
     first_module = module_ctx.modules[0]
-    if first_module.is_root and first_module.name in ["gazelle", "rules_go"]:
+    if first_module.is_root and first_module.name in [
+        "gazelle",
+        "rules_go",
+        "gazelle_bcr_go_mod_tests",
+        "gazelle_bcr_go_work_tests",
+    ]:
         root_module_direct_deps["bazel_gazelle_go_repository_config"] = None
 
     outdated_direct_dep_printer = print
@@ -416,9 +421,18 @@ def _go_deps_impl(module_ctx):
             else:
                 fail("Either \"go_mod\" or \"go_work\" must be specified in \"go_deps.from_file\" tags.")
 
+        # Collect all prefixes of packages listed under "tool" directives - they
+        # may be modules for which we have to ignore the "indirect" comment.
+        possible_tool_modules = {}
         for from_file_tag in from_file_tags:
-            module_path, module_tags_from_go_mod, go_mod_replace_map, module_name = deps_from_go_mod(module_ctx, from_file_tag.go_mod)
-            module_name_to_go_dot_mod_label[module_name] = from_file_tag.go_mod
+            module_path, module_tags_from_go_mod, go_mod_replace_map, tools = deps_from_go_mod(module_ctx, from_file_tag.go_mod)
+            for tool in tools:
+                # Add all path prefixes of tool to the map
+                # to allow for partial matches.
+                for i in range(len(tool)):
+                    if tool[i] == "/":
+                        possible_tool_modules[tool[:i]] = None
+            module_name_to_go_dot_mod_label[module_path] = from_file_tag.go_mod
 
             # Collect the relative path of the root module's go.mod file if it lives in the main
             # repository.
@@ -490,7 +504,10 @@ def _go_deps_impl(module_ctx):
             # for direct dependencies. For manually specified go_deps.module
             # tags, we always report version upgrades unless users override with
             # the "indirect" attribute.
-            if module.is_root and not module_tag.indirect:
+            # We also need to disregard the "indirect" attribute for modules
+            # that provide any tools listed with a "tool" directive, otherwise
+            # tools can't be built after a `bazel mod tidy`.
+            if module.is_root and (not module_tag.indirect or module_tag.path in possible_tool_modules):
                 root_versions[module_tag.path] = raw_version
                 if _is_dev_dependency(module_ctx, module_tag):
                     root_module_direct_dev_deps[_repo_name(module_tag.path)] = None
@@ -580,7 +597,7 @@ def _go_deps_impl(module_ctx):
                     """
 Either ensure that you have
 
-  bazel_dep(module_name = "{bazel_dep_name}", version = "{go_module_version}")
+  bazel_dep(name = "{bazel_dep_name}", version = "{go_module_version}")
 
 in your MODULE.bazel file or downgrade the Go module version via
 

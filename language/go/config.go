@@ -133,6 +133,14 @@ type goConfig struct {
 	// buildTagsAttr are attributes for go_repository rules, set on the command
 	// line.
 	buildDirectivesAttr, buildExternalAttr, buildExtraArgsAttr, buildFileGenerationAttr, buildFileNamesAttr, buildFileProtoModeAttr, buildTagsAttr string
+
+	// goSearch is a list of additional directories that may contain Go libraries.
+	// Subdirectories within these roots may be indexed when lazy indexing
+	// is enabled. Each directory has an associated prefix, specified as part
+	// of the go_search directive. For example, if there's a directive
+	// '# gazelle:go_search replace/b example.com/b', and Gazelle sees an
+	// import of 'example.com/b/p', Gazelle indexes 'replace/b/p'.
+	goSearch []goSearch
 }
 
 // testMode determines how go_test rules are generated.
@@ -148,7 +156,7 @@ const (
 
 var (
 	defaultGoProtoCompilers = []string{"@io_bazel_rules_go//proto:go_proto"}
-	defaultGoGrpcCompilers  = []string{"@io_bazel_rules_go//proto:go_grpc"}
+	defaultGoGrpcCompilers  = []string{"@io_bazel_rules_go//proto:go_grpc_v2"}
 )
 
 func (m testMode) String() string {
@@ -200,6 +208,7 @@ func (gc *goConfig) clone() *goConfig {
 	gcCopy.goProtoCompilers = gc.goProtoCompilers[:len(gc.goProtoCompilers):len(gc.goProtoCompilers)]
 	gcCopy.goGrpcCompilers = gc.goGrpcCompilers[:len(gc.goGrpcCompilers):len(gc.goGrpcCompilers)]
 	gcCopy.submodules = gc.submodules[:len(gc.submodules):len(gc.submodules)]
+	gcCopy.goSearch = gc.goSearch[:len(gc.goSearch):len(gc.goSearch)]
 	return &gcCopy
 }
 
@@ -366,9 +375,13 @@ type moduleRepo struct {
 	repoName, modulePath string
 }
 
+type goSearch struct {
+	rel, prefix string
+}
+
 var (
 	validBuildExternalAttr       = []string{"external", "vendored"}
-	validBuildFileGenerationAttr = []string{"auto", "on", "off"}
+	validBuildFileGenerationAttr = []string{"auto", "on", "off", "clean"}
 	validBuildFileProtoModeAttr  = []string{"default", "legacy", "disable", "disable_global", "package"}
 )
 
@@ -380,6 +393,7 @@ func (*goLang) KnownDirectives() []string {
 		"go_naming_convention",
 		"go_naming_convention_external",
 		"go_proto_compilers",
+		"go_search",
 		"go_test",
 		"go_visibility",
 		"importmap_prefix",
@@ -574,6 +588,7 @@ Update io_bazel_rules_go to a newer version in your WORKSPACE file.`
 			gc.prefix = prefix
 			gc.prefixSet = true
 			gc.prefixRel = rel
+			gc.goSearch = append(gc.goSearch, goSearch{rel: rel, prefix: prefix})
 		}
 		for _, d := range f.Directives {
 			switch d.Key {
@@ -622,6 +637,32 @@ Update io_bazel_rules_go to a newer version in your WORKSPACE file.`
 				} else {
 					gc.goProtoCompilersSet = true
 					gc.goProtoCompilers = splitValue(d.Value)
+				}
+
+			case "go_search":
+				// Special syntax (empty value) to reset directive.
+				if d.Value == "" {
+					gc.goSearch = nil
+				} else {
+					args, err := splitQuoted(d.Value)
+					if err != nil {
+						log.Print(err)
+						continue
+					}
+					if len(args) == 0 || len(args) > 2 {
+						log.Printf("# gazelle:go_search: got %d arguments, expected 1 or 2, a relative directory path and a go prefix", len(args))
+						continue
+					}
+					searchDir := args[0]
+					prefix := ""
+					if len(args) > 1 {
+						prefix = args[1]
+					}
+					searchRel := path.Join(rel, searchDir)
+					if searchRel == "." {
+						searchRel = ""
+					}
+					gc.goSearch = append(gc.goSearch, goSearch{rel: searchRel, prefix: prefix})
 				}
 
 			case "go_test":

@@ -137,44 +137,59 @@ const (
 // a file. It does not read data from the file.
 func fileNameInfo(path_ string) fileInfo {
 	name := filepath.Base(path_)
-	var ext ext
-	switch path.Ext(name) {
-	case ".go":
-		ext = goExt
-	case ".c", ".cc", ".cpp", ".cxx", ".m", ".mm":
-		ext = cExt
-	case ".h", ".hh", ".hpp", ".hxx":
-		ext = hExt
-	case ".s":
-		ext = sExt
-	case ".S":
-		ext = csExt
-	case ".proto":
-		ext = protoExt
+	nameExt := path.Ext(name)
+
+	ext := unknownExt
+	switch name[0] {
+	case '.', '_':
 	default:
-		ext = unknownExt
-	}
-	if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") {
-		ext = unknownExt
+		switch nameExt {
+		case ".go":
+			ext = goExt
+		case ".c", ".cc", ".cpp", ".cxx", ".m", ".mm":
+			ext = cExt
+		case ".h", ".hh", ".hpp", ".hxx":
+			ext = hExt
+		case ".s":
+			ext = sExt
+		case ".S":
+			ext = csExt
+		case ".proto":
+			ext = protoExt
+		}
 	}
 
 	// Determine test, goos, and goarch. This is intended to match the logic
 	// in goodOSArchFile in go/build.
 	var isTest bool
 	var goos, goarch string
-	l := strings.Split(name[:len(name)-len(path.Ext(name))], "_")
-	if len(l) >= 2 && l[len(l)-1] == "test" {
+
+	toParse := name[:len(name)-len(nameExt)]
+	if strings.HasSuffix(toParse, "_test") {
 		isTest = ext == goExt
-		l = l[:len(l)-1]
+		toParse = toParse[:len(toParse)-len("_test")]
 	}
+
+	var segments [2]string
+	n := 0
+	for n < 2 {
+		i := strings.LastIndex(toParse, "_")
+		if i < 0 {
+			break
+		}
+		segments[n] = toParse[i+1:]
+		toParse = toParse[:i]
+		n++
+	}
+
 	switch {
-	case len(l) >= 3 && rule.KnownOSSet[l[len(l)-2]] && rule.KnownArchSet[l[len(l)-1]]:
-		goos = l[len(l)-2]
-		goarch = l[len(l)-1]
-	case len(l) >= 2 && rule.KnownOSSet[l[len(l)-1]]:
-		goos = l[len(l)-1]
-	case len(l) >= 2 && rule.KnownArchSet[l[len(l)-1]]:
-		goarch = l[len(l)-1]
+	case n == 2 && rule.KnownOSSet[segments[1]] && rule.KnownArchSet[segments[0]]:
+		goos = segments[1]
+		goarch = segments[0]
+	case n >= 1 && rule.KnownOSSet[segments[0]]:
+		goos = segments[0]
+	case n >= 1 && rule.KnownArchSet[segments[0]]:
+		goarch = segments[0]
 	}
 
 	return fileInfo{

@@ -1,4 +1,3 @@
-load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 load(":env_variables_test.bzl", "env_variables_test_suite")
 
 env_variables_test_suite()

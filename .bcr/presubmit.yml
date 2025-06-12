@@ -17,6 +17,8 @@ bcr_test_module:
       - rm pkg/BUILD.bazel proto/BUILD.bazel
       - bazel run //:gazelle -- update pkg proto
       - bazel run //:gazelle -- pkg proto
+      # Verify that bazel mod tidy doesn't remove use_repos required to build and test.
+      - bazel mod tidy || true # Unsupported on Bazel 6
       build_targets:
       - //...
       - //:gazelle

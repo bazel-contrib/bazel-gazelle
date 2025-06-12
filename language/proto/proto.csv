@@ -7,6 +7,7 @@ google/protobuf/compiler/plugin.proto,@protobuf//:compiler_plugin_proto,github.c
 google/protobuf/descriptor.proto,@protobuf//:descriptor_proto,github.com/golang/protobuf/protoc-gen-go/descriptor,@com_github_golang_protobuf//protoc-gen-go/descriptor
 google/protobuf/duration.proto,@protobuf//:duration_proto,github.com/golang/protobuf/ptypes/duration,@com_github_golang_protobuf//ptypes/duration
 google/protobuf/empty.proto,@protobuf//:empty_proto,github.com/golang/protobuf/ptypes/empty,@com_github_golang_protobuf//ptypes/empty
+google/protobuf/go_features.proto,@protobuf//:go_features_proto,google.golang.org/protobuf/types/gofeaturespb,@org_golang_google_protobuf//protobuf/types/gofeaturespb
 google/protobuf/field_mask.proto,@protobuf//:field_mask_proto,google.golang.org/genproto/protobuf/field_mask,@org_golang_google_genproto//protobuf/field_mask
 google/protobuf/source_context.proto,@protobuf//:source_context_proto,google.golang.org/genproto/protobuf/source_context,@org_golang_google_genproto//protobuf/source_context
 google/protobuf/struct.proto,@protobuf//:struct_proto,github.com/golang/protobuf/ptypes/struct,@com_github_golang_protobuf//ptypes/struct

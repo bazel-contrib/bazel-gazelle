@@ -18,11 +18,12 @@ bazel_dep(name = "bazel_features", version = "1.14.0")
 bazel_dep(name = "protobuf", version = "23.1", repo_name = "my_protobuf")
 bazel_dep(name = "rules_go", version = "0.50.1", repo_name = "my_rules_go")
 bazel_dep(name = "rules_license", version = "1.0.0")
+bazel_dep(name = "package_metadata", version = "0.0.2")
 bazel_dep(name = "rules_proto", version = "6.0.0-rc2", repo_name = "my_rules_proto")
 bazel_dep(name = "rules_testing", version = "0.6.0")
 
 go_sdk = use_extension("@my_rules_go//go:extensions.bzl", "go_sdk")
-go_sdk.download(version = "1.23.3")
+go_sdk.download(version = "1.24.2")
 
 # This bazel_dep provides the Go dependency github.com/cloudflare/circl, which requires custom
 # patches beyond what Gazelle can generate.
@@ -136,6 +137,9 @@ go_deps.module(
 )
 use_repo(
     go_deps,
+    # Only used for testing.
+    "bazel_gazelle_go_repository_config",
+    "co_honnef_go_tools",
     "com_github_bazelbuild_buildtools",
     "com_github_bmatcuk_doublestar_v4",
     "com_github_datadog_sketches_go",
@@ -144,13 +148,9 @@ use_repo(
     "com_github_google_go_jsonnet",
     "com_github_google_safetext",
     "com_github_stretchr_testify",
+    "org_example_hello",
     "org_golang_google_protobuf",
     "org_golang_x_sys",
-    # It is not necessary to list transitive dependencies here, only direct ones.
-    # "in_gopkg_yaml_v3",
-    # Only used for testing.
-    "bazel_gazelle_go_repository_config",
-    "org_example_hello",
 )
 
 # Use an isolated usage to bring in Go tools from the tools package with their own dependency
@@ -161,4 +161,5 @@ use_repo(
     go_tools,
     buildtools = "com_github_bazelbuild_buildtools",
     gqlgen = "com_github_99designs_gqlgen",
+    unused = "bazel_gazelle_go_repository_config",
 )

@@ -1,0 +1,3 @@
+-r=false
+-index=lazy
+use

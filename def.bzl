@@ -20,11 +20,13 @@ load(
     "@bazel_skylib//lib:shell.bzl",
     "shell",
 )
-load("@rules_shell//shell:sh_binary.bzl",
-    "sh_binary"
+load(
+    "@rules_shell//shell:sh_binary.bzl",
+    "sh_binary",
 )
-load("@rules_shell//shell:sh_test.bzl",
-    "sh_test"
+load(
+    "@rules_shell//shell:sh_test.bzl",
+    "sh_test",
 )
 load(
     "//internal:gazelle_binary.bzl",
@@ -137,8 +139,6 @@ def _gazelle_runner_impl_factory(ctx, test_runner = False):
         args.extend(["-go_prefix", ctx.attr.prefix])
     if ctx.attr.build_tags:
         args.extend(["-build_tags", ",".join(ctx.attr.build_tags)])
-    if GAZELLE_IS_BAZEL_MODULE:
-        args.append("-bzlmod")
     args.extend([ctx.expand_location(arg, ctx.attr.data) for arg in ctx.attr.extra_args])
 
     for key in ctx.attr.env:

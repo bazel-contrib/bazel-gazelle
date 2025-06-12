@@ -270,7 +270,7 @@ def _go_repository_impl(ctx):
 
     # Clean existing build files if requested
     if ctx.attr.build_file_generation == "clean":
-        fetch_repo_args += ["-clean"]
+        fetch_repo_args.append("-clean")
 
     # Disable sumdb in fetch_repo. In module mode, the sum is a mandatory
     # attribute of go_repository, so we don't need to look it up.
@@ -374,7 +374,12 @@ def _go_repository_impl(ctx):
         repo_file = ctx.path("REPO.bazel")
         if not repo_file.exists:
             ctx.file("REPO.bazel", """\
-repo(default_package_metadata = ["//:gazelle_generated_package_info"])
+repo(
+    default_package_metadata = [
+        "//:gazelle_generated_package_info",
+        "//:package_metadata",
+    ],
+)
 """)
 
             # Modify the top-level build file after patches have been applied as the
@@ -400,13 +405,27 @@ def _generate_package_info(*, importpath, version):
     # See specification:
     # https://github.com/package-url/purl-spec/blob/master/PURL-TYPES.rst#golang
     # scheme:type/namespace/name@version?qualifiers#subpath
-    purl = "pkg:golang/{namespace_and_name}@{version}".format(
-        namespace_and_name = importpath,
-        version = version,
-    ) if version else None
+    if version:
+        purl = "pkg:golang/{namespace_and_name}@{version}".format(
+            namespace_and_name = importpath,
+            version = version,
+        )
+    else:
+        purl = "pkg:golang/{namespace_and_name}".format(
+            namespace_and_name = importpath,
+        )
 
     return """
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:package_info.bzl", "package_info")
+
+package_metadata(
+    name = "package_metadata",
+    purl = {purl},
+    visibility = [
+        "//:__subpackages__",
+    ],
+)
 
 package_info(
     name = "gazelle_generated_package_info",

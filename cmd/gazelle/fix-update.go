@@ -138,13 +138,15 @@ func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) erro
 		uc.dirs[i] = dir
 	}
 
-	if ucr.recursive && c.IndexLibraries {
+	indexAll := c.IndexLibraries && !c.IndexLazy
+	switch {
+	case ucr.recursive && indexAll:
 		uc.walkMode = walk.VisitAllUpdateSubdirsMode
-	} else if c.IndexLibraries {
+	case !ucr.recursive && indexAll:
 		uc.walkMode = walk.VisitAllUpdateDirsMode
-	} else if ucr.recursive {
+	case ucr.recursive && !indexAll:
 		uc.walkMode = walk.UpdateSubdirsMode
-	} else {
+	case !ucr.recursive && !indexAll:
 		uc.walkMode = walk.UpdateDirsMode
 	}
 
@@ -233,13 +235,13 @@ type visitRecord struct {
 	// c is the configuration for the directory with directives applied.
 	c *config.Config
 
-	// rules is a list of generated Go rules.
+	// rules is a list of generated rules.
 	rules []*rule.Rule
 
 	// imports contains opaque import information for each rule in rules.
 	imports []interface{}
 
-	// empty is a list of empty Go rules that may be deleted.
+	// empty is a list of empty rules that may be deleted.
 	empty []*rule.Rule
 
 	// file is the build file being processed.
@@ -313,8 +315,16 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		}
 	}()
 
-	var errorsFromWalk []error
-	walk.Walk(c, cexts, uc.dirs, uc.walkMode, func(dir, rel string, c *config.Config, update bool, f *rule.File, subdirs, regularFiles, genFiles []string) {
+	walkErr := walk.Walk2(c, cexts, uc.dirs, uc.walkMode, func(args walk.Walk2FuncArgs) walk.Walk2FuncResult {
+		dir := args.Dir
+		rel := args.Rel
+		c := args.Config
+		update := args.Update
+		f := args.File
+		subdirs := args.Subdirs
+		regularFiles := args.RegularFiles
+		genFiles := args.GenFiles
+
 		mrslv.AliasedKinds(rel, c.AliasMap)
 		// If this file is ignored or if Gazelle was not asked to update this
 		// directory, just index the build file and move on.
@@ -327,7 +337,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 					ruleIndex.AddRule(c, r, f)
 				}
 			}
-			return
+			return walk.Walk2FuncResult{}
 		}
 
 		// Fix any problems in the file.
@@ -340,6 +350,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		// Generate rules.
 		var empty, gen []*rule.Rule
 		var imports []interface{}
+		var relsToVisit []string
 		for _, l := range filterLanguages(c, languages) {
 			res := l.GenerateRules(language.GenerateArgs{
 				Config:       c,
@@ -358,9 +369,12 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 			empty = append(empty, res.Empty...)
 			gen = append(gen, res.Gen...)
 			imports = append(imports, res.Imports...)
+			if c.IndexLibraries {
+				relsToVisit = append(relsToVisit, res.RelsToIndex...)
+			}
 		}
 		if f == nil && len(gen) == 0 {
-			return
+			return walk.Walk2FuncResult{RelsToVisit: relsToVisit}
 		}
 
 		// Apply and record relevant kind mappings.
@@ -390,9 +404,10 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 			return nil, nil
 		}
 
+		var errs []error
 		for _, r := range allRules {
 			if replacementName, err := maybeRecordReplacement(r.Kind()); err != nil {
-				errorsFromWalk = append(errorsFromWalk, fmt.Errorf("looking up mapped kind: %w", err))
+				errs = append(errs, fmt.Errorf("looking up mapped kind: %w", err))
 			} else if replacementName != nil {
 				r.SetKind(*replacementName)
 			}
@@ -409,7 +424,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 						continue
 					}
 					if replacementName, err := maybeRecordReplacement(ident.Name); err != nil {
-						errorsFromWalk = append(errorsFromWalk, fmt.Errorf("looking up mapped kind: %w", err))
+						errs = append(errs, fmt.Errorf("looking up mapped kind: %w", err))
 					} else if replacementName != nil {
 						if err := r.UpdateArg(i, &build.Ident{Name: *replacementName}); err != nil {
 							log.Panicf("%s: %v", rel, err)
@@ -456,6 +471,11 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 				ruleIndex.AddRule(c, r, f)
 			}
 		}
+
+		return walk.Walk2FuncResult{
+			RelsToVisit: relsToVisit,
+			Err:         errors.Join(errs...),
+		}
 	})
 
 	for _, lang := range languages {
@@ -464,17 +484,8 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		}
 	}
 
-	if len(errorsFromWalk) == 1 {
-		return errorsFromWalk[0]
-	}
-
-	if len(errorsFromWalk) > 1 {
-		var additionalErrors []string
-		for _, err = range errorsFromWalk[1:] {
-			additionalErrors = append(additionalErrors, err.Error())
-		}
-
-		return fmt.Errorf("encountered multiple errors: %w, %v", errorsFromWalk[0], strings.Join(additionalErrors, ", "))
+	if walkErr != nil {
+		return walkErr
 	}
 
 	// Finish building the index for dependency resolution.

@@ -23,4 +23,7 @@ def get_binary(target):
     if "fix_package_proto_name_match" in target:
         return ":gazelle_with_proto_and_go_languages"
 
+    if target.startswith("go_"):
+        return ":gazelle_with_proto_and_go_languages"
+
     return ":gazelle"

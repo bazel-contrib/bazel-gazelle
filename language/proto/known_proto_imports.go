@@ -13,6 +13,7 @@ var knownProtoImports = map[string]label.Label{
 	"google/protobuf/descriptor.proto":      label.Label{Repo: "com_github_golang_protobuf", Pkg: "protoc-gen-go/descriptor", Name: "descriptor"},
 	"google/protobuf/duration.proto":        label.Label{Repo: "com_github_golang_protobuf", Pkg: "ptypes/duration", Name: "duration"},
 	"google/protobuf/empty.proto":           label.Label{Repo: "com_github_golang_protobuf", Pkg: "ptypes/empty", Name: "empty"},
+	"google/protobuf/go_features.proto":     label.Label{Repo: "org_golang_google_protobuf", Pkg: "protobuf/types/gofeaturespb", Name: "gofeaturespb"},
 	"google/protobuf/field_mask.proto":      label.Label{Repo: "org_golang_google_genproto", Pkg: "protobuf/field_mask", Name: "field_mask"},
 	"google/protobuf/source_context.proto":  label.Label{Repo: "org_golang_google_genproto", Pkg: "protobuf/source_context", Name: "source_context"},
 	"google/protobuf/struct.proto":          label.Label{Repo: "com_github_golang_protobuf", Pkg: "ptypes/struct", Name: "struct"},

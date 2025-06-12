@@ -189,4 +189,15 @@ type GenerateResult struct {
 	// correspond. These values are passed to Resolve after merge. The type
 	// is opaque since different languages may use different representations.
 	Imports []interface{}
+
+	// RelsToIndex is a list of additional directories to index for dependency
+	// resolution, expressed as slash-separated paths relative to the repository
+	// root, or "" for the root directory itself. If indexing is enabled,
+	// libraries in these directories are indexed before dependencies are
+	// resolved. Subdirectories are not recursively indexed. This list may
+	// contain non-existent directories.
+	//
+	// Experimental: this functionality may change a bit until it's been tested
+	// with multiple language extensions.
+	RelsToIndex []string
 }

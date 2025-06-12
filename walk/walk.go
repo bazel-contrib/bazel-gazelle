@@ -18,17 +18,16 @@ limitations under the License.
 package walk
 
 import (
+	"errors"
 	"io/fs"
 	"log"
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/rule"
-	"golang.org/x/sync/errgroup"
 )
 
 // Mode determines which directories Walk visits and which directories
@@ -80,6 +79,8 @@ const (
 //
 // genFiles is a list of names of generated files, found by reading
 // "out" and "outs" attributes of rules in f.
+//
+// DEPRECATED: Use Walk2Func with Walk2 instead.
 type WalkFunc func(dir, rel string, c *config.Config, update bool, f *rule.File, subdirs, regularFiles, genFiles []string)
 
 // Walk traverses the directory tree rooted at c.RepoRoot. Walk visits
@@ -109,7 +110,235 @@ type WalkFunc func(dir, rel string, c *config.Config, update bool, f *rule.File,
 // to the wf callback should be set.
 //
 // wf is a function that may be called in each directory.
+//
+// DEPRECATED: Use Walk2 instead.
 func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode, wf WalkFunc) {
+	w2f := func(args Walk2FuncArgs) Walk2FuncResult {
+		wf(args.Dir, args.Rel, args.Config, args.Update, args.File, args.Subdirs, args.RegularFiles, args.GenFiles)
+		return Walk2FuncResult{}
+	}
+	err := Walk2(c, cexts, dirs, mode, w2f)
+	if err != nil {
+		log.Print(err)
+		if c.Strict {
+			log.Fatal("Exit as strict mode is on")
+		}
+	}
+}
+
+type Walk2Func func(args Walk2FuncArgs) Walk2FuncResult
+
+type Walk2FuncArgs struct {
+	// Dir is the absolute file system path to the directory being visited.
+	Dir string
+
+	// rel is the relative slash-separated path to the directory from the
+	// repository root. Will be "" for the repository root directory itself.
+	Rel string
+
+	// Config is the configuration for the current directory. This may have been
+	// modified by directives in the directory's build file.
+	Config *config.Config
+
+	// Update is true when the build file may be updated.
+	Update bool
+
+	// File is the existing build file in the directory. Will be nil if there
+	// was no file.
+	File *rule.File
+
+	// Subdirs is a list of names of subdirectories within dir, not
+	// including excluded files. A directory is listed here regardless of
+	// whether the subdirectory contains (or will contain) a build file.
+	// If the update_only generation mode is enabled, this list also contains
+	// recursive subdirectories, up to and including those at the edge of the
+	// same Bazel package.
+	Subdirs []string
+
+	// RegularFiles is a list of names of regular files within dir, not
+	// including excluded files. Symbolic links to files and non-followed
+	// directories are included in this list. If the update_only generation mode
+	// is enabled, this list also contains files from recursive subdirectories
+	// within the same Bazel package (those that can be matched by glob).
+	RegularFiles []string
+
+	// GenFiles is a list of names of generated files, found by reading
+	// "out" and "outs" attributes of rules in f.
+	GenFiles []string
+}
+
+type Walk2FuncResult struct {
+	// Err is an error encountered by the callback function. It's logged to the
+	// console. When Config.Strict is set, setting Err causes Walk2 to return
+	// early.
+	Err error
+
+	// RelsToVisit is a list of additional directories to visit. Each directory is
+	// a slash-separated path, relative to the repository root or "" for the root
+	// directory itself.
+	//
+	// These directories will be visited after the directories the walk was
+	// already going to visit. They will not be visited more than once in total.
+	// When one of these directories is visited, the Walk2Args.Update flag will
+	// be false unless the directory was already going to be visited with the
+	// Update flag true as part of the walk.
+	//
+	// This list may contain non-existent directories.
+	RelsToVisit []string
+}
+
+// Walk2 traverses a limited part of the directory tree rooted at c.RepoRoot
+// and calls the function wf in each visited directory.
+//
+// The dirs and mode parameters determine which directories Walk2 visits.
+// Walk2 calls wf in each directory in dirs with the Walk2FuncArgs.Update
+// flag set to true. This indicates Gazelle should update build files in that
+// directory. Depending on the mode flag, Walk2 may additionally visit
+// subdirectories or all directories in the repo, possibly with the Update
+// flag set.
+//
+// Some directives like "# gazelle:exclude" and files like .bazelignore
+// control the traversal, excluding certain files and directories.
+//
+// The traversal is done in post-order, but configuration directives are always
+// applied from build files in parent directories first. Concretely, this means
+// that language.Configurer.Configure is called on each extension in cexts in a
+// directory *before* visiting its subdirectories; wf is called in a directory
+// *after* its subdirectories.
+func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode, wf Walk2Func) error {
+	w, err := newWalker(c, cexts, dirs, mode, wf)
+	if err != nil {
+		return err
+	}
+
+	// Do the main tree walk, visiting directories the user requested.
+	w.visit(c, "", false)
+	if c.Strict && len(w.errs) > 0 {
+		return errors.Join(w.errs...)
+	}
+
+	// Visit additional directories that extensions requested for indexing.
+	// Don't visit subdirectories recursively, even when recursion is enabled.
+	w.mode = UpdateDirsMode
+	for len(w.relsToVisit) > 0 {
+		// Don't simply range over relsToVisit. We may append more.
+		relToVisit := w.relsToVisit[0]
+		w.relsToVisit = w.relsToVisit[1:]
+
+		// Make sure to visit prefixes of relToVisit as well so we apply
+		// configuration directives.
+		slash := -1
+		for {
+			var rel string
+			i := strings.Index(relToVisit[slash+1:], "/")
+			if i < 0 {
+				rel = relToVisit
+			} else {
+				rel = relToVisit[:slash+1+i]
+				slash = slash + 1 + i
+			}
+
+			if v, ok := w.visits[rel]; !ok {
+				var c *config.Config
+				if ok {
+					// Already configured this directory but did not call the callback.
+					c = v.c
+				} else {
+					// Never visited this directory.
+					parentRel := path.Dir(rel)
+					if parentRel == "." {
+						parentRel = ""
+					}
+					parentCfg := w.visits[parentRel].c
+					if getWalkConfig(parentCfg).isExcludedDir(rel) {
+						break
+					}
+					if _, err := w.cache.get(rel, w.loadDirInfo); err != nil {
+						// Error loading directory. Most commonly, this is because the
+						// directory doesn't exist, but it could actually be a file
+						// or we don't have permission, or some other I/O error.
+						// Skip it.
+						break
+					}
+					c = parentCfg.Clone()
+				}
+				w.visit(c, rel, false)
+				if c.Strict && len(w.errs) > 0 {
+					return errors.Join(w.errs...)
+				}
+			}
+
+			if rel == relToVisit {
+				break
+			}
+		}
+	}
+	return errors.Join(w.errs...)
+}
+
+// walker holds state needed for a walk of the source tree.
+type walker struct {
+	// repoRoot is the absolute file path to the repo's root directory.
+	repoRoot string
+
+	// rootConfig is the configuration for the repo root directory.
+	rootConfig *config.Config
+
+	// cache provides access to directory information.
+	cache *cache
+
+	// cexts is a list of configuration extensions, provided by the caller.
+	cexts []config.Configurer
+
+	// knownDirectives is a list of directives supported by those extensions.
+	knownDirectives map[string]bool
+
+	// mode determines how directories are visited, provided by the caller.
+	mode Mode
+
+	// shouldUpdateRel indicates whether we should update a set of directories
+	// named by slash-separated repo-root-relative paths. The set is generated
+	// from the list of directories passed in to Walk2. This map contains true
+	// for explicitly listed directories, and false for ancestor directories
+	// that are not explicitly listed.
+	shouldUpdateRel map[string]bool
+
+	// wf is the callback provided by the caller. It's called in each directory
+	// that needs to be updated or indexed, determined by mode.
+	wf Walk2Func
+
+	// visits holds a record of each time visit was called, keyed by
+	// slash-separated repo-root-relative path. It prevents visiting
+	// the same directory more than once and tracks information that's needed
+	// by parents.
+	visits map[string]visitInfo
+
+	// relsToVisit is a list of slash-separated repo-root-relative paths to
+	// additional directories to visit. These directories are not visited
+	// recursively. wf is called with Walk2FuncArgs.Update false.
+	relsToVisit []string
+
+	// relsToVisitSeen indicates whether a string was added to relsToVisit.
+	// It's used to avoid appending a path more than once.
+	relsToVisitSeen map[string]struct{}
+
+	// errs is a list of errors encountered while walking the directory tree.
+	// If the Config.Strict flag is set in the root configuration, we return
+	// quickly after the first error.
+	errs []error
+}
+
+type visitInfo struct {
+	// containedByParent is true if the directory does not (and should not)
+	// contain a build file. The parent directory may use regularFiles
+	// and subdirs.
+	containedByParent bool
+
+	c                     *config.Config
+	regularFiles, subdirs []string
+}
+
+func newWalker(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode, wf Walk2Func) (*walker, error) {
 	knownDirectives := make(map[string]bool)
 	for _, cext := range cexts {
 		for _, d := range cext.KnownDirectives() {
@@ -117,205 +346,207 @@ func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode,
 		}
 	}
 
-	updateRels := NewUpdateFilter(c.RepoRoot, dirs, mode)
-	ignoreFilter := newIgnoreFilter(c.RepoRoot)
-
-	trie, err := buildTrie(c, updateRels, ignoreFilter)
-	if err != nil {
-		log.Fatalf("error walking the file system: %v\n", err)
-	}
-
-	visit(c, cexts, knownDirectives, updateRels, trie, wf, "", false)
-}
-
-// Recursively traverse a trie to:
-//  1. configure (top-down)
-//  2. invoke the WalkFunc (bottom-up)
-//
-// Configuration includes building the config.Config for the directory
-// which is inherited by the child directories.
-//
-// Traversal may skip subtrees or files based on the config.Config exclude/ignore/follow options
-// as well as the UpdateFilter callbacks.
-func visit(c *config.Config, cexts []config.Configurer, knownDirectives map[string]bool, updateRels *UpdateFilter, trie *pathTrie, wf WalkFunc, rel string, updateParent bool) ([]string, bool) {
-	haveError := false
-
-	// Absolute path to the directory being visited
-	dir := filepath.Join(c.RepoRoot, rel)
-
-	f, err := loadBuildFile(c, rel, dir, trie.files)
-	if err != nil {
-		log.Print(err)
-		if c.Strict {
-			// TODO(https://github.com/bazelbuild/bazel-gazelle/issues/1029):
-			// Refactor to accumulate and propagate errors to main.
-			log.Fatal("Exit as strict mode is on")
+	rels := make([]string, len(dirs))
+	for i, dir := range dirs {
+		rel, err := filepath.Rel(c.RepoRoot, dir)
+		if err != nil {
+			return nil, err
 		}
-		haveError = true
-	}
-
-	collectionOnly := f == nil && getWalkConfig(c).updateOnly
-
-	// Configure the current directory if not only collecting files
-	if !collectionOnly {
-		configure(cexts, knownDirectives, c, rel, f)
-	}
-
-	wc := getWalkConfig(c)
-	if wc.isExcluded(rel) {
-		return nil, false
-	}
-
-	// Filter and collect files
-	var regularFiles []string
-	for _, ent := range trie.files {
-		base := ent.Name()
-		entRel := path.Join(rel, base)
-		if wc.isExcluded(entRel) {
-			continue
-		}
-		if shouldFollow(wc, dir, entRel, ent) {
-			regularFiles = append(regularFiles, base)
-		}
-	}
-
-	shouldUpdate := updateRels.shouldUpdate(rel, updateParent)
-
-	// Filter and collect subdirectories
-	var subdirs []string
-	for _, t := range trie.children {
-		base := t.entry.Name()
-		entRel := path.Join(rel, base)
-		if wc.isExcluded(entRel) {
-			continue
-		}
-		if shouldFollow(wc, dir, entRel, t.entry) {
-			if updateRels.shouldVisit(entRel, shouldUpdate) {
-				subFiles, shouldMerge := visit(c.Clone(), cexts, knownDirectives, updateRels, t, wf, entRel, shouldUpdate)
-				if shouldMerge {
-					for _, f := range subFiles {
-						regularFiles = append(regularFiles, path.Join(base, f))
-					}
-				} else {
-					subdirs = append(subdirs, base)
-				}
-			}
-		}
-	}
-
-	if collectionOnly {
-		return regularFiles, true
-	}
-
-	update := !haveError && !wc.ignore && shouldUpdate
-	if updateRels.shouldCall(rel, updateParent) {
-		genFiles := findGenFiles(wc, f)
-		wf(dir, rel, c, update, f, subdirs, regularFiles, genFiles)
-	}
-	return nil, false
-}
-
-// An UpdateFilter tracks which directories need to be updated
-//
-// INTERNAL: this is a non-public util only for use within bazel-gazelle.
-type UpdateFilter struct {
-	mode Mode
-
-	// map from slash-separated paths relative to the
-	// root directory ("" for the root itself) to a boolean indicating whether
-	// the directory should be updated.
-	updateRels map[string]bool
-}
-
-// NewUpdateFilter builds a table of prefixes, used to determine which
-// directories to update and visit.
-//
-// root and dirs must be absolute, canonical file paths. Each entry in dirs
-// must be a subdirectory of root. The caller is responsible for checking this.
-//
-// INTERNAL: this is a non-public util only for use within bazel-gazelle.
-func NewUpdateFilter(root string, dirs []string, mode Mode) *UpdateFilter {
-	relMap := make(map[string]bool)
-	for _, dir := range dirs {
-		rel, _ := filepath.Rel(root, dir)
 		rel = filepath.ToSlash(rel)
 		if rel == "." {
 			rel = ""
 		}
+		rels[i] = rel
+	}
 
+	shouldUpdateRel := make(map[string]bool)
+	for _, rel := range rels {
 		i := 0
 		for {
 			next := strings.IndexByte(rel[i:], '/') + i
 			if next-i < 0 {
-				relMap[rel] = true
+				shouldUpdateRel[rel] = true
 				break
 			}
 			prefix := rel[:next]
-			if _, ok := relMap[prefix]; !ok {
-				relMap[prefix] = false
+			if _, ok := shouldUpdateRel[prefix]; !ok {
+				shouldUpdateRel[prefix] = false
 			}
 			i = next + 1
 		}
 	}
-	return &UpdateFilter{mode, relMap}
+
+	w := &walker{
+		repoRoot:        c.RepoRoot,
+		rootConfig:      c,
+		cache:           new(cache),
+		cexts:           cexts,
+		knownDirectives: knownDirectives,
+		mode:            mode,
+		wf:              wf,
+		shouldUpdateRel: shouldUpdateRel,
+		visits:          make(map[string]visitInfo),
+		relsToVisitSeen: make(map[string]struct{}),
+	}
+	if mode == VisitAllUpdateSubdirsMode || mode == UpdateSubdirsMode {
+		w.populateCache(rels)
+	}
+
+	return w, nil
 }
 
-// shouldCall returns true if Walk should call the callback in the
-// directory rel.
-func (u *UpdateFilter) shouldCall(rel string, updateParent bool) bool {
-	switch u.mode {
+// shouldVisit returns whether the visit method should be called on rel.
+// We always need to visit directories requested by the caller and their
+// parents. We may also need to visit subdirectories.
+func (w *walker) shouldVisit(rel string, parentConfig *walkConfig, updateParent bool) bool {
+	switch w.mode {
 	case VisitAllUpdateSubdirsMode, VisitAllUpdateDirsMode:
 		return true
 	case UpdateSubdirsMode:
-		return updateParent || u.updateRels[rel]
+		_, ok := w.shouldUpdateRel[rel]
+		return ok || updateParent
 	default: // UpdateDirsMode
-		return u.updateRels[rel]
+		_, ok := w.shouldUpdateRel[rel]
+		return ok
 	}
 }
 
 // shouldUpdate returns true if Walk should pass true to the callback's update
 // parameter in the directory rel. This indicates the build file should be
 // updated.
-func (u *UpdateFilter) shouldUpdate(rel string, updateParent bool) bool {
-	if (u.mode == VisitAllUpdateSubdirsMode || u.mode == UpdateSubdirsMode) && updateParent {
+func (w *walker) shouldUpdate(rel string, updateParent bool) bool {
+	if (w.mode == VisitAllUpdateSubdirsMode || w.mode == UpdateSubdirsMode) && updateParent {
 		return true
 	}
-	return u.updateRels[rel]
+	return w.shouldUpdateRel[rel]
 }
 
-// shouldVisit returns true if Walk should visit the subdirectory rel.
-func (u *UpdateFilter) shouldVisit(rel string, updateParent bool) bool {
-	switch u.mode {
-	case VisitAllUpdateSubdirsMode, VisitAllUpdateDirsMode:
-		return true
-	case UpdateSubdirsMode:
-		_, ok := u.updateRels[rel]
-		return ok || updateParent
-	default: // UpdateDirsMode
-		_, ok := u.updateRels[rel]
-		return ok
+// visit is the main recursive function of walker. It visits one directory,
+// possibly recurses into subdirectories, and possible calls the callback.
+//
+// updateParent should indicate whether the the current mode tells Gazelle
+// to call the callback in the parent directory with update = true (see
+// shouldUpdate). The callback may not actually be called if the build file
+// contains syntax errors or a gazelle:ignore directive.
+func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
+	// Absolute path to the directory being visited
+	dir := filepath.Join(c.RepoRoot, rel)
+
+	// Load the build file and directory metadata.
+	info, err := w.cache.get(rel, w.loadDirInfo)
+	if err != nil {
+		w.errs = append(w.errs, err)
+	}
+	hasBuildFileError := err != nil
+	wc := info.config
+
+	if wc.isExcludedDir(rel) {
+		return
+	}
+
+	containedByParent := info.file == nil && wc.updateOnly
+
+	// Configure the directory, if we haven't done so already.
+	_, alreadyConfigured := w.visits[rel]
+	if !containedByParent && !alreadyConfigured {
+		configure(w.cexts, w.knownDirectives, c, rel, info.file, info.config)
+	}
+
+	regularFiles := info.regularFiles
+	subdirs := info.subdirs
+	shouldUpdate := w.shouldUpdate(rel, updateParent)
+	w.visits[rel] = visitInfo{
+		c:                 c,
+		containedByParent: containedByParent,
+		regularFiles:      regularFiles,
+		subdirs:           subdirs,
+	}
+
+	// Visit subdirectories, as needed.
+	for _, subdir := range subdirs {
+		subdirRel := path.Join(rel, subdir)
+		if w.shouldVisit(subdirRel, info.config, shouldUpdate) {
+			w.visit(c.Clone(), subdirRel, shouldUpdate)
+			if c.Strict && len(w.errs) > 0 {
+				return
+			}
+		}
+	}
+
+	// Recursively collect regular files from subdirectories that won't contain
+	// build files. Files are added in depth-first pre-order.
+	if !containedByParent {
+		var collect func(string, string)
+		collect = func(rel, prefix string) {
+			vi := w.visits[rel]
+			if !vi.containedByParent {
+				return
+			}
+			for _, f := range vi.regularFiles {
+				regularFiles = append(regularFiles, path.Join(prefix, f))
+			}
+			for _, f := range vi.subdirs {
+				subdirs = append(subdirs, path.Join(prefix, f))
+			}
+			for _, subdir := range vi.subdirs {
+				collect(path.Join(rel, subdir), path.Join(prefix, subdir))
+			}
+		}
+		for _, subdir := range subdirs {
+			collect(path.Join(rel, subdir), subdir)
+		}
+	}
+
+	// Call the callback to update this directory.
+	update := !wc.ignore && shouldUpdate && !hasBuildFileError
+	genFiles := findGenFiles(wc, info.file)
+	result := w.wf(Walk2FuncArgs{
+		Dir:          dir,
+		Rel:          rel,
+		Config:       c,
+		Update:       update,
+		File:         info.file,
+		Subdirs:      subdirs,
+		RegularFiles: regularFiles,
+		GenFiles:     genFiles,
+	})
+	if result.Err != nil {
+		w.errs = append(w.errs, result.Err)
+	}
+	for _, relToVisit := range result.RelsToVisit {
+		// Normalize RelsToVisit to clean relative paths and convert root "."
+		// to an empty string.
+		relToVisit = path.Clean(relToVisit)
+		if relToVisit == "." {
+			relToVisit = ""
+		}
+
+		if _, ok := w.relsToVisitSeen[relToVisit]; !ok {
+			w.relsToVisit = append(w.relsToVisit, relToVisit)
+			w.relsToVisitSeen[relToVisit] = struct{}{}
+		}
 	}
 }
 
-func loadBuildFile(c *config.Config, pkg, dir string, ents []fs.DirEntry) (*rule.File, error) {
+func loadBuildFile(wc *walkConfig, readBuildFilesDir string, pkg, dir string, ents []fs.DirEntry) (*rule.File, error) {
 	var err error
 	readDir := dir
 	readEnts := ents
-	if c.ReadBuildFilesDir != "" {
-		readDir = filepath.Join(c.ReadBuildFilesDir, filepath.FromSlash(pkg))
+	if readBuildFilesDir != "" {
+		readDir = filepath.Join(readBuildFilesDir, filepath.FromSlash(pkg))
 		readEnts, err = os.ReadDir(readDir)
 		if err != nil {
 			return nil, err
 		}
 	}
-	path := rule.MatchBuildFile(readDir, c.ValidBuildFileNames, readEnts)
+	path := rule.MatchBuildFile(readDir, wc.validBuildFileNames, readEnts)
 	if path == "" {
 		return nil, nil
 	}
 	return rule.LoadFile(path, pkg)
 }
 
-func configure(cexts []config.Configurer, knownDirectives map[string]bool, c *config.Config, rel string, f *rule.File) {
+func configure(cexts []config.Configurer, knownDirectives map[string]bool, c *config.Config, rel string, f *rule.File, wc *walkConfig) {
 	if f != nil {
 		for _, d := range f.Directives {
 			if !knownDirectives[d.Key] {
@@ -328,6 +559,7 @@ func configure(cexts []config.Configurer, knownDirectives map[string]bool, c *co
 			}
 		}
 	}
+	c.Exts[walkNameCached] = wc
 	for _, cext := range cexts {
 		cext.Configure(c, rel, f)
 	}
@@ -350,105 +582,34 @@ func findGenFiles(wc *walkConfig, f *rule.File) []string {
 
 	var genFiles []string
 	for _, s := range strs {
-		if !wc.isExcluded(path.Join(f.Pkg, s)) {
+		if !wc.isExcludedFile(path.Join(f.Pkg, s)) {
 			genFiles = append(genFiles, s)
 		}
 	}
 	return genFiles
 }
 
-func shouldFollow(wc *walkConfig, dir, rel string, ent fs.DirEntry) bool {
+// maybeResolveSymlink conditionally resolves a symbolic link.
+//
+// If ent is a symbolic link and Gazelle is configured to follow it (with
+// # gazelle:follow), then maybeResolveSymlink resolves the link and returns it.
+// The returned entry has the original name, but other metadata describes
+// the target file or directory.
+//
+// Otherwise, maybeResolveSymlink returns ent as-is.
+func maybeResolveSymlink(wc *walkConfig, dir, rel string, ent fs.DirEntry) fs.DirEntry {
 	if ent.Type()&os.ModeSymlink == 0 {
-		// Not a symlink
-		return true
+		// Not a symlink, use the original FileInfo.
+		return ent
 	}
 	if !wc.shouldFollow(rel) {
 		// A symlink, but not one we should follow.
-		return false
+		return ent
 	}
-	if _, err := os.Stat(path.Join(dir, ent.Name())); err != nil {
-		// A symlink, but not one we could resolve.
-		return false
-	}
-	return true
-}
-
-type pathTrie struct {
-	entry    fs.DirEntry
-	files    []fs.DirEntry
-	children []*pathTrie
-}
-
-// Basic factory method to ensure the entry is properly copied
-func newTrie(entry fs.DirEntry) *pathTrie {
-	return &pathTrie{
-		entry: entry,
-	}
-}
-
-func buildTrie(c *config.Config, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) (*pathTrie, error) {
-	trie := &pathTrie{}
-
-	// A channel to limit the number of concurrent goroutines
-	//
-	// This operation is likely to be limited by memory bandwidth and I/O,
-	// not CPU. On a MacBook Pro M1, 6 was the lowest value with best performance,
-	// but higher values didn't degrade performance. Higher values may benefit
-	// machines with more memory bandwidth.
-	//
-	// Use BenchmarkWalk to test changes here.
-	limitCh := make(chan struct{}, runtime.GOMAXPROCS(0))
-
-	// An error group to handle error propagation
-	eg := errgroup.Group{}
-	eg.Go(func() error {
-		return trie.walkDir(c.RepoRoot, "", &eg, limitCh, updateRels, ignoreFilter)
-	})
-
-	return trie, eg.Wait()
-}
-
-// walkDir recursively and concurrently descends into the 'rel' directory and builds a trie
-func (trie *pathTrie) walkDir(root, rel string, eg *errgroup.Group, limitCh chan struct{}, updateRels *UpdateFilter, ignoreFilter *ignoreFilter) error {
-	limitCh <- struct{}{}
-	defer (func() { <-limitCh })()
-
-	entries, err := os.ReadDir(filepath.Join(root, rel))
+	fi, err := os.Stat(path.Join(dir, ent.Name()))
 	if err != nil {
-		return err
+		// A symlink, but not one we could resolve.
+		return ent
 	}
-
-	for _, entry := range entries {
-		entryName := entry.Name()
-		entryPath := path.Join(rel, entryName)
-
-		// Ignore .git and empty names
-		if entryName == "" || entryName == ".git" {
-			continue
-		}
-
-		if entry.IsDir() {
-			if ignoreFilter.isDirectoryIgnored(entryPath) {
-				continue
-			}
-
-			// Ignore directories not even being visited
-			if !updateRels.shouldVisit(entryPath, true) {
-				continue
-			}
-
-			entryTrie := newTrie(entry)
-			trie.children = append(trie.children, entryTrie)
-			eg.Go(func() error {
-				return entryTrie.walkDir(root, entryPath, eg, limitCh, updateRels, ignoreFilter)
-			})
-		} else {
-			if ignoreFilter.isFileIgnored(entryPath) {
-				continue
-			}
-
-			trie.files = append(trie.files, entry)
-		}
-	}
-	return nil
+	return fs.FileInfoToDirEntry(fi)
 }

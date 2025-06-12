@@ -15,6 +15,7 @@
 visibility("private")
 
 DEFAULT_BUILD_FILE_GENERATION_BY_PATH = {
+    "cel.dev/expr": "on",
     "github.com/cncf/xds/go": "on",
     "github.com/envoyproxy/protoc-gen-validate": "on",
     "github.com/google/safetext": "on",
@@ -111,12 +112,18 @@ DEFAULT_DIRECTIVES_BY_PATH = {
     "k8s.io/api": [
         "gazelle:proto disable",
     ],
+    "k8s.io/apiserver": [
+        "gazelle:proto disable",
+    ],
     "k8s.io/apiextensions-apiserver": [
         "gazelle:proto disable",
     ],
     "k8s.io/apimachinery": [
         "gazelle:go_generate_proto false",
         "gazelle:proto_import_prefix k8s.io/apimachinery",
+    ],
+    "k8s.io/cri-api": [
+        "gazelle:proto disable",
     ],
     "k8s.io/kubelet": [
         "gazelle:proto disable",

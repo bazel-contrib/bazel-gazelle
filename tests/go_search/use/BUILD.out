@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+# gazelle:go_search ../third_party
+
+go_library(
+    name = "use",
+    srcs = ["use.go"],
+    importpath = "example.com/use/use",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//replace/b/p",
+        "//self",
+        "//third_party/example.com/a/p",
+    ],
+)

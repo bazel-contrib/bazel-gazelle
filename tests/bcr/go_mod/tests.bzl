@@ -1,4 +1,5 @@
 load("@bazel_features//:features.bzl", "bazel_features")
+load("@package_metadata//providers:package_metadata_info.bzl", "PackageMetadataInfo")
 load("@rules_license//rules:providers.bzl", "PackageInfo")
 load("@rules_testing//lib:analysis_test.bzl", "analysis_test", "test_suite")
 load("@rules_testing//lib:truth.bzl", "subjects")
@@ -21,6 +22,11 @@ def _test_package_info_impl(env, target):
     # available.
     if not bazel_features.proto.starlark_proto_info:
         return
+
+    # @package_metadata providers
+    env.expect.that_target(target).has_provider(PackageMetadataInfo)
+
+    # @rules_license providers
     env.expect.that_target(target).has_provider(PackageInfo)
     subject = env.expect.that_target(target).provider(PackageInfo)
     subject.package_name().equals("github.com/fmeum/dep_on_gazelle")
@@ -33,9 +39,17 @@ def _package_info_aspect_impl(_, ctx):
         attr = ctx.rule.attr.applicable_licenses
     elif hasattr(ctx.rule.attr, "package_metadata"):
         attr = ctx.rule.attr.package_metadata
-    if attr and PackageInfo in attr[0]:
-        return [attr[0][PackageInfo]]
-    return []
+    else:
+        fail("Expected attribute 'package_metadata' or 'applicable_licenses'")
+
+    providers = []
+    for m in attr:
+        if PackageInfo in m:
+            providers.append(m[PackageInfo])
+        if PackageMetadataInfo in m:
+            providers.append(m[PackageMetadataInfo])
+
+    return providers
 
 _package_info_aspect = aspect(
     implementation = _package_info_aspect_impl,
