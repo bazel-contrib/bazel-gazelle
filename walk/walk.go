@@ -238,7 +238,7 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 				slash = slash + 1 + i
 			}
 
-			if v, ok := w.visits[rel]; !ok || !v.didCall {
+			if v, ok := w.visits[rel]; !ok {
 				var c *config.Config
 				if ok {
 					// Already configured this directory but did not call the callback.
@@ -334,12 +334,6 @@ type visitInfo struct {
 	// and subdirs.
 	containedByParent bool
 
-	// didCall is true if we called the callback function for this directory.
-	// We must call this at most once, though we may visit a directory more than
-	// once: first, to configure it as a parent directory of something else;
-	// later, from RelsToVisit.
-	didCall bool
-
 	c                     *config.Config
 	regularFiles, subdirs []string
 }
@@ -405,11 +399,6 @@ func newWalker(c *config.Config, cexts []config.Configurer, dirs []string, mode 
 // We always need to visit directories requested by the caller and their
 // parents. We may also need to visit subdirectories.
 func (w *walker) shouldVisit(rel string, parentConfig *walkConfig, updateParent bool) bool {
-	if w.visits[rel].didCall {
-		// Already visited and called.
-		return false
-	}
-
 	switch w.mode {
 	case VisitAllUpdateSubdirsMode, VisitAllUpdateDirsMode:
 		return true
@@ -419,26 +408,6 @@ func (w *walker) shouldVisit(rel string, parentConfig *walkConfig, updateParent 
 	default: // UpdateDirsMode
 		_, ok := w.shouldUpdateRel[rel]
 		return ok
-	}
-}
-
-// shouldCall returns whether the caller's Walk2Func callback should be called
-// on rel. We always need to call it on directories requested by the caller.
-// We may need to call it on their subdirectories, depending on mode. We also
-// need to call it on any additional directories requested by the callback.
-func (w *walker) shouldCall(rel string, containedByParent, updateParent bool) bool {
-	if containedByParent {
-		return false
-	}
-	switch w.mode {
-	case VisitAllUpdateSubdirsMode, VisitAllUpdateDirsMode:
-		return true
-	case UpdateSubdirsMode:
-		_, isRelToVisit := w.relsToVisitSeen[rel]
-		return updateParent || w.shouldUpdateRel[rel] || isRelToVisit
-	default: // UpdateDirsMode
-		_, isRelToVisit := w.relsToVisitSeen[rel]
-		return w.shouldUpdateRel[rel] || isRelToVisit
 	}
 }
 
@@ -486,11 +455,9 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 	regularFiles := info.regularFiles
 	subdirs := info.subdirs
 	shouldUpdate := w.shouldUpdate(rel, updateParent)
-	shouldCall := w.shouldCall(rel, containedByParent, updateParent)
 	w.visits[rel] = visitInfo{
 		c:                 c,
 		containedByParent: containedByParent,
-		didCall:           shouldCall,
 		regularFiles:      regularFiles,
 		subdirs:           subdirs,
 	}
@@ -532,33 +499,31 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 
 	// Call the callback to update this directory.
 	update := !wc.ignore && shouldUpdate && !hasBuildFileError
-	if shouldCall {
-		genFiles := findGenFiles(wc, info.file)
-		result := w.wf(Walk2FuncArgs{
-			Dir:          dir,
-			Rel:          rel,
-			Config:       c,
-			Update:       update,
-			File:         info.file,
-			Subdirs:      subdirs,
-			RegularFiles: regularFiles,
-			GenFiles:     genFiles,
-		})
-		if result.Err != nil {
-			w.errs = append(w.errs, result.Err)
+	genFiles := findGenFiles(wc, info.file)
+	result := w.wf(Walk2FuncArgs{
+		Dir:          dir,
+		Rel:          rel,
+		Config:       c,
+		Update:       update,
+		File:         info.file,
+		Subdirs:      subdirs,
+		RegularFiles: regularFiles,
+		GenFiles:     genFiles,
+	})
+	if result.Err != nil {
+		w.errs = append(w.errs, result.Err)
+	}
+	for _, relToVisit := range result.RelsToVisit {
+		// Normalize RelsToVisit to clean relative paths and convert root "."
+		// to an empty string.
+		relToVisit = path.Clean(relToVisit)
+		if relToVisit == "." {
+			relToVisit = ""
 		}
-		for _, relToVisit := range result.RelsToVisit {
-			// Normalize RelsToVisit to clean relative paths and convert root "."
-			// to an empty string.
-			relToVisit = path.Clean(relToVisit)
-			if relToVisit == "." {
-				relToVisit = ""
-			}
 
-			if _, ok := w.relsToVisitSeen[relToVisit]; !ok {
-				w.relsToVisit = append(w.relsToVisit, relToVisit)
-				w.relsToVisitSeen[relToVisit] = struct{}{}
-			}
+		if _, ok := w.relsToVisitSeen[relToVisit]; !ok {
+			w.relsToVisit = append(w.relsToVisit, relToVisit)
+			w.relsToVisitSeen[relToVisit] = struct{}{}
 		}
 	}
 }

@@ -381,7 +381,7 @@ type goSearch struct {
 
 var (
 	validBuildExternalAttr       = []string{"external", "vendored"}
-	validBuildFileGenerationAttr = []string{"auto", "on", "off"}
+	validBuildFileGenerationAttr = []string{"auto", "on", "off", "clean"}
 	validBuildFileProtoModeAttr  = []string{"default", "legacy", "disable", "disable_global", "package"}
 )
 
