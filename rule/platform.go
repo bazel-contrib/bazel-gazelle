@@ -47,6 +47,8 @@ func (p Platform) String() string {
 // will generate multi-platform build files using these tags. rules_go and
 // Bazel may not actually support all of these.
 //
+// If updating this list, please run `bazel run @io_bazel_rules_go//go generate ./...`
+//
 // DEPRECATED: do not use outside language/go.
 var KnownPlatforms = []Platform{
 	{"aix", "ppc64"},
