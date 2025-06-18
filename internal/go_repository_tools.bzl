@@ -118,6 +118,8 @@ def _go_repository_tools_impl(ctx):
         "",
         False,
     )
+    if hasattr(ctx, "repo_metadata"):
+        return ctx.repo_metadata(reproducible = True)
 
 go_repository_tools = repository_rule(
     _go_repository_tools_impl,
