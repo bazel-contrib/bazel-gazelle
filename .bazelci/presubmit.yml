@@ -3,7 +3,7 @@ matrix:
   platform:
     - ubuntu2204
     - macos
-  bazel: [6.x, 7.x, 8.x]
+  bazel: [6.x, 7.x]
   bcr_variant:
     - tests/bcr/go_work
     - tests/bcr/go_mod

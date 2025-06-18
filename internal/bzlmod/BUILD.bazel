@@ -3,6 +3,7 @@ load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 filegroup(
     name = "all_files",
     testonly = True,
+    # keep out tools.go
     srcs = [
         "BUILD.bazel",
         "default_gazelle_overrides.bzl",
@@ -11,7 +12,7 @@ filegroup(
         "non_module_deps.bzl",
         "semver.bzl",
         "utils.bzl",
-    ],
+    ],  # keep
     visibility = ["//visibility:public"],
 )
 

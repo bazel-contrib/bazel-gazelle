@@ -62,7 +62,7 @@ go_test(
         "//internal/wspace",
         "//testtools",
         "@com_github_google_go_cmp//cmp",
-        "@io_bazel_rules_go//go/runfiles:go_default_library",
+        "@io_bazel_rules_go//go/runfiles",
     ],
 )
 
