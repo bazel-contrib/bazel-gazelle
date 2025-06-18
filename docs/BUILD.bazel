@@ -5,6 +5,7 @@ resulting documentation markdown files, to prevent users trying to load()
 the stardoc repository, which is not a dependency users should install.
 """
 
+load("@bazel_gazelle_is_bazel_module//:defs.bzl", "GAZELLE_IS_BAZEL_MODULE")
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@io_bazel_stardoc//stardoc:stardoc.bzl", "stardoc")
@@ -40,7 +41,9 @@ _DOC_SRCS = {
         # result from stardoc rule above
         file2 = out,
     )
+    # The repo names in the generated docs differ in WORKSPACE mode.
     for out in _DOC_SRCS.values()
+    if GAZELLE_IS_BAZEL_MODULE
 ]
 
 write_file(

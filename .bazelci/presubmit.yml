@@ -3,7 +3,7 @@ matrix:
   platform:
     - ubuntu2204
     - macos
-  bazel: [6.x, 7.x]
+  bazel: [6.x, 7.x, 8.x]
   bcr_variant:
     - tests/bcr/go_work
     - tests/bcr/go_mod
@@ -177,17 +177,15 @@ tasks:
     - "-//tests:fix_mode_print0"
     - "-//tests:fix_mode_strict"
   incompatible:
-    name: Ubuntu 22.04 with WORKSPACE and --config=incompatible
+    name: Ubuntu 22.04 with --config=incompatible
     platform: ubuntu2204
     build_flags:
-      - "--noenable_bzlmod"
       - "--config=incompatible"
     build_targets:
       - "..."
     run_targets:
       - "//:gazelle_ci"
     test_flags:
-      - "--noenable_bzlmod"
       - "--config=incompatible"
     test_targets:
       - "..."

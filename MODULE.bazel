@@ -8,7 +8,7 @@ module(
 bazel_dep(name = "bazel_features", version = "1.9.1")
 bazel_dep(name = "bazel_skylib", version = "1.5.0")
 bazel_dep(name = "protobuf", version = "3.19.6", repo_name = "com_google_protobuf")
-bazel_dep(name = "rules_go", version = "0.51.0", repo_name = "io_bazel_rules_go")
+bazel_dep(name = "rules_go", version = "0.53.0", repo_name = "io_bazel_rules_go")
 bazel_dep(name = "rules_license", version = "1.0.0")
 bazel_dep(name = "package_metadata", version = "0.0.2")
 bazel_dep(name = "rules_proto", version = "4.0.0")
@@ -32,14 +32,6 @@ use_repo(
 
 go_deps = use_extension("//:extensions.bzl", "go_deps")
 go_deps.from_file(go_mod = "//:go.mod")
-
-# golang.org/x/tools is not a direct dependency of the go code anymore
-# but bazel buildtools and nogo depend on it.
-go_deps.module(
-    path = "golang.org/x/tools",
-    sum = "h1:k8NLag8AGHnn+PHbl7g43CtqZAwG60vZkLqgyZgIHgQ=",
-    version = "v0.18.0",
-)
 use_repo(
     go_deps,
     "com_github_bazelbuild_buildtools",
@@ -49,7 +41,6 @@ use_repo(
     "com_github_pmezard_go_difflib",
     "org_golang_x_mod",
     "org_golang_x_sync",
-    "org_golang_x_tools",
     "org_golang_x_tools_go_vcs",
     # Referenced by `gazelle_binary`.
     "bazel_gazelle_go_repository_config",

@@ -11,7 +11,6 @@ go_bazel_test(
     ],
     rule_files = [
         "//:all_files",
-        "@io_bazel_rules_go//:all_files",
     ],
     deps = ["//testtools"],
 )
