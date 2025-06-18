@@ -1,1 +1,9 @@
-# gazelle:ignore
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "tools.go",
+    ],
+    visibility = ["//visibility:public"],
+)
