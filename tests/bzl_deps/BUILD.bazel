@@ -5,6 +5,7 @@ bzl_test(
     src = "do_nothing_macro.bzl",
     deps = [
         "//:def",
+        "@rules_cc//cc:bzl_srcs",
         "@rules_shell//shell:rules_bzl",
     ],
 )

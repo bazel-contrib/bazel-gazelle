@@ -7,7 +7,9 @@
 ## gazelle
 
 <pre>
-gazelle(<a href="#gazelle-name">name</a>, <a href="#gazelle-testonly">testonly</a>, <a href="#gazelle-kwargs">kwargs</a>)
+load("@gazelle//:def.bzl", "gazelle")
+
+gazelle(<a href="#gazelle-name">name</a>, <a href="#gazelle-testonly">testonly</a>, <a href="#gazelle-kwargs">**kwargs</a>)
 </pre>
 
 
@@ -27,7 +29,9 @@ gazelle(<a href="#gazelle-name">name</a>, <a href="#gazelle-testonly">testonly</
 ## gazelle_binary
 
 <pre>
-gazelle_binary(<a href="#gazelle_binary-kwargs">kwargs</a>)
+load("@gazelle//:def.bzl", "gazelle_binary")
+
+gazelle_binary(<a href="#gazelle_binary-kwargs">**kwargs</a>)
 </pre>
 
 
@@ -45,8 +49,10 @@ gazelle_binary(<a href="#gazelle_binary-kwargs">kwargs</a>)
 ## gazelle_generation_test
 
 <pre>
+load("@gazelle//:def.bzl", "gazelle_generation_test")
+
 gazelle_generation_test(<a href="#gazelle_generation_test-name">name</a>, <a href="#gazelle_generation_test-gazelle_binary">gazelle_binary</a>, <a href="#gazelle_generation_test-test_data">test_data</a>, <a href="#gazelle_generation_test-build_in_suffix">build_in_suffix</a>, <a href="#gazelle_generation_test-build_out_suffix">build_out_suffix</a>,
-                        <a href="#gazelle_generation_test-gazelle_timeout_seconds">gazelle_timeout_seconds</a>, <a href="#gazelle_generation_test-size">size</a>, <a href="#gazelle_generation_test-kwargs">kwargs</a>)
+                        <a href="#gazelle_generation_test-gazelle_timeout_seconds">gazelle_timeout_seconds</a>, <a href="#gazelle_generation_test-size">size</a>, <a href="#gazelle_generation_test-kwargs">**kwargs</a>)
 </pre>
 
 gazelle_generation_test is a macro for testing gazelle against workspaces.
@@ -91,7 +97,9 @@ To update the expected files, run `UPDATE_SNAPSHOTS=true bazel run //path/to:the
 ## gazelle_test
 
 <pre>
-gazelle_test(<a href="#gazelle_test-name">name</a>, <a href="#gazelle_test-size">size</a>, <a href="#gazelle_test-timeout">timeout</a>, <a href="#gazelle_test-kwargs">kwargs</a>)
+load("@gazelle//:def.bzl", "gazelle_test")
+
+gazelle_test(<a href="#gazelle_test-name">name</a>, <a href="#gazelle_test-size">size</a>, <a href="#gazelle_test-timeout">timeout</a>, <a href="#gazelle_test-kwargs">**kwargs</a>)
 </pre>
 
 
@@ -112,6 +120,8 @@ gazelle_test(<a href="#gazelle_test-name">name</a>, <a href="#gazelle_test-size"
 ## git_repository
 
 <pre>
+load("@gazelle//:def.bzl", "git_repository")
+
 git_repository(<a href="#git_repository-name">name</a>, <a href="#git_repository-commit">commit</a>, <a href="#git_repository-overlay">overlay</a>, <a href="#git_repository-remote">remote</a>, <a href="#git_repository-repo_mapping">repo_mapping</a>, <a href="#git_repository-tag">tag</a>)
 </pre>
 
@@ -156,6 +166,8 @@ git_repository(
 ## go_repository
 
 <pre>
+load("@gazelle//:def.bzl", "go_repository")
+
 go_repository(<a href="#go_repository-name">name</a>, <a href="#go_repository-auth_patterns">auth_patterns</a>, <a href="#go_repository-build_config">build_config</a>, <a href="#go_repository-build_directives">build_directives</a>, <a href="#go_repository-build_external">build_external</a>, <a href="#go_repository-build_extra_args">build_extra_args</a>,
               <a href="#go_repository-build_file_generation">build_file_generation</a>, <a href="#go_repository-build_file_name">build_file_name</a>, <a href="#go_repository-build_file_proto_mode">build_file_proto_mode</a>, <a href="#go_repository-build_naming_convention">build_naming_convention</a>,
               <a href="#go_repository-build_tags">build_tags</a>, <a href="#go_repository-canonical_id">canonical_id</a>, <a href="#go_repository-commit">commit</a>, <a href="#go_repository-debug_mode">debug_mode</a>, <a href="#go_repository-importpath">importpath</a>,
@@ -268,6 +280,8 @@ go_repository(
 ## http_archive
 
 <pre>
+load("@gazelle//:def.bzl", "http_archive")
+
 http_archive(<a href="#http_archive-name">name</a>, <a href="#http_archive-overlay">overlay</a>, <a href="#http_archive-repo_mapping">repo_mapping</a>, <a href="#http_archive-sha256">sha256</a>, <a href="#http_archive-strip_prefix">strip_prefix</a>, <a href="#http_archive-type">type</a>, <a href="#http_archive-urls">urls</a>)
 </pre>
 

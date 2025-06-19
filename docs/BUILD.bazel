@@ -23,7 +23,10 @@ _DOC_SRCS = {
         out = out,
         # Convention: foo.bzl has bzl_library named "foo"
         input = input + ".bzl",
-        deps = [input],
+        deps = [
+            input,
+            "@rules_cc//cc:bzl_srcs",
+        ],
     )
     for [
         input,
