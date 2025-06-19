@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package bar;
+
+option go_package = "github.com/owner/repo;foo";
+
+message Foo {}
