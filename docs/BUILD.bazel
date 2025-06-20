@@ -13,9 +13,8 @@ load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 
 # gazelle:ignore
 _DOC_SRCS = {
-    "//internal:repository_docs": "repository.md",
-    "//internal:extend_docs": "extend.md",
     "//:extensions": "extensions.md",
+    "//:def": "reference.md",
 }
 
 [

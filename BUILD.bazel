@@ -53,10 +53,11 @@ nogo(
 exports_files(
     [
         "WORKSPACE",
+        "def.bzl",
         "extend.md",
-        "repository.md",
-        "extensions.md",
         "extensions.bzl",
+        "extensions.md",
+        "reference.md",
     ],
     visibility = ["//:__subpackages__"],
 )
@@ -110,6 +111,7 @@ bzl_library(
         "//internal/generationtest",
         "@bazel_gazelle_is_bazel_module//:defs",
         "@bazel_skylib//lib:shell",
+        "@rules_shell//shell:rules_bzl",
     ],
 )
 

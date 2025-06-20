@@ -6,8 +6,7 @@ Gazelle build file generator
 .. _Kotlin Support: https://github.com/aspect-build/aspect-cli/blob/main/gazelle/kotlin/
 .. _JavaScript and TypeScript Support: https://github.com/aspect-build/aspect-cli/blob/main/gazelle/js/
 .. _Architecture of Gazelle: Design.rst
-.. _Repository rules: repository.md
-.. _go_repository: repository.md#go_repository
+.. _go_repository: reference.md#go_repository
 .. _fix: #fix-and-update
 .. _update: #fix-and-update
 .. _Avoiding conflicts with proto rules: https://github.com/bazelbuild/rules_go/blob/master/proto/core.rst#avoiding-conflicts
@@ -17,7 +16,7 @@ Gazelle build file generator
 .. _extensions.md: extensions.md#go_deps
 .. _Go Bzlmod docs: https://github.com/bazel-contrib/rules_go/blob/master/docs/go/core/bzlmod.md
 .. _extended: `Extending Gazelle`_
-.. _gazelle_binary: extend.md#gazelle_binary
+.. _gazelle_binary: reference.md#gazelle_binary
 .. _import_prefix: https://docs.bazel.build/versions/master/be/protocol-buffer.html#proto_library.import_prefix
 .. _strip_import_prefix: https://docs.bazel.build/versions/master/be/protocol-buffer.html#proto_library.strip_import_prefix
 .. _buildozer: https://github.com/bazelbuild/buildtools/tree/master/buildozer
@@ -83,10 +82,7 @@ and say hello!*
 **See also:**
 
 * `Architecture of Gazelle`_
-* `Repository rules`_
-
-  * `go_repository`_
-
+* `go_repository`_
 * `Extending Gazelle`_
 * `Avoiding conflicts with proto rules`_
 

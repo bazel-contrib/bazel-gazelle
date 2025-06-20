@@ -179,6 +179,7 @@ def _go_repository_impl(ctx):
             rev = ctx.attr.tag
             rev_key = "tag"
             # Not reproducible, tags can change.
+
         for key in ("urls", "strip_prefix", "type", "sha256", "version", "sum", "replace", "canonical_id"):
             if getattr(ctx.attr, key):
                 fail("cannot specify both %s and %s" % (rev_key, key), key)
@@ -689,4 +690,3 @@ go_repository = repository_rule(
         "internal_only_do_not_use_apparent_name": attr.string(doc = "Internal usage only"),
     },
 )
-"""See repository.md#go-repository for full documentation."""

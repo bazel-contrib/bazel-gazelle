@@ -22,8 +22,6 @@ gazelle_binary_test_suite()
 exports_files(
     [
         "gazelle.bash.in",
-        "extend_docs.bzl",
-        "repository_docs.bzl",
         "list_repository_tools_srcs.go",
         "repository_rules_test_errors.patch",
     ],
@@ -36,7 +34,6 @@ filegroup(
     srcs = [
         "BUILD.bazel",
         "common.bzl",
-        "extend_docs.bzl",
         "gazelle.bash.in",
         "gazelle_binary.bzl",
         "gazelle_binary_test.bzl",
@@ -48,7 +45,6 @@ filegroup(
         "is_bazel_module.bzl",
         "list_repository_tools_srcs.go",
         "overlay_repository.bzl",
-        "repository_docs.bzl",
         "repository_rules_test_errors.patch",
         "//internal/bzlmod:all_files",
         "//internal/gazellebinarytest:all_files",
@@ -104,26 +100,6 @@ bzl_library(
         ":common",
         "//internal:go_repository_cache",
         "//internal:go_repository_tools_srcs",
-    ],
-)
-
-bzl_library(
-    name = "repository_docs",
-    srcs = ["repository_docs.bzl"],
-    visibility = ["//:__subpackages__"],
-    deps = [
-        ":go_repository",
-        ":overlay_repository",
-    ],
-)
-
-bzl_library(
-    name = "extend_docs",
-    srcs = ["extend_docs.bzl"],
-    visibility = ["//:__subpackages__"],
-    deps = [
-        "gazelle_binary",
-        "//internal/generationtest",
     ],
 )
 
