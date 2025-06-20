@@ -27,7 +27,9 @@ package main
 import (
 	"flag"
 	"log"
+	"os"
 
+	"golang.org/x/mod/sumdb/dirhash"
 	"golang.org/x/tools/go/vcs"
 )
 
@@ -70,7 +72,19 @@ func main() {
 	}
 
 	if *no_fetch {
-		// Nothing to do
+		if *sum != "" {
+			repoSum, err := dirhash.HashDir(*dest, *importpath+"@"+*version, dirhash.Hash1)
+			if err != nil {
+				log.Fatalf("failed computing sum: %v", err)
+			}
+
+			if repoSum != *sum {
+				if goModCache := os.Getenv("GOMODCACHE"); goModCache != "" {
+					log.Fatalf("resulting module with sum %s; expected sum %s, Please try clearing your module cache directory %q", repoSum, *sum, goModCache)
+				}
+				log.Fatalf("resulting module with sum %s; expected sum %s", repoSum, *sum)
+			}
+		}
 	} else if *path != "" {
 		if *importpath != "" {
 			log.Fatal("-importpath must not be set")
