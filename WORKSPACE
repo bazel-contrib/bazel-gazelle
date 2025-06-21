@@ -1,19 +1,10 @@
 workspace(name = "bazel_gazelle")
 
+load("//:deps.bzl", "gazelle_dependencies")
+
+gazelle_dependencies(go_sdk = "go_sdk")
+
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-
-http_archive(
-    name = "bazel_skylib",
-    sha256 = "cd55a062e763b9349921f0f5db8c3933288dc8ba4f76dd9416aac68acee3cb94",
-    urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.5.0/bazel-skylib-1.5.0.tar.gz",
-        "https://github.com/bazelbuild/bazel-skylib/releases/download/1.5.0/bazel-skylib-1.5.0.tar.gz",
-    ],
-)
-
-load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
-
-bazel_skylib_workspace()
 
 http_archive(
     name = "io_bazel_rules_go",
@@ -63,9 +54,59 @@ go_download_sdk(
     version = "1.22.9",
 )
 
-load("//:deps.bzl", "gazelle_dependencies")
+# Load recent versions of core rulesets for compatibility with Bazel 8.
+http_archive(
+    name = "rules_cc",
+    sha256 = "abc605dd850f813bb37004b77db20106a19311a96b2da1c92b789da529d28fe1",
+    strip_prefix = "rules_cc-0.0.17",
+    urls = ["https://github.com/bazelbuild/rules_cc/releases/download/0.0.17/rules_cc-0.0.17.tar.gz"],
+)
 
-gazelle_dependencies(go_sdk = "go_sdk")
+http_archive(
+    name = "rules_python",
+    sha256 = "690e0141724abb568267e003c7b6d9a54925df40c275a870a4d934161dc9dd53",
+    strip_prefix = "rules_python-0.40.0",
+    url = "https://github.com/bazelbuild/rules_python/releases/download/0.40.0/rules_python-0.40.0.tar.gz",
+)
+
+load("@rules_python//python:repositories.bzl", "py_repositories")
+
+py_repositories()
+
+http_archive(
+    name = "rules_java",
+    sha256 = "d31b6c69e479ffa45460b64dc9c7792a431cac721ef8d5219fc9f603fa2ff877",
+    urls = [
+        "https://github.com/bazelbuild/rules_java/releases/download/8.11.0/rules_java-8.11.0.tar.gz",
+    ],
+)
+
+load("@rules_java//java:rules_java_deps.bzl", "rules_java_dependencies")
+
+rules_java_dependencies()
+
+# note that the following line is what is minimally required from protobuf for the java rules
+# consider using the protobuf_deps() public API from @com_google_protobuf//:protobuf_deps.bzl
+load("@com_google_protobuf//bazel/private:proto_bazel_features.bzl", "proto_bazel_features")  # buildifier: disable=bzl-visibility
+
+proto_bazel_features(name = "proto_bazel_features")
+
+load("@rules_java//java:repositories.bzl", "rules_java_toolchains")
+
+rules_java_toolchains()
+
+http_archive(
+    name = "rules_shell",
+    sha256 = "d8cd4a3a91fc1dc68d4c7d6b655f09def109f7186437e3f50a9b60ab436a0c53",
+    strip_prefix = "rules_shell-0.3.0",
+    url = "https://github.com/bazelbuild/rules_shell/releases/download/v0.3.0/rules_shell-v0.3.0.tar.gz",
+)
+
+load("@rules_shell//shell:repositories.bzl", "rules_shell_dependencies", "rules_shell_toolchains")
+
+rules_shell_dependencies()
+
+rules_shell_toolchains()
 
 # Needed by rules_go when using proto rules, but not provided by its deps macro.
 http_archive(
@@ -142,25 +183,3 @@ load("@bazel_skylib_gazelle_plugin//:setup.bzl", "bazel_skylib_gazelle_plugin_se
 bazel_skylib_gazelle_plugin_setup(
     register_go_toolchains = False,
 )
-
-# gazelle:repository go_repository name=com_github_bazelbuild_buildtools importpath=github.com/bazelbuild/buildtools
-# gazelle:repository go_repository name=com_github_bazelbuild_rules_go importpath=github.com/bazelbuild/rules_go
-# gazelle:repository go_repository name=com_github_bmatcuk_doublestar_v4 importpath=github.com/bmatcuk/doublestar/v4
-# gazelle:repository go_repository name=com_github_fsnotify_fsnotify importpath=github.com/fsnotify/fsnotify
-# gazelle:repository go_repository name=com_github_gogo_protobuf importpath=github.com/gogo/protobuf
-# gazelle:repository go_repository name=com_github_golang_mock importpath=github.com/golang/mock
-# gazelle:repository go_repository name=com_github_golang_protobuf importpath=github.com/golang/protobuf
-# gazelle:repository go_repository name=com_github_google_go_cmp importpath=github.com/google/go-cmp
-# gazelle:repository go_repository name=com_github_pmezard_go_difflib importpath=github.com/pmezard/go-difflib
-# gazelle:repository go_repository name=net_starlark_go importpath=go.starlark.net
-# gazelle:repository go_repository name=org_golang_google_genproto importpath=google.golang.org/genproto
-# gazelle:repository go_repository name=org_golang_google_grpc importpath=google.golang.org/grpc
-# gazelle:repository go_repository name=org_golang_google_grpc_cmd_protoc_gen_go_grpc importpath=google.golang.org/grpc/cmd/protoc-gen-go-grpc
-# gazelle:repository go_repository name=org_golang_google_protobuf importpath=google.golang.org/protobuf
-# gazelle:repository go_repository name=org_golang_x_mod importpath=golang.org/x/mod
-# gazelle:repository go_repository name=org_golang_x_net importpath=golang.org/x/net
-# gazelle:repository go_repository name=org_golang_x_sync importpath=golang.org/x/sync
-# gazelle:repository go_repository name=org_golang_x_sys importpath=golang.org/x/sys
-# gazelle:repository go_repository name=org_golang_x_text importpath=golang.org/x/text
-# gazelle:repository go_repository name=org_golang_x_tools importpath=golang.org/x/tools
-# gazelle:repository go_repository name=org_golang_x_tools_go_vcs importpath=golang.org/x/tools/go/vcs

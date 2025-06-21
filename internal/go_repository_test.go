@@ -116,13 +116,13 @@ func TestMain(m *testing.M) {
 }
 
 func TestBuild(t *testing.T) {
-	if err := bazel_testing.RunBazel("build", "@errors_go_git//:errors", "@errors_go_mod//:go_default_library"); err != nil {
+	if err := bazel_testing.RunBazel("build", "--enable_workspace", "@errors_go_git//:errors", "@errors_go_mod//:go_default_library"); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestDirectives(t *testing.T) {
-	err := bazel_testing.RunBazel("query", "@com_github_apex_log//handlers/...")
+	err := bazel_testing.RunBazel("query", "--enable_workspace", "@com_github_apex_log//handlers/...")
 	if err == nil {
 		t.Fatal("Should not generate build files for @com_github_apex_log//handlers/...")
 	}
@@ -132,7 +132,7 @@ func TestDirectives(t *testing.T) {
 }
 
 func TestRepoConfig(t *testing.T) {
-	if err := bazel_testing.RunBazel("build", "@bazel_gazelle_go_repository_config//:all"); err != nil {
+	if err := bazel_testing.RunBazel("build", "--enable_workspace", "@bazel_gazelle_go_repository_config//:all"); err != nil {
 		t.Fatal(err)
 	}
 	outputBase, err := getBazelOutputBase()
@@ -180,7 +180,7 @@ go_repository(
 }
 
 func TestModcacheRW(t *testing.T) {
-	if err := bazel_testing.RunBazel("query", "@errors_go_mod//:go_default_library"); err != nil {
+	if err := bazel_testing.RunBazel("query", "--enable_workspace", "@errors_go_mod//:go_default_library"); err != nil {
 		t.Fatal(err)
 	}
 	out, err := bazel_testing.BazelOutput("info", "output_base")
@@ -199,7 +199,7 @@ func TestModcacheRW(t *testing.T) {
 }
 
 func TestRepoCacheContainsGoEnv(t *testing.T) {
-	if err := bazel_testing.RunBazel("query", "@errors_go_mod//:go_default_library"); err != nil {
+	if err := bazel_testing.RunBazel("query", "--enable_workspace", "@errors_go_mod//:go_default_library"); err != nil {
 		t.Fatal(err)
 	}
 	outputBase, err := getBazelOutputBase()
