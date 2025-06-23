@@ -259,7 +259,7 @@ def _go_repository_config_impl(ctx):
         ))
 
     ctx.file("WORKSPACE", "\n".join(repos))
-    ctx.file("BUILD.bazel", "exports_files(['WORKSPACE', 'config.json'])")
+    ctx.file("BUILD.bazel", "exports_files(['WORKSPACE', 'config.json', 'go_env.bzl'])")
     ctx.file("go_env.bzl", content = "GO_ENV = " + repr(ctx.attr.go_env))
 
     # For use by @rules_go//go.
