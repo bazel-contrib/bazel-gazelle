@@ -17,6 +17,10 @@ load(
     "GAZELLE_IS_BAZEL_MODULE",
 )
 load(
+    "@bazel_gazelle_go_repository_config//:go_env.bzl",
+    "GO_ENV",
+)
+load(
     "@bazel_skylib//lib:shell.bzl",
     "shell",
 )
@@ -141,11 +145,14 @@ def _gazelle_runner_impl_factory(ctx, test_runner = False):
         args.extend(["-build_tags", ",".join(ctx.attr.build_tags)])
     args.extend([ctx.expand_location(arg, ctx.attr.data) for arg in ctx.attr.extra_args])
 
-    for key in ctx.attr.env:
+    combined_env = {}
+    combined_env.update(GO_ENV)
+    combined_env.update(ctx.attr.env)
+    for key in combined_env:
         if not _valid_env_variable_name(key):
             fail("Invalid environmental variable name: '%s'" % key)
 
-    env = "\n".join(["export %s=%s" % (x, shell.quote(y)) for (x, y) in ctx.attr.env.items()])
+    env = "\n".join(["export %s=%s" % (x, shell.quote(y)) for (x, y) in combined_env.items()])
 
     out_file = ctx.actions.declare_file(ctx.label.name + ".bash")
     go_tool = ctx.toolchains["@io_bazel_rules_go//go:toolchain"].sdk.go

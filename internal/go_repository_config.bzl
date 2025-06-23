@@ -58,10 +58,17 @@ def _go_repository_config_impl(ctx):
             False,
         )
 
+    # add an empty go_env.bzl file for compatibility with bzlmod
+    ctx.file(
+        "go_env.bzl",
+        "GO_ENV = {}",
+        False,
+    )
+
     # add an empty build file so Bazel recognizes the config
     ctx.file(
         "BUILD.bazel",
-        "exports_files([\"WORKSPACE\"])",
+        "exports_files([\"go_env.bzl\", \"WORKSPACE\"])",
         False,
     )
 
