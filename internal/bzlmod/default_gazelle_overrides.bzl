@@ -31,6 +31,9 @@ DEFAULT_DIRECTIVES_BY_PATH = {
         "gazelle:proto disable",
         "gazelle:go_naming_convention import_alias",
     ],
+    "github.com/authzed/cel-go": [
+        "gazelle:go_naming_convention go_default_library",
+    ],
     "github.com/authzed/spicedb": [
         "gazelle:proto disable",
     ],
