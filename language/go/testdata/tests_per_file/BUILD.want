@@ -13,6 +13,7 @@ go_test(
     srcs = ["bar_test.go"],
     _gazelle_imports = ["testing"],
     embed = [":tests_per_file"],
+    shard_count = 1,
 )
 
 go_test(
@@ -32,4 +33,5 @@ go_test(
         "testing",
     ],
     embed = [":tests_per_file"],
+    shard_count = 2,
 )
