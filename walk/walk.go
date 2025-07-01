@@ -495,35 +495,35 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 		for _, subdir := range subdirs {
 			collect(path.Join(rel, subdir), subdir)
 		}
-	}
 
-	// Call the callback to update this directory.
-	update := !wc.ignore && shouldUpdate && !hasBuildFileError
-	genFiles := findGenFiles(wc, info.file)
-	result := w.wf(Walk2FuncArgs{
-		Dir:          dir,
-		Rel:          rel,
-		Config:       c,
-		Update:       update,
-		File:         info.file,
-		Subdirs:      subdirs,
-		RegularFiles: regularFiles,
-		GenFiles:     genFiles,
-	})
-	if result.Err != nil {
-		w.errs = append(w.errs, result.Err)
-	}
-	for _, relToVisit := range result.RelsToVisit {
-		// Normalize RelsToVisit to clean relative paths and convert root "."
-		// to an empty string.
-		relToVisit = path.Clean(relToVisit)
-		if relToVisit == "." {
-			relToVisit = ""
+		// Call the callback to update this directory.
+		update := !wc.ignore && shouldUpdate && !hasBuildFileError
+		genFiles := findGenFiles(wc, info.file)
+		result := w.wf(Walk2FuncArgs{
+			Dir:          dir,
+			Rel:          rel,
+			Config:       c,
+			Update:       update,
+			File:         info.file,
+			Subdirs:      subdirs,
+			RegularFiles: regularFiles,
+			GenFiles:     genFiles,
+		})
+		if result.Err != nil {
+			w.errs = append(w.errs, result.Err)
 		}
+		for _, relToVisit := range result.RelsToVisit {
+			// Normalize RelsToVisit to clean relative paths and convert root "."
+			// to an empty string.
+			relToVisit = path.Clean(relToVisit)
+			if relToVisit == "." {
+				relToVisit = ""
+			}
 
-		if _, ok := w.relsToVisitSeen[relToVisit]; !ok {
-			w.relsToVisit = append(w.relsToVisit, relToVisit)
-			w.relsToVisitSeen[relToVisit] = struct{}{}
+			if _, ok := w.relsToVisitSeen[relToVisit]; !ok {
+				w.relsToVisit = append(w.relsToVisit, relToVisit)
+				w.relsToVisitSeen[relToVisit] = struct{}{}
+			}
 		}
 	}
 }

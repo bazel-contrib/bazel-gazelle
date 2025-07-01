@@ -223,13 +223,14 @@ func TestGenMode(t *testing.T) {
 	defer cleanup()
 
 	type visitSpec struct {
+		rel            string
 		subdirs, files []string
 	}
 
 	check := func(t *testing.T, visits []visitSpec) {
 		t.Helper()
-		if len(visits) != 11 {
-			t.Error(fmt.Sprintf("Expected 11 visits, got %v", len(visits)))
+		if len(visits) != 7 {
+			t.Error(fmt.Sprintf("Expected 7 visits, got %v", len(visits)))
 		}
 
 		if !reflect.DeepEqual(visits[len(visits)-1].subdirs, []string{"mode-create", "mode-update"}) {
@@ -240,13 +241,32 @@ func TestGenMode(t *testing.T) {
 			t.Errorf("Leaf visit should be only files: %v", visits[0])
 		}
 		modeUpdateFiles1 := []string{"BUILD.bazel", "d.go", "sub4/e.go"}
-		if !reflect.DeepEqual(visits[7].files, modeUpdateFiles1) {
+		if !reflect.DeepEqual(visits[4].files, modeUpdateFiles1) {
 			t.Errorf("update mode should contain files in subdirs. Want %v, got: %v", modeUpdateFiles1, visits[5].files)
 		}
 
 		modeUpdateFiles2 := []string{"BUILD.bazel", "a.go", "sub/b.go", "sub/sub2/sub3/c.go"}
-		if !reflect.DeepEqual(visits[9].files, modeUpdateFiles2) {
+		if !reflect.DeepEqual(visits[5].files, modeUpdateFiles2) {
 			t.Errorf("update mode should contain files in subdirs. Want %v, got: %v", modeUpdateFiles2, visits[5].files)
+		}
+
+		// Verify every file+directory is only passed to a single WalkFunc invocation.
+		filesSeen := make(map[string]string)
+		for _, v := range visits {
+			for _, f := range v.files {
+				fullPath := filepath.Join(v.rel, f)
+				if p, exists := filesSeen[fullPath]; exists {
+					t.Errorf("File %q already seen in %q, now also in %q", fullPath, p, v.rel)
+				}
+				filesSeen[fullPath] = v.rel
+			}
+			for _, f := range v.subdirs {
+				fullPath := filepath.Join(v.rel, f)
+				if p, exists := filesSeen[fullPath]; exists {
+					t.Errorf("Dir %q already seen in %q, now also in %q", fullPath, p, v.rel)
+				}
+				filesSeen[fullPath] = v.rel
+			}
 		}
 	}
 
@@ -255,6 +275,7 @@ func TestGenMode(t *testing.T) {
 		var visits []visitSpec
 		Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, rel string, _ *config.Config, update bool, _ *rule.File, subdirs, regularFiles, _ []string) {
 			visits = append(visits, visitSpec{
+				rel:     rel,
 				subdirs: subdirs,
 				files:   regularFiles,
 			})
@@ -267,6 +288,7 @@ func TestGenMode(t *testing.T) {
 		var visits []visitSpec
 		err := Walk2(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
 			visits = append(visits, visitSpec{
+				rel:     args.Rel,
 				subdirs: args.Subdirs,
 				files:   args.RegularFiles,
 			})
