@@ -46,6 +46,7 @@ func FixLoads(f *rule.File, knownLoads []rule.LoadInfo) {
 	// since these may be changed. Keep track of symbols loaded from unknown
 	// files; we will not add loads for these.
 	var loads []*rule.Load
+	assignedSymbols := make(map[string]bool)
 	otherLoadedKinds := make(map[string]bool)
 	for _, l := range f.Loads {
 		if knownFiles[l.Name()] {
@@ -89,7 +90,9 @@ func FixLoads(f *rule.File, knownLoads []rule.LoadInfo) {
 				return
 			}
 		} else if ae, ok := x.(*bzl.AssignExpr); ok {
-			if id, ok := ae.RHS.(*bzl.Ident); ok {
+			if id, ok := ae.LHS.(*bzl.Ident); ok && len(stk) == 1 {
+				assignedSymbols[id.Name] = true
+			} else if id, ok := ae.RHS.(*bzl.Ident); ok && !assignedSymbols[id.Name] {
 				idents = append(idents, id)
 			} else {
 				return

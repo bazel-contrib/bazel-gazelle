@@ -70,13 +70,17 @@ func TestFixLoads(t *testing.T) {
 		"correct": {
 			input: `load("@foo", "foo_binary", "foo_library")
 
-foo_binary(name = "a")
+maybe = "foo_name"
+
+foo_binary(name = maybe)
 
 foo_library(name = "a_lib")
 `,
 			want: `load("@foo", "foo_binary", "foo_library")
 
-foo_binary(name = "a")
+maybe = "foo_name"
+
+foo_binary(name = maybe)
 
 foo_library(name = "a_lib")
 `,
