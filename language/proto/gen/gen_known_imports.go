@@ -45,8 +45,8 @@ package {{.Package}}
 import "github.com/bazelbuild/bazel-gazelle/label"
 
 var {{.Var}} = map[string]label.Label{
-{{range .Bindings}}
-	{{printf "%q: label.Label{Repo: %q, Pkg: %q, Name: %q}" .Import .Label.Repo .Label.Pkg .Label.Name}},
+{{- range .Bindings}}
+	{{printf "%q: {Repo: %q, Pkg: %q, Name: %q}" .Import .Label.Repo .Label.Pkg .Label.Name}},
 {{- end}}
 }
 `))
