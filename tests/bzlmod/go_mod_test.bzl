@@ -48,6 +48,7 @@ _EXPECTED_GO_MOD_PARSE_RESULT = struct(
     tool = (
         "golang.org/x/tools/cmd/bisect",
     ),
+    godebug = {},
 )
 
 def _go_mod_test_impl(ctx):
@@ -70,6 +71,7 @@ _EXPECTED_GO_MOD_21_PARSE_RESULT = struct(
     replace_map = {},
     require = (),
     tool = (),
+    godebug = {},
 )
 
 def _use_spec_to_label_test_impl(ctx):
@@ -89,6 +91,44 @@ def _go_mod_21_test_impl(ctx):
     return unittest.end(env)
 
 go_mod_21_test = unittest.make(_go_mod_21_test_impl)
+
+_GO_MOD_GODEBUG_CONTENT = """module example.com/godebug
+
+go 1.23
+
+require github.com/example/foo v1.0.0
+
+godebug default=go1.21
+godebug panicnil=1
+
+godebug (
+    asynctimerchan=1
+    http2client=0
+)
+"""
+
+_EXPECTED_GO_MOD_GODEBUG_PARSE_RESULT = struct(
+    go = (1, 23),
+    module = "example.com/godebug",
+    replace_map = {},
+    require = (
+        struct(indirect = False, path = "github.com/example/foo", version = "v1.0.0"),
+    ),
+    tool = (),
+    godebug = {
+        "default": "go1.21",
+        "panicnil": "1",
+        "asynctimerchan": "1",
+        "http2client": "0",
+    },
+)
+
+def _go_mod_godebug_test_impl(ctx):
+    env = unittest.begin(ctx)
+    asserts.equals(env, _EXPECTED_GO_MOD_GODEBUG_PARSE_RESULT, parse_go_mod(_GO_MOD_GODEBUG_CONTENT, "/go.mod"))
+    return unittest.end(env)
+
+go_mod_godebug_test = unittest.make(_go_mod_godebug_test_impl)
 
 _GO_SUM_CONTENT = """cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
@@ -144,6 +184,7 @@ _EXPECTED_GO_WORK_PARSE_RESULT = struct(
         "./foo/go_mod_two",
         "./bar/baz/go_mod_three",
     ],
+    godebug = {},
 )
 
 def _go_work_test_impl(ctx):
@@ -158,6 +199,7 @@ def go_mod_test_suite(name):
         name,
         go_mod_test,
         go_mod_21_test,
+        go_mod_godebug_test,
         go_sum_test,
         go_work_test,
         use_spec_test,

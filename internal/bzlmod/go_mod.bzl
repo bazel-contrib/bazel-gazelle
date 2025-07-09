@@ -64,6 +64,7 @@ def parse_go_work(content, go_work_label):
         "go": None,
         "use": [],
         "replace": {},
+        "godebug": {},
     }
 
     current_directive = None
@@ -80,6 +81,8 @@ def parse_go_work(content, go_work_label):
                 state["use"].append(tokens[0])
             elif current_directive == "replace":
                 _parse_replace_directive(state, tokens, go_work_label.name, line_no)
+            elif current_directive == "godebug":
+                _parse_godebug_directive(state, tokens, go_work_label.name, line_no)
             else:
                 fail("{}:{}: unexpected directive '{}'".format(go_work_label.name, line_no, current_directive))
         elif tokens[0] == "go":
@@ -101,6 +104,14 @@ def parse_go_work(content, go_work_label):
                 state["use"].append(tokens[1])
         elif tokens[0] == "toolchain":
             continue
+        elif tokens[0] == "godebug":
+            if len(tokens) == 2 and tokens[1] == "(":
+                current_directive = tokens[0]
+                continue
+            elif len(tokens) == 2:
+                _parse_godebug_directive(state, tokens[1:], go_work_label.name, line_no)
+            else:
+                fail("{}:{}: expected key=value or block in 'godebug' directive".format(go_work_label.name, line_no))
         else:
             fail("{}:{}: unexpected directive '{}'".format(go_work_label.name, line_no, tokens[0]))
 
@@ -117,6 +128,7 @@ def parse_go_work(content, go_work_label):
         replace_map = state["replace"],
         module_tags = module_tags,
         use = state["use"],
+        godebug = state["godebug"],
     )
 
 # this exists because we are unable to create a path object in unit tests, we
@@ -186,7 +198,7 @@ def deps_from_go_mod(module_ctx, go_mod_label):
             _parent_label = go_mod_label,
         ))
 
-    return go_mod.module, deps, go_mod.replace_map, go_mod.tool
+    return go_mod.module, deps, go_mod.replace_map, go_mod.tool, go_mod.godebug
 
 def parse_go_mod(content, path):
     # See https://go.dev/ref/mod#go-mod-file.
@@ -202,6 +214,7 @@ def parse_go_mod(content, path):
         "require": [],
         "replace": {},
         "tool": [],
+        "godebug": {},
     }
 
     current_directive = None
@@ -211,7 +224,7 @@ def parse_go_mod(content, path):
             continue
 
         if not current_directive:
-            if tokens[0] not in ["module", "go", "require", "replace", "exclude", "retract", "toolchain", "tool"]:
+            if tokens[0] not in ["module", "go", "require", "replace", "exclude", "retract", "toolchain", "tool", "godebug"]:
                 fail("{}:{}: unexpected token '{}' at start of line".format(path, line_no, tokens[0]))
             if len(tokens) == 1:
                 fail("{}:{}: expected another token after '{}'".format(path, line_no, tokens[0]))
@@ -257,6 +270,7 @@ def parse_go_mod(content, path):
         require = tuple(state["require"]),
         replace_map = state["replace"],
         tool = tuple(state["tool"]),
+        godebug = state["godebug"],
     )
 
 def _parse_directive(state, directive, tokens, comment, path, line_no):
@@ -280,8 +294,23 @@ def _parse_directive(state, directive, tokens, comment, path, line_no):
         if len(tokens) != 1:
             fail("{}:{}: expected module path in 'tool' directive".format(path, line_no))
         state["tool"].append(tokens[0])
+    elif directive == "godebug":
+        _parse_godebug_directive(state, tokens, path, line_no)
 
     # TODO: Handle exclude.
+
+def _parse_godebug_directive(state, tokens, path, line_no):
+    if len(tokens) != 1:
+        fail("{}:{}: expected key=value in 'godebug' directive".format(path, line_no))
+    key_value = tokens[0]
+    if "=" not in key_value:
+        fail("{}:{}: godebug directive must be in key=value format, got '{}'".format(path, line_no, key_value))
+    key, _, value = key_value.partition("=")
+    if not key:
+        fail("{}:{}: godebug directive has empty key in '{}'".format(path, line_no, key_value))
+    if key in state["godebug"]:
+        fail("{}:{}: duplicate godebug key '{}'".format(path, line_no, key))
+    state["godebug"][key] = value
 
 def _parse_replace_directive(state, tokens, path, line_no):
     # replacements key off of the from_path
