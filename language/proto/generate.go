@@ -103,7 +103,7 @@ func RuleName(names ...string) string {
 				c == '_')
 		}
 		// If name is a path, take only the last segment
-		if i := strings.LastIndexAny(name, `/\\`); i != -1 {
+		if i := strings.LastIndexAny(name, `/\\.`); i != -1 {
 			name = name[i+1:]
 		}
 		// Replace illegal characters with underscores
