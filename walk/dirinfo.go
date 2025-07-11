@@ -17,6 +17,7 @@ type DirInfo struct {
 	// that are not ignored or excluded.
 	// GenFiles is a list of generated files, named in "out" or "outs" attributes
 	// of targets in the directory's build file.
+	// The content of these slices must not be modified.
 	Subdirs, RegularFiles, GenFiles []string
 
 	// File is the directory's build File. May be nil if the build File doesn't
@@ -85,6 +86,13 @@ func (w *walker) loadDirInfo(rel string) (DirInfo, error) {
 	}
 
 	info.GenFiles = findGenFiles(info.config, info.File)
+
+	// Reduce cap of each slice to len, so that if the caller appends, they'll
+	// need to copy to a new backing array. This is defensive: it prevents
+	// multiple callers from overwriting the same backing array.
+	info.RegularFiles = info.RegularFiles[:len(info.RegularFiles):len(info.RegularFiles)]
+	info.Subdirs = info.Subdirs[:len(info.Subdirs):len(info.Subdirs)]
+	info.GenFiles = info.GenFiles[:len(info.GenFiles):len(info.GenFiles)]
 
 	return info, errors.Join(errs...)
 }

@@ -85,7 +85,8 @@ func setGlobalCache(c *cache) func() {
 // GetDirInfo returns the list of files and subdirectories contained in a
 // directory named by rel. It also returns the parsed build file or nil if
 // none was present. rel is a slash-separated path, relative to the repository
-// root directory or "" for the root directory itself.
+// root directory or "" for the root directory itself. The returned values
+// must not be modified.
 //
 // GetDirInfo does not directly perform any I/O. Instead, it provides access
 // to an internal cache to an internal cache that Walk and Walk2 use to speed
