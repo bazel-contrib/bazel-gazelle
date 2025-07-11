@@ -210,7 +210,7 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 	if err != nil {
 		return err
 	}
-	cleanup := maybeSetGlobalCache(w.cache)
+	cleanup := setGlobalCache(w.cache)
 	defer cleanup()
 
 	// Do the main tree walk, visiting directories the user requested.

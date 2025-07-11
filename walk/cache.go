@@ -72,20 +72,14 @@ func (c *cache) getLoaded(rel string) (DirInfo, error) {
 	return ce.info, ce.err
 }
 
-var (
-	globalCache   *cache
-	globalCacheMu sync.Mutex
-)
+var globalCache *cache
 
-func maybeSetGlobalCache(c *cache) func() {
-	globalCacheMu.Lock()
-	defer globalCacheMu.Unlock()
-	if globalCache == nil {
-		globalCache = c
-		return func() { globalCache = nil }
-	} else {
-		return func() {}
+func setGlobalCache(c *cache) func() {
+	if globalCache != nil {
+		panic("globalCache already set")
 	}
+	globalCache = c
+	return func() { globalCache = nil }
 }
 
 // GetDirInfo returns the list of files and subdirectories contained in a
@@ -103,8 +97,6 @@ func maybeSetGlobalCache(c *cache) func() {
 // the same information and may be used by methods like Resolver.Imports
 // that get called earlier without the same information.
 func GetDirInfo(rel string) (DirInfo, error) {
-	globalCacheMu.Lock()
-	defer globalCacheMu.Unlock()
 	if globalCache == nil {
 		panic("global cache is not set")
 	}
