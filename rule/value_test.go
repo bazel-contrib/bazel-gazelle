@@ -147,8 +147,13 @@ func TestParseGlobExpr(t *testing.T) {
 		},
 		{
 			name: "other_args",
-			text: `glob(["a"], allow_empty = True)`,
+			text: `glob(["a"], allow_empty = True, exclude_directories = 1)`,
 			want: GlobValue{Patterns: []string{"a"}},
+		},
+		{
+			name: "invalid_args",
+			text: `glob(["a"], ["b"], exclude = ["x"], unknown = 1, *args, **kwargs)`,
+			want: GlobValue{Patterns: []string{"a"}, Excludes: []string{"x"}},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
