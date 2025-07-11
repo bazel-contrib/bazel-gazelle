@@ -18,8 +18,8 @@ package rule
 import (
 	"testing"
 
-	bzl "github.com/bazelbuild/buildtools/build"
 	"github.com/bazelbuild/bazel-gazelle/label"
+	bzl "github.com/bazelbuild/buildtools/build"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -33,7 +33,7 @@ func TestExprFromValue(t *testing.T) {
 				Patterns: []string{"a", "b"},
 			},
 			want: &bzl.CallExpr{
-				X: &bzl.LiteralExpr{Token: "glob"},
+				X: &bzl.Ident{Name: "glob"},
 				List: []bzl.Expr{
 					&bzl.ListExpr{
 						List: []bzl.Expr{
@@ -50,7 +50,7 @@ func TestExprFromValue(t *testing.T) {
 				Excludes: []string{"c", "d"},
 			},
 			want: &bzl.CallExpr{
-				X: &bzl.LiteralExpr{Token: "glob"},
+				X: &bzl.Ident{Name: "glob"},
 				List: []bzl.Expr{
 					&bzl.ListExpr{
 						List: []bzl.Expr{
@@ -59,7 +59,7 @@ func TestExprFromValue(t *testing.T) {
 						},
 					},
 					&bzl.AssignExpr{
-						LHS: &bzl.LiteralExpr{Token: "exclude"},
+						LHS: &bzl.Ident{Name: "exclude"},
 						Op:  "=",
 						RHS: &bzl.ListExpr{
 							List: []bzl.Expr{
@@ -100,6 +100,69 @@ func TestExprFromValue(t *testing.T) {
 			got := ExprFromValue(tt.val)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("ExprFromValue() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestMatchGlobExpr(t *testing.T) {
+	for _, test := range []struct {
+		name, text string
+		want       GlobValue
+	}{
+		{
+			name: "empty",
+			text: "glob()",
+			want: GlobValue{},
+		},
+		{
+			name: "patterns_only",
+			text: `glob(["a", "b"])`,
+			want: GlobValue{Patterns: []string{"a", "b"}},
+		},
+		{
+			name: "excludes_only",
+			text: `glob(exclude = ["x", "y"])`,
+			want: GlobValue{Excludes: []string{"x", "y"}},
+		},
+		{
+			name: "patterns_before_excludes",
+			text: `glob(["a", "b"], exclude = ["x", "y"])`,
+			want: GlobValue{Patterns: []string{"a", "b"}, Excludes: []string{"x", "y"}},
+		},
+		{
+			name: "excludes_before_patterns",
+			text: `glob(exclude = ["x", "y"], ["a", "b"])`,
+			want: GlobValue{Excludes: []string{"x", "y"}},
+		},
+		{
+			name: "patterns_nonliteral",
+			text: `glob(["a", B])`,
+			want: GlobValue{Patterns: []string{"a"}},
+		},
+		{
+			name: "excludes_nonliteral",
+			text: `glob(exclude = ["x", Y])`,
+			want: GlobValue{Excludes: []string{"x"}},
+		},
+		{
+			name: "other_args",
+			text: `glob(["a"], allow_empty = True)`,
+			want: GlobValue{Patterns: []string{"a"}},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			f, err := bzl.ParseDefault(test.name, []byte(test.text))
+			if err != nil {
+				t.Fatal(err)
+			}
+			e := f.Stmt[0]
+			glob, ok := MatchGlobExpr(e)
+			if !ok {
+				t.Fatal("not a glob expression")
+			}
+			if diff := cmp.Diff(glob, test.want); diff != "" {
+				t.Errorf("glob (-got, +want):\n%s", diff)
 			}
 		})
 	}
