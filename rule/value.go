@@ -45,15 +45,62 @@ func (g GlobValue) BzlExpr() bzl.Expr {
 	if len(g.Excludes) > 0 {
 		excludesValue := ExprFromValue(g.Excludes)
 		globArgs = append(globArgs, &bzl.AssignExpr{
-			LHS: &bzl.LiteralExpr{Token: "exclude"},
+			LHS: &bzl.Ident{Name: "exclude"},
 			Op:  "=",
 			RHS: excludesValue,
 		})
 	}
 	return &bzl.CallExpr{
-		X:    &bzl.LiteralExpr{Token: "glob"},
+		X:    &bzl.Ident{Name: "glob"},
 		List: globArgs,
 	}
+}
+
+// ParseGlobExpr detects whether the given expression is a call to the glob
+// function. If it is, ParseGlobExpr returns the glob's patterns and excludes
+// (if they are literal strings) and true. If not, ParseGlobExpr returns false.
+func ParseGlobExpr(e bzl.Expr) (GlobValue, bool) {
+	call, ok := e.(*bzl.CallExpr)
+	if !ok {
+		return GlobValue{}, false
+	}
+	callee, ok := call.X.(*bzl.Ident)
+	if !ok || callee.Name != "glob" {
+		return GlobValue{}, false
+	}
+	var glob GlobValue
+	for i, arg := range call.List {
+		list, ok := arg.(*bzl.ListExpr)
+		if i == 0 && ok {
+			glob.Patterns = make([]string, 0, len(list.List))
+			for _, e := range list.List {
+				if str, ok := e.(*bzl.StringExpr); ok {
+					glob.Patterns = append(glob.Patterns, str.Value)
+				}
+			}
+			continue
+		}
+
+		kv, ok := arg.(*bzl.AssignExpr)
+		if !ok {
+			continue
+		}
+		key, ok := kv.LHS.(*bzl.Ident)
+		if !ok || key.Name != "exclude" {
+			continue
+		}
+		list, ok = kv.RHS.(*bzl.ListExpr)
+		if !ok {
+			continue
+		}
+		glob.Excludes = make([]string, 0, len(list.List))
+		for _, e := range list.List {
+			if str, ok := e.(*bzl.StringExpr); ok {
+				glob.Excludes = append(glob.Excludes, str.Value)
+			}
+		}
+	}
+	return glob, true
 }
 
 // BzlExprValue is implemented by types that have custom translations
