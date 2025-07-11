@@ -230,7 +230,7 @@ func TestGenMode(t *testing.T) {
 	check := func(t *testing.T, visits []visitSpec) {
 		t.Helper()
 		if len(visits) != 7 {
-			t.Error(fmt.Sprintf("Expected 7 visits, got %v", len(visits)))
+			t.Errorf("Expected 7 visits, got %v", len(visits))
 		}
 
 		if !reflect.DeepEqual(visits[len(visits)-1].subdirs, []string{"mode-create", "mode-update"}) {
@@ -767,6 +767,56 @@ func TestRelsToVisit(t *testing.T) {
 	wantUpdatedRels := []string{"update"}
 	if diff := cmp.Diff(wantUpdatedRels, updatedRels); diff != "" {
 		t.Errorf("updated rels (-want,+got)\n%s", diff)
+	}
+}
+
+func TestGetDirInfo(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{
+			Path: "BUILD.bazel",
+			Content: `
+# gazelle:exclude exclude
+genrule(
+    name = "gen",
+		outs = ["gen.txt"],
+)
+`,
+		},
+		{
+			Path: "exclude",
+		},
+		{
+			Path: "file",
+		},
+		{
+			Path: "subdir/",
+		},
+	})
+	defer cleanup()
+
+	wantRegularFiles := []string{"BUILD.bazel", "file"}
+	wantSubdirs := []string{"subdir"}
+	wantGenFiles := []string{"gen.txt"}
+
+	c, cexts := testConfig(t, dir)
+	err := Walk2(c, cexts, []string{dir}, VisitAllUpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+		di, err := GetDirInfo("")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if diff := cmp.Diff(wantRegularFiles, di.RegularFiles); diff != "" {
+			t.Errorf("regular files (-want, +got):\n%s", diff)
+		}
+		if diff := cmp.Diff(wantSubdirs, di.Subdirs); diff != "" {
+			t.Errorf("subdirectories (-want, +got):\n%s", diff)
+		}
+		if diff := cmp.Diff(wantGenFiles, di.GenFiles); diff != "" {
+			t.Errorf("gen files (-want, +got):\n%s", diff)
+		}
+		return Walk2FuncResult{}
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

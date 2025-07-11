@@ -161,7 +161,7 @@ type GenerateArgs struct {
 	// symbolic links to directories that Gazelle will follow.
 	// RegularFiles is a list of regular files including other symbolic
 	// links.
-	// GeneratedFiles is a list of generated files in the directory
+	// GenFiles is a list of generated files in the directory
 	// (usually these are mentioned as "out" or "outs" attributes in rules).
 	Subdirs, RegularFiles, GenFiles []string
 

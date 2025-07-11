@@ -11,15 +11,17 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
-// dirInfo holds all the information about a directory that Walk2 needs.
-type dirInfo struct {
-	// subdirs and regularFiles hold the names of subdirectories and regular files
+// DirInfo holds all the information about a directory that Walk2 needs.
+type DirInfo struct {
+	// Subdirs and RegularFiles hold the names of subdirectories and regular files
 	// that are not ignored or excluded.
-	subdirs, regularFiles []string
+	// GenFiles is a list of generated files, named in "out" or "outs" attributes
+	// of targets in the directory's build file.
+	Subdirs, RegularFiles, GenFiles []string
 
-	// file is the directory's build file. May be nil if the build file doesn't
+	// File is the directory's build File. May be nil if the build File doesn't
 	// exist or contains errors.
-	file *rule.File
+	File *rule.File
 
 	// config is the configuration used by Configurer. We may precompute this
 	// before Configure is called to parallelize directory traversal without
@@ -39,8 +41,8 @@ type dirInfo struct {
 // This method may return partial results with an error. For example, if the
 // directory's build file contains a syntax error, the contents of the
 // directory are still returned.
-func (w *walker) loadDirInfo(rel string) (dirInfo, error) {
-	var info dirInfo
+func (w *walker) loadDirInfo(rel string) (DirInfo, error) {
+	var info DirInfo
 	var errs []error
 	var err error
 	dir := filepath.Join(w.rootConfig.RepoRoot, rel)
@@ -61,12 +63,12 @@ func (w *walker) loadDirInfo(rel string) (dirInfo, error) {
 		parentConfig = parentInfo.config
 	}
 
-	info.file, err = loadBuildFile(parentConfig, w.rootConfig.ReadBuildFilesDir, rel, dir, entries)
+	info.File, err = loadBuildFile(parentConfig, w.rootConfig.ReadBuildFilesDir, rel, dir, entries)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	info.config = configureForWalk(parentConfig, rel, info.file)
+	info.config = configureForWalk(parentConfig, rel, info.File)
 	if info.config.isExcludedDir(rel) {
 		// Build file excludes the current directory. Ignore contents.
 		entries = nil
@@ -76,11 +78,13 @@ func (w *walker) loadDirInfo(rel string) (dirInfo, error) {
 		entryRel := path.Join(rel, e.Name())
 		e = maybeResolveSymlink(info.config, dir, entryRel, e)
 		if e.IsDir() && !info.config.isExcludedDir(entryRel) {
-			info.subdirs = append(info.subdirs, e.Name())
+			info.Subdirs = append(info.Subdirs, e.Name())
 		} else if !e.IsDir() && !info.config.isExcludedFile(entryRel) {
-			info.regularFiles = append(info.regularFiles, e.Name())
+			info.RegularFiles = append(info.RegularFiles, e.Name())
 		}
 	}
+
+	info.GenFiles = findGenFiles(info.config, info.File)
 
 	return info, errors.Join(errs...)
 }
@@ -110,7 +114,7 @@ func (w *walker) populateCache(rels []string) {
 			return
 		}
 
-		for _, subdir := range info.subdirs {
+		for _, subdir := range info.Subdirs {
 			subdirRel := path.Join(rel, subdir)
 			sem <- struct{}{} // acquire semaphore for child
 			wg.Add(1)

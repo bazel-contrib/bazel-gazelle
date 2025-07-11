@@ -15,7 +15,7 @@ type cache struct {
 
 type cacheEntry struct {
 	doneC chan struct{}
-	info  dirInfo
+	info  DirInfo
 	err   error
 }
 
@@ -28,7 +28,7 @@ type cacheEntry struct {
 //
 // get may be called by multiple threads concurrently. Later calls block
 // until the result from the first call is ready.
-func (c *cache) get(key string, load func(rel string) (dirInfo, error)) (dirInfo, error) {
+func (c *cache) get(key string, load func(rel string) (DirInfo, error)) (DirInfo, error) {
 	// Optimistically load the entry. This is technically unnecessary, but it
 	// avoids allocating a new entry in the case where one already exists.
 	raw, ok := c.entryMap.Load(key)
@@ -56,7 +56,7 @@ func (c *cache) get(key string, load func(rel string) (dirInfo, error)) (dirInfo
 
 // getLoaded returns the result of a previous call to get with the same key.
 // getLoaded panics if get was not called or has not returned yet.
-func (c *cache) getLoaded(rel string) (dirInfo, error) {
+func (c *cache) getLoaded(rel string) (DirInfo, error) {
 	e, ok := c.entryMap.Load(rel)
 	if ok {
 		select {
@@ -70,4 +70,43 @@ func (c *cache) getLoaded(rel string) (dirInfo, error) {
 	}
 	ce := e.(*cacheEntry)
 	return ce.info, ce.err
+}
+
+var (
+	globalCache   *cache
+	globalCacheMu sync.Mutex
+)
+
+func maybeSetGlobalCache(c *cache) func() {
+	globalCacheMu.Lock()
+	defer globalCacheMu.Unlock()
+	if globalCache == nil {
+		globalCache = c
+		return func() { globalCache = nil }
+	} else {
+		return func() {}
+	}
+}
+
+// GetDirInfo returns the list of files and subdirectories contained in a
+// directory named by rel. It also returns the parsed build file or nil if
+// none was present. rel is a slash-separated path, relative to the repository
+// root directory or "" for the root directory itself.
+//
+// GetDirInfo does not directly perform any I/O. Instead, it provides access
+// to an internal cache to an internal cache that Walk and Walk2 use to speed
+// up directory operations. For this reason, GetDirInfo must not be called
+// on a directory Gazelle has not visited.
+//
+// In general, language extensions should prefer to use the RegularFiles,
+// Subdirs, and File fields of language.GenerateArgs. This function returns
+// the same information and may be used by methods like Resolver.Imports
+// that get called earlier without the same information.
+func GetDirInfo(rel string) (DirInfo, error) {
+	globalCacheMu.Lock()
+	defer globalCacheMu.Unlock()
+	if globalCache == nil {
+		panic("global cache is not set")
+	}
+	return globalCache.getLoaded(rel)
 }
