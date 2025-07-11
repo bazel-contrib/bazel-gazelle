@@ -56,10 +56,10 @@ func (g GlobValue) BzlExpr() bzl.Expr {
 	}
 }
 
-// MatchGlobExpr detects whether the given expression is a call to the glob
-// function. If it is, MatchGlobExpr returns the glob's patterns and excludes
-// (if they are literal strings) and true. If not, MatchGlobExpr returns false.
-func MatchGlobExpr(e bzl.Expr) (GlobValue, bool) {
+// ParseGlobExpr detects whether the given expression is a call to the glob
+// function. If it is, ParseGlobExpr returns the glob's patterns and excludes
+// (if they are literal strings) and true. If not, ParseGlobExpr returns false.
+func ParseGlobExpr(e bzl.Expr) (GlobValue, bool) {
 	call, ok := e.(*bzl.CallExpr)
 	if !ok {
 		return GlobValue{}, false

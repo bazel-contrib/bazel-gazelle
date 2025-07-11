@@ -105,7 +105,7 @@ func TestExprFromValue(t *testing.T) {
 	}
 }
 
-func TestMatchGlobExpr(t *testing.T) {
+func TestParseGlobExpr(t *testing.T) {
 	for _, test := range []struct {
 		name, text string
 		want       GlobValue
@@ -157,7 +157,7 @@ func TestMatchGlobExpr(t *testing.T) {
 				t.Fatal(err)
 			}
 			e := f.Stmt[0]
-			glob, ok := MatchGlobExpr(e)
+			glob, ok := ParseGlobExpr(e)
 			if !ok {
 				t.Fatal("not a glob expression")
 			}
