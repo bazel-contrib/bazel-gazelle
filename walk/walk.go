@@ -210,6 +210,8 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 	if err != nil {
 		return err
 	}
+	cleanup := setGlobalCache(w.cache)
+	defer cleanup()
 
 	// Do the main tree walk, visiting directories the user requested.
 	w.visit(c, "", false)
@@ -444,16 +446,16 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 		return
 	}
 
-	containedByParent := info.file == nil && wc.updateOnly
+	containedByParent := info.File == nil && wc.updateOnly
 
 	// Configure the directory, if we haven't done so already.
 	_, alreadyConfigured := w.visits[rel]
 	if !containedByParent && !alreadyConfigured {
-		configure(w.cexts, w.knownDirectives, c, rel, info.file, info.config)
+		configure(w.cexts, w.knownDirectives, c, rel, info.File, info.config)
 	}
 
-	regularFiles := info.regularFiles
-	subdirs := info.subdirs
+	regularFiles := info.RegularFiles
+	subdirs := info.Subdirs
 	shouldUpdate := w.shouldUpdate(rel, updateParent)
 	w.visits[rel] = visitInfo{
 		c:                 c,
@@ -498,16 +500,15 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 
 		// Call the callback to update this directory.
 		update := !wc.ignore && shouldUpdate && !hasBuildFileError
-		genFiles := findGenFiles(wc, info.file)
 		result := w.wf(Walk2FuncArgs{
 			Dir:          dir,
 			Rel:          rel,
 			Config:       c,
 			Update:       update,
-			File:         info.file,
+			File:         info.File,
 			Subdirs:      subdirs,
 			RegularFiles: regularFiles,
-			GenFiles:     genFiles,
+			GenFiles:     info.GenFiles,
 		})
 		if result.Err != nil {
 			w.errs = append(w.errs, result.Err)
