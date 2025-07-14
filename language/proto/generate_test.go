@@ -409,6 +409,11 @@ func TestRuleName(t *testing.T) {
 			input:    []string{},
 			expected: "root_proto",
 		},
+		{
+			name:     "package name",
+			input:    []string{"foo.bar"},
+			expected: "bar_proto",
+		},
 	}
 
 	for _, tt := range testCases {
