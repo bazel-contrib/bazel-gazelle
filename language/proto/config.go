@@ -259,13 +259,20 @@ func inferProtoMode(c *config.Config, rel string, f *rule.File) {
 		return
 	}
 	mode := DefaultMode
+	// Resolve the rules_go module name to check if go_proto_library is loaded from foreign rules
+	rulesGo := c.ModuleToApparentName("rules_go")
+	if rulesGo == "" {
+		rulesGo = "io_bazel_rules_go"
+	}
+	rulesGoProtoDef := fmt.Sprintf("@%s//proto:def.bzl", rulesGo)
+	rulesGoProtoGoProtoLibrary := fmt.Sprintf("@%s//proto:go_proto_library.bzl", rulesGo)
 outer:
 	for _, l := range f.Loads {
 		name := l.Name()
-		if name == "@io_bazel_rules_go//proto:def.bzl" {
+		if name == rulesGoProtoDef {
 			break
 		}
-		if name == "@io_bazel_rules_go//proto:go_proto_library.bzl" {
+		if name == rulesGoProtoGoProtoLibrary {
 			mode = LegacyMode
 			break
 		}
