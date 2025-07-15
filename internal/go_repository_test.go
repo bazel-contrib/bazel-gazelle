@@ -180,7 +180,7 @@ go_repository(
 }
 
 func TestModcacheRW(t *testing.T) {
-	if err := bazel_testing.RunBazel("query", "--enable_workspace", "@errors_go_mod//:go_default_library"); err != nil {
+	if err := bazel_testing.RunBazel("query", "--enable_workspace", "--repo_env=GOPROXY=direct", "@errors_go_mod//:go_default_library"); err != nil {
 		t.Fatal(err)
 	}
 	out, err := bazel_testing.BazelOutput("info", "output_base")
