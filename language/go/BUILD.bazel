@@ -1,4 +1,6 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 load(":def.bzl", "std_package_list")
 
@@ -10,6 +12,20 @@ load(":def.bzl", "std_package_list")
 std_package_list(
     name = "std_package_list",
     out = "std_package_list.go",
+)
+
+# gazelle:exclude gen_platform_info.go
+run_binary(
+    name = "gen_platform_info",
+    outs = ["gen_platform_info.go"],
+    args = ["$(location :gen_platform_info.go)"],
+    tool = "//language/go/platform_info_generator",
+)
+
+diff_test(
+    name = "platform_info_diff_test",
+    file1 = ":gen_platform_info.go",
+    file2 = "platform_info.go",
 )
 
 go_library(
@@ -26,6 +42,7 @@ go_library(
         "lang.go",
         "modules.go",
         "package.go",
+        "platform_info.go",
         "resolve.go",
         "std_package_list.go",
         "stdlib_links.go",
@@ -87,7 +104,7 @@ go_test(
         "//walk",
         "@com_github_bazelbuild_buildtools//build",
         "@com_github_google_go_cmp//cmp",
-        "@io_bazel_rules_go//go/tools/bazel:go_default_library",
+        "@io_bazel_rules_go//go/tools/bazel",
         "@org_golang_x_tools_go_vcs//:vcs",
     ],
 )
@@ -115,6 +132,7 @@ filegroup(
         "lang.go",
         "modules.go",
         "package.go",
+        "platform_info.go",
         "resolve.go",
         "resolve_test.go",
         "std_package_list.go",
@@ -125,6 +143,7 @@ filegroup(
         "utils.go",
         "work.go",
         "//language/go/gen_std_package_list:all_files",
+        "//language/go/platform_info_generator:all_files",
     ],
     visibility = ["//visibility:public"],
 )

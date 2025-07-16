@@ -210,6 +210,8 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 	if err != nil {
 		return err
 	}
+	cleanup := setGlobalCache(w.cache)
+	defer cleanup()
 
 	// Do the main tree walk, visiting directories the user requested.
 	w.visit(c, "", false)
@@ -238,7 +240,7 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 				slash = slash + 1 + i
 			}
 
-			if v, ok := w.visits[rel]; !ok || !v.didCall {
+			if v, ok := w.visits[rel]; !ok {
 				var c *config.Config
 				if ok {
 					// Already configured this directory but did not call the callback.
@@ -334,12 +336,6 @@ type visitInfo struct {
 	// and subdirs.
 	containedByParent bool
 
-	// didCall is true if we called the callback function for this directory.
-	// We must call this at most once, though we may visit a directory more than
-	// once: first, to configure it as a parent directory of something else;
-	// later, from RelsToVisit.
-	didCall bool
-
 	c                     *config.Config
 	regularFiles, subdirs []string
 }
@@ -405,15 +401,6 @@ func newWalker(c *config.Config, cexts []config.Configurer, dirs []string, mode 
 // We always need to visit directories requested by the caller and their
 // parents. We may also need to visit subdirectories.
 func (w *walker) shouldVisit(rel string, parentConfig *walkConfig, updateParent bool) bool {
-	if w.visits[rel].didCall {
-		// Already visited and called.
-		return false
-	}
-	if parentConfig.isExcludedDir(rel) {
-		// Excluded directory.
-		return false
-	}
-
 	switch w.mode {
 	case VisitAllUpdateSubdirsMode, VisitAllUpdateDirsMode:
 		return true
@@ -423,26 +410,6 @@ func (w *walker) shouldVisit(rel string, parentConfig *walkConfig, updateParent 
 	default: // UpdateDirsMode
 		_, ok := w.shouldUpdateRel[rel]
 		return ok
-	}
-}
-
-// shouldCall returns whether the caller's Walk2Func callback should be called
-// on rel. We always need to call it on directories requested by the caller.
-// We may need to call it on their subdirectories, depending on mode. We also
-// need to call it on any additional directories requested by the callback.
-func (w *walker) shouldCall(rel string, containedByParent, updateParent bool) bool {
-	if containedByParent {
-		return false
-	}
-	switch w.mode {
-	case VisitAllUpdateSubdirsMode, VisitAllUpdateDirsMode:
-		return true
-	case UpdateSubdirsMode:
-		_, isRelToVisit := w.relsToVisitSeen[rel]
-		return updateParent || w.shouldUpdateRel[rel] || isRelToVisit
-	default: // UpdateDirsMode
-		_, isRelToVisit := w.relsToVisitSeen[rel]
-		return w.shouldUpdateRel[rel] || isRelToVisit
 	}
 }
 
@@ -474,28 +441,27 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 	}
 	hasBuildFileError := err != nil
 	wc := info.config
-	containedByParent := info.file == nil && wc.updateOnly
+
+	if wc.isExcludedDir(rel) {
+		return
+	}
+
+	containedByParent := info.File == nil && wc.updateOnly
 
 	// Configure the directory, if we haven't done so already.
 	_, alreadyConfigured := w.visits[rel]
 	if !containedByParent && !alreadyConfigured {
-		configure(w.cexts, w.knownDirectives, c, rel, info.file, info.config)
+		configure(w.cexts, w.knownDirectives, c, rel, info.File, info.config)
 	}
 
-	regularFiles := info.regularFiles
-	subdirs := info.subdirs
+	regularFiles := info.RegularFiles
+	subdirs := info.Subdirs
 	shouldUpdate := w.shouldUpdate(rel, updateParent)
-	shouldCall := w.shouldCall(rel, containedByParent, updateParent)
 	w.visits[rel] = visitInfo{
 		c:                 c,
 		containedByParent: containedByParent,
-		didCall:           shouldCall,
 		regularFiles:      regularFiles,
 		subdirs:           subdirs,
-	}
-
-	if wc.isExcludedDir(rel) {
-		return
 	}
 
 	// Visit subdirectories, as needed.
@@ -531,21 +497,18 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 		for _, subdir := range subdirs {
 			collect(path.Join(rel, subdir), subdir)
 		}
-	}
 
-	// Call the callback to update this directory.
-	update := !wc.ignore && shouldUpdate && !hasBuildFileError
-	if shouldCall {
-		genFiles := findGenFiles(wc, info.file)
+		// Call the callback to update this directory.
+		update := !wc.ignore && shouldUpdate && !hasBuildFileError
 		result := w.wf(Walk2FuncArgs{
 			Dir:          dir,
 			Rel:          rel,
 			Config:       c,
 			Update:       update,
-			File:         info.file,
+			File:         info.File,
 			Subdirs:      subdirs,
 			RegularFiles: regularFiles,
-			GenFiles:     genFiles,
+			GenFiles:     info.GenFiles,
 		})
 		if result.Err != nil {
 			w.errs = append(w.errs, result.Err)

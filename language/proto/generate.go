@@ -102,6 +102,10 @@ func RuleName(names ...string) string {
 				'0' <= c && c <= '9' ||
 				c == '_')
 		}
+		// If name is explicit package name, e.g. `example.com/protos/foo;package_name` use package name instead of import path
+		if i := strings.LastIndexAny(name, `;`); i != -1 {
+			name = name[i+1:]
+		}
 		// If name is a path, take only the last segment
 		if i := strings.LastIndexAny(name, `/\\.`); i != -1 {
 			name = name[i+1:]

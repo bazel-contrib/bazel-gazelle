@@ -1,4 +1,3 @@
-load("@bazel_gazelle_is_bazel_module//:defs.bzl", "GAZELLE_IS_BAZEL_MODULE")
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_cross_binary", "nogo")
 load("//:def.bzl", "gazelle", "gazelle_binary")
@@ -34,7 +33,7 @@ gazelle_binary(
         "//language/proto",
         "//language/go",
         "//internal/language/test_filegroup",
-        "@bazel_skylib_gazelle_plugin//bzl" if GAZELLE_IS_BAZEL_MODULE else "@bazel_skylib//gazelle/bzl",
+        "@bazel_skylib_gazelle_plugin//bzl",
     ],
 )
 
@@ -54,10 +53,11 @@ nogo(
 exports_files(
     [
         "WORKSPACE",
+        "def.bzl",
         "extend.md",
-        "repository.md",
-        "extensions.md",
         "extensions.bzl",
+        "extensions.md",
+        "reference.md",
     ],
     visibility = ["//:__subpackages__"],
 )
@@ -109,8 +109,10 @@ bzl_library(
         "//internal:go_repository",
         "//internal:overlay_repository",
         "//internal/generationtest",
+        "@bazel_gazelle_go_repository_config//:go_env.bzl",
         "@bazel_gazelle_is_bazel_module//:defs",
         "@bazel_skylib//lib:shell",
+        "@rules_shell//shell:rules_bzl",
     ],
 )
 

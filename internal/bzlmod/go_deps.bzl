@@ -259,7 +259,7 @@ def _go_repository_config_impl(ctx):
         ))
 
     ctx.file("WORKSPACE", "\n".join(repos))
-    ctx.file("BUILD.bazel", "exports_files(['WORKSPACE', 'config.json'])")
+    ctx.file("BUILD.bazel", "exports_files(['WORKSPACE', 'config.json', 'go_env.bzl'])")
     ctx.file("go_env.bzl", content = "GO_ENV = " + repr(ctx.attr.go_env))
 
     # For use by @rules_go//go.
@@ -427,6 +427,8 @@ def _go_deps_impl(module_ctx):
         for from_file_tag in from_file_tags:
             module_path, module_tags_from_go_mod, go_mod_replace_map, tools = deps_from_go_mod(module_ctx, from_file_tag.go_mod)
             for tool in tools:
+                # The tool's package may be the module itself.
+                possible_tool_modules[tool] = None
                 # Add all path prefixes of tool to the map
                 # to allow for partial matches.
                 for i in range(len(tool)):
@@ -582,8 +584,11 @@ def _go_deps_impl(module_ctx):
 
         # Version mismatches between the Go module and the bazel_dep are problematic. For consistency always
         # prefer the bazel_dep version and report any mismatch to the user.
+        #
+        # The bazel_dep version can be relaxed semver (e.g. 1.2.3.bcr.1), which would always differ from valid Go
+        # versions. We assume that the extra segments don't affect Go compatibility and thus ignore them.
         if (path in module_resolutions and
-            bazel_dep.version != module_resolutions[path].version and
+            semver.make_strict(bazel_dep.version) != module_resolutions[path].version and
             bazel_dep.version != _HIGHEST_VERSION_SENTINEL and
             (bazel_dep_is_older or path in root_versions)):
             bazel_dep_name = bazel_dep.module_name

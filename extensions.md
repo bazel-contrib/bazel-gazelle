@@ -7,7 +7,7 @@
 ## go_deps
 
 <pre>
-go_deps = use_extension("@bazel_gazelle//:extensions.bzl", "go_deps")
+go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 go_deps.archive_override(<a href="#go_deps.archive_override-patch_strip">patch_strip</a>, <a href="#go_deps.archive_override-patches">patches</a>, <a href="#go_deps.archive_override-path">path</a>, <a href="#go_deps.archive_override-sha256">sha256</a>, <a href="#go_deps.archive_override-strip_prefix">strip_prefix</a>, <a href="#go_deps.archive_override-urls">urls</a>)
 go_deps.config(<a href="#go_deps.config-check_direct_dependencies">check_direct_dependencies</a>, <a href="#go_deps.config-debug_mode">debug_mode</a>, <a href="#go_deps.config-go_env">go_env</a>)
 go_deps.from_file(<a href="#go_deps.from_file-fail_on_version_conflict">fail_on_version_conflict</a>, <a href="#go_deps.from_file-go_mod">go_mod</a>, <a href="#go_deps.from_file-go_work">go_work</a>)

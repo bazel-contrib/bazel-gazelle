@@ -54,6 +54,18 @@ package main
 
 func main() {}
 `,
+	WorkspacePrefix: `
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "io_bazel_rules_go",
+    sha256 = "9d72f7b8904128afb98d46bbef82ad7223ec9ff3718d419afb355fddd9f9484a",
+    urls = [
+        "https://mirror.bazel.build/github.com/bazel-contrib/rules_go/releases/download/v0.55.1/rules_go-v0.55.1.zip",
+        "https://github.com/bazel-contrib/rules_go/releases/download/v0.55.1/rules_go-v0.55.1.zip",
+    ],
+)
+`,
 	WorkspaceSuffix: `
 load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies", "go_repository")
 
@@ -104,13 +116,13 @@ func TestMain(m *testing.M) {
 }
 
 func TestBuild(t *testing.T) {
-	if err := bazel_testing.RunBazel("build", "@errors_go_git//:errors", "@errors_go_mod//:go_default_library"); err != nil {
+	if err := bazel_testing.RunBazel("build", "--enable_workspace", "@errors_go_git//:errors", "@errors_go_mod//:go_default_library"); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestDirectives(t *testing.T) {
-	err := bazel_testing.RunBazel("query", "@com_github_apex_log//handlers/...")
+	err := bazel_testing.RunBazel("query", "--enable_workspace", "@com_github_apex_log//handlers/...")
 	if err == nil {
 		t.Fatal("Should not generate build files for @com_github_apex_log//handlers/...")
 	}
@@ -120,7 +132,7 @@ func TestDirectives(t *testing.T) {
 }
 
 func TestRepoConfig(t *testing.T) {
-	if err := bazel_testing.RunBazel("build", "@bazel_gazelle_go_repository_config//:all"); err != nil {
+	if err := bazel_testing.RunBazel("build", "--enable_workspace", "@bazel_gazelle_go_repository_config//:all"); err != nil {
 		t.Fatal(err)
 	}
 	outputBase, err := getBazelOutputBase()
@@ -150,6 +162,14 @@ go_repository(
     importpath = "github.com/pkg/errors",
 )
 
+http_archive(
+    name = "io_bazel_rules_go",
+    urls = [
+        "https://mirror.bazel.build/github.com/bazel-contrib/rules_go/releases/download/v0.55.1/rules_go-v0.55.1.zip",
+        "https://github.com/bazel-contrib/rules_go/releases/download/v0.55.1/rules_go-v0.55.1.zip",
+    ],
+)
+
 go_repository(
     name = "org_golang_x_xerrors",
     importpath = "golang.org/x/xerrors",
@@ -160,7 +180,7 @@ go_repository(
 }
 
 func TestModcacheRW(t *testing.T) {
-	if err := bazel_testing.RunBazel("query", "@errors_go_mod//:go_default_library"); err != nil {
+	if err := bazel_testing.RunBazel("query", "--enable_workspace", "@errors_go_mod//:go_default_library"); err != nil {
 		t.Fatal(err)
 	}
 	out, err := bazel_testing.BazelOutput("info", "output_base")
@@ -179,7 +199,7 @@ func TestModcacheRW(t *testing.T) {
 }
 
 func TestRepoCacheContainsGoEnv(t *testing.T) {
-	if err := bazel_testing.RunBazel("query", "@errors_go_mod//:go_default_library"); err != nil {
+	if err := bazel_testing.RunBazel("query", "--enable_workspace", "@errors_go_mod//:go_default_library"); err != nil {
 		t.Fatal(err)
 	}
 	outputBase, err := getBazelOutputBase()

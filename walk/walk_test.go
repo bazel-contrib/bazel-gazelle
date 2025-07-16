@@ -139,7 +139,9 @@ func TestUpdateDirs(t *testing.T) {
 			mode: UpdateDirsMode,
 			want: []visitSpec{
 				{"update/ignore/sub", true},
+				{"update/ignore", false},
 				{"update", true},
+				{"", false},
 			},
 		}, {
 			desc: "update_subdirs",
@@ -150,6 +152,8 @@ func TestUpdateDirs(t *testing.T) {
 				{"update/ignore", false},
 				{"update/sub/sub", true},
 				{"update/sub", true},
+				{"update", false},
+				{"", false},
 			},
 		},
 	} {
@@ -219,13 +223,14 @@ func TestGenMode(t *testing.T) {
 	defer cleanup()
 
 	type visitSpec struct {
+		rel            string
 		subdirs, files []string
 	}
 
 	check := func(t *testing.T, visits []visitSpec) {
 		t.Helper()
 		if len(visits) != 7 {
-			t.Error(fmt.Sprintf("Expected 7 visits, got %v", len(visits)))
+			t.Errorf("Expected 7 visits, got %v", len(visits))
 		}
 
 		if !reflect.DeepEqual(visits[len(visits)-1].subdirs, []string{"mode-create", "mode-update"}) {
@@ -244,6 +249,25 @@ func TestGenMode(t *testing.T) {
 		if !reflect.DeepEqual(visits[5].files, modeUpdateFiles2) {
 			t.Errorf("update mode should contain files in subdirs. Want %v, got: %v", modeUpdateFiles2, visits[5].files)
 		}
+
+		// Verify every file+directory is only passed to a single WalkFunc invocation.
+		filesSeen := make(map[string]string)
+		for _, v := range visits {
+			for _, f := range v.files {
+				fullPath := filepath.Join(v.rel, f)
+				if p, exists := filesSeen[fullPath]; exists {
+					t.Errorf("File %q already seen in %q, now also in %q", fullPath, p, v.rel)
+				}
+				filesSeen[fullPath] = v.rel
+			}
+			for _, f := range v.subdirs {
+				fullPath := filepath.Join(v.rel, f)
+				if p, exists := filesSeen[fullPath]; exists {
+					t.Errorf("Dir %q already seen in %q, now also in %q", fullPath, p, v.rel)
+				}
+				filesSeen[fullPath] = v.rel
+			}
+		}
 	}
 
 	t.Run("Walk generation_mode create vs update", func(t *testing.T) {
@@ -251,6 +275,7 @@ func TestGenMode(t *testing.T) {
 		var visits []visitSpec
 		Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, rel string, _ *config.Config, update bool, _ *rule.File, subdirs, regularFiles, _ []string) {
 			visits = append(visits, visitSpec{
+				rel:     rel,
 				subdirs: subdirs,
 				files:   regularFiles,
 			})
@@ -263,6 +288,7 @@ func TestGenMode(t *testing.T) {
 		var visits []visitSpec
 		err := Walk2(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
 			visits = append(visits, visitSpec{
+				rel:     args.Rel,
 				subdirs: args.Subdirs,
 				files:   args.RegularFiles,
 			})
@@ -731,8 +757,9 @@ func TestRelsToVisit(t *testing.T) {
 	if diff := cmp.Diff(wantConfiguredRels, configuredRels); diff != "" {
 		t.Errorf("configured rels (-want,+got):\n%s", diff)
 	}
-	// Verify directories mentioned in RelsToVisit were visited.
-	wantVisitedRels := []string{"update", "extra/a", "extra/b/sub", "extra/b"}
+	// Verify directories mentioned in RelsToVisit were visited, as well as their
+	// parents.
+	wantVisitedRels := []string{"update", "", "extra", "extra/a", "extra/b", "extra/b/sub", "extra/does", "extra/does/not"}
 	if diff := cmp.Diff(wantVisitedRels, visitedRels); diff != "" {
 		t.Errorf("visited rels (-want,+got)\n%s", diff)
 	}
@@ -740,6 +767,56 @@ func TestRelsToVisit(t *testing.T) {
 	wantUpdatedRels := []string{"update"}
 	if diff := cmp.Diff(wantUpdatedRels, updatedRels); diff != "" {
 		t.Errorf("updated rels (-want,+got)\n%s", diff)
+	}
+}
+
+func TestGetDirInfo(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{
+			Path: "BUILD.bazel",
+			Content: `
+# gazelle:exclude exclude
+genrule(
+    name = "gen",
+		outs = ["gen.txt"],
+)
+`,
+		},
+		{
+			Path: "exclude",
+		},
+		{
+			Path: "file",
+		},
+		{
+			Path: "subdir/",
+		},
+	})
+	defer cleanup()
+
+	wantRegularFiles := []string{"BUILD.bazel", "file"}
+	wantSubdirs := []string{"subdir"}
+	wantGenFiles := []string{"gen.txt"}
+
+	c, cexts := testConfig(t, dir)
+	err := Walk2(c, cexts, []string{dir}, VisitAllUpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+		di, err := GetDirInfo("")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if diff := cmp.Diff(wantRegularFiles, di.RegularFiles); diff != "" {
+			t.Errorf("regular files (-want, +got):\n%s", diff)
+		}
+		if diff := cmp.Diff(wantSubdirs, di.Subdirs); diff != "" {
+			t.Errorf("subdirectories (-want, +got):\n%s", diff)
+		}
+		if diff := cmp.Diff(wantGenFiles, di.GenFiles); diff != "" {
+			t.Errorf("gen files (-want, +got):\n%s", diff)
+		}
+		return Walk2FuncResult{}
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

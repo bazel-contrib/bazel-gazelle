@@ -137,6 +137,7 @@ def _go_repository_impl(ctx):
         gazelle_path = ctx.path(Label(_gazelle))
         watch(ctx, gazelle_path)
 
+    reproducible = False
     if ctx.attr.local_path:
         if hasattr(ctx, "watch_tree"):
             # https://github.com/bazelbuild/bazel/commit/fffa0affebbacf1961a97ef7cd248be64487d480
@@ -165,15 +166,20 @@ def _go_repository_impl(ctx):
                 path = ctx.attr.importpath,
                 sha256 = result.sha256,
             ))
+        else:
+            reproducible = True
         fetch_repo_args = ["-dest", ctx.path(""), "-no-fetch"]
     elif ctx.attr.commit or ctx.attr.tag:
         # repository mode
         if ctx.attr.commit:
             rev = ctx.attr.commit
             rev_key = "commit"
+            reproducible = True
         elif ctx.attr.tag:
             rev = ctx.attr.tag
             rev_key = "tag"
+            # Not reproducible, tags can change.
+
         for key in ("urls", "strip_prefix", "type", "sha256", "version", "sum", "replace", "canonical_id"):
             if getattr(ctx.attr, key):
                 fail("cannot specify both %s and %s" % (rev_key, key), key)
@@ -198,6 +204,7 @@ def _go_repository_impl(ctx):
                 fail("No sum for {}@{} found, update go.sum with:\n  bazel run".format(ctx.attr.importpath, ctx.attr.version), Label("@io_bazel_rules_go//go"), "-- mod tidy")
             else:
                 fail("if version is specified, sum must also be")
+        reproducible = True
 
         fetch_path = ctx.attr.replace if ctx.attr.replace else ctx.attr.importpath
         fetch_repo_args = [
@@ -394,6 +401,9 @@ repo(
                 version = ctx.attr.version,
             )
             ctx.file(build_file_name, build_file_content)
+
+    if reproducible and hasattr(ctx, "repo_metadata"):
+        return ctx.repo_metadata(reproducible = True)
 
 def _generate_package_info(*, importpath, version):
     package_name = importpath
@@ -680,4 +690,3 @@ go_repository = repository_rule(
         "internal_only_do_not_use_apparent_name": attr.string(doc = "Internal usage only"),
     },
 )
-"""See repository.md#go-repository for full documentation."""

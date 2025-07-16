@@ -77,6 +77,16 @@ def _semver_to_comparable(v, *, relaxed = False):
         tuple(prerelease),
     )
 
+def _semver_make_strict(v):
+    """
+    Converts a relaxed semver version object into a strict one by trimming extra components from the
+    release version string.
+    """
+
+    release, prerelease = v
+    return (release[:3], prerelease)
+
 semver = struct(
     to_comparable = _semver_to_comparable,
+    make_strict = _semver_make_strict,
 )

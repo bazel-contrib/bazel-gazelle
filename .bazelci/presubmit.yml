@@ -3,7 +3,7 @@ matrix:
   platform:
     - ubuntu2204
     - macos
-  bazel: [6.x, 7.x]
+  bazel: [6.*, 7.*, 8.*]
   bcr_variant:
     - tests/bcr/go_work
     - tests/bcr/go_mod
@@ -13,8 +13,10 @@ tasks:
     platform: ubuntu2204
     build_flags:
     - "--noenable_bzlmod"
+    - "--enable_workspace"
     test_flags:
     - "--noenable_bzlmod"
+    - "--enable_workspace"
     build_targets:
     - "..."
     run_targets:
@@ -100,8 +102,10 @@ tasks:
     platform: macos_arm64
     build_flags:
     - "--noenable_bzlmod"
+    - "--enable_workspace"
     test_flags:
     - "--noenable_bzlmod"
+    - "--enable_workspace"
     build_targets:
     - "..."
     test_targets:
@@ -121,9 +125,11 @@ tasks:
     name: Mac OS with WORKSPACE
     platform: macos
     build_flags:
-    - "--noexperimental_enable_bzlmod"
+    - "--noenable_bzlmod"
+    - "--enable_workspace"
     test_flags:
-    - "--noexperimental_enable_bzlmod"
+    - "--noenable_bzlmod"
+    - "--enable_workspace"
     build_targets:
     - "..."
     test_targets:
@@ -154,9 +160,11 @@ tasks:
     name: Windows with WORKSPACE
     platform: windows
     build_flags:
-    - "--noexperimental_enable_bzlmod"
+    - "--noenable_bzlmod"
+    - "--enable_workspace"
     test_flags:
-    - "--noexperimental_enable_bzlmod"
+    - "--noenable_bzlmod"
+    - "--enable_workspace"
     build_targets:
     - "--"
     - "..."
@@ -177,17 +185,15 @@ tasks:
     - "-//tests:fix_mode_print0"
     - "-//tests:fix_mode_strict"
   incompatible:
-    name: Ubuntu 22.04 with WORKSPACE and --config=incompatible
+    name: Ubuntu 22.04 with --config=incompatible
     platform: ubuntu2204
     build_flags:
-      - "--noenable_bzlmod"
       - "--config=incompatible"
     build_targets:
       - "..."
     run_targets:
       - "//:gazelle_ci"
     test_flags:
-      - "--noenable_bzlmod"
       - "--config=incompatible"
     test_targets:
       - "..."

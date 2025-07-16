@@ -11,6 +11,7 @@ filegroup(
         "non_module_deps.bzl",
         "semver.bzl",
         "utils.bzl",
+        "//internal/bzlmod/tools:all_files",
     ],
     visibility = ["//visibility:public"],
 )

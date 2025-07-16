@@ -1,8 +1,14 @@
 # This file contains options passed to Bazel when running tests.
 # They are used by Travis CI and by non-Bazel test scripts.
 
-# TODO: Make all tests work with Bzlmod.
-common --noenable_bzlmod
+# The resolved versions of direct deps may differ per Bazel version, so don't
+# show a warning if we don't force the highest ones among them.
+common --check_direct_dependencies=off
+
+# Exclude vendored directories with build files to get 'bazel test //...' to
+# pass. We can't use .bazelignore because that leaks into the sandbox of
+# go_bazel_tests.
+common --deleted_packages=vendor/github.com/bazelbuild/rules_go/go/tools/internal/txtar,vendor/github.com/bazelbuild/rules_go/go/tools/bazel_testing,vendor/github.com/bazelbuild/rules_go/go/tools/bazel,vendor/github.com/bazelbuild/buildtools/build,vendor/github.com/bazelbuild/rules_go/go/runfiles,vendor/github.com/bazelbuild/buildtools/labels,vendor/github.com/bazelbuild/buildtools/tables
 
 common --enable_platform_specific_config
 # Workaround for https://github.com/bazelbuild/continuous-integration/issues/2269.

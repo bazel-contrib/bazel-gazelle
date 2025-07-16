@@ -6,8 +6,7 @@ Gazelle build file generator
 .. _Kotlin Support: https://github.com/aspect-build/aspect-cli/blob/main/gazelle/kotlin/
 .. _JavaScript and TypeScript Support: https://github.com/aspect-build/aspect-cli/blob/main/gazelle/js/
 .. _Architecture of Gazelle: Design.rst
-.. _Repository rules: repository.md
-.. _go_repository: repository.md#go_repository
+.. _go_repository: reference.md#go_repository
 .. _fix: #fix-and-update
 .. _update: #fix-and-update
 .. _Avoiding conflicts with proto rules: https://github.com/bazelbuild/rules_go/blob/master/proto/core.rst#avoiding-conflicts
@@ -17,7 +16,7 @@ Gazelle build file generator
 .. _extensions.md: extensions.md#go_deps
 .. _Go Bzlmod docs: https://github.com/bazel-contrib/rules_go/blob/master/docs/go/core/bzlmod.md
 .. _extended: `Extending Gazelle`_
-.. _gazelle_binary: extend.md#gazelle_binary
+.. _gazelle_binary: reference.md#gazelle_binary
 .. _import_prefix: https://docs.bazel.build/versions/master/be/protocol-buffer.html#proto_library.import_prefix
 .. _strip_import_prefix: https://docs.bazel.build/versions/master/be/protocol-buffer.html#proto_library.strip_import_prefix
 .. _buildozer: https://github.com/bazelbuild/buildtools/tree/master/buildozer
@@ -35,6 +34,7 @@ Gazelle build file generator
 .. _bazel-skylib: https://github.com/bazelbuild/bazel-skylib
 .. _bazel_skylib/gazelle/bzl: https://github.com/bazelbuild/bazel-skylib/tree/master/gazelle/bzl
 .. _gazelle_cabal: https://github.com/tweag/gazelle_cabal
+.. _gazelle_cc: https://github.com/EngFlow/gazelle_cc
 .. _gazelle_haskell_modules: https://github.com/tweag/gazelle_haskell_modules
 .. _stackb/rules_proto: https://github.com/stackb/rules_proto
 .. _Open a PR: https://github.com/bazelbuild/bazel-gazelle/edit/master/README.rst
@@ -82,10 +82,7 @@ and say hello!*
 **See also:**
 
 * `Architecture of Gazelle`_
-* `Repository rules`_
-
-  * `go_repository`_
-
+* `go_repository`_
 * `Extending Gazelle`_
 * `Avoiding conflicts with proto rules`_
 
@@ -148,6 +145,10 @@ Gazelle can generate Bazel BUILD files for many languages:
   `rules_swift_package_manager`_ has an extension for generating ``swift_library``, ``swift_binary``, and
   ``swift_test`` rules. It also includes facilities for resolving, downloading and building external Swift
   packages for a Bazel workspace.
+
+* C/C++
+
+  `gazelle_cc`_ has an extension for `cc_*` rules.
 
 If you know of an extension which could be linked here, please `open a PR`_!
 

@@ -386,7 +386,11 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 			}
 		}
 	}
-	res.RelsToIndex = g.relsToIndex
+
+	for r := range g.relsToIndexSeen {
+		res.RelsToIndex = append(res.RelsToIndex, r)
+	}
+	sort.Strings(res.RelsToIndex) // for deterministic output
 
 	if args.File != nil || len(res.Gen) > 0 {
 		gl.goPkgRels[args.Rel] = true
@@ -512,7 +516,6 @@ type generator struct {
 	shouldSetVisibility bool
 
 	shouldIndex     bool
-	relsToIndex     []string
 	relsToIndexSeen map[string]struct{}
 }
 
@@ -976,9 +979,11 @@ func (g *generator) addRelsToIndex(ps rule.PlatformStrings) {
 	// TODO: refactor to for-iterator loop after Go 1.23 is the minimum version.
 	ps.Each()(func(imp string) bool {
 		for _, goSearch := range g.gc.goSearch {
-			if trimmed := pathtools.TrimPrefix(imp, goSearch.prefix); trimmed != goSearch.prefix {
+			if trimmed := pathtools.TrimPrefix(imp, goSearch.prefix); goSearch.prefix == "" || trimmed != imp {
 				rel := path.Join(goSearch.rel, trimmed)
-				g.relsToIndex = append(g.relsToIndex, rel)
+				if _, ok := g.relsToIndexSeen[rel]; !ok {
+					g.relsToIndexSeen[rel] = struct{}{}
+				}
 			}
 		}
 		return true
