@@ -413,8 +413,8 @@ func TestRuleName(t *testing.T) {
 			name:     "package name",
 			input:    []string{"foo.bar"},
 			expected: "bar_proto",
-    },
-    {
+		},
+		{
 			name:     "explicit package name",
 			input:    []string{"example.com/protos/foo;package_name"},
 			expected: "package_name_proto",
