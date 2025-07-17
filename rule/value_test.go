@@ -153,7 +153,17 @@ func TestParseGlobExpr(t *testing.T) {
 		{
 			name: "invalid_args",
 			text: `glob(["a"], ["b"], exclude = ["x"], unknown = 1, *args, **kwargs)`,
-			want: GlobValue{Patterns: []string{"a"}, Excludes: []string{"x"}},
+			want: GlobValue{Patterns: []string{"a"}, Excludes: []string{"b"}},
+		},
+		{
+			name: "positional_patterns_and_excludes",
+			text: `glob(["a"], ["b"])`,
+			want: GlobValue{Patterns: []string{"a"}, Excludes: []string{"b"}},
+		},
+		{
+			name: "reordered_named_patterns_and_excludes",
+			text: `glob(exclude = ["a"], include = ["x"])`,
+			want: GlobValue{Patterns: []string{"x"}, Excludes: []string{"a"}},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
