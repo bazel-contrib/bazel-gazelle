@@ -94,6 +94,12 @@ func FixLoads(f *rule.File, knownLoads []rule.LoadInfo) {
 				assignedSymbols[id.Name] = true
 			} else if id, ok := ae.RHS.(*bzl.Ident); ok && !assignedSymbols[id.Name] {
 				idents = append(idents, id)
+			} else if l, ok := ae.RHS.(*bzl.ListExpr); ok {
+				for _, e := range l.List {
+					if id, ok := e.(*bzl.Ident); ok && !assignedSymbols[id.Name] {
+						idents = append(idents, id)
+					}
+				}
 			} else {
 				return
 			}
