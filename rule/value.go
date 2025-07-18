@@ -93,12 +93,12 @@ func ParseGlobExpr(e bzl.Expr) (GlobValue, bool) {
 			}
 			continue
 		}
-		allowPositionalArgs = false
 
 		kv, ok := arg.(*bzl.AssignExpr)
 		if !ok {
 			continue
 		}
+		allowPositionalArgs = false
 		key, ok := kv.LHS.(*bzl.Ident)
 		if !ok {
 			continue

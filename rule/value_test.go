@@ -165,6 +165,16 @@ func TestParseGlobExpr(t *testing.T) {
 			text: `glob(exclude = ["a"], include = ["x"])`,
 			want: GlobValue{Patterns: []string{"x"}, Excludes: []string{"a"}},
 		},
+		{
+			name: "positional_ident_patterns",
+			text: `glob(include, ["b"])`,
+			want: GlobValue{Excludes: []string{"b"}},
+		},
+		{
+			name: "positional_ident_excludes",
+			text: `glob(["a"], exclude, ["foo"])`,
+			want: GlobValue{Patterns: []string{"a"}},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			f, err := bzl.ParseDefault(test.name, []byte(test.text))
