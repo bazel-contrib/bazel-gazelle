@@ -126,12 +126,14 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		// --experimental_sibling_repository_layout.
 		slashPath := filepath.ToSlash(c.RepoRoot)
 		segments := strings.Split(slashPath, "/")
-		repoName := segments[len(segments)-1]
-		previousSegment := segments[len(segments)-2]
-		if previousSegment == "external" {
-			srcdir = path.Join("external", repoName, srcdir)
-		} else {
-			srcdir = path.Join("..", repoName, srcdir)
+		if len(segments) > 2 {
+			repoName := segments[len(segments)-1]
+			previousSegment := segments[len(segments)-2]
+			if previousSegment == "external" {
+				srcdir = path.Join("external", repoName, srcdir)
+			} else {
+				srcdir = path.Join("..", repoName, srcdir)
+			}
 		}
 	}
 	goFileInfos := make([]fileInfo, len(goFiles))
