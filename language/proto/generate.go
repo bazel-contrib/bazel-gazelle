@@ -24,6 +24,7 @@ import (
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
+	"github.com/bazelbuild/bazel-gazelle/merger"
 	"github.com/bazelbuild/bazel-gazelle/pathtools"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
@@ -73,6 +74,15 @@ func (*protoLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	var res language.GenerateResult
 	for _, pkg := range pkgs {
 		r := generateProto(pc, args.Rel, pkg, shouldSetVisibility)
+		if args.File != nil {
+			// If matching rule already exists, use its name for generated rule, otherwise other languages may not be able to resolve proto_library rule.
+			// This way we can propagate the name that would actually written to the BUILD file.
+			// Most of downstream extensions would refer to this name directly when generating `<lang>_proto_library`.
+			previous, err := merger.Match(args.File.Rules, r, protoKinds["proto_library"], c.AliasMap)
+			if err == nil && previous != nil {
+				r.SetName(previous.Name())
+			}
+		}
 		if r.IsEmpty(protoKinds[r.Kind()]) {
 			res.Empty = append(res.Empty, r)
 		} else {

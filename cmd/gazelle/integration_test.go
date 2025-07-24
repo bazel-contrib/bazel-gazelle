@@ -3732,7 +3732,7 @@ proto_library(
 )
 
 go_proto_library(
-    name = "foo_go_proto",
+    name = "existing_go_proto",
     importpath = "example.com/foo",
     proto = ":existing_proto",
     visibility = ["//visibility:public"],
@@ -3740,7 +3740,7 @@ go_proto_library(
 
 go_library(
     name = "foo",
-    embed = [":foo_go_proto"],
+    embed = [":existing_go_proto"],
     importpath = "example.com/foo",
     visibility = ["//visibility:public"],
 )`,

@@ -55,6 +55,7 @@ go_library(
         "//config",
         "//label",
         "//language",
+        "//merger",
         "//pathtools",
         "//repo",
         "//resolve",
