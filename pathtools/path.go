@@ -114,6 +114,39 @@ func Index(p, sub string) int {
 	}
 }
 
+// Prefixes returns an iterator (iter.Seq) over all the prefixes of p.
+// For example, if p is "a/b/c", the iterator yields "", "a", "a/b", "a/b/c".
+// p must be a slash-separated path. It may be relative or absolute.
+func Prefixes(p string) func(yield func(string) bool) {
+	return func(yield func(string) bool) {
+		var slash int
+		if strings.HasPrefix(p, "/") {
+			slash = 0
+		} else {
+			slash = -1
+		}
+		if ok := yield(p[:slash+1]); !ok {
+			return
+		}
+		for {
+			i := strings.Index(p[slash+1:], "/")
+			if i < 0 {
+				break
+			}
+			if ok := yield(p[:slash+1+i]); !ok {
+				return
+			}
+			slash += 1 + i
+			for slash+1 < len(p) && p[slash+1] == '/' {
+				slash++ // skip over multiple slashes
+			}
+		}
+		if p != "" && !strings.HasSuffix(p, "/") {
+			yield(p)
+		}
+	}
+}
+
 func trimTrailingSlash(p string) string {
 	for len(p) > 1 && p[len(p)-1] == '/' {
 		p = p[:len(p)-1]

@@ -820,6 +820,41 @@ genrule(
 	}
 }
 
+func TestGetDirInfoSubdir(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{
+			Path:    "BUILD.bazel",
+			Content: `# gazelle:exclude x`,
+		},
+		{
+			Path: "a/b/c.txt",
+		},
+		{
+			Path: "x/y/z.txt",
+		},
+	})
+	defer cleanup()
+
+	c, cexts := testConfig(t, dir)
+	err := Walk2(c, cexts, []string{dir}, UpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+		bInfo, err := GetDirInfo("a/b")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if diff := cmp.Diff([]string{"c.txt"}, bInfo.RegularFiles); diff != "" {
+			t.Errorf("a/b: regular files (-want, +got):\n%s", diff)
+		}
+
+		if _, err := GetDirInfo("x/y"); err == nil {
+			t.Errorf("x/y: unexpected success")
+		}
+		return Walk2FuncResult{}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func testConfig(t *testing.T, dir string) (*config.Config, []config.Configurer) {
 	args := []string{"-repo_root", dir}
 	cexts := []config.Configurer{&config.CommonConfigurer{}, &Configurer{}}
