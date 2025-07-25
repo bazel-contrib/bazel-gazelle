@@ -13,6 +13,7 @@ go_library(
     deps = [
         "//config",
         "//flag",
+        "//pathtools",
         "//rule",
         "@com_github_bazelbuild_buildtools//build",
         "@com_github_bmatcuk_doublestar_v4//:doublestar",

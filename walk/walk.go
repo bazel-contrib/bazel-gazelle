@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazelbuild/bazel-gazelle/pathtools"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
@@ -229,17 +230,7 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 
 		// Make sure to visit prefixes of relToVisit as well so we apply
 		// configuration directives.
-		slash := -1
-		for {
-			var rel string
-			i := strings.Index(relToVisit[slash+1:], "/")
-			if i < 0 {
-				rel = relToVisit
-			} else {
-				rel = relToVisit[:slash+1+i]
-				slash = slash + 1 + i
-			}
-
+		pathtools.Prefixes(relToVisit)(func(rel string) bool {
 			if v, ok := w.visits[rel]; !ok {
 				var c *config.Config
 				if ok {
@@ -253,27 +244,24 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 					}
 					parentCfg := w.visits[parentRel].c
 					if getWalkConfig(parentCfg).isExcludedDir(rel) {
-						break
+						return false
 					}
 					if _, err := w.cache.get(rel, w.loadDirInfo); err != nil {
 						// Error loading directory. Most commonly, this is because the
 						// directory doesn't exist, but it could actually be a file
 						// or we don't have permission, or some other I/O error.
 						// Skip it.
-						break
+						return false
 					}
 					c = parentCfg.Clone()
 				}
 				w.visit(c, rel, false)
 				if c.Strict && len(w.errs) > 0 {
-					return errors.Join(w.errs...)
+					return false
 				}
 			}
-
-			if rel == relToVisit {
-				break
-			}
-		}
+			return true
+		})
 	}
 	return errors.Join(w.errs...)
 }
