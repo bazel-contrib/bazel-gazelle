@@ -2,7 +2,10 @@ package walk
 
 import (
 	"fmt"
+	"path"
 	"sync"
+
+	"github.com/bazelbuild/bazel-gazelle/pathtools"
 )
 
 // cache is an in-memory cache for file system information. Its purpose is to
@@ -72,14 +75,14 @@ func (c *cache) getLoaded(rel string) (DirInfo, error) {
 	return ce.info, ce.err
 }
 
-var globalCache *cache
+var globalWalker *walker
 
-func setGlobalCache(c *cache) func() {
-	if globalCache != nil {
-		panic("globalCache already set")
+func setGlobalWalker(w *walker) func() {
+	if globalWalker != nil {
+		panic("globalWalker already set")
 	}
-	globalCache = c
-	return func() { globalCache = nil }
+	globalWalker = w
+	return func() { globalWalker = nil }
 }
 
 // GetDirInfo returns the list of files and subdirectories contained in a
@@ -88,18 +91,35 @@ func setGlobalCache(c *cache) func() {
 // root directory or "" for the root directory itself. The returned values
 // must not be modified.
 //
-// GetDirInfo does not directly perform any I/O. Instead, it provides access
-// to an internal cache to an internal cache that Walk and Walk2 use to speed
-// up directory operations. For this reason, GetDirInfo must not be called
-// on a directory Gazelle has not visited.
+// GetDirInfo may only be called concurrently with Walk or Walk2. It provides
+// access to an internal cache used by those functions. GetDirInfo may
+// trigger additional I/O if a directory hasn't been visited yet, but
+// its results are cached and shared with Walk or Walk2.
 //
 // In general, language extensions should prefer to use the RegularFiles,
 // Subdirs, and File fields of language.GenerateArgs. This function returns
 // the same information and may be used by methods like Resolver.Imports
 // that get called earlier without the same information.
 func GetDirInfo(rel string) (DirInfo, error) {
-	if globalCache == nil {
-		panic("global cache is not set")
+	if globalWalker == nil {
+		panic("globalWalker is not set")
 	}
-	return globalCache.getLoaded(rel)
+	rel = path.Clean(rel)
+
+	// Ensure all ancestors are loaded before loading rel itself, since their
+	// configuration may exclude rel.
+	var prevCfg *walkConfig = nil
+	var di DirInfo
+	var err error
+	pathtools.Prefixes(rel)(func(prefix string) bool {
+		if prevCfg != nil && prevCfg.isExcludedDir(prefix) {
+			di = DirInfo{}
+			err = fmt.Errorf("directory %q is excluded", prefix)
+			return false
+		}
+		di, err = globalWalker.cache.get(prefix, globalWalker.loadDirInfo)
+		prevCfg = di.config
+		return err == nil
+	})
+	return di, err
 }
