@@ -361,6 +361,7 @@ def _go_deps_impl(module_ctx):
     go_env = {}
     dep_files = []
     debug_mode = False
+    godebug_pairs = []
     for module in module_ctx.modules:
         if len(module.tags.config) > 1:
             fail(
@@ -418,6 +419,13 @@ def _go_deps_impl(module_ctx):
 
                 replace_map.update(go_work.replace_map)
                 from_file_tags = from_file_tags + go_work.from_file_tags
+
+                # Collect godebug settings from go.work (they override go.mod settings)
+                if module.is_root and go_work.godebug:
+                    # Clear any previously collected godebug values from go.mod
+                    godebug_pairs = []
+                    for key, value in go_work.godebug.items():
+                        godebug_pairs.append("{}={}".format(key, value))
             else:
                 fail("Either \"go_mod\" or \"go_work\" must be specified in \"go_deps.from_file\" tags.")
 
@@ -425,16 +433,22 @@ def _go_deps_impl(module_ctx):
         # may be modules for which we have to ignore the "indirect" comment.
         possible_tool_modules = {}
         for from_file_tag in from_file_tags:
-            module_path, module_tags_from_go_mod, go_mod_replace_map, tools = deps_from_go_mod(module_ctx, from_file_tag.go_mod)
+            module_path, module_tags_from_go_mod, go_mod_replace_map, tools, godebug = deps_from_go_mod(module_ctx, from_file_tag.go_mod)
             for tool in tools:
                 # The tool's package may be the module itself.
                 possible_tool_modules[tool] = None
+
                 # Add all path prefixes of tool to the map
                 # to allow for partial matches.
                 for i in range(len(tool)):
                     if tool[i] == "/":
                         possible_tool_modules[tool[:i]] = None
             module_name_to_go_dot_mod_label[module_path] = from_file_tag.go_mod
+
+            # Collect godebug settings from the root module only
+            if module.is_root and godebug:
+                for key, value in godebug.items():
+                    godebug_pairs.append("{}={}".format(key, value))
 
             # Collect the relative path of the root module's go.mod file if it lives in the main
             # repository.
@@ -725,6 +739,17 @@ Mismatch between versions requested for Go module {module}:
             go_repository_args.update(repo_args)
 
         go_repository(**go_repository_args)
+
+    # Merge godebug settings into go_env
+    if godebug_pairs:
+        existing_godebug = go_env.get("GODEBUG", "")
+        if existing_godebug:
+            # Merge with existing GODEBUG values
+            all_godebug = existing_godebug + "," + ",".join(godebug_pairs)
+        else:
+            all_godebug = ",".join(godebug_pairs)
+        go_env = dict(go_env)  # Make a copy to avoid mutating the original
+        go_env["GODEBUG"] = all_godebug
 
     # Create a synthetic WORKSPACE file that lists all Go repositories created
     # above and contains all the information required by Gazelle's -repo_config
