@@ -15,7 +15,11 @@ limitations under the License.
 
 package pathtools
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+)
 
 func TestHasPrefix(t *testing.T) {
 	for _, tc := range []struct {
@@ -106,6 +110,60 @@ func TestTrimPrefix(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			if got := TrimPrefix(tc.path, tc.prefix); got != tc.want {
 				t.Errorf("got %q ; want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPrefixes(t *testing.T) {
+	for _, test := range []struct {
+		name, path string
+		want       []string
+	}{
+		{
+			name: "empty",
+			path: "",
+			want: []string{""},
+		},
+		{
+			name: "slash",
+			path: "/",
+			want: []string{"/"},
+		},
+		{
+			name: "simple_rel",
+			path: "a",
+			want: []string{"", "a"},
+		},
+		{
+			name: "simple_abs",
+			path: "/a",
+			want: []string{"/", "/a"},
+		},
+		{
+			name: "multiple_rel",
+			path: "aa/bb/cc",
+			want: []string{"", "aa", "aa/bb", "aa/bb/cc"},
+		},
+		{
+			name: "multiple_abs",
+			path: "/aa/bb/cc",
+			want: []string{"/", "/aa", "/aa/bb", "/aa/bb/cc"},
+		},
+		{
+			name: "unclean",
+			path: "a/../b//c/",
+			want: []string{"", "a", "a/..", "a/../b", "a/../b//c"},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var got []string
+			Prefixes(test.path)(func(prefix string) bool {
+				got = append(got, prefix)
+				return true
+			})
+			if diff := cmp.Diff(test.want, got); diff != "" {
+				t.Errorf("bad prefixes (-want, +got): %s", diff)
 			}
 		})
 	}
