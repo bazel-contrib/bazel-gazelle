@@ -116,7 +116,11 @@ func Index(p, sub string) int {
 
 // Prefixes returns an iterator (iter.Seq) over all the prefixes of p.
 // For example, if p is "a/b/c", the iterator yields "", "a", "a/b", "a/b/c".
-// p must be a slash-separated path. It may be relative or absolute.
+//
+// p must be a slash-separated path. It may be relative or absolute. p
+// does not need to be a clean path, but if it is not clean, Prefixes ignores
+// redundant slashes while keeping redundant path elements. For example,
+// if p is "a/../b//c/", the iterator yields "a", "..", "b", "c".
 func Prefixes(p string) func(yield func(string) bool) {
 	return func(yield func(string) bool) {
 		var slash int
