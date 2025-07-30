@@ -41,6 +41,25 @@ func ExtractModuleToApparentNameMapping(repoRoot string) (func(string) string, e
 	}, nil
 }
 
+// ExtractModuleName collects name of the module from the MODULE.bazel file, if it exists.
+// Returns empty string if MODULE.bazel does not exist or does not define explicit name
+func ExtractModuleName(repoRoot string) (string, error) {
+	f, err := parseModuleSegment(repoRoot, "MODULE.bazel")
+	if err != nil {
+		// If there is no MODULE.bazel file, return an name by no error
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	for _, dep := range f.Rules("") {
+		if dep.Kind() == "module" {
+			return dep.Name(), nil
+		}
+	}
+	return "", nil
+}
+
 func parseModuleSegment(repoRoot, relPath string) (*build.File, error) {
 	path := filepath.Join(repoRoot, relPath)
 	bytes, err := os.ReadFile(path)

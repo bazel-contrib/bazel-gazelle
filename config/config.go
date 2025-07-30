@@ -247,6 +247,10 @@ func (cc *CommonConfigurer) CheckFlags(fs *flag.FlagSet, c *Config) error {
 	if err != nil {
 		return fmt.Errorf("%s: failed to resolve symlinks: %v", cc.repoRoot, err)
 	}
+	c.RepoName, err = extractRepositoryName(c.RepoRoot)
+	if err != nil {
+		return fmt.Errorf("failed to extract repository name: %v", err)
+	}
 	c.IndexLibraries = cc.indexLibraries
 	c.IndexLazy = cc.indexLazy
 	c.Strict = cc.strict
@@ -349,4 +353,35 @@ func (f indexFlag) Set(s string) error {
 
 func (f indexFlag) IsBoolFlag() bool {
 	return true
+}
+
+func extractRepositoryName(repoRoot string) (string, error) {
+	name, err := module.ExtractModuleName(repoRoot)
+	if name != "" || err != nil {
+		return name, err
+	}
+
+	workspacePath := wspace.FindWORKSPACEFile(repoRoot)
+	workspace, _ := rule.LoadWorkspaceFile(workspacePath, "")
+	if workspace != nil {
+		return findWorkspaceName(workspace), nil
+	}
+	return "", nil
+}
+
+func findWorkspaceName(f *rule.File) string {
+	var name string
+	for _, r := range f.Rules {
+		if r.Kind() == "workspace" {
+			name = r.Name()
+			break
+		}
+	}
+	// HACK(bazelbuild/rules_go#2355, bazelbuild/rules_go#2387):
+	// We can't patch the WORKSPACE file with the correct name because Bazel
+	// writes it first; our patches won't apply.
+	if name == "com_google_googleapis" {
+		return "go_googleapis"
+	}
+	return name
 }
