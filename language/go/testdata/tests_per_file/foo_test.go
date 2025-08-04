@@ -8,4 +8,6 @@ import (
 
 type fileSpec testtools.FileSpec
 
-func TestStuff(t *testing.T) {}
+func TestStuff(t *testing.T) { t.Parallel()}
+
+func TestFoo(t *testing.T) { t.Parallel()}

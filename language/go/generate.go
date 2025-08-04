@@ -724,6 +724,7 @@ func (g *generator) generateTests(pkg *goPackage, library string) []*rule.Rule {
 				continue
 			}
 		}
+
 		var embeds []string
 		if test.hasInternalTest {
 			if library != "" {
@@ -731,6 +732,9 @@ func (g *generator) generateTests(pkg *goPackage, library string) []*rule.Rule {
 			}
 		}
 		g.setCommonAttrs(goTest, pkg.rel, nil, test, embeds)
+		if test.numParallel > 0 {
+			goTest.SetAttr("shard_count", test.numParallel)
+		}
 		if pkg.hasTestdata {
 			goTest.SetAttr("data", rule.GlobValue{Patterns: []string{"testdata/**"}})
 		}
