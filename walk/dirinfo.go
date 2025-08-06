@@ -5,7 +5,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/bazelbuild/bazel-gazelle/rule"
@@ -102,7 +101,7 @@ func (w *walker) loadDirInfo(rel string) (DirInfo, error) {
 //
 // populateCache should only be called when recursion is enabled. It avoids
 // traversing excluded subdirectories.
-func (w *walker) populateCache(rels []string) {
+func (w *walker) populateCache() {
 	// sem is a semaphore.
 	//
 	// Acquiring the semaphore by sending struct{}{} grants permission to spawn
@@ -124,40 +123,22 @@ func (w *walker) populateCache(rels []string) {
 
 		for _, subdir := range info.Subdirs {
 			subdirRel := path.Join(rel, subdir)
-			sem <- struct{}{} // acquire semaphore for child
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				visit(subdirRel)
-			}()
-		}
-	}
 
-	// Load each directory prefix. walker.loadDirInfo requires the parent
-	// directory to be visited first so its configuration is known.
-	w.cache.get("", w.loadDirInfo)
-	for _, dir := range rels {
-		slash := 0
-		for {
-			i := strings.Index(dir[slash:], "/")
-			if i < 0 {
-				break
+			// Navigate to the subdirectory if it should be visited.
+			if w.shouldVisit(subdirRel, true) {
+				sem <- struct{}{} // acquire semaphore for child
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					visit(subdirRel)
+				}()
 			}
-			prefix := dir[:slash+i]
-			slash = slash + i + 1
-			w.cache.get(prefix, w.loadDirInfo)
 		}
 	}
 
-	// Visit the directories recursively in parallel.
-	for _, dir := range rels {
-		sem <- struct{}{}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			visit(dir)
-		}()
-	}
+	// Start the traversal at the root directory.
+	sem <- struct{}{}
+	visit("")
 
 	wg.Wait()
 }

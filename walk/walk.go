@@ -378,9 +378,8 @@ func newWalker(c *config.Config, cexts []config.Configurer, dirs []string, mode 
 		visits:          make(map[string]visitInfo),
 		relsToVisitSeen: make(map[string]struct{}),
 	}
-	if mode == VisitAllUpdateSubdirsMode || mode == UpdateSubdirsMode {
-		w.populateCache(rels)
-	}
+
+	w.populateCache()
 
 	return w, nil
 }
@@ -388,7 +387,7 @@ func newWalker(c *config.Config, cexts []config.Configurer, dirs []string, mode 
 // shouldVisit returns whether the visit method should be called on rel.
 // We always need to visit directories requested by the caller and their
 // parents. We may also need to visit subdirectories.
-func (w *walker) shouldVisit(rel string, parentConfig *walkConfig, updateParent bool) bool {
+func (w *walker) shouldVisit(rel string, updateParent bool) bool {
 	switch w.mode {
 	case VisitAllUpdateSubdirsMode, VisitAllUpdateDirsMode:
 		return true
@@ -455,7 +454,7 @@ func (w *walker) visit(c *config.Config, rel string, updateParent bool) {
 	// Visit subdirectories, as needed.
 	for _, subdir := range subdirs {
 		subdirRel := path.Join(rel, subdir)
-		if w.shouldVisit(subdirRel, info.config, shouldUpdate) {
+		if w.shouldVisit(subdirRel, shouldUpdate) {
 			w.visit(c.Clone(), subdirRel, shouldUpdate)
 			if c.Strict && len(w.errs) > 0 {
 				return
