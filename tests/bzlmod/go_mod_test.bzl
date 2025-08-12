@@ -90,6 +90,31 @@ def _go_mod_21_test_impl(ctx):
 
 go_mod_21_test = unittest.make(_go_mod_21_test_impl)
 
+_GO_MOD_GODEBUG_CONTENT = """go 1.24.6
+
+module example.com
+
+godebug (
+    randseednop=0
+    rsa1024min=0
+)
+"""
+
+_EXPECTED_GO_MOD_GODEBUG_PARSE_RESULT = struct(
+    go = (1, 24),
+    module = "example.com",
+    replace_map = {},
+    require = (),
+    tool = (),
+)
+
+def _go_mod_godebug_test_impl(ctx):
+    env = unittest.begin(ctx)
+    asserts.equals(env, _EXPECTED_GO_MOD_GODEBUG_PARSE_RESULT, parse_go_mod(_GO_MOD_GODEBUG_CONTENT, "/go.mod"))
+    return unittest.end(env)
+
+go_mod_godebug_test = unittest.make(_go_mod_godebug_test_impl)
+
 _GO_SUM_CONTENT = """cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/bazelbuild/buildtools v0.0.0-20220531122519-a43aed7014c8 h1:fmdo+fvvWlhldUcqkhAMpKndSxMN3vH5l7yow5cEaiQ=
@@ -153,12 +178,47 @@ def _go_work_test_impl(ctx):
 
 go_work_test = unittest.make(_go_work_test_impl)
 
+_GO_WORK_GODEBUG_CONTENT = """go 1.24
+use (
+    ./foo/go_mod_one
+    ./bar/baz/go_mod_two
+)
+
+godebug (
+    randseednop=0
+    rsa1024min=0
+)
+"""
+
+_EXPECTED_GO_WORK_GODEBUG_PARSE_RESULT = struct(
+    go = (1, 24),
+    from_file_tags = [
+        struct(_is_dev_dependency = False, go_mod = Label("//foo/go_mod_one:go.mod")),
+        struct(_is_dev_dependency = False, go_mod = Label("//bar/baz/go_mod_two:go.mod")),
+    ],
+    module_tags = [],
+    replace_map = {},
+    use = [
+        "./foo/go_mod_one",
+        "./bar/baz/go_mod_two",
+    ],
+)
+
+def _go_work_godebug_test_impl(ctx):
+    env = unittest.begin(ctx)
+    asserts.equals(env, _EXPECTED_GO_WORK_GODEBUG_PARSE_RESULT, parse_go_work(_GO_WORK_GODEBUG_CONTENT, Label("@@//:go.work")))
+    return unittest.end(env)
+
+go_work_godebug_test = unittest.make(_go_work_godebug_test_impl)
+
 def go_mod_test_suite(name):
     unittest.suite(
         name,
         go_mod_test,
         go_mod_21_test,
+        go_mod_godebug_test,
         go_sum_test,
         go_work_test,
+        go_work_godebug_test,
         use_spec_test,
     )
