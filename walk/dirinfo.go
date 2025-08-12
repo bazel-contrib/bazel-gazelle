@@ -5,7 +5,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sync"
 
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
@@ -99,8 +98,8 @@ func (w *walker) loadDirInfo(rel string) (DirInfo, error) {
 // populateCache loads directory information in a parallel tree traversal.
 // This has no semantic effect but should speed up I/O.
 //
-// populateCache should only be called when recursion is enabled. It avoids
-// traversing excluded subdirectories.
+// populateCache will traverse only the directories that walker is configured
+// to visit. It will not traverse excluded directories.
 func (w *walker) populateCache() {
 	// sem is a semaphore.
 	//
@@ -111,7 +110,6 @@ func (w *walker) populateCache() {
 	// for each child. This prevents a deadlock that could occur for a deeply
 	// nested series of directories.
 	sem := make(chan struct{}, 6)
-	var wg sync.WaitGroup
 
 	var visit func(string)
 	visit = func(rel string) {
@@ -127,18 +125,12 @@ func (w *walker) populateCache() {
 			// Navigate to the subdirectory if it should be visited.
 			if w.shouldVisit(subdirRel, true) {
 				sem <- struct{}{} // acquire semaphore for child
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					visit(subdirRel)
-				}()
+				go visit(subdirRel)
 			}
 		}
 	}
 
 	// Start the traversal at the root directory.
 	sem <- struct{}{}
-	visit("")
-
-	wg.Wait()
+	go visit("")
 }
