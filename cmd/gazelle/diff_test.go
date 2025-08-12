@@ -175,3 +175,59 @@ func TestDiffReadWriteDir(t *testing.T) {
 	want := append(files, testtools.FileSpec{Path: "p", Content: wantPatch})
 	testtools.CheckFiles(t, dir, want)
 }
+
+func TestDiffExistingNewlines(t *testing.T) {
+	newlineFiles := []testtools.FileSpec{
+		{Path: "WORKSPACE"},
+		{
+			Path: "BUILD.bazel",
+			Content: `load("@io_bazel_rules_go//go:def.bzl", "go_library")
+# gazelle:prefix example.com/hello
+
+go_library(
+    name = "hello",
+    srcs = ["hello.go"],
+    importpath = "example.com/hello",
+    visibility = ["//visibility:public"],
+)
+`,
+		},
+		{
+			Path:    "hello.go",
+			Content: `package hello`,
+		},
+	}
+	newline_dir, cleanup := testtools.CreateFiles(t, newlineFiles)
+	defer cleanup()
+
+	if err := runGazelle(newline_dir, []string{"-mode=diff"}); err != nil {
+		t.Fatalf("got %q; want %q", err, "")
+	}
+
+	noNewlineFiles := []testtools.FileSpec{
+		{Path: "WORKSPACE"},
+		{
+			Path: "BUILD.bazel",
+			Content: `load("@io_bazel_rules_go//go:def.bzl", "go_library")
+# gazelle:prefix example.com/hello
+
+go_library(
+    name = "hello",
+    srcs = ["hello.go"],
+    importpath = "example.com/hello",
+    visibility = ["//visibility:public"],
+)`,
+		},
+		{
+			Path:    "hello.go",
+			Content: `package hello`,
+		},
+	}
+	noNewline_dir, cleanup := testtools.CreateFiles(t, noNewlineFiles)
+	defer cleanup()
+
+	wantError := "encountered changes while running diff"
+	if err := runGazelle(noNewline_dir, []string{"-mode=diff"}); err == nil || err.Error() != wantError {
+		t.Fatalf("got %q; want %q", err, wantError)
+	}
+}
