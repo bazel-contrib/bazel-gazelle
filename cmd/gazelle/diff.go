@@ -74,14 +74,24 @@ func diffFile(c *config.Config, f *rule.File) error {
 	} else {
 		diff.ToFile = outPath
 	}
+
+	// The diff for patch creation should be stored separately from the original diff
+	// so that the exit code from mode=diff is consistent with the exit code from
+	// mode=fix|print
+	patchDiff := diff
+
 	// Trim off trailing newline from the end of the file.  Modern diff tools typically
 	// handle this, however difflib does not and is no longer maintained, so we need to
 	// handle it here.
 	if len(diff.A) > 0 {
-		if diff.A[len(diff.A)-1] == "\n" {diff.A = diff.A[:len(diff.A)-1]}
+		if diff.A[len(diff.A)-1] == "\n" {
+			patchDiff.A = diff.A[:len(diff.A)-1]
+		}
 	}
 	if len(diff.B) > 0 {
-		if diff.B[len(diff.B)-1] == "\n" {diff.B = diff.B[:len(diff.B)-1]}
+		if diff.B[len(diff.B)-1] == "\n" {
+			patchDiff.B = diff.B[:len(diff.B)-1]
+		}
 	}
 
 	uc := getUpdateConfig(c)
@@ -89,7 +99,7 @@ func diffFile(c *config.Config, f *rule.File) error {
 	if uc.patchPath != "" {
 		out = &uc.patchBuffer
 	}
-	if err := difflib.WriteUnifiedDiff(out, diff); err != nil {
+	if err := difflib.WriteUnifiedDiff(out, patchDiff); err != nil {
 		return fmt.Errorf("error diffing %s: %v", f.Path, err)
 	}
 	if ds, _ := difflib.GetUnifiedDiffString(diff); ds != "" {
