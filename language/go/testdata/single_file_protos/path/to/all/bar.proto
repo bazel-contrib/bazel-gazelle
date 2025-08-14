@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package all;
+
+import "all/foo.proto";
+
+message Bar { all.Foo foo = 1; }
