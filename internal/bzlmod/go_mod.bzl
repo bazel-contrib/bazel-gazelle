@@ -101,7 +101,7 @@ def parse_go_work(content, go_work_label):
                 continue
             else:
                 state["use"].append(tokens[1])
-        elif tokens[0] == "toolchain":
+        elif tokens[0] in ("toolchain", "ignore"):
             continue
         elif tokens[0] == "godebug":
             if tokens[1] == "(":
@@ -217,7 +217,7 @@ def parse_go_mod(content, path):
             continue
 
         if not current_directive:
-            if tokens[0] not in ["module", "go", "require", "replace", "exclude", "retract", "toolchain", "tool", "godebug"]:
+            if tokens[0] not in ["module", "go", "require", "replace", "exclude", "retract", "toolchain", "tool", "godebug", "ignore"]:
                 fail("{}:{}: unexpected token '{}' at start of line".format(path, line_no, tokens[0]))
             if len(tokens) == 1:
                 fail("{}:{}: expected another token after '{}'".format(path, line_no, tokens[0]))
