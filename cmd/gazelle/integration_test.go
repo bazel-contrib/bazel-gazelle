@@ -771,7 +771,7 @@ proto_library(
 
 go_proto_library(
     name = "repo_go_proto",
-    compilers = ["@io_bazel_rules_go//proto:go_grpc_v2"],
+    compilers = ["@io_bazel_rules_go//proto:go_grpc"],
     importpath = "example.com/repo",
     proto = ":repo_proto",
     visibility = ["//visibility:public"],
@@ -2033,7 +2033,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_proto_library(
     name = "service_go_proto",
-    compilers = ["@io_bazel_rules_go//proto:go_grpc_v2"],
+    compilers = ["@io_bazel_rules_go//proto:go_grpc"],
     importpath = "example.com/repo/service",
     proto = ":service_proto",
     visibility = ["//visibility:public"],

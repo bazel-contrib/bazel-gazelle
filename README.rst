@@ -538,7 +538,7 @@ The following flags are accepted:
 | If `all` or `true`, Gazelle indexes all directories in the repository, even when recursion is disabled.      |
 | This makes dependency resolution simple but can be slow for large repositories.                              |
 +-------------------------------------------------------------------+------------------------------------------+
-| :flag:`-go_grpc_compiler`                                         | ``@io_bazel_rules_go//proto:go_grpc_v2`` |
+| :flag:`-go_grpc_compiler`                                         | ``@io_bazel_rules_go//proto:go_grpc``    |
 +-------------------------------------------------------------------+------------------------------------------+
 | The protocol buffers compiler to use for building go bindings for gRPC. May be repeated.                     |
 |                                                                                                              |
@@ -856,7 +856,7 @@ The following directives are recognized:
 | * ``file``: A distinct ``go_test`` rule will be generated for each ``_test.go`` file in the  |
 |   package directory.                                                                         |
 +---------------------------------------------------+------------------------------------------+
-| :direc:`# gazelle:go_grpc_compilers`              | ``@io_bazel_rules_go//proto:go_grpc_v2`` |
+| :direc:`# gazelle:go_grpc_compilers`              | ``@io_bazel_rules_go//proto:go_grpc_``   |
 +---------------------------------------------------+------------------------------------------+
 | The protocol buffers compiler(s) to use for building go bindings for gRPC.                   |
 | Multiple compilers, separated by commas, may be specified.                                   |
@@ -1278,7 +1278,7 @@ attributes with ``embed`` attributes.
 
 **Migrate gRPC compilers (fix and update):** Gazelle converts
 ``go_grpc_library`` rules to ``go_proto_library`` rules with
-``compilers = ["@io_bazel_rules_go//proto:go_grpc_v2"]``.
+``compilers = ["@io_bazel_rules_go//proto:go_grpc"]``.
 
 **Flatten srcs (fix and update):** Gazelle converts ``srcs`` attributes that
 use OS and architecture-specific ``select`` expressions to flat lists.
