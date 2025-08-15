@@ -31,10 +31,6 @@ const (
 	// mode for libraries that contained .pb.go files and .proto files.
 	legacyProtoFilegroupName = "go_default_library_protos"
 
-	// grpcCompilerLabel is the label for the gRPC compiler plugin, used in the
-	// "compilers" attribute of go_proto_library rules.
-	grpcCompilerLabel = "@io_bazel_rules_go//proto:go_grpc_v2"
-
 	// goProtoSuffix is the suffix applied to the labels of all generated
 	// go_proto_library targets.
 	goProtoSuffix = "_go_proto"
