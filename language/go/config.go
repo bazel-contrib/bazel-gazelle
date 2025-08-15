@@ -154,10 +154,24 @@ const (
 	fileTestMode
 )
 
-var (
-	defaultGoProtoCompilers = []string{"@io_bazel_rules_go//proto:go_proto"}
-	defaultGoGrpcCompilers  = []string{"@io_bazel_rules_go//proto:go_grpc_v2"}
-)
+func formatLabel(c *config.Config, moduleName, fallbackName, packageAndName string) string {
+	var repoName string
+	if c.ModuleToApparentName != nil {
+		repoName = c.ModuleToApparentName(moduleName)
+	}
+	if repoName == "" {
+		repoName = fallbackName
+	}
+	return "@" + repoName + packageAndName
+}
+
+func defaultGoProtoCompilers(c *config.Config) []string {
+	return []string{formatLabel(c, "rules_go", "io_bazel_rules_go", "//proto:go_proto")}
+}
+
+func defaultGoGrpcCompilers(c *config.Config) []string {
+	return []string{formatLabel(c, "rules_go", "io_bazel_rules_go", "//proto:go_grpc_v2")}
+}
 
 func (m testMode) String() string {
 	switch m {
@@ -183,10 +197,9 @@ func testModeFromString(s string) (testMode, error) {
 
 func newGoConfig() *goConfig {
 	gc := &goConfig{
-		goProtoCompilers: defaultGoProtoCompilers,
-		goGrpcCompilers:  defaultGoGrpcCompilers,
-		goGenerateProto:  true,
+		goGenerateProto: true,
 	}
+
 	if gc.genericTags == nil {
 		gc.genericTags = make(map[string]bool)
 	}
@@ -512,6 +525,13 @@ func (*goLang) Configure(c *config.Config, rel string, f *rule.File) {
 	}
 	c.Exts[goName] = gc
 
+	if !gc.goGrpcCompilersSet {
+		gc.goGrpcCompilers = defaultGoGrpcCompilers(c)
+	}
+	if !gc.goProtoCompilersSet {
+		gc.goProtoCompilers = defaultGoProtoCompilers(c)
+	}
+
 	if rel == "" {
 		moduleToApparentName, err := module.ExtractModuleToApparentNameMapping(c.RepoRoot)
 		if err != nil {
@@ -623,7 +643,7 @@ Update io_bazel_rules_go to a newer version in your WORKSPACE file.`
 				// Special syntax (empty value) to reset directive.
 				if d.Value == "" {
 					gc.goGrpcCompilersSet = false
-					gc.goGrpcCompilers = defaultGoGrpcCompilers
+					gc.goGrpcCompilers = defaultGoGrpcCompilers(c)
 				} else {
 					gc.goGrpcCompilersSet = true
 					gc.goGrpcCompilers = splitValue(d.Value)
@@ -633,7 +653,7 @@ Update io_bazel_rules_go to a newer version in your WORKSPACE file.`
 				// Special syntax (empty value) to reset directive.
 				if d.Value == "" {
 					gc.goProtoCompilersSet = false
-					gc.goProtoCompilers = defaultGoProtoCompilers
+					gc.goProtoCompilers = defaultGoProtoCompilers(c)
 				} else {
 					gc.goProtoCompilersSet = true
 					gc.goProtoCompilers = splitValue(d.Value)
