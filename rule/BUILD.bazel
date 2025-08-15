@@ -26,6 +26,7 @@ go_test(
     name = "rule_test",
     srcs = [
         "directives_test.go",
+        "expr_test.go",
         "merge_test.go",
         "rule_test.go",
         "value_test.go",
@@ -46,6 +47,7 @@ filegroup(
         "directives.go",
         "directives_test.go",
         "expr.go",
+        "expr_test.go",
         "merge.go",
         "merge_test.go",
         "platform.go",
