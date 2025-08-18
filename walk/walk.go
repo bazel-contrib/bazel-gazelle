@@ -379,7 +379,8 @@ func newWalker(c *config.Config, cexts []config.Configurer, dirs []string, mode 
 		relsToVisitSeen: make(map[string]struct{}),
 	}
 
-	w.populateCache()
+	// Asynchronously populate the walker cache in the background.
+	go w.populateCache()
 
 	return w, nil
 }
