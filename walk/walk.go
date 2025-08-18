@@ -231,30 +231,24 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 		// Make sure to visit prefixes of relToVisit as well so we apply
 		// configuration directives.
 		pathtools.Prefixes(relToVisit)(func(rel string) bool {
-			if v, ok := w.visits[rel]; !ok {
-				var c *config.Config
-				if ok {
-					// Already configured this directory but did not call the callback.
-					c = v.c
-				} else {
-					// Never visited this directory.
-					parentRel := path.Dir(rel)
-					if parentRel == "." {
-						parentRel = ""
-					}
-					parentCfg := w.visits[parentRel].c
-					if getWalkConfig(parentCfg).isExcludedDir(rel) {
-						return false
-					}
-					if _, err := w.cache.get(rel, w.loadDirInfo); err != nil {
-						// Error loading directory. Most commonly, this is because the
-						// directory doesn't exist, but it could actually be a file
-						// or we don't have permission, or some other I/O error.
-						// Skip it.
-						return false
-					}
-					c = parentCfg.Clone()
+			if _, ok := w.visits[rel]; !ok {
+				// Never visited this directory.
+				parentRel := path.Dir(rel)
+				if parentRel == "." {
+					parentRel = ""
 				}
+				parentCfg := w.visits[parentRel].c
+				if getWalkConfig(parentCfg).isExcludedDir(rel) {
+					return false
+				}
+				if _, err := w.cache.get(rel, w.loadDirInfo); err != nil {
+					// Error loading directory. Most commonly, this is because the
+					// directory doesn't exist, but it could actually be a file
+					// or we don't have permission, or some other I/O error.
+					// Skip it.
+					return false
+				}
+				c := parentCfg.Clone()
 				w.visit(c, rel, false)
 				if c.Strict && len(w.errs) > 0 {
 					return false
