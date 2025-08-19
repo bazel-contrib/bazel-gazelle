@@ -46,6 +46,7 @@ type goPackage struct {
 type goTarget struct {
 	sources, embedSrcs, imports, cppopts, copts, cxxopts, clinkopts platformStringsBuilder
 	cgo, hasInternalTest                                            bool
+	numParallel int
 }
 
 // protoTarget contains information used to generate a go_proto_library rule.
@@ -116,6 +117,9 @@ func (pkg *goPackage) addFile(c *config.Config, er *embedResolver, info fileInfo
 		test.addFile(c, er, info)
 		if !info.isExternalTest {
 			test.hasInternalTest = true
+		}
+		if info.numParallel > 0 {
+			test.numParallel = max(test.numParallel, info.numParallel)
 		}
 	default:
 		pkg.hasMainFunction = pkg.hasMainFunction || info.hasMainFunction
