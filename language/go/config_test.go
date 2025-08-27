@@ -147,14 +147,14 @@ func TestDirectives(t *testing.T) {
 	if gc.goGrpcCompilersSet {
 		t.Error("expected goGrpcCompilersSet to be unset")
 	}
-	if diff := cmp.Diff(defaultGoGrpcCompilers, gc.goGrpcCompilers); diff != "" {
+	if diff := cmp.Diff(defaultGoGrpcCompilers(c), gc.goGrpcCompilers); diff != "" {
 		t.Errorf("(-want, +got): %s", diff)
 	}
 
 	if gc.goProtoCompilersSet {
 		t.Error("expected goProtoCompilersSet to be unset")
 	}
-	if diff := cmp.Diff(defaultGoProtoCompilers, gc.goProtoCompilers); diff != "" {
+	if diff := cmp.Diff(defaultGoProtoCompilers(c), gc.goProtoCompilers); diff != "" {
 		t.Errorf("(-want, +got): %s", diff)
 	}
 
