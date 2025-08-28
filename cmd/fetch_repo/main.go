@@ -90,7 +90,7 @@ func main() {
 		if *sum != "" {
 			log.Fatal("-sum must not be set in module path mode")
 		}
-		if err := moduleFromPath(*path, *dest); err != nil {
+		if err := copyTree(*dest, *path); err != nil {
 			log.Fatal(err)
 		}
 	} else if *version != "" {
