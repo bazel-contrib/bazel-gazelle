@@ -37,6 +37,24 @@ func copyTree(destRoot, srcRoot string) error {
 		switch {
 		case info.Mode().IsDir():
 			err = os.Mkdir(dest, 0o777)
+		case info.Mode()&os.ModeSymlink != 0:
+			target, err := os.Readlink(src)
+			if err != nil {
+				return err
+			}
+
+			// If target is absolute, use as-is
+			if filepath.IsAbs(target) {
+				err = os.Symlink(target, dest)
+			} else {
+				// For relative targets, resolve to absolute path from source location
+				srcDir := filepath.Dir(src)
+				absTarget, err := filepath.Abs(filepath.Join(srcDir, target))
+				if err != nil {
+					return err
+				}
+				err = os.Symlink(absTarget, dest)
+			}
 		case info.Mode().IsRegular():
 			r, err := os.Open(src)
 			if err != nil {

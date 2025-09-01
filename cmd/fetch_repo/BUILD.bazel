@@ -46,6 +46,7 @@ filegroup(
         "BUILD.bazel",
         "clean.go",
         "copy_tree.go",
+        "copy_tree_test.go",
         "errorscompat.go",
         "go_mod_download.go",
         "main.go",
@@ -58,7 +59,10 @@ filegroup(
 
 go_test(
     name = "fetch_repo_test",
-    srcs = ["main_test.go"],
+    srcs = [
+        "copy_tree_test.go",
+        "main_test.go",
+    ],
     embed = [":fetch_repo_lib"],
     deps = ["@org_golang_x_tools_go_vcs//:vcs"],
 )
