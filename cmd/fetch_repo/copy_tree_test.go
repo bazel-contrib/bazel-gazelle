@@ -192,7 +192,7 @@ func TestCopyTreeSymlinks(t *testing.T) {
 				expectedTarget = "../target.txt" // Should remain relative
 			}
 
-			if target != expectedTarget {
+			if filepath.ToSlash(target) != filepath.ToSlash(expectedTarget) {
 				t.Errorf("Symlink %s target mismatch. Expected %q, got %q", test.name, expectedTarget, target)
 			}
 		})
