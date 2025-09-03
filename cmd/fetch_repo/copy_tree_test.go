@@ -158,11 +158,10 @@ func TestCopyTreeSymlinks(t *testing.T) {
 	tests := []struct {
 		name     string
 		linkPath string
-		isAbs    bool
 	}{
-		{"absolute_link", filepath.Join(destDir, "absolute_link"), true},
-		{"relative_link", filepath.Join(destDir, "relative_link"), false},
-		{"relative_from_sub", filepath.Join(destDir, "subdir", "link_to_parent"), false},
+		{"absolute_link", filepath.Join(destDir, "absolute_link")},
+		{"relative_link", filepath.Join(destDir, "relative_link")},
+		{"relative_from_sub", filepath.Join(destDir, "subdir", "link_to_parent")},
 	}
 
 	for _, test := range tests {
@@ -176,15 +175,25 @@ func TestCopyTreeSymlinks(t *testing.T) {
 				t.Fatalf("%s is not a symlink", test.name)
 			}
 
-			// Check target
+			// Check target - symlinks are copied as-is
 			target, err := os.Readlink(test.linkPath)
 			if err != nil {
 				t.Fatalf("Failed to read symlink %s: %v", test.name, err)
 			}
 
-			// For our implementation, relative links should be converted to absolute
-			if !test.isAbs && !filepath.IsAbs(target) {
-				t.Errorf("Expected relative symlink %s to be converted to absolute, but got: %s", test.name, target)
+			// Verify the symlink target matches the expected pattern
+			var expectedTarget string
+			switch test.name {
+			case "absolute_link":
+				expectedTarget = targetFile // Should remain absolute to original source
+			case "relative_link":
+				expectedTarget = "target.txt" // Should remain relative
+			case "relative_from_sub":
+				expectedTarget = "../target.txt" // Should remain relative
+			}
+
+			if target != expectedTarget {
+				t.Errorf("Symlink %s target mismatch. Expected %q, got %q", test.name, expectedTarget, target)
 			}
 		})
 	}

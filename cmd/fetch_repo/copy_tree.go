@@ -42,19 +42,7 @@ func copyTree(destRoot, srcRoot string) error {
 			if err != nil {
 				return err
 			}
-
-			// If target is absolute, use as-is
-			if filepath.IsAbs(target) {
-				err = os.Symlink(target, dest)
-			} else {
-				// For relative targets, resolve to absolute path from source location
-				srcDir := filepath.Dir(src)
-				absTarget, err := filepath.Abs(filepath.Join(srcDir, target))
-				if err != nil {
-					return err
-				}
-				err = os.Symlink(absTarget, dest)
-			}
+			err = os.Symlink(target, dest)
 		case info.Mode().IsRegular():
 			r, err := os.Open(src)
 			if err != nil {
