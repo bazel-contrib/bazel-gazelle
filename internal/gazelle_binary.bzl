@@ -16,6 +16,7 @@ load(
     "@io_bazel_rules_go//go:def.bzl",
     "GoArchive",
     "go_context",
+    "new_go_info",
 )
 
 def _gazelle_binary_impl(ctx):
@@ -46,25 +47,23 @@ var languages = []language.Language{{
     go.actions.write(langs_file, langs_content)
 
     # Build the gazelle binary.
-    library = go.new_library(go, is_main = True)
     attr = struct(
         srcs = [struct(files = [langs_file])],
         deps = ctx.attr.languages,
         embed = [ctx.attr._srcs],
     )
-    source = go.library_to_source(go, attr, library, ctx.coverage_instrumented())
+    go_info = new_go_info(go, attr, is_main = True)
 
     archive, executable, runfiles = go.binary(
         go,
         name = ctx.label.name,
-        source = source,
+        source = go_info,
         version_file = ctx.version_file,
         info_file = ctx.info_file,
     )
 
     return [
-        library,
-        source,
+        go_info,
         archive,
         OutputGroupInfo(compilation_outputs = [archive.data.file]),
         DefaultInfo(
