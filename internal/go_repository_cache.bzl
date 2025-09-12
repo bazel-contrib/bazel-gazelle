@@ -38,14 +38,14 @@ def _go_repository_cache_impl(ctx):
     go_root = str(ctx.path(go_sdk_label).dirname)
     go_path = str(ctx.path("."))
     go_cache = str(ctx.path("gocache"))
-    go_mod_cache = ""
-    if ctx.os.environ.get("GO_REPOSITORY_USE_HOST_MODCACHE", "") == "1":
+    go_mod_cache = ctx.getenv("GOMODCACHE", "")
+    if ctx.getenv("GO_REPOSITORY_USE_HOST_MODCACHE", "") == "1":
         extension = executable_extension(ctx)
         go_tool = go_root + "/bin/go" + extension
         go_mod_cache = read_go_env(ctx, go_tool, "GOMODCACHE")
         if not go_mod_cache:
             fail("GOMODCACHE must be set when GO_REPOSITORY_USE_HOST_MODCACHE is enabled.")
-    if ctx.os.environ.get("GO_REPOSITORY_USE_HOST_CACHE", "") == "1":
+    if ctx.getenv("GO_REPOSITORY_USE_HOST_CACHE", "") == "1":
         extension = executable_extension(ctx)
         go_tool = go_root + "/bin/go" + extension
         go_mod_cache = read_go_env(ctx, go_tool, "GOMODCACHE")
@@ -91,8 +91,6 @@ go_repository_cache = repository_rule(
         "go_sdk_info": attr.string_dict(),
         "go_env": attr.string_dict(),
     },
-    # Don't put anything in environ. If we switch between the host cache
-    # and Bazel's cache, it shouldn't actually invalidate Bazel's cache.
 )
 
 def read_go_env(ctx, go_tool, var):
