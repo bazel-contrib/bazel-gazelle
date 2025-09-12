@@ -38,7 +38,7 @@ def _go_repository_cache_impl(ctx):
     go_root = str(ctx.path(go_sdk_label).dirname)
     go_path = str(ctx.path("."))
     go_cache = str(ctx.path("gocache"))
-    go_mod_cache = ctx.getenv("GOMODCACHE", "")
+    go_mod_cache = ""
     if ctx.getenv("GO_REPOSITORY_USE_HOST_MODCACHE", "") == "1":
         extension = executable_extension(ctx)
         go_tool = go_root + "/bin/go" + extension
@@ -95,6 +95,8 @@ go_repository_cache = repository_rule(
 
 def read_go_env(ctx, go_tool, var):
     watch(ctx, go_tool)
+    # watch var too.
+    ctx.getenv(var)
     res = ctx.execute([go_tool, "env", var])
     if res.return_code:
         fail("failed to read go environment: " + res.stderr)
