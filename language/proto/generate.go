@@ -97,6 +97,7 @@ func (*protoLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		res.Imports[i] = r.PrivateAttr(config.GazelleImportsKey)
 	}
 	res.Empty = append(res.Empty, generateEmpty(args.File, regularProtoFiles, genProtoFiles)...)
+	res.RelsToIndex = buildRelsToIndex(pc, pkgs)
 	return res
 }
 
@@ -334,4 +335,34 @@ outer:
 		empty = append(empty, rule.NewRule("proto_library", r.Name()))
 	}
 	return empty
+}
+
+// buildRelsToindex transforms the import statements read from proto files in the current directory
+// into a list of repo-root-relative directory paths to lazily index.
+func buildRelsToIndex(pc *ProtoConfig, packages []*Package) []string {
+	dirSet := make(map[string]bool)
+
+	for _, pkg := range packages {
+		for importStr := range pkg.Imports {
+			for _, search := range pc.protoSearch {
+				transformedRel, ok := transformImport("", importStr, search.stripImportPrefix, search.importPrefix)
+				if !ok {
+					continue
+				}
+				dir := path.Dir(transformedRel)
+				if dir == "." {
+					dir = ""
+				}
+				dirSet[dir] = true
+			}
+		}
+	}
+
+	dirs := make([]string, 0, len(dirSet))
+	for dir := range dirSet {
+		dirs = append(dirs, dir)
+	}
+	sort.Strings(dirs)
+
+	return dirs
 }

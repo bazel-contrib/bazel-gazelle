@@ -58,6 +58,10 @@ type ProtoConfig struct {
 	// If set, Gazelle will apply this value to the import_prefix attribute
 	// within the proto_library_rule.
 	ImportPrefix string
+
+	// protoSearch is a list of rules for transforming import strings into
+	// repo-root-relative directory paths where the proto might be found.
+	protoSearch []protoSearch
 }
 
 // GetProtoConfig returns the proto language configuration. If the proto
@@ -163,6 +167,12 @@ func (m Mode) ShouldUseKnownImports() bool {
 	return m != DisableGlobalMode
 }
 
+// protoSearch is a rule that transforms an import string into a
+// repo-root-relative directory path where the proto might be found.
+type protoSearch struct {
+	stripImportPrefix, importPrefix string
+}
+
 type modeFlag struct {
 	mode *Mode
 }
@@ -201,7 +211,7 @@ func (*protoLang) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
 }
 
 func (*protoLang) KnownDirectives() []string {
-	return []string{"proto", "proto_group", "proto_strip_import_prefix", "proto_import_prefix"}
+	return []string{"proto", "proto_group", "proto_strip_import_prefix", "proto_import_prefix", "proto_search"}
 }
 
 func (*protoLang) Configure(c *config.Config, rel string, f *rule.File) {
@@ -228,6 +238,20 @@ func (*protoLang) Configure(c *config.Config, rel string, f *rule.File) {
 				}
 			case "proto_import_prefix":
 				pc.ImportPrefix = d.Value
+			case "proto_search":
+				// Special syntax (empty value) to reset directive.
+				if d.Value == "" {
+					pc.protoSearch = nil
+				} else {
+					args := strings.Fields(d.Value)
+					if len(args) != 2 {
+						log.Printf("# gazelle:proto_search: got %d arguments, expected 2, stripImportPrefix and importPrefix", len(args))
+						continue
+					}
+					stripImportPrefix := args[0]
+					importPrefix := args[1]
+					pc.protoSearch = append(pc.protoSearch, protoSearch{stripImportPrefix: stripImportPrefix, importPrefix: importPrefix})
+				}
 			}
 		}
 	}

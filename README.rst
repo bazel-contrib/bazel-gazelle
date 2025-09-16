@@ -43,6 +43,7 @@ Gazelle build file generator
 .. _gazelle_rust: https://github.com/Calsign/gazelle_rust
 .. _rules_rust: https://github.com/bazelbuild/rules_rust
 .. _Verbs Tutorial: https://bazel.build/rules/verbs-tutorial
+.. _cc_search: https://github.com/EngFlow/gazelle_cc?tab=readme-ov-file#-gazellecc_search-strip_include_prefix-include_prefix
 
 .. role:: cmd(code)
 .. role:: flag(code)
@@ -1034,6 +1035,44 @@ The following directives are recognized:
 | For example, if the target ``//a:b_proto`` has ``srcs = ["b.proto"]`` and                    |
 | ``import_prefix = "github.com/x/y"``, then ``b.proto`` should be imported                    |
 | with the string ``"github.com/x/y/a/b.proto"``.                                              |
++---------------------------------------------------+------------------------------------------+
+| :direc:`# gazelle:proto_search strip prefix`      | n/a                                      |
++---------------------------------------------------+------------------------------------------+
+| When lazy indexing is enabled (``-index=lazy``), this directive tells Gazelle how to         |
+| transform a proto import string into a repo-root-relative directory path where the proto     |
+| might be found.                                                                              |
+|                                                                                              |
+| Like ``go_search``, this directive configures lazy indexing. However, the arguments are more |
+| similar to `cc_search`_ because protobuf rules handle import strings similarly to how C++    |
+| handles include strings.                                                                     |
+|                                                                                              |
+| As an example, suppose you have a library in ``third_party/foo/`` with the label             |
+| ``//third_party/foo``. It has a proto file ``third_party/foo/proto/api.proto`` that you      |
+| include as ``foo/api.proto``. The library's ``proto_library`` target might be written as:    |
+|                                                                                              |
+| .. code:: bzl                                                                                |
+|   proto_library(                                                                             |
+|       name = "foo",                                                                          |
+|       srcs = ["api.proto"],                                                                  |
+|       strip_import_prefix = "third_party/foo/proto",                                         |
+|       import_prefix = "foo",                                                                 |
+|       visibility = ["//visibility:public"],                                                  |
+|  )                                                                                           |
+|                                                                                              |
+| You can tell Gazelle how to find this library when lazy indexing is enabled with the         |
+| directive:                                                                                   |
+|                                                                                              |
+| .. code:: bzl                                                                                |
+|   # gazelle:proto_search foo third_party/foo/proto                                           |
+|                                                                                              |
+| The first argument is a prefix to remove from an import string. The second is a prefix       |
+| to add. So when Gazelle sees the import string ``foo/api.proto`` in a file, it's transformed |
+| to ``third_party/foo/proto/api.proto``. Gazelle then indexes the directory                   |
+| ``third_party/foo/proto`` after removing the base name.                                      |
+|                                                                                              |
+| You can specify the ``proto_search`` directive multiple times. It applies in the directory   |
+| where it's written and to subdirectories. An empty ``proto_search`` directory resets the     |
+| list of translation rules for the current directory.                                         |
 +---------------------------------------------------+------------------------------------------+
 | :direc:`# gazelle:proto_strip_import_prefix path` | n/a                                      |
 +---------------------------------------------------+------------------------------------------+

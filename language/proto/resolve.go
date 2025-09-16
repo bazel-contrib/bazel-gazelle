@@ -35,37 +35,16 @@ func (*protoLang) Imports(c *config.Config, r *rule.Rule, f *rule.File) []resolv
 	rel := f.Pkg
 	srcs := r.AttrStrings("srcs")
 	imports := make([]resolve.ImportSpec, len(srcs))
-	pc := GetProtoConfig(c)
-	prefix := rel
-	if stripImportPrefix := r.AttrString("strip_import_prefix"); stripImportPrefix != "" {
-		// If strip_import_prefix starts with a /, it's interpreted as being
-		// relative to the repository root. Otherwise, it's interpreted as being
-		// relative to the package directory.
-		//
-		// So for the file //a/b:c/d.proto, if strip_import_prefix = "/a",
-		// the proto should be imported as "b/c/d.proto".
-		// If strip_import_prefix = "c", the proto should be imported as "d.proto".
-		//
-		// The package-relativeform only seems useful if there is one Bazel package
-		// covering protos in subdirectories. Gazelle does not generate build files
-		// like that, but we might still index proto_library rules like that,
-		// so we support it here.
-		if strings.HasPrefix(stripImportPrefix, "/") {
-			prefix = pathtools.TrimPrefix(rel, stripImportPrefix[len("/"):])
-		} else {
-			prefix = pathtools.TrimPrefix(rel, path.Join(rel, pc.StripImportPrefix))
-		}
-		if rel == prefix {
-			// Stripped prefix is not a prefix of rel, so the rule won't be buildable.
-			// Don't index it.
-			return nil
-		}
-	}
-	if importPrefix := r.AttrString("import_prefix"); importPrefix != "" {
-		prefix = path.Join(importPrefix, prefix)
-	}
+
+	stripImportPrefix := r.AttrString("strip_import_prefix")
+	importPrefix := r.AttrString("import_prefix")
+
 	for i, src := range srcs {
-		imports[i] = resolve.ImportSpec{Lang: "proto", Imp: path.Join(prefix, src)}
+		transformedImport, ok := transformImport(rel, src, stripImportPrefix, importPrefix)
+		if !ok {
+			continue
+		}
+		imports[i] = resolve.ImportSpec{Lang: "proto", Imp: transformedImport}
 	}
 	return imports
 }
@@ -177,4 +156,44 @@ func (*protoLang) CrossResolve(c *config.Config, ix *resolve.RuleIndex, imp reso
 		}
 	}
 	return nil
+}
+
+// transformImport transforms an import string for indexing.
+//
+// libRel is a slash-separated path to the directory containing the target.
+//
+// protoName is the Bazel package-relative file name (like "foo.proto" or
+// "sub/foo.proto"). The full repo-root-relative path is computed by joining
+// libRel and protoName.
+//
+// stripImportPrefix is the value of the target's strip_import_prefix
+// attribute. If it's "", this has no effect. If it's a relative path (including
+// "."), both libRel and stripIncludePrefix are stripped from rel. If it's an
+// absolute path, the leading '/' is removed, and only stripIncludePrefix is
+// removed from protoRel.
+//
+// importPrefix is the value of the target's import_prefix attribute.
+// It's prepended to protoRel after stripIncludePrefix is applied.
+//
+// Both importPrefix and stripImportPrefix must be clean (with path.Clean)
+// if they are non-empty.
+func transformImport(libRel, protoName, stripImportPrefix, importPrefix string) (string, bool) {
+	// Strip the prefix.
+	var effectiveStripImportPrefix string
+	if path.IsAbs(stripImportPrefix) {
+		effectiveStripImportPrefix = stripImportPrefix[len("/"):]
+	} else if stripImportPrefix != "" {
+		effectiveStripImportPrefix = path.Join(libRel, stripImportPrefix)
+	}
+
+	// Build the repo-root-relative path from package and file name
+	protoRel := path.Join(libRel, protoName)
+	if !pathtools.HasPrefix(protoRel, effectiveStripImportPrefix) {
+		return "", false
+	}
+	cleanRel := pathtools.TrimPrefix(protoRel, effectiveStripImportPrefix)
+
+	// Apply the new prefix.
+	cleanRel = path.Join(importPrefix, cleanRel)
+	return cleanRel, true
 }
