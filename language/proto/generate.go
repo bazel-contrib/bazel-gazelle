@@ -337,7 +337,7 @@ outer:
 	return empty
 }
 
-// buildRelsToindex transforms the import statements read from proto files in the current directory
+// buildRelsToIndex transforms the import statements read from proto files in the current directory
 // into a list of repo-root-relative directory paths to lazily index.
 func buildRelsToIndex(pc *ProtoConfig, packages []*Package) []string {
 	dirSet := make(map[string]bool)
