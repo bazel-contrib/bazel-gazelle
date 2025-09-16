@@ -34,17 +34,17 @@ import (
 func (*protoLang) Imports(c *config.Config, r *rule.Rule, f *rule.File) []resolve.ImportSpec {
 	rel := f.Pkg
 	srcs := r.AttrStrings("srcs")
-	imports := make([]resolve.ImportSpec, len(srcs))
+	imports := make([]resolve.ImportSpec, 0, len(srcs))
 
 	stripImportPrefix := r.AttrString("strip_import_prefix")
 	importPrefix := r.AttrString("import_prefix")
 
-	for i, src := range srcs {
+	for _, src := range srcs {
 		transformedImport, ok := transformImport(rel, src, stripImportPrefix, importPrefix)
 		if !ok {
 			continue
 		}
-		imports[i] = resolve.ImportSpec{Lang: "proto", Imp: transformedImport}
+		imports = append(imports, resolve.ImportSpec{Lang: "proto", Imp: transformedImport})
 	}
 	return imports
 }
