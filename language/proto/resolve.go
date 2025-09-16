@@ -168,12 +168,12 @@ func (*protoLang) CrossResolve(c *config.Config, ix *resolve.RuleIndex, imp reso
 //
 // stripImportPrefix is the value of the target's strip_import_prefix
 // attribute. If it's "", this has no effect. If it's a relative path (including
-// "."), both libRel and stripIncludePrefix are stripped from rel. If it's an
-// absolute path, the leading '/' is removed, and only stripIncludePrefix is
+// "."), both libRel and stripImportPrefix are stripped from rel. If it's an
+// absolute path, the leading '/' is removed, and only stripImportPrefix is
 // removed from protoRel.
 //
 // importPrefix is the value of the target's import_prefix attribute.
-// It's prepended to protoRel after stripIncludePrefix is applied.
+// It's prepended to protoRel after stripImportPrefix is applied.
 //
 // Both importPrefix and stripImportPrefix must be clean (with path.Clean)
 // if they are non-empty.
