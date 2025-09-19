@@ -726,3 +726,75 @@ func TestIsOSArchSpecific(t *testing.T) {
 		})
 	}
 }
+func TestCountParallel(t *testing.T) {
+	dir := t.TempDir()
+	for _, tc := range []struct {
+		desc, name, source string
+		want               fileInfo
+	}{
+
+		{
+			desc:  "no parallel calls",
+			name:  "foo_test.go",
+			source: `package foo_test
+
+import "testing"
+
+func TestFoo(t *testing.T) {}`,
+			want: fileInfo{
+				ext:         goExt,
+				packageName: "foo",
+				isTest:      true,
+				isExternalTest: true,
+				numParallel: 0,
+				imports:    []string{"testing"},
+			},
+		},
+		{
+			desc:  "parallel calls",
+			name:  "foo_test.go",
+			source: `package foo
+import (
+	"testing"
+)
+
+func TestFoo1(t *testing.T) {
+	t.Parallel()
+}
+
+func TestFoo2(t *testing.T) {
+	t.Parallel()
+}
+
+func TestFoo3(t *testing.T) {
+	t.Run("subtest", func(t *testing.T) {
+		t.Parallel()
+	})
+}
+
+func helper() {}`,
+			want: fileInfo{
+				ext:         goExt,
+				packageName: "foo",
+				isTest:      true,
+				isExternalTest: false,
+				numParallel: 2,
+				imports:    []string{"testing"},
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			path := filepath.Join(dir, tc.name)
+			if err := os.WriteFile(path, []byte(tc.source), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			got := goFileInfo(path, dir)
+			tc.want.path = path
+			tc.want.name = tc.name
+			if diff := cmp.Diff(tc.want, got, fileInfoCmpOption); diff != "" {
+				t.Errorf("(-want, +got): %s", diff)
+			}
+		})
+	}
+}
