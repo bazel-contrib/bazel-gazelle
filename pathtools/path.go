@@ -71,15 +71,13 @@ func RelBaseName(rel, prefix, root string) string {
 	return base
 }
 
-// Index returns the starting index of the string sub within the non-absolute
-// slash-separated path p. sub must start and end at component boundaries
-// within p.
+// Index returns the starting index of the first ocurrence of the string sub
+// within the slash-separated path p. sub must start and end at component
+// boundaries within p.
 func Index(p, sub string) int {
 	if sub == "" {
 		return 0
 	}
-	p = path.Clean(p)
-	sub = path.Clean(sub)
 	if path.IsAbs(sub) {
 		if HasPrefix(p, sub) {
 			return 0
@@ -111,6 +109,48 @@ func Index(p, sub string) int {
 		if i >= len(p) {
 			return -1
 		}
+	}
+}
+
+// LastIndex returns the starting index of the last occurrence of the string sub
+// within the slash-separated path p. sub must start and end at component
+// boundaries within p.
+func LastIndex(p, sub string) int {
+	if sub == "" {
+		return len(p)
+	}
+	if path.IsAbs(sub) {
+		if HasPrefix(p, sub) {
+			return 0
+		} else {
+			return -1
+		}
+	}
+	if p == "" || p == "/" {
+		return -1
+	}
+
+	// prevIndex returns the starting index in p of the component that starts
+	// before index i.
+	prevIndex := func(i int) int {
+		slash := strings.LastIndexByte(p[:i], '/')
+		if slash < 0 {
+			return 0
+		}
+		return slash + 1
+	}
+	i := prevIndex(len(p))
+	for {
+		suffix := p[i:]
+		if len(suffix) >= len(sub) &&
+			suffix[:len(sub)] == sub &&
+			(len(suffix) == len(sub) || suffix[len(sub)] == '/') {
+			return i
+		}
+		if i == 0 || (p[0] == '/' && i == 1) {
+			return -1
+		}
+		i = prevIndex(i - 1)
 	}
 }
 

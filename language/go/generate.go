@@ -846,8 +846,8 @@ func (g *generator) commonVisibility(importPath string) []string {
 	// subpackages of the parent.
 	// If the import path contains "internal" but rel does not, this is
 	// probably an internal submodule. Add visibility for all subpackages.
-	relIndex := pathtools.Index(g.rel, "internal")
-	importIndex := pathtools.Index(importPath, "internal")
+	relIndex := pathtools.LastIndex(g.rel, "internal")
+	importIndex := pathtools.LastIndex(importPath, "internal")
 	visibility := getGoConfig(g.c).goVisibility
 	if relIndex >= 0 {
 		parent := strings.TrimSuffix(g.rel[:relIndex], "/")
@@ -861,7 +861,6 @@ func (g *generator) commonVisibility(importPath string) []string {
 				visibility = append(visibility, "@"+repo.Name()+"//:__subpackages__")
 			}
 		}
-
 	} else {
 		return []string{"//visibility:public"}
 	}

@@ -21,6 +21,262 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+func TestIndex(t *testing.T) {
+	for _, tc := range []struct {
+		desc, p, sub string
+		want         int
+	}{
+		{
+			desc: "empty",
+			p:    "",
+			sub:  "",
+			want: 0,
+		},
+		{
+			desc: "empty_p",
+			p:    "",
+			sub:  "a",
+			want: -1,
+		},
+		{
+			desc: "empty_sub",
+			p:    "a",
+			sub:  "",
+			want: 0,
+		},
+		{
+			desc: "match_start_1",
+			p:    "a/b/c",
+			sub:  "a",
+			want: 0,
+		},
+		{
+			desc: "match_start_2",
+			p:    "aa/bb/cc",
+			sub:  "aa/bb",
+			want: 0,
+		},
+		{
+			desc: "match_first",
+			p:    "aa/aa",
+			sub:  "aa",
+			want: 0,
+		},
+		{
+			desc: "match_full",
+			p:    "aaa/bbb/ccc",
+			sub:  "aaa/bbb/ccc",
+			want: 0,
+		},
+		{
+			desc: "match_middle_2",
+			p:    "a/b/c/d",
+			sub:  "b/c",
+			want: 2,
+		},
+		{
+			desc: "match_end_2",
+			p:    "aa/bb/cc",
+			sub:  "bb/cc",
+			want: 3,
+		},
+		{
+			desc: "match_end_1",
+			p:    "a/b/c",
+			sub:  "c",
+			want: 4,
+		},
+		{
+			desc: "partial_match_start",
+			p:    "aa/bb",
+			sub:  "aa/b",
+			want: -1,
+		},
+		{
+			desc: "partial_match_end",
+			p:    "aa/bb",
+			sub:  "a/bb",
+			want: -1,
+		},
+		{
+			desc: "match_abs_both_start",
+			p:    "/a/b",
+			sub:  "/a",
+			want: 0,
+		},
+		{
+			desc: "match_abs_p_start",
+			p:    "/a/b",
+			sub:  "a",
+			want: 1,
+		},
+		{
+			desc: "match_abs_sub_start",
+			p:    "a/b",
+			sub:  "/a",
+			want: -1,
+		},
+		{
+			desc: "partial_match_abs",
+			p:    "/aa/bb",
+			sub:  "/aa/b",
+			want: -1,
+		},
+		{
+			desc: "match_unclean_dots",
+			p:    "a/b/../c",
+			sub:  "b/..",
+			want: 2,
+		},
+		{
+			desc: "match_unclean_slashes",
+			p:    "a/b//c",
+			sub:  "b//c",
+			want: 2,
+		},
+		{
+			desc: "match_unclean_slashes_no",
+			p:    "a/b//c",
+			sub:  "b/c",
+			want: -1,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			if got := Index(tc.p, tc.sub); got != tc.want {
+				t.Errorf("got %d; want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLastIndex(t *testing.T) {
+	for _, tc := range []struct {
+		desc, p, sub string
+		want         int
+	}{
+		{
+			desc: "empty",
+			p:    "",
+			sub:  "",
+			want: 0,
+		},
+		{
+			desc: "empty_p",
+			p:    "",
+			sub:  "a",
+			want: -1,
+		},
+		{
+			desc: "empty_sub",
+			p:    "a",
+			sub:  "",
+			want: 1,
+		},
+		{
+			desc: "match_start_1",
+			p:    "a/b/c",
+			sub:  "a",
+			want: 0,
+		},
+		{
+			desc: "match_start_2",
+			p:    "aa/bb/cc",
+			sub:  "aa/bb",
+			want: 0,
+		},
+		{
+			desc: "match_last",
+			p:    "aa/aa",
+			sub:  "aa",
+			want: 3,
+		},
+		{
+			desc: "match_full",
+			p:    "aaa/bbb/ccc",
+			sub:  "aaa/bbb/ccc",
+			want: 0,
+		},
+		{
+			desc: "match_middle_2",
+			p:    "a/b/c/d",
+			sub:  "b/c",
+			want: 2,
+		},
+		{
+			desc: "match_end_2",
+			p:    "aa/bb/cc",
+			sub:  "bb/cc",
+			want: 3,
+		},
+		{
+			desc: "match_end_1",
+			p:    "a/b/c",
+			sub:  "c",
+			want: 4,
+		},
+		{
+			desc: "partial_match_start",
+			p:    "aa/bb",
+			sub:  "aa/b",
+			want: -1,
+		},
+		{
+			desc: "partial_match_end",
+			p:    "aa/bb",
+			sub:  "a/bb",
+			want: -1,
+		},
+		{
+			desc: "match_abs_both_start",
+			p:    "/a/b",
+			sub:  "/a",
+			want: 0,
+		},
+		{
+			desc: "match_abs_p_start",
+			p:    "/a/b",
+			sub:  "a",
+			want: 1,
+		},
+		{
+			desc: "match_abs_sub_start",
+			p:    "a/b",
+			sub:  "/a",
+			want: -1,
+		},
+		{
+			desc: "partial_match_abs",
+			p:    "/aa/bb",
+			sub:  "/aa/b",
+			want: -1,
+		},
+		{
+			desc: "match_unclean_dots",
+			p:    "a/b/../c",
+			sub:  "b/..",
+			want: 2,
+		},
+		{
+			desc: "match_unclean_slashes",
+			p:    "a/b//c",
+			sub:  "b//c",
+			want: 2,
+		},
+		{
+			desc: "match_unclean_slashes_no",
+			p:    "a/b//c",
+			sub:  "b/c",
+			want: -1,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			if got := LastIndex(tc.p, tc.sub); got != tc.want {
+				t.Errorf("got %d; want %d", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestHasPrefix(t *testing.T) {
 	for _, tc := range []struct {
 		desc, path, prefix string

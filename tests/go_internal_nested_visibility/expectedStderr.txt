@@ -1,0 +1,1 @@
+gazelle: %WORKSPACEPATH%/internal/internal.go: error reading go file: %WORKSPACEPATH%/internal/internal.go:1:1: expected 'package', found 'EOF'
