@@ -44,6 +44,7 @@ Gazelle build file generator
 .. _rules_rust: https://github.com/bazelbuild/rules_rust
 .. _Verbs Tutorial: https://bazel.build/rules/verbs-tutorial
 .. _cc_search: https://github.com/EngFlow/gazelle_cc?tab=readme-ov-file#-gazellecc_search-strip_include_prefix-include_prefix
+.. _proto_library: https://bazel.build/reference/be/protocol-buffer#proto_library
 
 .. role:: cmd(code)
 .. role:: flag(code)
@@ -650,6 +651,62 @@ The following flags are accepted:
 +-------------------------------------------------------------------+------------------------------------------+
 
 .. _Predefined plugins: https://github.com/bazelbuild/rules_go/blob/master/proto/core.rst#predefined-plugins
+
+Lazy indexing in ``fix`` and ``update``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+By default, ``fix`` and ``update`` read all build files in a repo to build an
+index of library rules (see `Dependency resolution`_) when Gazelle starts.
+This can take a long time on a large repo. To avoid this problem, Gazelle can
+lazily index specific directories, with help from extensions that support
+lazy indexing.
+
+To configure lazy indexing with Go, add ``go_search`` directives like this:
+
+.. code:: bzl
+    # gazelle:go_search third_party/go
+    # gazelle:go_search replace/b example.com/b
+
+These directives point to directories that contain Go code outside the current
+module, with an optional package prefix. ``go_search`` directives are not
+necessary if you're following regular Go module conventions or are using
+a Go ``vendor`` directory.
+
+To configure lazy indexing with protobuf, add ``proto_search`` directives
+like this:
+
+.. code:: bzl
+    # gazelle:proto_search third_party/proto api
+
+The two arguments are a prefix to remove from the import path and a prefix to
+add. These correspond to the `strip_import_prefix`_ and `import_prefix`_
+attributes of `proto_library`_. They tell Gazelle how to transform an import
+path read from a .proto source file into a repo-root-relative path to a
+directory that may contain the imported file.
+
+To use Gazelle with lazy indexing, run with ``-r=false -index=lazy``, and pass
+the directories to update on the command line.
+
+.. code:: bzl
+    gazelle -r=false -index=lazy path/to/dir1 path/to/dir2
+
+You can configure your ``gazelle`` Bazel target to pass these flags
+automatically:
+
+.. code:: bzl
+    load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
+
+    gazelle(
+        name = "gazelle",
+        command = "fix",
+        extra_args = ["-r=false", "-index=lazy"],
+        gazelle = ":gazelle_binary",
+    )
+
+    gazelle_binary(
+        name = "gazelle_binary",
+        ...
+    )
 
 ``update-repos``
 ~~~~~~~~~~~~~~~~

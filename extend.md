@@ -77,6 +77,60 @@ gazelle(
 
 You can run this with `bazel run //:gazelle`.
 
+Lazy indexing
+-------------
+
+Lazy indexing lets Gazelle run quickly without needing to read all build files
+in a repo while still supporting index-based dependency resolution. This allows
+Gazelle to update build files for specific directories in milliseconds rather
+than seconds or minutes.
+
+Lazy indexing requires a small amount of user configuration, pointing to
+directories that may contain libraries based on import strings read from source
+files. It also requires support from language extensions to interpret that
+configuration. Most language extensions should implement this, though the
+implementation will be a bit different for each language.
+
+As an extended example, suppose a Go user has copied their module dependency
+`example.com/b` into the directory `replace/b`. From some other directory `a`,
+they import the package `example.com/b/c`. They then run
+`gazelle update -r=false -index=lazy a` to generate a build file for `a` with
+lazy indexing enabled.
+
+In this configuration, Gazelle doesn't automatically index `replace/b`, so
+the user must add a directive to their top-level build file:
+
+```starlark
+# gazelle:go_search replace/b example.com/b
+```
+
+This directive is interpreted by the Go extension. The user is telling Gazelle
+to index the directory `replace/b/<suffix>` when it sees a Go package imported
+with the string `example.com/b/<suffix>`. So in our example, when Gazelle sees
+`example.com/b/c`, it indexes `replace/b/c` and makes all library targets
+available for dependency resolution, including non-Go libraries that happen to
+be there.
+
+To support this, the Go extension needs to:
+
+1. Support the `go_search` directive in the `KnownDirectives` and `Configure`
+methods of the
+[`Configurer`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/config#Configurer)
+implementation. This directive may be repeated and applies in subdirectories.
+1. Convert an import string like `example.com/b/c` into a list of directory
+paths like `replace/b/c`.
+1. Return the directory paths through
+[`GenerateResult.RelsToIndex`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/language#GenerateResult)
+in the
+[`Language.GenerateRules`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/language#Language)
+method.
+
+Other extensions should follow a similar approach, though there are likely to
+be differences in how `*_search` directives and import strings are interpreted.
+For example, the protobuf and C++ extensions have `proto_search` and `cc_search`
+directives which are similar to each other but not to Go: both languages
+import libraries by file name and have similar conventions.
+
 Interacting with protos
 -----------------------
 
