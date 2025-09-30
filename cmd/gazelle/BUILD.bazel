@@ -29,6 +29,7 @@ go_library(
         "//internal/wspace",
         "//label",
         "//language",
+        "//language/bazel/visibility",
         "//language/go",
         "//language/proto",
         "//merger",

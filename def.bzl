@@ -13,12 +13,12 @@
 # limitations under the License.
 
 load(
-    "@bazel_gazelle_is_bazel_module//:defs.bzl",
-    "GAZELLE_IS_BAZEL_MODULE",
-)
-load(
     "@bazel_gazelle_go_repository_config//:go_env.bzl",
     "GO_ENV",
+)
+load(
+    "@bazel_gazelle_is_bazel_module//:defs.bzl",
+    "GAZELLE_IS_BAZEL_MODULE",
 )
 load(
     "@bazel_skylib//lib:shell.bzl",
@@ -57,8 +57,9 @@ gazelle_binary = _gazelle_binary
 gazelle_generation_test = _gazelle_generation_test
 
 DEFAULT_LANGUAGES = [
-    Label("//language/proto:go_default_library"),
-    Label("//language/go:go_default_library"),
+    Label("//language/bazel/visibility"),
+    Label("//language/proto"),
+    Label("//language/go"),
 ]
 
 def _valid_env_variable_name(name):

@@ -17,6 +17,7 @@ package bazel_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -102,11 +103,14 @@ go_repository(
 )
 
 go_repository(
-		name = "com_github_apex_log",
-		build_directives = ["gazelle:exclude handlers"],
-		importpath = "github.com/apex/log",
-		sum = "h1:J5rld6WVFi6NxA6m8GJ1LJqu3+GiTFIt3mYv27gdQWI=",
-		version = "v1.1.0",
+    name = "com_github_apex_log",
+    build_directives = [
+        "gazelle:exclude handlers",
+        "gazelle:default_visibility @com_github_apex_log//:__subpackages__",
+    ],
+    importpath = "github.com/apex/log",
+    sum = "h1:J5rld6WVFi6NxA6m8GJ1LJqu3+GiTFIt3mYv27gdQWI=",
+    version = "v1.1.0",
 )
 `,
 }
@@ -121,13 +125,46 @@ func TestBuild(t *testing.T) {
 	}
 }
 
-func TestDirectives(t *testing.T) {
+func TestExcludeDirective(t *testing.T) {
 	err := bazel_testing.RunBazel("query", "--enable_workspace", "@com_github_apex_log//handlers/...")
 	if err == nil {
 		t.Fatal("Should not generate build files for @com_github_apex_log//handlers/...")
 	}
 	if !strings.Contains(err.Error(), "no targets found beneath 'handlers'") {
 		t.Fatal("Unexpected error:\n", err)
+	}
+}
+
+func TestDefaultVisibilityDirective(t *testing.T) {
+	output, err := bazel_testing.BazelOutput("query", "--output=streamed_jsonproto", "--enable_workspace", "@com_github_apex_log//:log")
+	if err != nil {
+		t.Fatalf("bazel query failed: %v", err)
+	}
+	lines := bytes.Split(bytes.TrimSpace(output), []byte("\n"))
+	if len(lines) != 1 {
+		t.Fatalf("got %d lines of query output; want 1", len(lines))
+	}
+	var target struct {
+		Rule struct {
+			Attribute []struct {
+				Name            string   `json:"name"`
+				StringListValue []string `json:"stringListValue"`
+			} `json:"attribute"`
+		} `json:"rule"`
+	}
+	if err := json.Unmarshal(lines[0], &target); err != nil {
+		t.Fatalf("decoding streamed_jsonproto: %v", err)
+	}
+	var visibilities []string
+	for _, attr := range target.Rule.Attribute {
+		if attr.Name == "visibility" {
+			visibilities = append(visibilities, attr.StringListValue...)
+		}
+	}
+	got := strings.Join(visibilities, ",")
+	want := "@com_github_apex_log//:__subpackages__"
+	if got != want {
+		t.Errorf("got visibility %s; want %s", got, want)
 	}
 }
 
