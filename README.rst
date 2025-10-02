@@ -664,6 +664,7 @@ lazy indexing.
 To configure lazy indexing with Go, add ``go_search`` directives like this:
 
 .. code:: bzl
+
     # gazelle:go_search third_party/go
     # gazelle:go_search replace/b example.com/b
 
@@ -676,6 +677,7 @@ To configure lazy indexing with protobuf, add ``proto_search`` directives
 like this:
 
 .. code:: bzl
+
     # gazelle:proto_search third_party/proto api
 
 The two arguments are a prefix to remove from the import path and a prefix to
@@ -688,12 +690,14 @@ To use Gazelle with lazy indexing, run with ``-r=false -index=lazy``, and pass
 the directories to update on the command line.
 
 .. code:: bzl
+
     gazelle -r=false -index=lazy path/to/dir1 path/to/dir2
 
 You can configure your ``gazelle`` Bazel target to pass these flags
 automatically:
 
 .. code:: bzl
+
     load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
 
     gazelle(
@@ -902,6 +906,7 @@ The following directives are recognized:
 | these directories with:                                                                      |
 |                                                                                              |
 | .. code:: bzl                                                                                |
+|                                                                                              |
 |   # gazelle:go_search third_party/go                                                         |
 |   # gazelle:go_search replace/b example.com/b                                                |
 +---------------------------------------------------+------------------------------------------+
@@ -1108,6 +1113,7 @@ The following directives are recognized:
 | include as ``foo/api.proto``. The library's ``proto_library`` target might be written as:    |
 |                                                                                              |
 | .. code:: bzl                                                                                |
+|                                                                                              |
 |   proto_library(                                                                             |
 |       name = "foo",                                                                          |
 |       srcs = ["api.proto"],                                                                  |
@@ -1120,6 +1126,7 @@ The following directives are recognized:
 | directive:                                                                                   |
 |                                                                                              |
 | .. code:: bzl                                                                                |
+|                                                                                              |
 |   # gazelle:proto_search foo third_party/foo/proto                                           |
 |                                                                                              |
 | The first argument is a prefix to remove from an import string. The second is a prefix       |
