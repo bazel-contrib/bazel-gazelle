@@ -24,6 +24,8 @@ go_test(
     srcs = ["foo_test.go"],
     deps = [
         ":foo_go_proto",
+        "@org_golang_google_genproto//protobuf/ptype",
+        "@org_golang_google_genproto_googleapis_bytestream//:bytestream",
         "@org_golang_google_protobuf//types/known/sourcecontextpb",
         "@org_golang_google_protobuf//types/known/timestamppb",
         "@org_golang_google_protobuf//types/known/typepb",
