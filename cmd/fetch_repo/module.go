@@ -66,9 +66,13 @@ func fetchModule(dest, importpath, version, sum string) error {
 	}
 
 	if repoSum != sum {
+		errMsg := fmt.Sprintf("resulting module with sum %s; expected sum %s.", repoSum, sum)
 		// The module cache is corrupt. Remove the downloaded directory.
-		os.RemoveAll(dl.Dir)
-		errMsg := fmt.Sprintf("resulting module with sum %s; expected sum %s. Please try again.", repoSum, sum)
+		if err := os.RemoveAll(dl.Dir); err != nil {
+			errMsg += fmt.Sprintf(" Additionally, failed to remove corrupt module cache directory %q: %v. Please remove it manaully and retry.", dl.Dir, err)
+		} else {
+			errMsg += " Please retry."
+		}
 		if goModCache := os.Getenv("GOMODCACHE"); goModCache != "" {
 			errMsg += fmt.Sprintf(" If the problem persists, please try clearing your host module cache with `go clean -modcache`")
 		} else {
