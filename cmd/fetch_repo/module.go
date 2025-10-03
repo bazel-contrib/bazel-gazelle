@@ -16,6 +16,7 @@ limitations under the License.
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -73,7 +74,7 @@ func fetchModule(dest, importpath, version, sum string) error {
 		} else {
 			errMsg += fmt.Sprintf(" If the problem persists, please try clearing Bazel output directory with `bazel clean --expunge`")
 		}
-		return fmt.Errorf(errMsg)
+		return errors.New(errMsg)
 	}
 
 	return nil
