@@ -65,10 +65,15 @@ func fetchModule(dest, importpath, version, sum string) error {
 	}
 
 	if repoSum != sum {
+		// The module cache is corrupt. Remove the downloaded directory.
+		os.RemoveAll(dl.Dir)
+		errMsg := fmt.Sprintf("resulting module with sum %s; expected sum %s. Please try again.", repoSum, sum)
 		if goModCache := os.Getenv("GOMODCACHE"); goModCache != "" {
-			return fmt.Errorf("resulting module with sum %s; expected sum %s, Please try clearing your module cache directory %q", repoSum, sum, goModCache)
+			errMsg += fmt.Sprintf(" If the problem persists, please try clearing your host module cache with `go clean -modcache`")
+		} else {
+			errMsg += fmt.Sprintf(" If the problem persists, please try clearing Bazel output directory with `bazel clean --expunge`")
 		}
-		return fmt.Errorf("resulting module with sum %s; expected sum %s", repoSum, sum)
+		return fmt.Errorf(errMsg)
 	}
 
 	return nil
