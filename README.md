@@ -45,7 +45,7 @@ More languages can be added by [Extending Gazelle](extend.md). Chat with us in t
 
 If you've written your own extension, please consider open-sourcing it for use by the rest of the community. Note that such extensions belong in a language-specific repository, not in bazel-gazelle. See discussion in [#1030](https://github.com/bazelbuild/bazel-gazelle/issues/1030).
 
-## Setup {#setup}
+## Setup
 
 ### Bzlmod
 
@@ -238,7 +238,7 @@ The first argument to Gazelle may be one of the commands below. If no command is
 - **[fix](#fix-and-update):** Same as the `update` command, but it also fixes deprecated usage of rules.
 - **[update-repos](#update-repos):** Adds and updates repository rules in the WORKSPACE file.
 
-### Bazel rule {#bazel-rule}
+### Bazel rule
 
 Gazelle may be run via a rule. See the [Setup instructions](#setup). This rule builds Gazelle and generates a wrapper script that executes Gazelle with baked-in set of arguments. You can run this script with `bazel run`, or you can copy it into your workspace and run it directly.
 
@@ -276,7 +276,7 @@ A list of extra command line arguments passed to Gazelle. Note that `extra_args`
 **Default:** `update`
 The Gazelle command to use. May be :value:`fix`, :value:`update` or :value:`update-repos`.
 
-### `fix` and `update` {#fix-and-update}
+### `fix` and `update`
 
 The `update` command is the most common way of running Gazelle. Gazelle scans sources in directories throughout the repository, then creates and updates build files.
 
@@ -421,7 +421,7 @@ gazelle_binary(
 )
 ```
 
-### `update-repos` {#update-repos}
+### `update-repos`
 
 The `update-repos` command updates repository rules.  It can write the rules to either the WORKSPACE (by default) or a .bzl file macro function.  It can be used to add new repository rules or update existing rules to the specified version. It can also import repository rules from a `go.mod` or a `go.work` file.
 
@@ -493,7 +493,7 @@ Sets the `build_file_proto_mode` attribute for the generated [`go_repository`](r
 **Default:** n/a<br>
 Sets the `build_tags` attribute for the generated [`go_repository`](reference.md#go_repository) rule(s).
 
-### Directives {#directives}
+### Directives
 
 Gazelle can be configured with *directives*, which are written as top-level comments in build files. Most options that can be set on the command line can also be set using directives. Some options can only be set with directives.
 
@@ -797,7 +797,7 @@ go_library(
 )
 ```
 
-## Dependency resolution {#dependency-resolution}
+## Dependency resolution
 
 One of Gazelle's most important jobs is resolving library import strings (like `import "golang.org/x/sys/unix"`) to Bazel labels (like `@org_golang_x_sys//unix:go_default_library`). Gazelle follows the rules below to resolve dependencies:
 
@@ -815,7 +815,7 @@ One of Gazelle's most important jobs is resolving library import strings (like `
     1. In `static` mode, Gazelle has the same behavior as `external` mode, except that it will not call out to the network for resolution when no matching import is found within WORKSPACE. Instead, it will skip the unknown import. This is the default mode for `go_repository` rules.
     1. In `vendored` mode, Gazelle will transform the import string into a label in the vendor directory. For example, `"golang.org/x/sys/unix"` would be resolved to `"//vendor/golang.org/x/sys/unix:go_default_library"`. This mode is usually not necessary, since vendored libraries will be indexed and resolved using rule 4.
 
-## Fix command transformations {#fix-command-transformations}
+## Fix command transformations
 
 Gazelle will generate and update build files when invoked with either `gazelle update` or `gazelle fix` (`update` is the default). Both commands perform several transformations to fix deprecated usage of the Go rules. `update` performs a safe set of tranformations, while `fix` performs some additional transformations that may delete or rename rules.
 
