@@ -76,7 +76,7 @@ filegroup(
         "CONTRIBUTORS",
         "Design.rst",
         "LICENSE",
-        "README.rst",
+        "README.md",
         "WORKSPACE",
         "def.bzl",
         "deps.bzl",
