@@ -74,7 +74,7 @@ filegroup(
         "CODEOWNERS",
         "CONTRIBUTING.md",
         "CONTRIBUTORS",
-        "Design.rst",
+        "Design.md",
         "LICENSE",
         "README.md",
         "WORKSPACE",
