@@ -41,13 +41,13 @@ func (pl *protoLang) Loads() []rule.LoadInfo {
 }
 
 func (*protoLang) ApparentLoads(moduleToApparentName func(string) string) []rule.LoadInfo {
-	rulesProto := moduleToApparentName("rules_proto")
-	if rulesProto == "" {
-		rulesProto = "rules_proto"
+	protobuf := moduleToApparentName("protobuf")
+	if protobuf == "" {
+		protobuf = "com_google_protobuf"
 	}
 	return []rule.LoadInfo{
 		{
-			Name: fmt.Sprintf("@%s//proto:defs.bzl", rulesProto),
+			Name: fmt.Sprintf("@%s//bazel:proto_library.bzl", protobuf),
 			Symbols: []string{
 				"proto_library",
 			},
