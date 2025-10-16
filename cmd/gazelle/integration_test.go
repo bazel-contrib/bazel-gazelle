@@ -221,8 +221,8 @@ func TestFixAndUpdateChanges(t *testing.T) {
 		{Path: "WORKSPACE"},
 		{
 			Path: "BUILD",
-			Content: `load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_prefix")
-load("@io_bazel_rules_go//go:def.bzl", "cgo_library", "go_test")
+			Content: `load("@io_bazel_rules_go//go:def.bzl", "cgo_library", "go_test")
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_prefix")
 
 go_prefix("example.com/foo")
 
@@ -598,9 +598,9 @@ go_proto_library(
 		}, {
 			args: []string{"fix", "-go_prefix", "example.com/repo"},
 			want: `
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
-load("@rules_proto//proto:defs.bzl", "proto_library")
 
 proto_library(
     name = "repo_proto",
@@ -646,7 +646,7 @@ func TestRemoveProtoDeletesRules(t *testing.T) {
 		{
 			Path: config.DefaultValidBuildFileNames[0],
 			Content: `
-load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
 
@@ -712,9 +712,9 @@ func TestAddServiceConvertsToGrpc(t *testing.T) {
 		{
 			Path: config.DefaultValidBuildFileNames[0],
 			Content: `
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
-load("@rules_proto//proto:defs.bzl", "proto_library")
 
 proto_library(
     name = "repo_proto",
@@ -759,9 +759,9 @@ service TestService {}
 	testtools.CheckFiles(t, dir, []testtools.FileSpec{{
 		Path: config.DefaultValidBuildFileNames[0],
 		Content: `
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
-load("@rules_proto//proto:defs.bzl", "proto_library")
 
 proto_library(
     name = "repo_proto",
@@ -793,9 +793,9 @@ func TestProtoImportPrefix(t *testing.T) {
 		{
 			Path: config.DefaultValidBuildFileNames[0],
 			Content: `
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
-load("@rules_proto//proto:defs.bzl", "proto_library")
 
 proto_library(
     name = "foo_proto",
@@ -838,9 +838,9 @@ go_library(
 	testtools.CheckFiles(t, dir, []testtools.FileSpec{{
 		Path: config.DefaultValidBuildFileNames[0],
 		Content: `
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
-load("@rules_proto//proto:defs.bzl", "proto_library")
 
 proto_library(
     name = "foo_proto",
@@ -917,8 +917,8 @@ import "bar.proto";`,
 	testtools.CheckFiles(t, dir, []testtools.FileSpec{{
 		Path: config.DefaultValidBuildFileNames[0],
 		Content: `
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
-load("@rules_proto//proto:defs.bzl", "proto_library")
 
 # gazelle:proto file
 
@@ -1048,9 +1048,9 @@ option go_package = "example.com/repo/somedir/foo";
 	testtools.CheckFiles(t, dir, []testtools.FileSpec{{
 		Path: config.DefaultValidBuildFileNames[0],
 		Content: `
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
-load("@rules_proto//proto:defs.bzl", "proto_library")
 
 # gazelle:proto file
 
@@ -1083,8 +1083,8 @@ go_library(
 		{
 			Path: "somedir/" + config.DefaultValidBuildFileNames[0],
 			Content: `
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
-load("@rules_proto//proto:defs.bzl", "proto_library")
 
 # gazelle:proto file
 
@@ -1282,9 +1282,9 @@ func TestDeleteProtoWithDeps(t *testing.T) {
 		{
 			Path: "foo/BUILD.bazel",
 			Content: `
-load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
 
 go_library(
     name = "go_default_library",
@@ -1991,9 +1991,9 @@ func TestGoGrpcProtoFlag(t *testing.T) {
 		}, {
 			Path: "BUILD.bazel",
 			Content: `
-load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
-load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
 
 go_proto_library(
     name = "foo_go_proto",
@@ -2027,9 +2027,9 @@ message Bar {};
 		}, {
 			Path: "service/BUILD.bazel",
 			Content: `
-load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
 
 go_proto_library(
     name = "service_go_proto",
@@ -2075,9 +2075,9 @@ service TestService {}
 		{
 			Path: "BUILD.bazel",
 			Content: `
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
-load("@rules_proto//proto:defs.bzl", "proto_library")
 
 go_proto_library(
     name = "foo_go_proto",
@@ -2104,9 +2104,9 @@ go_library(
 		{
 			Path: "service/BUILD.bazel",
 			Content: `
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
-load("@rules_proto//proto:defs.bzl", "proto_library")
 
 go_proto_library(
     name = "service_go_proto",
@@ -3282,8 +3282,8 @@ import "a/a.proto";
 		{
 			Path: "a/BUILD.bazel",
 			Content: `
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
-load("@rules_proto//proto:defs.bzl", "proto_library")
 load("//:my.bzl", "my_go_library")
 
 proto_library(
@@ -3310,8 +3310,8 @@ my_go_library(
 		{
 			Path: "b/BUILD.bazel",
 			Content: `
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
-load("@rules_proto//proto:defs.bzl", "proto_library")
 load("//:my.bzl", "my_go_library")
 
 proto_library(
@@ -3694,7 +3694,7 @@ func TestMatchProtoLibrary(t *testing.T) {
 		{
 			Path: "proto/BUILD.bazel",
 			Content: `
-load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 # gazelle:prefix example.com/foo
 
 proto_library(
@@ -3720,9 +3720,9 @@ proto_library(
 		{
 			Path: "proto/BUILD.bazel",
 			Content: `
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
-load("@rules_proto//proto:defs.bzl", "proto_library")
 # gazelle:prefix example.com/foo
 
 proto_library(
@@ -3837,7 +3837,7 @@ import (
 		{
 			Path: filepath.Join("pb", "BUILD.bazel"),
 			Content: `
-load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 
 proto_library(
     name = "pb_proto",
@@ -3939,8 +3939,8 @@ func TestGoGenerateProto(t *testing.T) {
 	testtools.CheckFiles(t, dir, []testtools.FileSpec{
 		{
 			Path: "proto/BUILD.bazel",
-			Content: `load("@io_bazel_rules_go//go:def.bzl", "go_library")
-load("@rules_proto//proto:defs.bzl", "proto_library")
+			Content: `load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 # gazelle:go_generate_proto false
 # gazelle:prefix example.com/proto

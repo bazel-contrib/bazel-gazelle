@@ -29,5 +29,6 @@ const (
 // bazelModuleRepos maps the names of Bazel modules to their "well-known"
 // WORKSPACE repository name
 var bazelModuleRepos = map[string]string{
-	"protobuf": "com_google_protobuf",
+	"protobuf":    "com_google_protobuf",
+	"rules_proto": "rules_proto", // Deprecated, kept for backwards compatibility
 }
