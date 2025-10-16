@@ -16,6 +16,7 @@ visibility("private")
 
 DEFAULT_BUILD_FILE_GENERATION_BY_PATH = {
     "cel.dev/expr": "on",
+    "github.com/bazelbuild/buildtools": "clean",
     "github.com/cncf/xds/go": "on",
     "github.com/envoyproxy/protoc-gen-validate": "on",
     "github.com/google/safetext": "on",
@@ -35,6 +36,9 @@ DEFAULT_DIRECTIVES_BY_PATH = {
         "gazelle:go_naming_convention go_default_library",
     ],
     "github.com/authzed/spicedb": [
+        "gazelle:proto disable",
+    ],
+    "github.com/bazelbuild/buildtools": [
         "gazelle:proto disable",
     ],
     "github.com/census-instrumentation/opencensus-proto": [
