@@ -16,10 +16,10 @@ limitations under the License.
 package rule
 
 import (
-	"fmt"
 	"log"
 	"reflect"
 	"sort"
+	"strconv"
 
 	bzl "github.com/bazelbuild/buildtools/build"
 )
@@ -228,27 +228,53 @@ func ExprFromValue(val interface{}) bzl.Expr {
 		return be.BzlExpr()
 	}
 
+	// Fast paths for common types to avoid reflection overhead.
+	switch v := val.(type) {
+	// primitives
+	case string:
+		return &bzl.StringExpr{Value: v}
+	case bool:
+		if v {
+			return &bzl.LiteralExpr{Token: "True"}
+		}
+		return &bzl.LiteralExpr{Token: "False"}
+	case int:
+		return intLiteralExpr(int64(v))
+	case int8:
+		return intLiteralExpr(int64(v))
+	case int16:
+		return intLiteralExpr(int64(v))
+	case int32:
+		return intLiteralExpr(int64(v))
+	case int64:
+		return intLiteralExpr(v)
+	case uint:
+		return uintLiteralExpr(uint64(v))
+	case uint8:
+		return uintLiteralExpr(uint64(v))
+	case uint16:
+		return uintLiteralExpr(uint64(v))
+	case uint32:
+		return uintLiteralExpr(uint64(v))
+	case uint64:
+		return uintLiteralExpr(v)
+	case float32:
+		return floatLiteralExpr(float64(v))
+	case float64:
+		return floatLiteralExpr(v)
+
+	// common types of slices
+	case []string:
+		return stringSliceToExpr(v)
+	case []interface{}:
+		return interfaceSliceToExpr(v)
+	}
+
+	// Fallback to reflection for less common types
 	rv := reflect.ValueOf(val)
 	switch rv.Kind() {
-	case reflect.Bool:
-		tok := "False"
-		if rv.Bool() {
-			tok = "True"
-		}
-		return &bzl.LiteralExpr{Token: tok}
-
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return &bzl.LiteralExpr{Token: fmt.Sprintf("%d", val)}
-
-	case reflect.Float32, reflect.Float64:
-		return &bzl.LiteralExpr{Token: fmt.Sprintf("%f", val)}
-
-	case reflect.String:
-		return &bzl.StringExpr{Value: val.(string)}
-
 	case reflect.Slice, reflect.Array:
-		var list []bzl.Expr
+		list := make([]bzl.Expr, 0, rv.Len())
 		for i := 0; i < rv.Len(); i++ {
 			elem := ExprFromValue(rv.Index(i).Interface())
 			list = append(list, elem)
@@ -272,6 +298,34 @@ func ExprFromValue(val interface{}) bzl.Expr {
 
 	log.Panicf("type not supported: %T", val)
 	return nil
+}
+
+func intLiteralExpr(v int64) bzl.Expr {
+	return &bzl.LiteralExpr{Token: strconv.FormatInt(v, 10)}
+}
+
+func uintLiteralExpr(v uint64) bzl.Expr {
+	return &bzl.LiteralExpr{Token: strconv.FormatUint(v, 10)}
+}
+
+func floatLiteralExpr(v float64) bzl.Expr {
+	return &bzl.LiteralExpr{Token: strconv.FormatFloat(v, 'g', -1, 64)}
+}
+
+func stringSliceToExpr(strs []string) *bzl.ListExpr {
+	list := make([]bzl.Expr, len(strs))
+	for i, s := range strs {
+		list[i] = &bzl.StringExpr{Value: s}
+	}
+	return &bzl.ListExpr{List: list}
+}
+
+func interfaceSliceToExpr(vals []interface{}) *bzl.ListExpr {
+	list := make([]bzl.Expr, len(vals))
+	for i, v := range vals {
+		list[i] = ExprFromValue(v)
+	}
+	return &bzl.ListExpr{List: list}
 }
 
 func mapKeyString(k reflect.Value) string {

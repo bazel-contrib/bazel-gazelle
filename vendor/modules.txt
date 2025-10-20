@@ -1,4 +1,4 @@
-# github.com/bazelbuild/buildtools v0.0.0-20240918101019-be1c24cc9a44
+# github.com/bazelbuild/buildtools v0.0.0-20250930140053-2eb4fccefb52
 ## explicit; go 1.20
 github.com/bazelbuild/buildtools/build
 github.com/bazelbuild/buildtools/labels
@@ -9,7 +9,7 @@ github.com/bazelbuild/rules_go/go/runfiles
 github.com/bazelbuild/rules_go/go/tools/bazel
 github.com/bazelbuild/rules_go/go/tools/bazel_testing
 github.com/bazelbuild/rules_go/go/tools/internal/txtar
-# github.com/bmatcuk/doublestar/v4 v4.7.1
+# github.com/bmatcuk/doublestar/v4 v4.9.1
 ## explicit; go 1.16
 github.com/bmatcuk/doublestar/v4
 # github.com/fsnotify/fsnotify v1.7.0
