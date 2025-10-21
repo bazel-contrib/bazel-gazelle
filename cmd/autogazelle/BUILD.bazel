@@ -55,7 +55,7 @@ filegroup(
     testonly = True,
     srcs = [
         "BUILD.bazel",
-        "README.rst",
+        "README.md",
         "autogazelle.bash",
         "client_unix.go",
         "main.go",
