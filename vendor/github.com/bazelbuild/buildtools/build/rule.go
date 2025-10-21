@@ -190,10 +190,14 @@ func (r *Rule) Kind() string {
 // SetKind changes rule's kind (such as "go_library").
 func (r *Rule) SetKind(kind string) {
 	names := strings.Split(kind, ".")
+	var startPos Position
+	if x := r.Call.X; x != nil {
+		startPos, _ = x.Span()
+	}
 	var expr Expr
-	expr = &Ident{Name: names[0]}
+	expr = &Ident{Name: names[0], NamePos: startPos}
 	for _, name := range names[1:] {
-		expr = &DotExpr{X: expr, Name: name}
+		expr = &DotExpr{X: expr, Name: name, NamePos: startPos}
 	}
 	r.Call.X = expr
 }

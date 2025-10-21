@@ -1076,7 +1076,7 @@ func binary(x Expr, pos Position, op string, y Expr) Expr {
 	ystart, _ := y.Span()
 
 	switch op {
-	case "=", "+=", "-=", "*=", "/=", "//=", "%=", "|=":
+	case "=", "+=", "-=", "*=", "/=", "//=", "%=", "&=", "|=", "^=", "<<=", ">>=":
 		return &AssignExpr{
 			LHS:       x,
 			OpPos:     pos,

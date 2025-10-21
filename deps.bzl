@@ -131,8 +131,8 @@ def gazelle_dependencies(
         go_repository,
         name = "com_github_bazelbuild_buildtools",
         importpath = "github.com/bazelbuild/buildtools",
-        sum = "h1:FGzENZi+SX9I7h9xvMtRA3rel8hCEfyzSixteBgn7MU=",
-        version = "v0.0.0-20240918101019-be1c24cc9a44",
+        sum = "h1:njQAmjTv/YHRm/0Lfv9DXHFZ4MdT2IA/RKHTnqZkgDw=",
+        version = "v0.0.0-20250930140053-2eb4fccefb52",
     )
     _maybe(
         go_repository,
@@ -145,8 +145,8 @@ def gazelle_dependencies(
         go_repository,
         name = "com_github_bmatcuk_doublestar_v4",
         importpath = "github.com/bmatcuk/doublestar/v4",
-        sum = "h1:fdDeAqgT47acgwd9bd9HxJRDmc9UAmPpc+2m0CXv75Q=",
-        version = "v4.7.1",
+        sum = "h1:X8jg9rRZmJd4yRy7ZeNDRnM+T3ZfHv15JiBJ/avrEXE=",
+        version = "v4.9.1",
     )
     _maybe(
         go_repository,

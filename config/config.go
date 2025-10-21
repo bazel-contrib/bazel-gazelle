@@ -324,10 +324,12 @@ type indexFlag struct {
 }
 
 func (f indexFlag) String() string {
+	indexLibraries := f.indexLibraries != nil && *f.indexLibraries
+	indexLazy := f.indexLazy != nil && *f.indexLazy
 	switch {
-	case *f.indexLibraries && !*f.indexLazy:
+	case indexLibraries && !indexLazy:
 		return "all"
-	case *f.indexLibraries && *f.indexLazy:
+	case indexLibraries && indexLazy:
 		return "lazy"
 	default:
 		return "none"

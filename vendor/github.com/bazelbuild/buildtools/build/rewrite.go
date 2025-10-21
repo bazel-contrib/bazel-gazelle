@@ -137,6 +137,8 @@ var rewrites = []struct {
 	{"formatdocstrings", formatDocstrings, scopeBoth},
 	{"reorderarguments", reorderArguments, scopeBoth},
 	{"editoctal", editOctals, scopeBoth},
+	{"editfloat", editFloats, scopeBoth},
+	{"collapseEmpty", collapseEmpty, scopeBoth},
 }
 
 // leaveAlone reports whether any of the nodes on the stack are marked
@@ -209,6 +211,15 @@ func keepSorted(x Expr) bool {
 	return hasComment(x, "keep sorted")
 }
 
+// labelRE matches label strings, e.g. @r//x/y/z:abc
+// where $1 is @r//x/y/z, $2 is @r//, $3 is r, $4 is z, $5 is abc.
+func makeLabelRe(labelPrefix string) *regexp.Regexp {
+	return regexp.MustCompile(`^(((?:@(\w+))?//|` + labelPrefix + `)(?:.+/)?([^:]*))(?::([^:]+))?$`)
+}
+
+var leadingSlashesLabelRe = makeLabelRe("//")
+var stripLeadingSlashesLabelRe = makeLabelRe("")
+
 // fixLabels rewrites labels into a canonical form.
 //
 // First, it joins labels written as string addition, turning
@@ -248,12 +259,11 @@ func fixLabels(f *File, w *Rewriter) {
 	}
 
 	labelPrefix := "//"
+	labelRE := leadingSlashesLabelRe
 	if w.StripLabelLeadingSlashes {
 		labelPrefix = ""
+		labelRE = stripLeadingSlashesLabelRe
 	}
-	// labelRE matches label strings, e.g. @r//x/y/z:abc
-	// where $1 is @r//x/y/z, $2 is @r//, $3 is r, $4 is z, $5 is abc.
-	labelRE := regexp.MustCompile(`^(((?:@(\w+))?//|` + labelPrefix + `)(?:.+/)?([^:]*))(?::([^:]+))?$`)
 
 	shortenLabel := func(v Expr) {
 		str, ok := v.(*StringExpr)
@@ -697,28 +707,6 @@ func isUniq(list []stringSortKey) bool {
 		}
 	}
 	return true
-}
-
-// If stk describes a call argument like rule(arg=...), callArgName
-// returns the name of that argument, formatted as "rule.arg".
-func callArgName(stk []Expr) string {
-	n := len(stk)
-	if n < 2 {
-		return ""
-	}
-	arg := argName(stk[n-1])
-	if arg == "" {
-		return ""
-	}
-	call, ok := stk[n-2].(*CallExpr)
-	if !ok {
-		return ""
-	}
-	rule, ok := call.X.(*Ident)
-	if !ok {
-		return ""
-	}
-	return rule.Name + "." + arg
 }
 
 // A stringSortKey records information about a single string literal to be
@@ -1399,6 +1387,35 @@ func editOctals(f *File, _ *Rewriter) {
 	})
 }
 
+// editFloats inserts '0' before the decimal point in floats and normalizes the
+// exponent part to lowercase, no plus sign, and no leading zero.
+func editFloats(f *File, _ *Rewriter) {
+	Walk(f, func(expr Expr, stack []Expr) {
+		l, ok := expr.(*LiteralExpr)
+		if !ok {
+			return
+		}
+		if !strings.ContainsRune(l.Token, '.') {
+			return
+		}
+		if strings.HasPrefix(l.Token, ".") {
+			l.Token = "0" + l.Token
+		}
+		if !strings.ContainsAny(l.Token, "eE") {
+			return
+		}
+		parts := strings.SplitN(l.Token, "e", 2)
+		if len(parts) != 2 {
+			parts = strings.SplitN(l.Token, "E", 2)
+		}
+		if len(parts) != 2 {
+			// Invalid float, skip rewriting.
+			return
+		}
+		l.Token = parts[0] + "e" + strings.TrimLeft(parts[1], "0+")
+	})
+}
+
 // removeParens removes trivial parens
 func removeParens(f *File, _ *Rewriter) {
 	var simplify func(expr Expr, stack []Expr) Expr
@@ -1428,4 +1445,13 @@ func removeParens(f *File, _ *Rewriter) {
 	}
 
 	Edit(f, simplify)
+}
+
+// collapseEmpty unsets ForceMultiLine for empty call expressions.
+func collapseEmpty(f *File, _ *Rewriter) {
+	Walk(f, func(expr Expr, stack []Expr) {
+		if c, ok := expr.(*CallExpr); ok && len(c.List) == 0 { // No arguments
+			c.ForceMultiLine = false
+		}
+	})
 }
