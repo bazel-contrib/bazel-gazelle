@@ -1,6 +1,8 @@
 common --enable_bzlmod
 common --experimental_isolated_extension_usages
-common --lockfile_mode=error
+# We test with different versions of Bazel, which causes changes to the lock
+# file, so stay in update mode.
+common --lockfile_mode=update
 common --enable_platform_specific_config
 # Required by abseil-cpp on macOS with Bazel 6.
 common:macos --host_cxxopt=-std=c++14

@@ -75,9 +75,12 @@ tasks:
       # Verify that bazel mod tidy doesn't remove use_repos required to build and test.
     - bazel mod tidy || true # Unsupported on Bazel 6
     build_flags:
-    - "--lockfile_mode=error"
+    # Since go_sdk is platform-dependent, the lockfile will differ between
+    # platforms. We will skip the check on windows.
+    - "--lockfile_mode=update"
     test_flags:
-    - "--lockfile_mode=error"
+    # See above.
+    - "--lockfile_mode=update"
     build_targets:
     - "//..."
     - "//:gazelle"
