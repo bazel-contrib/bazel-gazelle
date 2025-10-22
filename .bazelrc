@@ -21,7 +21,7 @@ common:ci --spawn_strategy=standalone
 common:ci --genrule_strategy=standalone
 common:ci --test_strategy=standalone
 
-common --lockfile_mode=update
+common --lockfile_mode=error
 common --test_output=errors
 
 common:incompatible --incompatible_load_proto_rules_from_bzl
