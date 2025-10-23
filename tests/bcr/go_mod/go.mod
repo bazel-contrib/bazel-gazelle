@@ -13,7 +13,7 @@ require (
 	github.com/bazelbuild/rules_go v0.53.0
 	// NOTE: keep <4.7.0 to test the 'replace'
 	github.com/bmatcuk/doublestar/v4 v4.6.0
-	github.com/cloudflare/circl v1.3.7
+	github.com/cloudflare/circl v1.6.1
 	github.com/envoyproxy/protoc-gen-validate v1.2.1
 	github.com/fmeum/dep_on_gazelle v1.0.0
 	github.com/google/go-jsonnet v0.20.0
