@@ -57,15 +57,15 @@ def _go_mod_test_impl(ctx):
 
 go_mod_test = unittest.make(_go_mod_test_impl)
 
-_GO_MOD_21_CONTENT = """go 1.21.0rc1
+_GO_MOD_23_CONTENT = """go 1.23.12
 
 module example.com
 
-toolchain go1.22.2
+toolchain go1.23.12
 """
 
-_EXPECTED_GO_MOD_21_PARSE_RESULT = struct(
-    go = (1, 21),
+_EXPECTED_GO_MOD_23_PARSE_RESULT = struct(
+    go = (1, 23),
     module = "example.com",
     replace_map = {},
     require = (),
@@ -83,12 +83,12 @@ def _use_spec_to_label_test_impl(ctx):
 
 use_spec_test = unittest.make(_use_spec_to_label_test_impl)
 
-def _go_mod_21_test_impl(ctx):
+def _go_mod_23_test_impl(ctx):
     env = unittest.begin(ctx)
-    asserts.equals(env, _EXPECTED_GO_MOD_21_PARSE_RESULT, parse_go_mod(_GO_MOD_21_CONTENT, "/go.mod"))
+    asserts.equals(env, _EXPECTED_GO_MOD_23_PARSE_RESULT, parse_go_mod(_GO_MOD_23_CONTENT, "/go.mod"))
     return unittest.end(env)
 
-go_mod_21_test = unittest.make(_go_mod_21_test_impl)
+go_mod_23_test = unittest.make(_go_mod_23_test_impl)
 
 _GO_MOD_GODEBUG_CONTENT = """go 1.24.6
 
@@ -215,7 +215,7 @@ def go_mod_test_suite(name):
     unittest.suite(
         name,
         go_mod_test,
-        go_mod_21_test,
+        go_mod_23_test,
         go_mod_godebug_test,
         go_sum_test,
         go_work_test,

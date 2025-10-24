@@ -31,7 +31,7 @@ load("@io_bazel_rules_go//go:deps.bzl", "go_download_sdk", "go_register_nogo", "
 
 go_rules_dependencies()
 
-go_register_toolchains(version = "1.23.3")
+go_register_toolchains(version = "1.23.12")
 
 go_register_nogo(
     excludes = [
@@ -42,6 +42,7 @@ go_register_nogo(
     nogo = "@bazel_gazelle//:nogo",
 )
 
+# Go 1.23 features are used (20225.10.24)
 # Go 1.22 is needed since the non-hermeticity of GoToolchainBinaryBuild results in it downloading
 # Go 1.23 on Windows to build the builder, which then messes up Go version build tag filtering.
 # Go 1.21 is needed to support the toolchain directive in go.mod, which is non-hermetically read
@@ -51,7 +52,7 @@ go_register_nogo(
 # TODO: Fix rules_go and set this back to 1.19.
 go_download_sdk(
     name = "go_compat_sdk",
-    version = "1.22.9",
+    version = "1.23.12",
 )
 
 # Load recent versions of core rulesets for compatibility with Bazel 8.
