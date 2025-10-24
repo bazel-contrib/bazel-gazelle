@@ -16,6 +16,7 @@ limitations under the License.
 package main
 
 import (
+	"slices"
 	"bytes"
 	"errors"
 	"flag"
@@ -23,7 +24,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -312,11 +312,11 @@ func updateRepos(wd string, args []string) (err error) {
 			sortedFiles = append(sortedFiles, uc.workspace)
 		}
 	}
-	sort.Slice(sortedFiles, func(i, j int) bool {
-		if cmp := strings.Compare(sortedFiles[i].Path, sortedFiles[j].Path); cmp != 0 {
-			return cmp < 0
+	slices.SortFunc(sortedFiles, func(a, b *rule.File) int {
+		if cmp := strings.Compare(a.Path, b.Path); cmp != 0 {
+			return cmp
 		}
-		return sortedFiles[i].DefName < sortedFiles[j].DefName
+		return strings.Compare(a.DefName, b.DefName)
 	})
 
 	updatedFiles := make(map[string]*rule.File)

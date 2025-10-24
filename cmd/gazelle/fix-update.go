@@ -16,6 +16,7 @@ limitations under the License.
 package main
 
 import (
+	"slices"
 	"bytes"
 	"context"
 	"errors"
@@ -24,7 +25,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"syscall"
 
@@ -212,8 +212,8 @@ func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) erro
 				seen[f] = true
 			}
 		}
-		sort.Slice(uc.workspaceFiles, func(i, j int) bool {
-			return uc.workspaceFiles[i].Path < uc.workspaceFiles[j].Path
+		slices.SortFunc(uc.workspaceFiles, func(a, b *rule.File) int {
+			return strings.Compare(a.Path, b.Path)
 		})
 	}
 

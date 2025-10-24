@@ -247,7 +247,7 @@ func isBadNum(v string) bool {
 // The caller is assumed to have checked that semver.IsValid(v) is true.
 func isSemverPrefix(v string) bool {
 	dots := 0
-	for i := 0; i < len(v); i++ {
+	for i := range len(v) {
 		switch v[i] {
 		case '-', '+':
 			return false

@@ -21,7 +21,7 @@ import (
 	"log"
 	"path"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 
@@ -68,7 +68,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		}
 		protoRuleNames = append(protoRuleNames, r.Name())
 	}
-	sort.Strings(protoRuleNames)
+	slices.Sort(protoRuleNames)
 	var emptyProtoRuleNames []string
 	for _, r := range args.OtherEmpty {
 		if r.Kind() == "proto_library" {
@@ -222,7 +222,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		for importPath, _ := range importPathToProtoTargets {
 			importPaths = append(importPaths, importPath)
 		}
-		sort.Strings(importPaths)
+		slices.Sort(importPaths)
 
 		for _, importPath := range importPaths {
 			var rs []*rule.Rule
@@ -390,7 +390,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	for r := range g.relsToIndexSeen {
 		res.RelsToIndex = append(res.RelsToIndex, r)
 	}
-	sort.Strings(res.RelsToIndex) // for deterministic output
+	slices.Sort(res.RelsToIndex) // for deterministic output
 
 	if args.File != nil || len(res.Gen) > 0 {
 		gl.goPkgRels[args.Rel] = true
@@ -975,8 +975,7 @@ func shouldSetVisibility(args language.GenerateArgs) bool {
 }
 
 func (g *generator) addRelsToIndex(ps rule.PlatformStrings) {
-	// TODO: refactor to for-iterator loop after Go 1.23 is the minimum version.
-	ps.Each()(func(imp string) bool {
+	for imp := range ps.Each() {
 		for _, goSearch := range g.gc.goSearch {
 			if trimmed := pathtools.TrimPrefix(imp, goSearch.prefix); goSearch.prefix == "" || trimmed != imp {
 				rel := path.Join(goSearch.rel, trimmed)
@@ -985,6 +984,5 @@ func (g *generator) addRelsToIndex(ps rule.PlatformStrings) {
 				}
 			}
 		}
-		return true
-	})
+	}
 }

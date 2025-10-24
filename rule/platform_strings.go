@@ -16,6 +16,7 @@ limitations under the License.
 package rule
 
 import (
+	"iter"
 	"sort"
 	"strings"
 
@@ -82,11 +83,9 @@ func (ps *PlatformStrings) IsEmpty() bool {
 // Flat returns all the strings in the set, sorted and de-duplicated.
 func (ps *PlatformStrings) Flat() []string {
 	unique := make(map[string]struct{})
-	// TODO: refactor to for-iterator loop after Go 1.23 is the minimum version.
-	ps.Each()(func(s string) bool {
+	for s := range ps.Each() {
 		unique[s] = struct{}{}
-		return true
-	})
+	}
 	flat := make([]string, 0, len(unique))
 	for s := range unique {
 		flat = append(flat, s)
@@ -204,7 +203,7 @@ func (ps *PlatformStrings) MapSlice(f func([]string) ([]string, error)) (Platfor
 
 // Each returns an iterator (satisfying iter.Seq) over the strings in
 // PlatformStrings. No sorting or deduplication is performed here.
-func (ps *PlatformStrings) Each() func(yield func(string) bool) {
+func (ps *PlatformStrings) Each() iter.Seq[string] {
 	return func(yield func(string) bool) {
 		for _, s := range ps.Generic {
 			if !yield(s) {

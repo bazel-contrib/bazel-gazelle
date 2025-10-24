@@ -151,7 +151,7 @@ func unquoteProtoString(q []byte) string {
 	// without unescaped double quote characters inside.
 	noQuotes := bytes.Split(q[1:len(q)-1], []byte{'"'})
 	if len(noQuotes) != 1 {
-		for i := 0; i < len(noQuotes)-1; i++ {
+		for i := range len(noQuotes)-1 {
 			if len(noQuotes[i]) == 0 || noQuotes[i][len(noQuotes[i])-1] != '\\' {
 				noQuotes[i] = append(noQuotes[i], '\\')
 			}
