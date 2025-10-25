@@ -275,7 +275,7 @@ func ExprFromValue(val interface{}) bzl.Expr {
 	switch rv.Kind() {
 	case reflect.Slice, reflect.Array:
 		list := make([]bzl.Expr, 0, rv.Len())
-		for i := 0; i < rv.Len(); i++ {
+		for i := range rv.Len() {
 			elem := ExprFromValue(rv.Index(i).Interface())
 			list = append(list, elem)
 		}

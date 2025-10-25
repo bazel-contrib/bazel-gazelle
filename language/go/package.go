@@ -16,11 +16,11 @@ limitations under the License.
 package golang
 
 import (
+	"slices"
 	"fmt"
 	"log"
 	"path"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -560,20 +560,20 @@ func (sb *platformStringsBuilder) build() rule.PlatformStrings {
 			}
 		}
 	}
-	sort.Strings(ps.Generic)
+	slices.Sort(ps.Generic)
 	if ps.OS != nil {
 		for _, ss := range ps.OS {
-			sort.Strings(ss)
+			slices.Sort(ss)
 		}
 	}
 	if ps.Arch != nil {
 		for _, ss := range ps.Arch {
-			sort.Strings(ss)
+			slices.Sort(ss)
 		}
 	}
 	if ps.Platform != nil {
 		for _, ss := range ps.Platform {
-			sort.Strings(ss)
+			slices.Sort(ss)
 		}
 	}
 	return ps
@@ -584,7 +584,7 @@ func (sb *platformStringsBuilder) buildFlat() []string {
 	for s := range sb.strs {
 		strs = append(strs, s)
 	}
-	sort.Strings(strs)
+	slices.Sort(strs)
 	return strs
 }
 

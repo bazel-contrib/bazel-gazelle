@@ -39,7 +39,7 @@ func (x Version) Compare(y Version) int {
 	if len(y) < n {
 		n = len(y)
 	}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		cmp := x[i] - y[i]
 		if cmp != 0 {
 			return cmp

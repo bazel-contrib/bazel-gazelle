@@ -511,7 +511,7 @@ func safeCgoName(s string, spaces bool) bool {
 	if !spaces {
 		safe = safe[len(safeSpaces):]
 	}
-	for i := 0; i < len(s); i++ {
+	for i := range len(s) {
 		if c := s[i]; c < utf8.RuneSelf && bytes.IndexByte(safe, c) < 0 {
 			return false
 		}
