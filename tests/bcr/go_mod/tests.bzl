@@ -1,4 +1,5 @@
 load("@bazel_features//:features.bzl", "bazel_features")
+load("@bazel_gazelle_go_repository_config//:go_tools.bzl", "TOOLS")
 load("@package_metadata//providers:package_metadata_info.bzl", "PackageMetadataInfo")
 load("@rules_license//rules:providers.bzl", "PackageInfo")
 load("@rules_testing//lib:analysis_test.bzl", "analysis_test", "test_suite")
@@ -72,6 +73,11 @@ _PackageInfoSubjectFactory = struct(
 )
 
 def starlark_tests(name):
+    if "staticcheck" not in TOOLS:
+        fail("Expected 'staticcheck' in 'TOOLS'")
+    if TOOLS["staticcheck"] != Label("@co_honnef_go_tools//cmd/staticcheck"):
+        fail("Unexpected value for 'staticcheck': {}".format(TOOLS["staticcheck"]))
+
     test_suite(
         name = name,
         tests = [
