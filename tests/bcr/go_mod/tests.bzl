@@ -75,7 +75,7 @@ _PackageInfoSubjectFactory = struct(
 def starlark_tests(name):
     if "staticcheck" not in TOOLS:
         fail("Expected 'staticcheck' in 'TOOLS'")
-    if TOOLS["staticcheck"] != Label("@co_honnef_go_tools//cmd/staticcheck"):
+    if TOOLS["staticcheck"] != "@co_honnef_go_tools//cmd/staticcheck":
         fail("Unexpected value for 'staticcheck': {}".format(TOOLS["staticcheck"]))
 
     test_suite(
