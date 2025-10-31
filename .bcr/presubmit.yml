@@ -1,32 +1,30 @@
-matrix:
-  platform:
-    - ubuntu2004
-    - macos
-    - windows
-  bazel: [6.*, 7.*, 8.*]
-  bcr_variant:
-    - tests/bcr/go_work
-    - tests/bcr/go_mod
-tasks:
-  run_test_module:
-    # Keep in sync with .bazelci/presubmit.yml
-    name: Run test module
-    platform: ${{ platform }}
-    bazel: ${{ bazel }}
-    working_directory: ${{ bcr_variant }}
-    shell_commands:
-    # Regenerate the BUILD files for the test module using Gazelle.
-    - rm pkg/BUILD.bazel proto/BUILD.bazel
-    - bazel run //:gazelle -- pkg proto
-    - bazel run //:gazelle -- update pkg proto
-    # Verify that bazel mod tidy doesn't remove use_repos required to build and test.
-    - bazel mod tidy || true # Unsupported on Bazel 6
-    build_targets:
-    - //...
-    - //:gazelle
-    test_targets:
-    # Specify these targets explicitly to verify that Gazelle generates them correctly.
-    - "//pkg:pkg_test"
-    - "//proto:proto_test"
-    - "//..."
-    - "@test_dep//..."
+bcr_test_module:
+  module_path: tests/bcr/go_mod
+  matrix:
+    platform:
+      - ubuntu2004
+      - macos
+      - windows
+    bazel: [6.*, 7.*, 8.*]
+  tasks:
+    run_test_module:
+      # Keep in sync with .bazelci/presubmit.yml
+      name: Run test module
+      platform: ${{ platform }}
+      bazel: ${{ bazel }}
+      shell_commands:
+      # Regenerate the BUILD files for the test module using Gazelle.
+      - rm pkg/BUILD.bazel proto/BUILD.bazel
+      - bazel run //:gazelle -- pkg proto
+      - bazel run //:gazelle -- update pkg proto
+      # Verify that bazel mod tidy doesn't remove use_repos required to build and test.
+      - bazel mod tidy || true # Unsupported on Bazel 6
+      build_targets:
+      - //...
+      - //:gazelle
+      test_targets:
+      # Specify these targets explicitly to verify that Gazelle generates them correctly.
+      - "//pkg:pkg_test"
+      - "//proto:proto_test"
+      - "//..."
+      - "@test_dep//..."
