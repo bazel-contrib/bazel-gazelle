@@ -1,5 +1,5 @@
 load("@bazel_features//:features.bzl", "bazel_features")
-load("@bazel_gazelle_go_repository_config//:go_tools.bzl", "TOOLS")
+load("@gazelle//:go_tools.bzl", "TOOLS")
 load("@package_metadata//providers:package_metadata_info.bzl", "PackageMetadataInfo")
 load("@rules_license//rules:providers.bzl", "PackageInfo")
 load("@rules_testing//lib:analysis_test.bzl", "analysis_test", "test_suite")
