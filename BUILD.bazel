@@ -141,5 +141,5 @@ bzl_library(
     name = "go_tools",
     srcs = ["go_tools.bzl"],
     visibility = ["//visibility:public"],
-    deps = ["@bazel_gazelle_go_repository_config//:go_tools"],
+    deps = ["@bazel_gazelle_go_repository_config//:go_tools.bzl"],
 )
