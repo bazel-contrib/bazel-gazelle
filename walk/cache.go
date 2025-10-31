@@ -108,27 +108,17 @@ func GetDirInfo(rel string) (DirInfo, error) {
 
 	// Ensure all ancestors are loaded before loading rel itself, since their
 	// configuration may exclude rel.
-	var prevCfg *walkConfig = nil
-	var di DirInfo
-	var d string
-	var err error
-	pathtools.Prefixes(rel)(func(prefix string) bool {
-		d = prefix
-		if prevCfg != nil && prevCfg.isExcludedDir(prefix) {
-			di = DirInfo{}
-			err = fmt.Errorf("directory %q is excluded", prefix)
-			return false
+	var r DirInfo
+	for prefix := range pathtools.Prefixes(rel) {
+		if r.config != nil && r.config.isExcludedDir(prefix) {
+			return DirInfo{}, fmt.Errorf("directory %q is excluded", prefix)
 		}
-		di, err = globalWalker.cache.get(prefix, globalWalker.loadDirInfo)
-		prevCfg = di.config
-		return err == nil
-	})
-
-	if err != nil {
-		if d != rel {
-			di = DirInfo{}
+		di, err := globalWalker.cache.get(prefix, globalWalker.loadDirInfo)
+		if err != nil {
+			return DirInfo{}, err
 		}
+		r = di
 	}
 
-	return di, err
+	return r, nil
 }

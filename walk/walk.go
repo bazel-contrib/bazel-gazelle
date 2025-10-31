@@ -230,7 +230,7 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 
 		// Make sure to visit prefixes of relToVisit as well so we apply
 		// configuration directives.
-		pathtools.Prefixes(relToVisit)(func(rel string) bool {
+		for rel := range pathtools.Prefixes(relToVisit) {
 			if _, ok := w.visits[rel]; !ok {
 				// Never visited this directory.
 				parentRel := path.Dir(rel)
@@ -239,23 +239,22 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 				}
 				parentCfg := w.visits[parentRel].c
 				if getWalkConfig(parentCfg).isExcludedDir(rel) {
-					return false
+					break
 				}
 				if _, err := w.cache.get(rel, w.loadDirInfo); err != nil {
 					// Error loading directory. Most commonly, this is because the
 					// directory doesn't exist, but it could actually be a file
 					// or we don't have permission, or some other I/O error.
 					// Skip it.
-					return false
+					break
 				}
 				c := parentCfg.Clone()
 				w.visit(c, rel, false)
 				if c.Strict && len(w.errs) > 0 {
-					return false
+					break
 				}
 			}
-			return true
-		})
+		}
 	}
 	return errors.Join(w.errs...)
 }
