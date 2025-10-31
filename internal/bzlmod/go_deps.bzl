@@ -182,6 +182,12 @@ def _is_dev_dependency(module_ctx, tag):
 def _intersperse_newlines(tags):
     return [tag for p in zip(tags, len(tags) * ["\n"]) for tag in p]
 
+def _go_repository_normalized_for_duplicate_check(attrs):
+    attrs = dict(attrs)
+    attrs["importpath"] = attrs["importpath"].lower()
+    attrs.pop("sum", None)
+    return attrs
+
 # This function processes the gazelle_default_attributes tag for a given module and returns a struct
 # containing the attributes from _GAZELLE_ATTRS that are defined in the tag.
 def _process_gazelle_default_attributes(module_ctx):
@@ -429,6 +435,7 @@ def _go_deps_impl(module_ctx):
             for tool in tools:
                 # The tool's package may be the module itself.
                 possible_tool_modules[tool] = None
+
                 # Add all path prefixes of tool to the map
                 # to allow for partial matches.
                 for i in range(len(tool)):
@@ -675,14 +682,7 @@ Mismatch between versions requested for Go module {module}:
             root_module_direct_deps.pop(_repo_name(path), None)
             root_module_direct_dev_deps.pop(_repo_name(path), None)
             continue
-        if module.repo_name in repos_processed:
-            fail("Go module {prev_path} and {path} will resolve to the same Bazel repo name: {name}. While Go allows modules to only differ in case, this isn't supported in Gazelle (yet). Please ensure you only use one of these modules in your go.mod(s)".format(
-                prev_path = repos_processed[module.repo_name],
-                path = path,
-                name = module.repo_name,
-            ))
 
-        repos_processed[module.repo_name] = path
         go_repository_args = {
             "name": module.repo_name,
             # Compared to the name attribute, the content of this attribute does not go through repo
@@ -724,7 +724,17 @@ Mismatch between versions requested for Go module {module}:
 
             go_repository_args.update(repo_args)
 
-        go_repository(**go_repository_args)
+        if module.repo_name in repos_processed:
+            normalized_args = _go_repository_normalized_for_duplicate_check(go_repository_args)
+            if normalized_args != repos_processed[module.repo_name]:
+                fail("Go module {prev_path} and {path} will resolve to the same Bazel repo name: {name}. While Go allows modules to only differ in case, this isn't fully supported in Gazelle (yet). Please ensure you only use one of these modules in your go.mod(s)".format(
+                    prev_path = repos_processed[module.repo_name]["importpath"],
+                    path = path,
+                    name = module.repo_name,
+                ))
+        else:
+            repos_processed[module.repo_name] = _go_repository_normalized_for_duplicate_check(go_repository_args)
+            go_repository(**go_repository_args)
 
     # Create a synthetic WORKSPACE file that lists all Go repositories created
     # above and contains all the information required by Gazelle's -repo_config
