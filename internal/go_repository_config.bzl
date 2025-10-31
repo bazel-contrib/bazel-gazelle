@@ -66,7 +66,7 @@ def _go_repository_config_impl(ctx):
     )
     ctx.file(
         "go_tools.bzl",
-        "",
+        "TOOLS = {}",
         False,
     )
 
