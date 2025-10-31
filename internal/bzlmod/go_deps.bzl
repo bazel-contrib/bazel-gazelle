@@ -435,6 +435,7 @@ def _go_deps_impl(module_ctx):
             for tool in tools:
                 # The tool's package may be the module itself.
                 possible_tool_modules[tool] = None
+
                 # Add all path prefixes of tool to the map
                 # to allow for partial matches.
                 for i in range(len(tool)):
