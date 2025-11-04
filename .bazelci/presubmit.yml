@@ -4,7 +4,7 @@ matrix:
     - ubuntu2204
     - macos
     - windows
-  bazel: [6.*, 7.*, 8.*]
+  bazel: [7.*, 8.*]
   bcr_variant:
     - tests/bcr/go_work
     - tests/bcr/go_mod
