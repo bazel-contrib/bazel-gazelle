@@ -16,7 +16,7 @@ local_path_override(
 
 bazel_dep(name = "bazel_features", version = "1.27.0")
 bazel_dep(name = "protobuf", version = "27.0", repo_name = "my_protobuf")
-bazel_dep(name = "rules_go", version = "0.53.0", repo_name = "my_rules_go")
+bazel_dep(name = "rules_go", version = "0.58.3", repo_name = "my_rules_go")
 bazel_dep(name = "rules_license", version = "1.0.0")
 bazel_dep(name = "package_metadata", version = "0.0.5")
 bazel_dep(name = "rules_proto", version = "6.0.0", repo_name = "my_rules_proto")
