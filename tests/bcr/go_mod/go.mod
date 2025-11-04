@@ -9,7 +9,7 @@ replace github.com/bmatcuk/doublestar/v4 => github.com/bmatcuk/doublestar/v4 v4.
 require (
 	example.org/hello v1.0.0
 	github.com/DataDog/sketches-go v1.4.1
-	github.com/bazelbuild/buildtools v0.0.0-20250930140053-2eb4fccefb52
+	github.com/bazelbuild/buildtools v0.0.0-20251031164759-f48b23493530
 	github.com/bazelbuild/rules_go v0.58.3
 	// NOTE: keep <4.7.0 to test the 'replace'
 	github.com/bmatcuk/doublestar/v4 v4.6.0
