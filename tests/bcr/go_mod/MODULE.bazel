@@ -90,6 +90,7 @@ go_deps.module_override(
 
 # Test an archive override from a known archive.
 go_deps.gazelle_override(
+    build_file_generation = "clean",
     directives = [
         "gazelle:go_naming_convention go_default_library",
     ],
