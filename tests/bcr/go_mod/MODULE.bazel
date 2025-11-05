@@ -91,9 +91,6 @@ go_deps.module_override(
 # Test an archive override from a known archive.
 go_deps.gazelle_override(
     build_file_generation = "clean",
-    directives = [
-        "gazelle:go_naming_convention go_default_library",
-    ],
     path = "github.com/bazelbuild/buildtools",
 )
 go_deps.archive_override(
@@ -160,6 +157,10 @@ use_repo(
 # closure.
 go_tools = use_extension("@gazelle//:extensions.bzl", "go_deps", isolate = True)
 go_tools.from_file(go_mod = "//tools:go.mod")
+go_tools.gazelle_override(
+    build_file_generation = "clean",
+    path = "github.com/bazelbuild/buildtools",
+)
 use_repo(
     go_tools,
     buildtools = "com_github_bazelbuild_buildtools",
