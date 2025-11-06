@@ -11,7 +11,7 @@ alias(
 
 alias(
     name = "staticcheck",
-    actual = "@co_honnef_go_tools//cmd/staticcheck:staticcheck",
+    actual = "@co_honnef_go_tools//cmd/staticcheck",
 )
 
 alias(
