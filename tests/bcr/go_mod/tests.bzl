@@ -74,13 +74,13 @@ _PackageInfoSubjectFactory = struct(
 
 def starlark_tests(name):
     if "staticcheck" not in GO_TOOLS:
-        fail("Expected 'staticcheck' in 'GO_TOOLS'")
+        fail("Expected 'staticcheck' in 'GO_TOOLS', got: {}".format(GO_TOOLS))
     if GO_TOOLS["staticcheck"] != Label("@co_honnef_go_tools//cmd/staticcheck"):
-        fail("Unexpected value for 'staticcheck': {} (GO_TOOLS={})".format(GO_TOOLS["staticcheck"], GO_TOOLS))
+        fail("Unexpected value for 'staticcheck': {}".format(GO_TOOLS["staticcheck"]))
     if "gofumpt" not in GO_TOOLS:
-        fail("Expected 'gofumpt' in 'GO_TOOLS'")
+        fail("Expected 'gofumpt' in 'GO_TOOLS', got: {}".format(GO_TOOLS))
     if GO_TOOLS["gofumpt"] != Label("@cc_mvdan_gofumpt//:gofumpt"):
-        fail("Unexpected value for 'gofumpt': {} (GO_TOOLS={})".format(GO_TOOLS["gofumpt"], GO_TOOLS))
+        fail("Unexpected value for 'gofumpt': {}".format(GO_TOOLS["gofumpt"]))
 
     test_suite(
         name = name,
