@@ -55,3 +55,4 @@ require (
 replace example.org/hello => ../../fixtures/hello
 
 tool honnef.co/go/tools/cmd/staticcheck
+tool mvdan.cc/gofumpt

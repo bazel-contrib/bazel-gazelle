@@ -753,13 +753,15 @@ Mismatch between versions requested for Go module {module}:
 
         if module_path:
             tool_name = segments[-1]
+            target_name = tool_name
             if len(segments) >= 2 and len(tool_name) >= 2 and tool_name[0] == "v" and tool_name[1:].isdigit():
                 # Skip major version
                 tool_name = segments[-2]
             pkg_path = tool_path[len(module_path):].lstrip("/")
-            tool_targets[tool_name] = "@{repo}//{pkg}".format(
+            tool_targets[tool_name] = "@{repo}//{pkg}:{target}".format(
                 repo = importpath_to_repo[module_path],
                 pkg = pkg_path,
+                target = target_name,
             )
 
     # Create a synthetic WORKSPACE file that lists all Go repositories created
