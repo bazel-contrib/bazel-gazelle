@@ -76,6 +76,10 @@ y_library(name = "bar")
 	})
 	baz.Insert(f)
 
+	packageRule := NewRule("package", "")
+	packageRule.SetAttr("default_visibility", "//visibility:public")
+	packageRule.Insert(f)
+
 	got := strings.TrimSpace(string(f.Format()))
 	want := strings.TrimSpace(`
 load("//some:maybe.bzl", "maybe")
@@ -85,6 +89,8 @@ load(
     "y_library",
     z = "z_library",
 )
+
+package(default_visibility = "//visibility:public")
 
 y_library(
     name = "bar",
