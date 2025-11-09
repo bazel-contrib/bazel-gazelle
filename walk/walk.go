@@ -25,6 +25,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/pathtools"
@@ -222,7 +223,10 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 
 	// Visit additional directories that extensions requested for indexing.
 	// Don't visit subdirectories recursively, even when recursion is enabled.
+	w.l.Lock()
 	w.mode = UpdateDirsMode
+	w.l.Unlock()
+
 	for len(w.relsToVisit) > 0 {
 		// Don't simply range over relsToVisit. We may append more.
 		relToVisit := w.relsToVisit[0]
@@ -262,6 +266,8 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 
 // walker holds state needed for a walk of the source tree.
 type walker struct {
+	l sync.RWMutex
+
 	// repoRoot is the absolute file path to the repo's root directory.
 	repoRoot string
 
@@ -383,6 +389,9 @@ func newWalker(c *config.Config, cexts []config.Configurer, dirs []string, mode 
 // We always need to visit directories requested by the caller and their
 // parents. We may also need to visit subdirectories.
 func (w *walker) shouldVisit(rel string, updateParent bool) bool {
+	w.l.RLock()
+	defer w.l.RUnlock()
+
 	switch w.mode {
 	case VisitAllUpdateSubdirsMode, VisitAllUpdateDirsMode:
 		return true
@@ -399,9 +408,17 @@ func (w *walker) shouldVisit(rel string, updateParent bool) bool {
 // parameter in the directory rel. This indicates the build file should be
 // updated.
 func (w *walker) shouldUpdate(rel string, updateParent bool) bool {
-	if (w.mode == VisitAllUpdateSubdirsMode || w.mode == UpdateSubdirsMode) && updateParent {
-		return true
+	if updateParent {
+		w.l.RLock()
+		defer w.l.RUnlock()
+
+		switch w.mode {
+		case VisitAllUpdateSubdirsMode, UpdateSubdirsMode:
+			return true
+		default:
+		}
 	}
+
 	return w.shouldUpdateRel[rel]
 }
 
