@@ -57,6 +57,9 @@ type fileInfo struct {
 	// ends with "_test.go". This is never true for non-Go files.
 	isTest bool
 
+	// numParallel is the number of top level t.Parallel calls at the top of the function.
+	numParallel int
+
 	// isExternalTest is true when the file isTest and the original package
 	// name ends with "_test"
 	isExternalTest bool
@@ -289,7 +292,7 @@ func goFileInfo(path, srcdir string) fileInfo {
 	}
 	info.tags = tags
 
-	if importsEmbed || info.packageName == "main" {
+	if importsEmbed || info.packageName == "main" || info.isTest {
 		pf, err = parser.ParseFile(fset, info.path, nil, parser.ParseComments)
 		if err != nil {
 			log.Printf("%s: error reading go file: %v", info.path, err)
@@ -321,6 +324,9 @@ func goFileInfo(path, srcdir string) fileInfo {
 				if fdecl.Name.Name == "main" {
 					info.hasMainFunction = true
 					break
+				}
+				if info.isTest {
+					info.numParallel += countParallel(fdecl)
 				}
 			}
 		}
@@ -744,4 +750,24 @@ func parseGoEmbed(args string, pos token.Position) ([]fileEmbed, error) {
 		list = append(list, fileEmbed{path, pathPos})
 	}
 	return list, nil
+}
+
+func countParallel(funcDecl *ast.FuncDecl) int {
+	count := 0
+	if !strings.HasPrefix(funcDecl.Name.Name, "Test") {
+		return 0
+	}
+	ast.Inspect(funcDecl, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Parallel" {
+			count++
+			return false
+		}
+		return false
+	})
+	return count
 }
