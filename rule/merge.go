@@ -196,7 +196,11 @@ func MergeList(srcExpr, dstExpr bzl.Expr) *bzl.ListExpr {
 	for _, v := range dst.List {
 		s := stringValue(v)
 		if keep := ShouldKeep(v); keep || srcSet[s] {
-			keepComment = keepComment || keep
+			if srcSet[s] {
+				*v.Comment() = removeKeep(v)
+			} else {
+				keepComment = keepComment || keep
+			}
 			merged = append(merged, v)
 			if s != "" {
 				kept[s] = true
