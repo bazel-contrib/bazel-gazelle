@@ -101,7 +101,7 @@ func (w *walker) loadDirInfo(rel string) (DirInfo, error) {
 //
 // populateCache should only be called when recursion is enabled. It avoids
 // traversing excluded subdirectories.
-func (w *walker) populateCache() {
+func (w *walker) populateCache(mode Mode) {
 	// sem is a semaphore.
 	//
 	// Acquiring the semaphore by sending struct{}{} grants permission to spawn
@@ -125,7 +125,7 @@ func (w *walker) populateCache() {
 			subdirRel := path.Join(rel, subdir)
 
 			// Navigate to the subdirectory if it should be visited.
-			if w.shouldVisit(subdirRel, true) {
+			if w.shouldVisit(mode, subdirRel, true) {
 				sem <- struct{}{} // acquire semaphore for child
 				wg.Add(1)
 				go func() {
