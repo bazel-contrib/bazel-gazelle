@@ -27,7 +27,7 @@ go_sdk.download(version = "1.24.2")
 
 # This bazel_dep provides the Go dependency github.com/cloudflare/circl, which requires custom
 # patches beyond what Gazelle can generate.
-bazel_dep(name = "circl", version = "1.3.7")
+bazel_dep(name = "circl", version = "1.3.8")
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 go_deps.config(
