@@ -54,10 +54,10 @@ bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.4.1", dev_dependenc
 bazel_dep(name = "stardoc", version = "0.6.2", dev_dependency = True, repo_name = "io_bazel_stardoc")
 
 go_sdk_dev = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk", dev_dependency = True)
-go_sdk_dev.download(version = "1.23.3")
+go_sdk_dev.download(version = "1.24.9")
 
 # Used by compatibility tests, keep as low as possible.
-go_sdk_dev.download(version = "1.22.9")
+go_sdk_dev.download(version = "1.23.12")
 
 # Known to exist since it is instantiated by rules_go itself.
 use_repo(
