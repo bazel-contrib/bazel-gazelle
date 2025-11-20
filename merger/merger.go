@@ -70,6 +70,10 @@ const (
 // TODO(jayconrod): make this stable *or* find a better way to express it.
 const UnstableInsertIndexKey = "_gazelle_insert_index"
 
+type MergeFileOptions struct {
+	RemoveNoopKeepComments bool
+}
+
 // MergeFile combines information from newly generated rules with matching
 // rules in an existing build file. MergeFile can also delete rules which
 // are empty after merging.
@@ -106,7 +110,7 @@ const UnstableInsertIndexKey = "_gazelle_insert_index"
 // If an attribute is marked with a "# keep" comment, it will not be merged.
 // If a rule is marked with a "# keep" comment, the whole rule will not
 // be modified.
-func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phase, kinds map[string]rule.KindInfo, aliasedKinds map[string]string) {
+func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phase, kinds map[string]rule.KindInfo, aliasedKinds map[string]string, opts *MergeFileOptions) {
 	getMergeAttrs := func(r *rule.Rule) map[string]bool {
 		if phase == PreResolve {
 			return kinds[r.Kind()].MergeableAttrs
@@ -115,13 +119,15 @@ func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phas
 		}
 	}
 
+	ruleOpts := &rule.MergeRuleOptions{RemoveNoopKeepComments: opts.RemoveNoopKeepComments}
+
 	// Merge empty rules into the file and delete any rules which become empty.
 	for _, emptyRule := range emptyRules {
 		if oldRule, _ := match(oldFile.Rules, emptyRule, kinds[emptyRule.Kind()], false, aliasedKinds); oldRule != nil {
 			if oldRule.ShouldKeep() {
 				continue
 			}
-			rule.MergeRules(emptyRule, oldRule, getMergeAttrs(emptyRule), oldFile.Path)
+			rule.MergeRules(emptyRule, oldRule, getMergeAttrs(emptyRule), oldFile.Path, ruleOpts)
 			if oldRule.IsEmpty(kinds[oldRule.Kind()]) {
 				oldRule.Delete()
 			}
@@ -169,7 +175,7 @@ func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phas
 				genRule.Insert(oldFile)
 			}
 		} else {
-			rule.MergeRules(genRule, matchRules[i], getMergeAttrs(genRule), oldFile.Path)
+			rule.MergeRules(genRule, matchRules[i], getMergeAttrs(genRule), oldFile.Path, ruleOpts)
 		}
 	}
 }

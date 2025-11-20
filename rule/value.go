@@ -130,7 +130,7 @@ type BzlExprValue interface {
 // result of merging its data into the previously-existing expression provided as other.
 // Note that other can be nil, if no previous attr with this name existed.
 type Merger interface {
-	Merge(other bzl.Expr) bzl.Expr
+	Merge(other bzl.Expr, opts *MergeRuleOptions) bzl.Expr
 }
 
 type SortedStrings []string
@@ -148,11 +148,11 @@ func (s SortedStrings) BzlExpr() bzl.Expr {
 	return listExpr
 }
 
-func (s SortedStrings) Merge(other bzl.Expr) bzl.Expr {
+func (s SortedStrings) Merge(other bzl.Expr, opts *MergeRuleOptions) bzl.Expr {
 	if other == nil {
 		return s.BzlExpr()
 	}
-	merged := MergeList(s.BzlExpr(), other)
+	merged := MergeList(s.BzlExpr(), other, opts)
 	sortExprLabels(merged, []bzl.Expr{})
 	return merged
 }
@@ -161,11 +161,11 @@ type UnsortedStrings []string
 
 var _ Merger = UnsortedStrings(nil)
 
-func (s UnsortedStrings) Merge(other bzl.Expr) bzl.Expr {
+func (s UnsortedStrings) Merge(other bzl.Expr, opts *MergeRuleOptions) bzl.Expr {
 	if other == nil {
 		return ExprFromValue(s)
 	}
-	return MergeList(ExprFromValue(s), other)
+	return MergeList(ExprFromValue(s), other, opts)
 }
 
 // SelectStringListValue is a value that can be translated to a Bazel
