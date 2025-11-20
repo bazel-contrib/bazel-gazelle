@@ -24,6 +24,10 @@ import (
 	bzl "github.com/bazelbuild/buildtools/build"
 )
 
+type MergeRuleOptions struct {
+	RemoveNoopKeepComments bool
+}
+
 // MergeRules copies information from src into dst, usually discarding
 // information in dst when they have the same attributes.
 //
@@ -41,7 +45,7 @@ import (
 // marked with a "# keep" comment, values in the attribute not marked with
 // a "# keep" comment will be dropped. If the attribute is empty afterward,
 // it will be deleted.
-func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
+func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string, opts *MergeRuleOptions) {
 	if dst.ShouldKeep() {
 		return
 	}
@@ -51,7 +55,7 @@ func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 		if _, ok := src.attrs[key]; ok || !mergeable[key] || ShouldKeep(dstAttr.expr) {
 			continue
 		}
-		if mergedValue, err := mergeAttrValues(nil, &dstAttr); err != nil {
+		if mergedValue, err := mergeAttrValues(nil, &dstAttr, opts); err != nil {
 			start, end := dstAttr.expr.RHS.Span()
 			log.Printf("%s:%d.%d-%d.%d: could not merge expression", filename, start.Line, start.LineRune, end.Line, end.LineRune)
 		} else if mergedValue == nil {
@@ -66,7 +70,7 @@ func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 		if dstAttr, ok := dst.attrs[key]; !ok {
 			dst.SetAttr(key, srcAttr.expr.RHS)
 		} else if mergeable[key] && !ShouldKeep(dstAttr.expr) {
-			if mergedValue, err := mergeAttrValues(&srcAttr, &dstAttr); err != nil {
+			if mergedValue, err := mergeAttrValues(&srcAttr, &dstAttr, opts); err != nil {
 				start, end := dstAttr.expr.RHS.Span()
 				log.Printf("%s:%d.%d-%d.%d: could not merge expression", filename, start.Line, start.LineRune, end.Line, end.LineRune)
 			} else if mergedValue == nil {
@@ -86,18 +90,18 @@ func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 //
 // The following kinds of expressions are recognized.
 //
-//   * nil
-//   * strings (can only be merged with strings)
-//   * lists of strings
-//   * a call to select with a dict argument. The dict keys must be strings,
+//   - nil
+//   - strings (can only be merged with strings)
+//   - lists of strings
+//   - a call to select with a dict argument. The dict keys must be strings,
 //     and the values must be lists of strings.
-//   * a list of strings combined with a select call using +. The list must
+//   - a list of strings combined with a select call using +. The list must
 //     be the left operand.
-//   * an attr value that implements the Merger interface.
+//   - an attr value that implements the Merger interface.
 //
 // An error is returned if the expressions can't be merged, for example
 // because they are not in one of the above formats.
-func mergeAttrValues(srcAttr, dstAttr *attrValue) (bzl.Expr, error) {
+func mergeAttrValues(srcAttr, dstAttr *attrValue, opts *MergeRuleOptions) (bzl.Expr, error) {
 	if ShouldKeep(dstAttr.expr.RHS) {
 		return nil, nil
 	}
@@ -115,7 +119,7 @@ func mergeAttrValues(srcAttr, dstAttr *attrValue) (bzl.Expr, error) {
 
 	if srcAttr != nil {
 		if srcMerger, ok := srcAttr.val.(Merger); ok {
-			return srcMerger.Merge(dst), nil
+			return srcMerger.Merge(dst, opts), nil
 		}
 	}
 	var srcExprs platformStringsExprs
@@ -131,24 +135,24 @@ func mergeAttrValues(srcAttr, dstAttr *attrValue) (bzl.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	mergedExprs, err := mergePlatformStringsExprs(srcExprs, dstExprs)
+	mergedExprs, err := mergePlatformStringsExprs(srcExprs, dstExprs, opts)
 	if err != nil {
 		return nil, err
 	}
 	return makePlatformStringsExpr(mergedExprs), nil
 }
 
-func mergePlatformStringsExprs(src, dst platformStringsExprs) (platformStringsExprs, error) {
+func mergePlatformStringsExprs(src, dst platformStringsExprs, opts *MergeRuleOptions) (platformStringsExprs, error) {
 	var ps platformStringsExprs
 	var err error
-	ps.generic = MergeList(src.generic, dst.generic)
-	if ps.os, err = MergeDict(src.os, dst.os); err != nil {
+	ps.generic = MergeList(src.generic, dst.generic, opts)
+	if ps.os, err = MergeDict(src.os, dst.os, opts); err != nil {
 		return platformStringsExprs{}, err
 	}
-	if ps.arch, err = MergeDict(src.arch, dst.arch); err != nil {
+	if ps.arch, err = MergeDict(src.arch, dst.arch, opts); err != nil {
 		return platformStringsExprs{}, err
 	}
-	if ps.platform, err = MergeDict(src.platform, dst.platform); err != nil {
+	if ps.platform, err = MergeDict(src.platform, dst.platform, opts); err != nil {
 		return platformStringsExprs{}, err
 	}
 	return ps, nil
@@ -167,7 +171,7 @@ func mergePlatformStringsExprs(src, dst platformStringsExprs) (platformStringsEx
 // If the result is non-nil, it will have ForceMultiLine set if either of the
 // input lists has ForceMultiLine set or if any of the strings in the result
 // have a "# keep" comment.
-func MergeList(srcExpr, dstExpr bzl.Expr) *bzl.ListExpr {
+func MergeList(srcExpr, dstExpr bzl.Expr, opts *MergeRuleOptions) *bzl.ListExpr {
 	src, isSrcLis := srcExpr.(*bzl.ListExpr)
 	dst, isDstLis := dstExpr.(*bzl.ListExpr)
 	if !isSrcLis && !isDstLis {
@@ -232,7 +236,7 @@ func MergeList(srcExpr, dstExpr bzl.Expr) *bzl.ListExpr {
 // src and dst have the same key, the values are merged using MergeList.
 // If the same key is present in both src and dst, and the values are not compatible,
 // an error is returned.
-func MergeDict(srcExpr, dstExpr bzl.Expr) (*bzl.DictExpr, error) {
+func MergeDict(srcExpr, dstExpr bzl.Expr, opts *MergeRuleOptions) (*bzl.DictExpr, error) {
 	src, isSrcDict := srcExpr.(*bzl.DictExpr)
 	dst, isDstDict := dstExpr.(*bzl.DictExpr)
 	if !isSrcDict && !isDstDict {
@@ -278,7 +282,7 @@ func MergeDict(srcExpr, dstExpr bzl.Expr) (*bzl.DictExpr, error) {
 	keys := make([]string, 0, len(entries))
 	haveDefault := false
 	for _, e := range entries {
-		e.mergedValue = MergeList(e.srcValue, e.dstValue)
+		e.mergedValue = MergeList(e.srcValue, e.dstValue, opts)
 		if e.key == "//conditions:default" {
 			// Keep the default case, even if it's empty.
 			haveDefault = true
