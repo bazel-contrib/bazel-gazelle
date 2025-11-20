@@ -117,6 +117,39 @@ Authorization: Bearer RANDOM-TOKEN
 # We can't disable timeouts on Bazel, but we can set them to large values.
 _GO_REPOSITORY_TIMEOUT = 86400
 
+def _escape_go_module_path(module_path):
+    """Escapes a Go module path according to the Go proxy protocol."""
+    result = ""
+    for c in module_path.elems():
+        if "A" <= c and c <= "Z":
+            result += "!" + c.lower()
+        else:
+            result += c
+    return result
+
+def _get_goproxy_url(env):
+    """Return proxy URL to be used for module_path, or None if no proxy will be used."""
+    goproxy = env.get("GOPROXY", "")
+    goprivate = env.get("GOPRIVATE", "")
+    gonoproxy = env.get("GONOPROXY", "")
+
+    # TODO(zbarsky): In the future, we could try to handle some subset of downloads even if GONOPROXY/GOPRIVATE are set.
+    # Doing this correctly requires care, as the syntax is powerful, and we don't want to get it wrong and request from the proxy.
+    if goproxy == "off" or goprivate or gonoproxy:
+        return None
+
+    if not goproxy:
+        return "https://proxy.golang.org"
+
+    idx = goproxy.find(",")
+    if idx != -1:
+        goproxy = goproxy[:idx]
+
+    if goproxy == "direct":
+        return None
+
+    return goproxy
+
 def _go_repository_impl(ctx):
     # TODO(#549): vcs repositories are not cached and still need to be fetched.
     # Download the repository or module.
@@ -137,6 +170,7 @@ def _go_repository_impl(ctx):
         gazelle_path = ctx.path(Label(_gazelle))
         watch(ctx, gazelle_path)
 
+    can_use_direct_download = False
     reproducible = False
     if ctx.attr.local_path:
         if hasattr(ctx, "watch_tree"):
@@ -205,6 +239,7 @@ def _go_repository_impl(ctx):
             else:
                 fail("if version is specified, sum must also be")
         reproducible = True
+        can_use_direct_download = True
 
         fetch_path = ctx.attr.replace if ctx.attr.replace else ctx.attr.importpath
         fetch_repo_args = [
@@ -286,6 +321,30 @@ def _go_repository_impl(ctx):
 
     # Override external GO111MODULE, because it is needed by module mode, no-op in repository mode
     fetch_repo_env["GO111MODULE"] = "on"
+
+    if can_use_direct_download:
+        proxy_url = _get_goproxy_url(env)
+        if proxy_url:
+            module = ctx.attr.replace if ctx.attr.replace else ctx.attr.importpath
+            url = "%s/%s/@v/%s.zip" % (
+                proxy_url,
+                _escape_go_module_path(module),
+                ctx.attr.version,
+            )
+            result = ctx.download_and_extract(
+                url = url,
+                sha256 = ctx.attr.sha256,
+                canonical_id = url,
+                stripPrefix = module + "@" + ctx.attr.version,
+                type = ctx.attr.type,
+                auth = use_netrc(read_user_netrc(ctx), ctx.attr.urls, ctx.attr.auth_patterns),
+                allow_fail = True,
+            )
+            if result.success:
+                # All we need to do now is verify the sum!
+                fetch_repo_args = ["-no-fetch"] + fetch_repo_args
+            # If we did not succeed, fallback to using the Go tooling to fetch the module. This matches
+            # what would happen normally (especially since we only tried the first entry in GOPROXY).
 
     result = env_execute(
         ctx,
