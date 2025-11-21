@@ -108,11 +108,22 @@ const UnstableInsertIndexKey = "_gazelle_insert_index"
 // be modified.
 func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phase, kinds map[string]rule.KindInfo, aliasedKinds map[string]string) {
 	getMergeAttrs := func(r *rule.Rule) map[string]bool {
-		if phase == PreResolve {
-			return kinds[r.Kind()].MergeableAttrs
-		} else {
-			return kinds[r.Kind()].ResolveAttrs
+		kind := kinds[r.Kind()]
+
+		mergeableAttrs := map[string]bool{
+			// Name and visibility are uniquely managed by gazelle.
+			"name":       false,
+			"visibility": false,
 		}
+
+		// All attributes managed by gazelle, marking only the current merge attributes
+		// with a truthy value.
+		combineMergeAttrs(mergeableAttrs, kind.MergeableAttrs, phase == PreResolve)
+		combineMergeAttrs(mergeableAttrs, kind.ResolveAttrs, phase == PostResolve)
+		combineMergeAttrs(mergeableAttrs, kind.NonEmptyAttrs, false)
+		combineMergeAttrs(mergeableAttrs, kind.SubstituteAttrs, false)
+
+		return mergeableAttrs
 	}
 
 	// Merge empty rules into the file and delete any rules which become empty.
@@ -171,6 +182,12 @@ func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phas
 		} else {
 			rule.MergeRules(genRule, matchRules[i], getMergeAttrs(genRule), oldFile.Path)
 		}
+	}
+}
+
+func combineMergeAttrs(dst map[string]bool, src map[string]bool, value bool) {
+	for k, _ := range src {
+		dst[k] = value || dst[k]
 	}
 }
 
