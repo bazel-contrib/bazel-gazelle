@@ -364,6 +364,10 @@ When recursion is disabled, Gazelle only visits specific named directories. This
 **Default:** inferred<br>
 The root directory of the repository. Gazelle normally infers this to be the directory containing the WORKSPACE file. Gazelle will not process packages outside this directory.
 
+**Flag:** `-remove_noop_keep_comments`<br>
+**Default:** `false`<br>
+Whether Gazelle will remove `# keep` comments when the thing being kept would have been kept without the comment. This is always enabled when run with the `fix` command, and for the `update` command must be specified. This will only remove `# keep` comments targeting list items, e.g. not rules, entire lists/dicts, or dict items.
+
 **Flag:** `-lang=lang1,lang2`<br>
 **Default:** n/a<br>
 Selects languages for which to compose and index rules. By default, all languages that this Gazelle was built with are processed.
