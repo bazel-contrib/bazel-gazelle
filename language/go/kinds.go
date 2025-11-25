@@ -17,6 +17,7 @@ package golang
 
 import (
 	"fmt"
+
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
@@ -38,14 +39,15 @@ var goKinds = map[string]rule.KindInfo{
 		},
 		SubstituteAttrs: map[string]bool{"embed": true},
 		MergeableAttrs: map[string]bool{
-			"cgo":       true,
-			"clinkopts": true,
-			"cppopts":   true,
-			"copts":     true,
-			"cxxopts":   true,
-			"embed":     true,
-			"embedsrcs": true,
-			"srcs":      true,
+			"cgo":        true,
+			"clinkopts":  true,
+			"cppopts":    true,
+			"copts":      true,
+			"cxxopts":    true,
+			"embed":      true,
+			"embedsrcs":  true,
+			"pgoprofile": true,
+			"srcs":       true,
 		},
 		ResolveAttrs: map[string]bool{"deps": true},
 	},
