@@ -1,12 +1,12 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
-    name = "golang",
+    name = "golang",  # keep
     srcs = [
         "invalid.go",  # keep
         "test.go",  # keep
     ],
-    importpath = "example.com/test/golang",
+    importpath = "example.com/test/golang",  # keep
     visibility = [
         "//visibility:public",  # keep
     ],
