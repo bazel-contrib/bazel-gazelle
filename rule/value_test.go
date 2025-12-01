@@ -71,6 +71,27 @@ func TestExprFromValue(t *testing.T) {
 				},
 			},
 		},
+		"glob value with allow empty": {
+			val: GlobValue{
+				Patterns:   []string{"a"},
+				AllowEmpty: true,
+			},
+			want: &bzl.CallExpr{
+				X: &bzl.Ident{Name: "glob"},
+				List: []bzl.Expr{
+					&bzl.ListExpr{
+						List: []bzl.Expr{
+							&bzl.StringExpr{Value: "a"},
+						},
+					},
+					&bzl.AssignExpr{
+						LHS: &bzl.Ident{Name: "allow_empty"},
+						Op:  "=",
+						RHS: &bzl.Ident{Name: "True"},
+					},
+				},
+			},
+		},
 		"sorted strings": {
 			val: SortedStrings{"@b", ":a", "//:target"},
 			want: &bzl.ListExpr{
@@ -148,6 +169,16 @@ func TestParseGlobExpr(t *testing.T) {
 		{
 			name: "other_args",
 			text: `glob(["a"], allow_empty = True, exclude_directories = 1)`,
+			want: GlobValue{Patterns: []string{"a"}, AllowEmpty: true},
+		},
+		{
+			name: "allow_empty_only",
+			text: `glob([], allow_empty = True)`,
+			want: GlobValue{Patterns: []string{}, AllowEmpty: true},
+		},
+		{
+			name: "allow_empty_false",
+			text: `glob(["a"], allow_empty = False)`,
 			want: GlobValue{Patterns: []string{"a"}},
 		},
 		{
