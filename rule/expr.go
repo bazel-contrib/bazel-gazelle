@@ -292,6 +292,8 @@ func extractPlatformStringsExprs(expr bzl.Expr) (platformStringsExprs, error) {
 				return platformStringsExprs{}, fmt.Errorf("expression could not be matched: multiple selects that are either os-specific, arch-specific, or platform-specific")
 			}
 			*dict = arg
+		default:
+			return platformStringsExprs{}, fmt.Errorf("expression could not be matched: subexpression is not list or call")
 		}
 	}
 	return ps, nil
