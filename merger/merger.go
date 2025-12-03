@@ -233,12 +233,14 @@ func match(rules []*rule.Rule, x *rule.Rule, info rule.KindInfo, wantError bool,
 		if xkind == y.Kind() || xkind == aliasedKinds[y.Kind()] {
 			return y, nil
 		}
-		if !wantError {
-			return nil, nil
+		if xname != "" {
+			if !wantError {
+				return nil, nil
+			}
+			return nil, fmt.Errorf("could not merge %s(%s): a rule of the same name has kind %s", xkind, xname, y.Kind())
 		}
-		return nil, fmt.Errorf("could not merge %s(%s): a rule of the same name has kind %s", xkind, xname, y.Kind())
 	}
-	if len(nameMatches) > 1 {
+	if len(nameMatches) > 1 && xname != "" {
 		if !wantError {
 			return nil, nil
 		}
