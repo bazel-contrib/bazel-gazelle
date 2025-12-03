@@ -81,7 +81,8 @@ func (*visibilityExtension) GenerateRules(args language.GenerateArgs) language.G
 		r.SetAttr("features", cfg.features)
 	}
 
-	insertIndex := 0
+	// Start after the first statements if no rules exist
+	insertIndex := len(args.File.File.Stmt)
 	for _, existingRule := range args.File.Rules {
 		if existingRule.Kind() != "package" {
 			insertIndex = existingRule.Index()
