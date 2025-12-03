@@ -26,4 +26,7 @@ def get_binary(target):
     if target.startswith("go_"):
         return ":gazelle_with_proto_and_go_languages"
 
+    if "package_at_top" in target:
+        return ":gazelle_with_visibility"
+
     return ":gazelle"

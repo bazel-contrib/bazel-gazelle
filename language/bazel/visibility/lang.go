@@ -18,6 +18,7 @@ package visibility
 import (
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
+	"github.com/bazelbuild/bazel-gazelle/merger"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
@@ -65,6 +66,15 @@ func (*visibilityExtension) GenerateRules(args language.GenerateArgs) language.G
 
 	r := rule.NewRule("package", "")
 	r.SetAttr("default_visibility", cfg.visibilityTargets)
+
+	insertIndex := 0
+	for _, existingRule := range args.File.Rules {
+		if existingRule.Kind() != "package" {
+			insertIndex = existingRule.Index()
+			break
+		}
+	}
+	r.SetPrivateAttr(merger.UnstableInsertIndexKey, insertIndex)
 
 	res.Gen = append(res.Gen, r)
 	// we have to add a nil to Imports because there is length-matching validation with Gen.
