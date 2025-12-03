@@ -22,6 +22,7 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
+// TODO: Rename this extension now that it handles multiple package() attributes.
 type visibilityExtension struct{}
 
 // NewLanguage constructs a new language.Language modifying visibility.
@@ -36,6 +37,7 @@ func (*visibilityExtension) Kinds() map[string]rule.KindInfo {
 			MatchAny: true,
 			MergeableAttrs: map[string]bool{
 				"default_visibility": true,
+				"features":           true,
 			},
 		},
 	}
@@ -55,7 +57,7 @@ func (*visibilityExtension) GenerateRules(args language.GenerateArgs) language.G
 	res := language.GenerateResult{}
 	cfg := getVisConfig(args.Config)
 
-	if len(cfg.visibilityTargets) == 0 {
+	if len(cfg.visibilityTargets) == 0 && len(cfg.features) == 0 {
 		return res
 	}
 
@@ -65,7 +67,24 @@ func (*visibilityExtension) GenerateRules(args language.GenerateArgs) language.G
 	}
 
 	r := rule.NewRule("package", "")
-	r.SetAttr("default_visibility", cfg.visibilityTargets)
+	for _, er := range args.File.Rules {
+		if er.Kind() == "package" {
+			if existing := er.Attr("default_visibility"); existing != nil {
+				r.SetAttr("default_visibility", existing)
+			}
+			if existing := er.Attr("features"); existing != nil {
+				r.SetAttr("features", existing)
+			}
+			break
+		}
+	}
+
+	if len(cfg.visibilityTargets) > 0 {
+		r.SetAttr("default_visibility", cfg.visibilityTargets)
+	}
+	if len(cfg.features) > 0 {
+		r.SetAttr("features", cfg.features)
+	}
 
 	insertIndex := 0
 	for _, existingRule := range args.File.Rules {
