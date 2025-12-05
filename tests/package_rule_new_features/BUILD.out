@@ -1,0 +1,6 @@
+# gazelle:default_features layering_check,-parse_headers
+
+package(features = [
+    "layering_check",
+    "-parse_headers",
+])
