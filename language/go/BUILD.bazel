@@ -133,6 +133,7 @@ filegroup(
         "modules.go",
         "package.go",
         "platform_info.go",
+        "reference.md",
         "resolve.go",
         "resolve_test.go",
         "std_package_list.go",
