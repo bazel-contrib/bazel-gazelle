@@ -17,7 +17,7 @@ and say hello!*
 
 **See also:**
 
-* [Architecture of Gazelle](Design.md)
+* [How Gazelle Works](how-gazelle-works.md)
 * [`go_repository`](reference.md#go_repository)
 * [Extending Gazelle](extend.md)
 * [Avoiding conflicts with proto rules](https://github.com/bazelbuild/rules_go/blob/master/proto/core.rst#avoiding-conflicts)
