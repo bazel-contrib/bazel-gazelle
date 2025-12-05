@@ -265,43 +265,6 @@ Gazelle is compatible with supported releases of Go, per the [Go Release Policy]
 
 Gazelle may use language and library features from the oldest supported release.
 
-## Compatibility with rules_go
-
-Gazelle generates build files that use features in newer versions of `rules_go`. Newer versions of Gazelle *may* generate build files that work with older versions of `rules_go`, but check the table below to ensure you're using a compatible version.
-
-| Gazelle version     | Minimum rules_go version     | Maximum rules_go version |
-| ------------------- | ---------------------------- | ------------------------ |
-| 0.8                 | 0.8                          | n/a                      |
-| 0.9                 | 0.9                          | n/a                      |
-| 0.10                | 0.9                          | 0.11                     |
-| 0.11                | 0.11                         | 0.24                     |
-| 0.12                | 0.11                         | 0.24                     |
-| 0.13                | 0.13                         | 0.24                     |
-| 0.14                | 0.13                         | 0.24                     |
-| 0.15                | 0.13                         | 0.24                     |
-| 0.16                | 0.13                         | 0.24                     |
-| 0.17                | 0.13                         | 0.24                     |
-| 0.18                | 0.19                         | 0.24                     |
-| 0.19                | 0.19                         | 0.24                     |
-| 0.20                | 0.20                         | 0.24                     |
-| 0.21                | 0.20                         | 0.24                     |
-| 0.22                | 0.20                         | 0.24                     |
-| 0.23                | 0.26                         | 0.28                     |
-| 0.24                | 0.29                         | 0.40                     |
-| 0.25                | 0.29                         | 0.40                     |
-| 0.26                | 0.29                         | 0.40                     |
-| 0.27                | 0.29                         | 0.40                     |
-| 0.28                | 0.35                         | 0.40                     |
-| 0.29                | 0.35                         | 0.40                     |
-| 0.30                | 0.35                         | 0.40                     |
-| 0.31                | 0.35                         | 0.40                     |
-| 0.32                | 0.41                         | n/a                      |
-| 0.33                | 0.41                         | n/a                      |
-| 0.34                | 0.41                         | n/a                      |
-| 0.35                | 0.41                         | n/a                      |
-| 0.36                | 0.41                         | n/a                      |
-| 0.37                | 0.41                         | n/a                      |
-
 ## Dependency resolution
 
 One of Gazelle's most important jobs is resolving library import strings (like `import "golang.org/x/sys/unix"`) to Bazel labels (like `@org_golang_x_sys//unix:go_default_library`). Gazelle follows the rules below to resolve dependencies:
