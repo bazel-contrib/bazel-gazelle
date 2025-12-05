@@ -206,6 +206,7 @@ func Test_NoRuleIfNoBuildFile(t *testing.T) {
 	cfg := config.New()
 	file, err := rule.LoadData("path", "pkg", []byte(fmt.Sprintf(`
 # gazelle:default_visibility %s
+# gazelle:default_features foo
 `, testVis1)))
 	if err != nil {
 		t.Fatalf("expected not nil - %+v", err)
