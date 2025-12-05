@@ -112,6 +112,9 @@ DEFAULT_DIRECTIVES_BY_PATH = {
     "github.com/stackb/rules_proto": [
         "gazelle:go_naming_convention import",
     ],
+    "github.com/terraform-linters/tflint-plugin-sdk": [
+        "gazelle:proto disable",
+    ],
     "github.com/thanos-io/thanos": [
         "gazelle:proto disable",
     ],

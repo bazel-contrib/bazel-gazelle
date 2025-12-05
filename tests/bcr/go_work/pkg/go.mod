@@ -31,4 +31,4 @@ require (
 )
 
 // Validate go.mod replace directives can be properly used:
-replace github.com/bmatcuk/doublestar/v4 => github.com/bmatcuk/doublestar/v4 v4.7.1
+replace github.com/bmatcuk/doublestar/v4 => github.com/bmatcuk/doublestar/v4 v4.9.1

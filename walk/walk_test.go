@@ -855,6 +855,38 @@ func TestGetDirInfoSubdir(t *testing.T) {
 	}
 }
 
+func TestGetDirInfoErrorOnParent(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{
+			Path:    "BUILD.bazel",
+			Content: `filegroup(name = "foo". srcs = ["parent/child/file.txt"])`,
+		},
+		{
+			Path: "parent/child/file.txt",
+		},
+	})
+	defer cleanup()
+
+	c, cexts := testConfig(t, dir)
+	err := Walk2(c, cexts, []string{dir}, UpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+		di, err := GetDirInfo("parent/child")
+		if err == nil {
+			t.Error("expected error due to error in parent")
+		}
+
+		// Verify that the returned DirInfo when an error was returned
+		if di.config != nil || di.File != nil || len(di.RegularFiles) != 0 || len(di.Subdirs) != 0 || len(di.GenFiles) != 0 {
+			t.Errorf("expected empty DirInfo when parent is excluded, got RegularFiles=%v, Subdirs=%v, GenFiles=%v",
+				di.RegularFiles, di.Subdirs, di.GenFiles)
+		}
+
+		return Walk2FuncResult{}
+	})
+	if err == nil {
+		t.Error("expected error due to error in parent")
+	}
+}
+
 func testConfig(t *testing.T, dir string) (*config.Config, []config.Configurer) {
 	args := []string{"-repo_root", dir}
 	cexts := []config.Configurer{&config.CommonConfigurer{}, &Configurer{}}

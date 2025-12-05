@@ -157,12 +157,12 @@ func Parse(s string) (Label, error) {
 
 func (l Label) String() string {
 	if l.Relative {
-		return fmt.Sprintf(":%s", l.Name)
+		return ":" + l.Name
 	}
 
 	var repo string
 	if l.Repo != "" && l.Repo != "@" {
-		repo = fmt.Sprintf("@%s", l.Repo)
+		repo = "@" + l.Repo
 	} else {
 		// if l.Repo == "", the label string will begin with "//"
 		// if l.Repo == "@", the label string will begin with "@//"
@@ -173,9 +173,9 @@ func (l Label) String() string {
 	}
 
 	if path.Base(l.Pkg) == l.Name {
-		return fmt.Sprintf("%s//%s", repo, l.Pkg)
+		return repo + "//" + l.Pkg
 	}
-	return fmt.Sprintf("%s//%s:%s", repo, l.Pkg, l.Name)
+	return repo + "//" + l.Pkg + ":" + l.Name
 }
 
 // Abs computes an absolute label (one with a repository and package name)

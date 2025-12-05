@@ -1,0 +1,20 @@
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "test_proto",  # keep
+    srcs = [
+        "invalid.proto",  # keep
+        "test.proto",  # keep
+    ],
+    visibility = [
+        "//visibility:public",  # keep
+    ],
+)
+
+go_proto_library(
+    name = "test_go_proto",  # keep
+    importpath = "example.com/test/proto",  # keep
+    proto = ":test_proto",  # keep
+    visibility = ["//visibility:public"],  # keep
+)

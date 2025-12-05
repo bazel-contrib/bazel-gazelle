@@ -2,21 +2,21 @@ bcr_test_module:
   module_path: tests/bcr/go_mod
   matrix:
     platform:
-      - debian10
       - ubuntu2004
       - macos
       - windows
-    bazel: [6.*, 7.*, 8.*]
+    bazel: [7.*, 8.*, 9.*]
   tasks:
     run_test_module:
+      # Keep in sync with .bazelci/presubmit.yml
       name: Run test module
       platform: ${{ platform }}
       bazel: ${{ bazel }}
       shell_commands:
       # Regenerate the BUILD files for the test module using Gazelle.
       - rm pkg/BUILD.bazel proto/BUILD.bazel
-      - bazel run //:gazelle -- update pkg proto
       - bazel run //:gazelle -- pkg proto
+      - bazel run //:gazelle -- update pkg proto
       # Verify that bazel mod tidy doesn't remove use_repos required to build and test.
       - bazel mod tidy || true # Unsupported on Bazel 6
       build_targets:

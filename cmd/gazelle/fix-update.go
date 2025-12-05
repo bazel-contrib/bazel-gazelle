@@ -46,15 +46,16 @@ import (
 // update commands. This includes everything in config.Config, but it also
 // includes some additional fields that aren't relevant to other packages.
 type updateConfig struct {
-	dirs           []string
-	emit           emitFunc
-	repos          []repo.Repo
-	workspaceFiles []*rule.File
-	walkMode       walk.Mode
-	patchPath      string
-	patchBuffer    bytes.Buffer
-	print0         bool
-	profile        profiler
+	dirs                   []string
+	emit                   emitFunc
+	repos                  []repo.Repo
+	workspaceFiles         []*rule.File
+	walkMode               walk.Mode
+	patchPath              string
+	patchBuffer            bytes.Buffer
+	print0                 bool
+	profile                profiler
+	removeNoopKeepComments bool
 }
 
 type emitFunc func(c *config.Config, f *rule.File) error
@@ -96,6 +97,7 @@ func (ucr *updateConfigurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *conf
 	fs.StringVar(&ucr.memProfile, "memprofile", "", "write memory profile to `file`")
 	fs.Var(&gzflag.MultiFlag{Values: &ucr.knownImports}, "known_import", "import path for which external resolution is skipped (can specify multiple times)")
 	fs.StringVar(&ucr.repoConfigPath, "repo_config", "", "file where Gazelle should load repository configuration. Defaults to WORKSPACE.")
+	fs.BoolVar(&uc.removeNoopKeepComments, "remove_noop_keep_comments", false, "when set, gazelle will remove noop keep comments from BUILD files")
 }
 
 func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
@@ -313,6 +315,8 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 			log.Printf("stopping profiler: %v", err)
 		}
 	}()
+
+	rule.RemoveNoopKeepComments = uc.removeNoopKeepComments || c.ShouldFix
 
 	walkErr := walk.Walk2(c, cexts, uc.dirs, uc.walkMode, func(args walk.Walk2FuncArgs) walk.Walk2FuncResult {
 		dir := args.Dir
