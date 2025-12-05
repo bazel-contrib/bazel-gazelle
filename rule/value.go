@@ -33,8 +33,9 @@ type KeyValue struct {
 
 // GlobValue represents a Bazel glob expression.
 type GlobValue struct {
-	Patterns []string
-	Excludes []string
+	Patterns   []string
+	Excludes   []string
+	AllowEmpty bool
 }
 
 var _ BzlExprValue = (*GlobValue)(nil)
@@ -50,6 +51,15 @@ func (g GlobValue) BzlExpr() bzl.Expr {
 			RHS: excludesValue,
 		})
 	}
+
+	if g.AllowEmpty {
+		globArgs = append(globArgs, &bzl.AssignExpr{
+			LHS: &bzl.Ident{Name: "allow_empty"},
+			Op:  "=",
+			RHS: ExprFromValue(true),
+		})
+	}
+
 	return &bzl.CallExpr{
 		X:    &bzl.Ident{Name: "glob"},
 		List: globArgs,
@@ -103,6 +113,14 @@ func ParseGlobExpr(e bzl.Expr) (GlobValue, bool) {
 		if !ok {
 			continue
 		}
+
+		if key.Name == "allow_empty" {
+			if ident, ok := kv.RHS.(*bzl.Ident); ok && ident.Name == "True" {
+				glob.AllowEmpty = true
+			}
+			continue
+		}
+
 		list, ok := kv.RHS.(*bzl.ListExpr)
 		if !ok {
 			continue
@@ -235,9 +253,9 @@ func ExprFromValue(val interface{}) bzl.Expr {
 		return &bzl.StringExpr{Value: v}
 	case bool:
 		if v {
-			return &bzl.LiteralExpr{Token: "True"}
+			return &bzl.Ident{Name: "True"}
 		}
-		return &bzl.LiteralExpr{Token: "False"}
+		return &bzl.Ident{Name: "False"}
 	case int:
 		return intLiteralExpr(int64(v))
 	case int8:

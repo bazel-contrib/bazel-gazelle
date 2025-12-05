@@ -110,8 +110,10 @@ func GetDirInfo(rel string) (DirInfo, error) {
 	// configuration may exclude rel.
 	var prevCfg *walkConfig = nil
 	var di DirInfo
+	var d string
 	var err error
 	pathtools.Prefixes(rel)(func(prefix string) bool {
+		d = prefix
 		if prevCfg != nil && prevCfg.isExcludedDir(prefix) {
 			di = DirInfo{}
 			err = fmt.Errorf("directory %q is excluded", prefix)
@@ -121,5 +123,12 @@ func GetDirInfo(rel string) (DirInfo, error) {
 		prevCfg = di.config
 		return err == nil
 	})
+
+	if err != nil {
+		if d != rel {
+			di = DirInfo{}
+		}
+	}
+
 	return di, err
 }

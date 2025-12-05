@@ -328,6 +328,28 @@ import ("C")
 				},
 			},
 		},
+		{
+			"noescape and nocallback directives",
+			`package foo
+
+/*
+#cgo noescape my_func
+#cgo nocallback my_func
+void my_func(void *param);
+
+// This directive won't be parsed if we failed
+// to parse the previous directives.
+#cgo CFLAGS: -O0
+*/
+import "C"
+`,
+			fileInfo{
+				isCgo: true,
+				copts: []*cgoTagsAndOpts{
+					{opts: "-O0"},
+				},
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			dir, err := os.MkdirTemp(os.Getenv("TEST_TEMPDIR"), "TestCgo")

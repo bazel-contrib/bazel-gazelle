@@ -1118,16 +1118,41 @@ func (r *Rule) sync() {
 	r.updated = false
 }
 
+func isKeepComment(c bzl.Comment) bool {
+	text := strings.TrimSpace(strings.TrimPrefix(c.Token, "#"))
+	return text == "keep" || strings.HasPrefix(text, "keep: ")
+}
+
 // ShouldKeep returns whether e is marked with a "# keep" comment. Kept
 // expressions should not be removed or modified.
 func ShouldKeep(e bzl.Expr) bool {
 	for _, c := range append(e.Comment().Before, e.Comment().Suffix...) {
-		text := strings.TrimSpace(strings.TrimPrefix(c.Token, "#"))
-		if text == "keep" || strings.HasPrefix(text, "keep: ") {
+		isKeep := isKeepComment(c)
+		if isKeep {
 			return true
 		}
 	}
 	return false
+}
+
+// removeKeep removes the keep comments from the expression.
+func removeKeep(e bzl.Expr) bzl.Comments {
+	comments := bzl.Comments{
+		After: e.Comment().After,
+	}
+	for _, c := range e.Comment().Before {
+		isKeep := isKeepComment(c)
+		if !isKeep {
+			comments.Before = append(comments.Before, c)
+		}
+	}
+	for _, c := range e.Comment().Suffix {
+		isKeep := isKeepComment(c)
+		if !isKeep {
+			comments.Suffix = append(comments.Suffix, c)
+		}
+	}
+	return comments
 }
 
 // CheckInternalVisibility overrides the given visibility if the package is

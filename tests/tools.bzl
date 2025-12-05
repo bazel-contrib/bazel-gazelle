@@ -20,10 +20,13 @@ def get_binary(target):
     if "loads_from_flag" in target:
         return ":gazelle_with_language_loads_from_flag"
 
-    if "fix_package_proto_name_match" in target:
+    if "fix_package_proto_name_match" in target or "remove_noop_keep_comments" in target:
         return ":gazelle_with_proto_and_go_languages"
 
     if target.startswith("go_"):
         return ":gazelle_with_proto_and_go_languages"
+
+    if "package_at_top" in target:
+        return ":gazelle_with_visibility"
 
     return ":gazelle"

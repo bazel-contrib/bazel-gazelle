@@ -259,8 +259,11 @@ def _go_repository_config_impl(ctx):
         ))
 
     ctx.file("WORKSPACE", "\n".join(repos))
-    ctx.file("BUILD.bazel", "exports_files(['WORKSPACE', 'config.json', 'go_env.bzl'])")
+    ctx.file("BUILD.bazel", "exports_files(['WORKSPACE', 'config.json', 'go_env.bzl', 'go_tools.bzl'])")
     ctx.file("go_env.bzl", content = "GO_ENV = " + repr(ctx.attr.go_env))
+    ctx.file("go_tools.bzl", content = "GO_TOOLS = {{k: Label(v) for k, v in {}.items()}}".format(
+        repr(ctx.attr.tool_targets),
+    ))
 
     # For use by @rules_go//go.
     ctx.file("config.json", content = json.encode_indent({
@@ -273,6 +276,7 @@ _go_repository_config = repository_rule(
     attrs = {
         "importpaths": attr.string_dict(mandatory = True),
         "module_names": attr.string_dict(mandatory = True),
+        "tool_targets": attr.string_dict(mandatory = True),
         "build_naming_conventions": attr.string_dict(mandatory = True),
         "go_env": attr.string_dict(mandatory = True),
         "dep_files": attr.string_list(),
@@ -338,6 +342,7 @@ def _go_deps_impl(module_ctx):
     sums = {}
     replace_map = {}
     bazel_deps = {}
+    all_tools = []
 
     gazelle_default_attributes = _process_gazelle_default_attributes(module_ctx)
     archive_overrides = {}
@@ -426,9 +431,11 @@ def _go_deps_impl(module_ctx):
         possible_tool_modules = {}
         for from_file_tag in from_file_tags:
             module_path, module_tags_from_go_mod, go_mod_replace_map, tools = deps_from_go_mod(module_ctx, from_file_tag.go_mod)
+            all_tools.extend(tools)
             for tool in tools:
                 # The tool's package may be the module itself.
                 possible_tool_modules[tool] = None
+
                 # Add all path prefixes of tool to the map
                 # to allow for partial matches.
                 for i in range(len(tool)):
@@ -676,7 +683,7 @@ Mismatch between versions requested for Go module {module}:
             root_module_direct_dev_deps.pop(_repo_name(path), None)
             continue
         if module.repo_name in repos_processed:
-            fail("Go module {prev_path} and {path} will resolve to the same Bazel repo name: {name}. While Go allows modules to only differ in case, this isn't supported in Gazelle (yet). Please ensure you only use one of these modules in your go.mod(s)".format(
+            fail("Go module {prev_path} and {path} will resolve to the same Bazel repo name: {name}. While Go allows modules to only differ in case, this isn't supported in Gazelle. Please ensure you only use one of these modules in your go.mod(s)".format(
                 prev_path = repos_processed[module.repo_name],
                 path = path,
                 name = module.repo_name,
@@ -726,6 +733,37 @@ Mismatch between versions requested for Go module {module}:
 
         go_repository(**go_repository_args)
 
+    # Build lookup table for tool_targets
+    importpath_to_repo = {
+        path: module.repo_name
+        for path, module in module_resolutions.items()
+    }
+
+    tool_targets = {}
+    for tool_path in all_tools:
+        segments = tool_path.split("/")
+        module_path = None
+
+        # Start from the longest possible prefix and work down
+        for i in range(len(segments), 0, -1):
+            candidate = "/".join(segments[:i])
+            if candidate in importpath_to_repo:
+                module_path = candidate
+                break
+
+        if module_path:
+            tool_name = segments[-1]
+            target_name = tool_name
+            if len(segments) >= 2 and len(tool_name) >= 2 and tool_name[0] == "v" and tool_name[1:].isdigit():
+                # Skip major version
+                tool_name = segments[-2]
+            pkg_path = tool_path[len(module_path):].lstrip("/")
+            tool_targets[tool_name] = "@{repo}//{pkg}:{target}".format(
+                repo = importpath_to_repo[module_path],
+                pkg = pkg_path,
+                target = target_name,
+            )
+
     # Create a synthetic WORKSPACE file that lists all Go repositories created
     # above and contains all the information required by Gazelle's -repo_config
     # to generate BUILD files for external Go modules. This skips the need to
@@ -737,6 +775,7 @@ Mismatch between versions requested for Go module {module}:
             module.repo_name: path
             for path, module in module_resolutions.items()
         },
+        tool_targets = tool_targets,
         module_names = {
             info.repo_name: info.module_name
             for path, info in bazel_deps.items()

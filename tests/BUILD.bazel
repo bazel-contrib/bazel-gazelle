@@ -46,6 +46,14 @@ gazelle_binary(
     visibility = ["//visibility:private"],
 )
 
+gazelle_binary(
+    name = "gazelle_with_visibility",
+    languages = [
+        "//language/bazel/visibility:go_default_library",
+    ],
+    visibility = ["//visibility:private"],
+)
+
 [gazelle_generation_test(
     # Name the test the path to the directory containing the WORKSPACE file.
     name = test_dir,

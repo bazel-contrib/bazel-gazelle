@@ -32,7 +32,7 @@ Gazelle can generate Bazel BUILD files for many languages:
 * **JavaScript / TypeScript:** Aspect provides [JavaScript and TypeScript Support](https://github.com/aspect-build/aspect-gazelle/tree/main/language/js) in aspect-cli (also usable separately). BenchSci's [rules_nodejs_gazelle](https://github.com/benchsci/rules_nodejs_gazelle) supports generating `ts_project`, `js_library`, `jest_test`, and `web_asset` rules, and is able to support module bundlers like Webpack and Next.js.
 * **Kotlin:** Aspect Build provides some [Kotlin Support](https://github.com/aspect-build/aspect-gazelle/tree/main/language/kotlin). Still under development, please check the README for currently available features.
 * **Protocol Buffers:** Support for the `proto_library` rule, as well as `go_proto_library` is in this repository, see below. Other language-specific proto rules are not supported here. [stackb/rules_proto](https://github.com/stackb/rules_proto) is a good resource for these rules.
-* **Python:** [rules_python](https://github.com/bazelbuild/rules_python) has an extension for generating `py_library`, `py_binary`, and `py_test` rules.
+* **Python:** [rules_python](https://github.com/bazel-contrib/rules_python) has an extension for generating `py_library`, `py_binary`, and `py_test` rules.
 * **R:** [rules_r](https://github.com/grailbio/rules_r) has an extension for generating rules for R package builds and tests.
 * **Rust:** [gazelle_rust](https://github.com/Calsign/gazelle_rust) is an extension for generating [rules_rust](https://github.com/bazelbuild/rules_rust) targets.
 * **Starlark:** [bazel-skylib](https://github.com/bazelbuild/bazel-skylib) has an extension for generating `bzl_library` rules. See [bazel_skylib/gazelle/bzl](https://github.com/bazelbuild/bazel-skylib/tree/main/gazelle/bzl).
@@ -363,6 +363,10 @@ When recursion is disabled, Gazelle only visits specific named directories. This
 **Flag:** `-repo_root=dir`<br>
 **Default:** inferred<br>
 The root directory of the repository. Gazelle normally infers this to be the directory containing the WORKSPACE file. Gazelle will not process packages outside this directory.
+
+**Flag:** `-remove_noop_keep_comments`<br>
+**Default:** `false`<br>
+Whether Gazelle will remove `# keep` comments when the thing being kept would have been kept without the comment. This is always enabled when run with the `fix` command, and for the `update` command must be specified. This will only remove `# keep` comments targeting list items, e.g. not rules, entire lists/dicts, or dict items.
 
 **Flag:** `-lang=lang1,lang2`<br>
 **Default:** n/a<br>

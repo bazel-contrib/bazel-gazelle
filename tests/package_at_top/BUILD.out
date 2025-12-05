@@ -1,0 +1,18 @@
+load("@gazelle//:def.bzl", "gazelle")
+
+# gazelle:default_visibility //visibility:public
+
+FOO = [1]
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["foo.txt"])
+
+gazelle(name = "gazelle")
+
+BAR = [2]
+
+[
+    gazelle(name = "gazelle-{}".format(x))
+    for x in BAR + FOO
+]
