@@ -69,7 +69,12 @@ func (*visibilityExtension) GenerateRules(args language.GenerateArgs) language.G
 	r := rule.NewRule("package", "")
 	for _, er := range args.File.Rules {
 		if er.Kind() == "package" {
-			r = er
+			if vis := er.Attr("default_visibility"); vis != nil {
+				r.SetAttr("default_visibility", vis)
+			}
+			if feat := er.Attr("features"); feat != nil {
+				r.SetAttr("features", feat)
+			}
 			break
 		}
 	}
