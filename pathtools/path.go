@@ -20,6 +20,7 @@ limitations under the License.
 package pathtools
 
 import (
+	"iter"
 	"path"
 	"path/filepath"
 	"strings"
@@ -161,7 +162,7 @@ func LastIndex(p, sub string) int {
 // does not need to be a clean path, but if it is not clean, Prefixes ignores
 // redundant slashes while keeping redundant path elements. For example,
 // if p is "a/../b//c/", the iterator yields "a", "..", "b", "c".
-func Prefixes(p string) func(yield func(string) bool) {
+func Prefixes(p string) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		var slash int
 		if strings.HasPrefix(p, "/") {
