@@ -1,0 +1,7 @@
+# gazelle:default_visibility //src:__subpackages__
+# gazelle:default_features layering_check
+
+package(
+    default_visibility = ["//src:__subpackages__"],
+    features = ["layering_check"],
+)

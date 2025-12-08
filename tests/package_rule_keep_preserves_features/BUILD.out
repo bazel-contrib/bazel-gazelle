@@ -1,0 +1,8 @@
+# gazelle:default_features a
+
+package(
+    features = [
+        "b",  # keep
+        "a",
+    ],
+)

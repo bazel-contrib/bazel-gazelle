@@ -1,0 +1,3 @@
+# gazelle:default_visibility //visibility:public
+
+package(features = ["layering_check"])

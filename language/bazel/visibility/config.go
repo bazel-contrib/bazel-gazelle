@@ -24,11 +24,13 @@ import (
 )
 
 const (
-	_directiveName = "default_visibility"
+	_visibilityDirectiveName = "default_visibility"
+	_featureDirectiveName    = "default_features"
 )
 
 type visConfig struct {
 	visibilityTargets []string
+	features          []string
 }
 
 // getVisConfig directly returns the internal configuration struct rather
@@ -52,7 +54,7 @@ func (*visibilityExtension) CheckFlags(fs *flag.FlagSet, c *config.Config) error
 
 // KnownDirectives returns the only directive this extension operates on.
 func (*visibilityExtension) KnownDirectives() []string {
-	return []string{_directiveName}
+	return []string{_featureDirectiveName, _visibilityDirectiveName}
 }
 
 // Configure identifies the visibility targets from the directive value, if it exists.
@@ -66,11 +68,16 @@ func (*visibilityExtension) Configure(c *config.Config, _ string, f *rule.File) 
 	}
 
 	var newVisTargets []string
+	var newFeatures []string
 	for _, d := range f.Directives {
 		switch d.Key {
-		case _directiveName:
+		case _visibilityDirectiveName:
 			for _, target := range strings.Split(d.Value, ",") {
 				newVisTargets = append(newVisTargets, target)
+			}
+		case _featureDirectiveName:
+			for _, feature := range strings.Split(d.Value, ",") {
+				newFeatures = append(newFeatures, feature)
 			}
 		}
 	}
@@ -78,6 +85,10 @@ func (*visibilityExtension) Configure(c *config.Config, _ string, f *rule.File) 
 	// if visibility targets were specified, overwrite the config
 	if len(newVisTargets) != 0 {
 		cfg.visibilityTargets = newVisTargets
+	}
+
+	if len(newFeatures) != 0 {
+		cfg.features = newFeatures
 	}
 
 	c.Exts[_extName] = cfg
