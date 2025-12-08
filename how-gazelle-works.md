@@ -2,6 +2,8 @@
 
 This page explains how Gazelle generates and updates `BUILD` files. It's intended to help Gazelle developers, extension authors, and users wishing to understand how (and why) Gazelle makes its changes.
 
+See [Configuration and command line reference](gazelle-reference.md) for details on specific directives and flags.
+
 ## Overview
 
 Gazelle updates `BUILD` files in the following stages. Each is described in detail below.
@@ -21,7 +23,7 @@ In each directory it visits, Gazelle parses the `BUILD` or `BUILD.bazel` file if
 
 Gazelle may or may not visit a directory based on directives and command line flags.
 
-- Gazelle always visits directories named as command line arguments. If no arguments are specified, Gazelle visits the repository root directory.
+- Gazelle always visits directories named with positional arguments on the command line. If no arguments are specified, Gazelle visits the repository root directory.
 - If recursion is enabled (with `-r=true`, enabled by default), Gazelle recursively visits subdirectories.
 - If eager indexing is enabled (with `-index=all`, enabled by default), Gazelle visits *all* directories.
 - If lazy indexing is enabled (with `-index=lazy`), Gazelle visits directories requested by language extensions in [`GenerateResult.RelsToIndex`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/language#GenerateResult.RelsToIndex). These directories are loaded lazily during the *Generate* stage.
@@ -32,21 +34,21 @@ The Load stage is implemented in [`walk.walker.populateCache`](https://github.co
 
 ### Generate
 
-As Gazelle visits each directory, it calls extension methods to apply configuration, fix deprecated usage, generate rules, and index libraries. Most of Gazelle's work happens during this stage.
+As Gazelle visits each directory, it calls extension methods to apply configuration, fix deprecated usage, generate rules, combine generated rules with existing rules, and index libraries. Most of Gazelle's work happens during this stage.
+
+Not all extension methods are called in each directory Gazelle visits. Methods that generate or modify rules (`Fix`, `GenerateRules`, and `MergeFile`) are only called in directories where Gazelle was asked to update the `BUILD` file (directories named with positional command line arguments and their subdirectories if the `-r` flag is enabled).
 
 1. [`Configure`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/config#Configurer.Configure) is called in each directory Gazelle visits. Each extension can read directives from the `BUILD` file (if there is one) to decide what to do. Most directives apply to the directory they appear in and to subdirectories.
     - `Configure` is called in each directory in pre-order. All other methods in this stage are called in post-order. Sibling directories are visited sequentially (not concurrently) in lexicographic order.
     - `Configure` is called in each directory Gazelle visits, even if Gazelle won't update the `BUILD` file.
-1. [`Fix`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/language#Language.Fix) is called in each directory that has an existing `BUILD` file. The purpose of this method is to fix deprecated rule usage, so extensions can make arbitrary transformations here.
+1. [`Fix`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/language#Language.Fix) is called in each directory that has an existing `BUILD` file. The purpose of this method is to fix deprecated rule usage, so extensions can make any necessary transformations here.
 1. [`GenerateRules`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/language#Language.GenerateRules) is called in each directory. This method returns rules that should be present in the `BUILD` file, and rules that should be removed. Unlike `Fix`, this method must not actually modify the rules parsed from the `BUILD` file.
 1. [`merger.MergeFile`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/merger#MergeFile) is called to combine the generated rules with existing rules.
     - `MergeFile` attempts to match each generated rule with an existing rule. If a rule is not matched, it's added to the end of the `BUILD` file. Usually the matching is based on the rule kind (a `go_library` named `client`), but it can be influenced by other heuristics. 
     - Each attribute is merged separately. An attribute can be *mergeable* or not. If an attribute is mergeable, it's expected to be managed by Gazelle, so the merger can overwrite existing values (except for values marked with `# keep`). If an attribute is not mergeable, Gazelle may set an initial value, but won't overwrite it later.
-    - `MergeFile` also merges empty rules returned by `GenerateRules` with existing rules. This can delete existing rules if they're not marked with `# keep`. For example, this allows Gazelle to delete a `go_test` rule after all the `_test.go` files were removed.
+    - `MergeFile` also merges rules from the empty list returned by `GenerateRules`'. This can delete existing rules if they're not marked with `# keep`. For example, this allows Gazelle to delete a `go_test` rule after all the `_test.go` files were removed.
     - Extensions don't directly participate in the merging process, though they can influence matching and merging by returning [`rule.KindInfo`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/rule#KindInfo) for each generated rule kind from the [`Kinds`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/language#Language.Kinds) method.
 1. [`Imports`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle@v0.47.0/resolve#Resolver.Imports) is called on each rule after the merge to build an in-memory index for dependency resolution. This table maps import strings and language names to Bazel labels. `Imports` is not called if indexing is disabled with `-index=none`.
-
-The extension methods `Fix`, `GenerateRules`, and `MergeFile` are only called in directories where Gazelle was asked to update the `BUILD` file. `Configure` and `Imports` are called in all directories Gazelle visits.
 
 The Generate stage is implemented in the [callback function](https://github.com/bazel-contrib/bazel-gazelle/blob/028c500e9f911a73683b6ec390f3e59e8f31fccc/cmd/gazelle/fix-update.go#L322) passed to [`walk.Walk2`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/walk#Walk2) as part of the [`runFixUpdate`](https://github.com/bazel-contrib/bazel-gazelle/blob/028c500e9f911a73683b6ec390f3e59e8f31fccc/cmd/gazelle/fix-update.go#L263) function.
 
@@ -61,9 +63,7 @@ Gazelle resolves dependencies as a separate stage so it can use the index built 
 
 ### Write
 
-At this point, Gazelle has made all necessary changes to `BUILD` files in memory. It then formats these files with [`build.Format`](https://pkg.go.dev/github.com/bazelbuild/buildtools/build#Format) and writes them back to disk.
-
-The `-mode` flag modifies this slightly. `-mode=print` causes Gazelle to print the modified files. `-mode=diff` causes Gazelle to print the differences as a patch.
+At this point, Gazelle has made all necessary changes to `BUILD` files in memory. It then formats these files with [`build.Format`](https://pkg.go.dev/github.com/bazelbuild/buildtools/build#Format) and writes them back to disk or prints them, depending on the `-mode` flag (see [Flags](gazelle-reference.md#flags).
 
 ## Extensions
 

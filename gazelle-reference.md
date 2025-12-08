@@ -52,7 +52,11 @@ If `all` or `true`, Gazelle indexes all directories in the repository, even when
 
 **Flag:** `-mode=fix|print|diff`<br>
 **Default:** `fix`<br>
-Method for emitting merged build files. In `fix` mode, Gazelle writes generated and merged files to disk. In `print` mode, it prints them to stdout. In `diff` mode, it prints a unified diff.
+Method for emitting merged build files.
+
+- In `fix` mode, Gazelle writes generated and merged files to disk.
+- In `print` mode, Gazelle prints updated files to stdout and does not write files to disk.
+- In `diff` mode, Gazelle prints a unified diff to stdout and does not write files to disk.
 
 **Flag:** `-r`<br>
 **Default:** `true`<br>
