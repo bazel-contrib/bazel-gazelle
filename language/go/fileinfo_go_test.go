@@ -493,6 +493,42 @@ func TestShellSafety(t *testing.T) {
 	}
 }
 
+func TestGoExperimentsTagsIgnored(t *testing.T) {
+	dir, err := os.MkdirTemp(os.Getenv("TEST_TEMPDIR"), "TestGoExperimentsTagsIgnored")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.RemoveAll(dir)
+	})
+
+	for _, tc := range []struct {
+		desc, content string
+	}{
+		{
+			desc:    "goexperiments tag satisfied",
+			content: "//go:build goexperiments.range\n\npackage foo",
+		},
+		{
+			desc:    "negated goexperiments tag satisfied",
+			content: "//go:build !goexperiments.range\n\npackage foo",
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			path := filepath.Join(dir, tc.desc+".go")
+			if err := os.WriteFile(path, []byte(tc.content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			c, _, _ := testConfig(t)
+			fi := goFileInfo(path, "")
+			if !checkConstraints(c, "", "", fi.goos, fi.goarch, fi.tags, nil) {
+				t.Fatalf("constraints should be satisfied for %s", tc.desc)
+			}
+		})
+	}
+}
+
 func mustParseBuildTag(t *testing.T, in string) constraint.Expr {
 	x, err := constraint.Parse("//go:build " + in)
 	if err != nil {
