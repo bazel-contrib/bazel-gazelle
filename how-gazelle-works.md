@@ -85,3 +85,182 @@ gazelle_binary(
     ],
 )
 ```
+
+## Manipulating the syntax tree
+
+Gazelle uses the [`build` package](https://pkg.go.dev/github.com/bazelbuild/buildtools/build) (from buildifier and buildozer) to parse, edit, and format `BUILD` files. This package provides a low-level interface to the syntax tree. For more convenient editing and merging, Gazelle provides its own [`merger`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/merger) and [`rule`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/rule) packages.
+
+The `rule` package lets extensions create, update, and delete "rules" (which become call expressions in the underlying syntax tree) and read or write their attributes using simple values rather than syntax tree nodes. For example, an extension can create a new rule as follows:
+
+```go
+r := rule.NewRule("go_binary", "server")
+r.SetAttr("importpath", "example.com/hello/server")
+r.SetAttr("srcs", []string{"main.go", "server.go"})
+```
+
+To add a new rule to a `BUILD` file, Gazelle must add it to [`File.Rules`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/rule#File), then call [`File.Save`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/rule#File.Save), which syncs changes to the syntax tree, formats the syntax tree to bytes, then writes the file. Extensions do not call `File.Save` directly: Gazelle does this once for each file, after all extensions have run.
+
+### Merging changes to the syntax tree
+
+`BUILD` files often contain a mix of human-written and machine-generated rules and attributes. Updating the machine-generated parts while preserving the human-written portion is a delicate process, so extensions do not directly modify the syntax tree. 
+
+Instead, each extension's [`GenerateRules`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/language#Language.GenerateRules) method creates and returns two lists: a `Gen` list of rules the `BUILD` file should contain, and an `Empty` list of rules that should be deleted from the `BUILD` file, if they're present. This is often enough information to regenerate the `BUILD` file from scratch.
+
+After calling `GenerateRules`, Gazelle calls [`merger.MergeFile`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/merger#MergeFile) to merge both lists with the rules that are already present. `MergeFile` is language-neutral, but its behavior is controlled by the map returned by each extension's [`Kinds`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/language#Language.Kinds) method. 
+
+`MergeFile` processes each rule as follows:
+
+1. `MergeFile` attempts to match the rule with an existing rule. An existing rule matches if:
+    - It has the same kind and name (a `go_binary` with `name = "server"`).
+    - One of its *matchable attributes* (determined by the `Kinds` map) has the same value (a `go_library` with `importpath = "example.com/hello/server"`).
+    - If the rule kind's `MatchAny` flag is set in the `Kinds` map, then any rule of that kind can match. This is useful when only one rule is expected per directory.
+1. If no match is found, then `MergeFile` either adds the rule if it was from the `Gen` list or ignores the rule if it was from the `Empty` list.
+1. If a match was found, `MergeFile` calls [`rule.MergeRules`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/rule#MergeRules) to combine the rules.
+    - If an attribute is present in the new rule but not the existing rule, it's added.
+    - If an attribute is present in the existing rule but not the new rule, it's deleted if the attribute is *mergeable* (determined by the `Kinds` map) or preserved if not.
+    - If an attribute is present in both the existing and new rules:
+        - If the attribute is not mergeable, the existing attribute is preserved. This is appropriate for human-written attributes with a machine generated default.
+        - If the attribute is mergeable, the values are merged. The merge process depends on the type of value (string, list, etc.). New values typically replace existing values, but ordering and comments are preseved whenever possible.
+        - Extension authors can modify merging behavior with values that implement the [`rule.Merger`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/rule#Merger) interface.
+1. If an existing rule is *empty* after merging with a rule from the `Empty` list, `MergeFiles` deletes it. A rule is empty if none of its *non-empty attributes* are set (determined by the `Kinds` map; typically at least `srcs` and `deps` are non-empty attributes).
+
+### Example: file is renamed
+
+To understand how merging works, consider this example, where the user renamed `foo.go` to `bar.go`:
+
+```bzl
+### Existing
+go_library(
+    name = "lib",
+    srcs = [
+        "foo.go",  # foo comment
+        "main.go",  # main comment
+    ],
+    visibility = ["//:__subpackages__"],
+)
+
+### Generated
+go_library(
+    name = "lib",
+    srcs = [
+        "bar.go",
+        "main.go",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+### Merged
+go_library(
+    name = "lib",
+    srcs = [
+        "bar.go",
+        "main.go",  # main comment
+    ]
+    visibility = ["//:__subpackages__"],
+)
+```
+
+The generated rule matches the existing rule because the kind and name are the same (`go_library` with `name = "lib"`).
+
+The `srcs` attribute is mergeable, and both `srcs` values are lists of strings, which Gazelle knows how to merge. `"main.go"` is preserved with its comment, since it's in the list from both rules. `"foo.go"` is dropped since it's not in the generated rule's list. `"bar.go"` is added. The comment on `"foo.go"` is not preserved, since Gazelle has no way to know it was the same file.
+
+The `visibility` attribute is not mergeable, so Gazelle doesn't change it when merging. The generated rule does have this attribute, since it's important to provide a default, but if the user edits the `BUILD` file to change its value, Gazelle won't overwrite it.
+
+### Example: rule with matchable attribute is renamed
+
+In this example, the user has changed the name of the library from `"foo"` to `"bar"` and imported a new dependency from a source file.
+
+```bzl
+### Existing
+go_library(
+    name = "bar",
+    srcs = ["lib.go"],
+    importpath = "example.com/foo",
+    visibility = ["//visibility:public"],
+)
+
+### Generated
+go_library(
+    name = "foo",
+    srcs = ["lib.go"],
+    importpath = "example.com/foo",
+    visibility = ["//visibility:public"],
+    deps = ["//dep"],
+)
+
+### Merged
+go_library(
+    name = "bar",
+    srcs = ["lib.go"],
+    importpath = "example.com/foo",
+    visibility = ["//visibility:public"],
+    deps = ["//dep"],
+)
+```
+
+Even though the `name` attribute has changed, Gazelle can still match the generated rule with the existing rule because the `importpath` attribute is listed in the [`MatchAttrs`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/rule#KindInfo.MatchAttrs) list for `go_library`, and the value for that attribute is the same.
+
+### Example: sources are deleted
+
+Consider what happens when all of a library's source files are deleted:
+
+```bzl
+### Existing
+go_library(
+    name = "lib",
+    srcs = [
+        "a.go",
+        "b.go",
+    ],
+    importpath = "example.com/lib",
+    visibility = ["//visibility:public"],
+    deps = ["//dep"],
+)
+
+### Generated (Empty list)
+go_library(
+    name = "lib",
+    importpath = "example.com/lib",
+)
+
+### Merged: rule is deleted
+```
+
+Because there are no source files, the language extension returns a `go_library` rule in the `Empty` list instead of the `Gen` list. This is matched and merged with the existing rule, as usual. None of the non-empty attributes are set (for `go_library`, that's `srcs`, `deps`, `embed`), so the rule is deleted.
+
+The `BUILD` file is *not* deleted, even if it is now empty. Deleting a `BUILD` file can `glob` expressions in parent directories to match additional files, which may not be safe.
+
+### `# keep` comments
+
+A user can prevent Gazelle from merging something by adding a `# keep` comment. The comment may be applied to a rule, an attribute, or a value.
+
+```bzl
+# keep: don't change this rule
+go_library(
+    name = "lib",
+)
+
+go_library(
+    name = "lib",
+    # keep: don't change the attribute below
+    srcs = ["lib.go"],
+    importpath = "example.com/foo",  # keep: or this one
+)
+
+go_library(
+    name = "lib",
+    srcs = [
+        # keep: don't change this value
+        "a.go",
+        "b.go",  # keep: or this one
+    ],
+)
+```
+
+To understand how Gazelle sees `# keep` comments, it may help to know that the `BUILD` file parser divides comments into three lists for each syntax tree node:
+
+- `Before` comments appear on the lines above a syntax tree node (without a blank line in between). They are attached to the top-most tree node.
+- A `Suffix` comment appears at the end of the same line. It is attached to the right-most tree node.
+- `After` comments appear on the lines below a syntax tree node and aren't important here.
+
+Because a `Suffix` comment is attached to the right-most node, on the line with `importpath` above, the `# keep` comment is attached to the expression node `"example.com/foo"`, not to the attribute node. The comment still works in this case, but this causes subtle behavior for custom mergers.
