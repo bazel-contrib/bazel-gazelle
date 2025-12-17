@@ -506,12 +506,12 @@ func TestGoExperimentsTagsIgnored(t *testing.T) {
 		desc, content string
 	}{
 		{
-			desc:    "goexperiments tag satisfied",
-			content: "//go:build goexperiments.range\n\npackage foo",
+			desc:    "goexperiment tag satisfied",
+			content: "//go:build goexperiment.range\n\npackage foo",
 		},
 		{
 			desc:    "negated goexperiments tag satisfied",
-			content: "//go:build !goexperiments.range\n\npackage foo",
+			content: "//go:build !goexperiment.range\n\npackage foo",
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
