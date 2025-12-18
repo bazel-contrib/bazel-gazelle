@@ -4,6 +4,21 @@ This page explains how Gazelle generates and updates `BUILD` files. It's intende
 
 See [Configuration and command line reference](gazelle-reference.md) for details on specific directives and flags.
 
+## Terminology
+
+Within Gazelle, a *rule* is a declaration in a `BUILD` file for something you can build with Bazel. A rule is an instance of a *rule kind*. The example below shows a rule named `lib` with the kind `go_binary`.
+
+```bzl
+go_binary(
+    name = "lib",
+    srcs = ["lib.go"],
+)
+```
+
+Gazelle matches internal terminology within Bazel's source code, but it unfortunately doesn't match the terms used outside of Bazel. Bazel documentation calls this example a *target* named `lib`, which is an instance of the *rule* `go_binary`.
+
+We regret this difference in terminology, but fixing it would require significant breaking changes to Gazelle's extension API, so we continue to make the distinction.
+
 ## Overview
 
 Gazelle updates `BUILD` files in the following stages. Each is described in detail below.
