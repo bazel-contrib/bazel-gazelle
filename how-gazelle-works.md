@@ -106,7 +106,7 @@ To add a new rule to a `BUILD` file, Gazelle must add it to [`File.Rules`](https
 
 Instead, each extension's [`GenerateRules`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/language#Language.GenerateRules) method creates and returns two lists: a `Gen` list of rules the `BUILD` file should contain, and an `Empty` list of rules that should be deleted from the `BUILD` file, if they're present. This is often enough information to regenerate the `BUILD` file from scratch.
 
-After calling `GenerateRules`, Gazelle calls [`merger.MergeFile`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/merger#MergeFile) to merge both lists with the rules that are already present. `MergeFile` is language-neutral, but its behavior is controlled by the map returned by each extension's [`Kinds`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/language#Language.Kinds) method. 
+After calling `GenerateRules`, Gazelle calls [`merger.MergeFile`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/merger#MergeFile) to merge the `Gen` and `Empty` lists with the rules that are already present in the `BUILD` file. `MergeFile` is language-neutral, but the way it handles rule attributes is controlled by the map returned by each extension's [`Kinds`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/language#Language.Kinds) method. 
 
 `MergeFile` processes each rule as follows:
 
@@ -114,8 +114,8 @@ After calling `GenerateRules`, Gazelle calls [`merger.MergeFile`](https://pkg.go
     - It has the same kind and name (a `go_binary` with `name = "server"`).
     - One of its *matchable attributes* (determined by the `Kinds` map) has the same value (a `go_library` with `importpath = "example.com/hello/server"`).
     - If the rule kind's `MatchAny` flag is set in the `Kinds` map, then any rule of that kind can match. This is useful when only one rule is expected per directory.
-1. If no match is found, then `MergeFile` either adds the rule if it was from the `Gen` list or ignores the rule if it was from the `Empty` list.
-1. If a match was found, `MergeFile` calls [`rule.MergeRules`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/rule#MergeRules) to combine the rules.
+1. If `MergeFile` doesn't find a match, then it either adds the rule if it was from the `Gen` list or ignores the rule if it was from the `Empty` list.
+1. If `MergeFile` finds a match, it calls [`rule.MergeRules`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/rule#MergeRules) to combine the rules.
     - If an attribute is present in the new rule but not the existing rule, it's added.
     - If an attribute is present in the existing rule but not the new rule, it's deleted if the attribute is *mergeable* (determined by the `Kinds` map) or preserved if not.
     - If an attribute is present in both the existing and new rules:
