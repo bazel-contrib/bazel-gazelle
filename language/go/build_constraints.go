@@ -280,7 +280,7 @@ func matchAuto(tokens []string) (*buildTags, error) {
 // build constraints for a file and will instead defer to the compiler at compile
 // time.
 func isDefaultIgnoredTag(tag string) bool {
-	if tag == "cgo" || tag == "purego" || tag == "race" || tag == "msan" || strings.HasPrefix(tag, "goexperiments.") {
+	if tag == "cgo" || tag == "purego" || tag == "race" || tag == "msan" || strings.HasPrefix(tag, "goexperiment.") {
 		return true
 	}
 	if len(tag) < 5 || !strings.HasPrefix(tag, "go") {

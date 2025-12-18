@@ -19,6 +19,7 @@ package walk
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"log"
 	"os"
@@ -229,6 +230,12 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 
 		// Make sure to visit prefixes of relToVisit as well so we apply
 		// configuration directives.
+		if path.IsAbs(relToVisit) {
+			panic(fmt.Sprintf("relToVisit must not be absolute: %q", relToVisit))
+		}
+		if relToVisit != "" && relToVisit != path.Clean(relToVisit) {
+			panic(fmt.Sprintf("relToVisit is not clean: %q", relToVisit))
+		}
 		pathtools.Prefixes(relToVisit)(func(rel string) bool {
 			if _, ok := w.visits[rel]; !ok {
 				// Never visited this directory.
