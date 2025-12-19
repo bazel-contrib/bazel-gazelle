@@ -122,7 +122,7 @@ DEFAULT_DIRECTIVES_BY_PATH = {
         "gazelle:proto disable",
     ],
     "go.chromium.org/luci": [
-        "gazelle:go_generate_proto false",
+        "gazelle:proto disable",
     ],
     "google.golang.org/grpc": [
         "gazelle:proto disable",
