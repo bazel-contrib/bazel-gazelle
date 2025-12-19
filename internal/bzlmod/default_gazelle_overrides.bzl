@@ -121,6 +121,9 @@ DEFAULT_DIRECTIVES_BY_PATH = {
     "github.com/weaveworks/common": [
         "gazelle:proto disable",
     ],
+    "go.chromium.org/luci": [
+        "gazelle:go_generate_proto false",
+    ],
     "google.golang.org/grpc": [
         "gazelle:proto disable",
     ],
