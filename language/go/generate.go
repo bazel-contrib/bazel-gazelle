@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"go/build"
 	"log"
+	"os"
 	"path"
 	"path/filepath"
 	"sort"
@@ -107,12 +108,21 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	}
 
 	// Look for a subdirectory named testdata. Only treat it as data if it does
-	// not contain a buildable package.
+	// not contain a buildable package and is not empty.
 	var hasTestdata bool
 	for _, sub := range args.Subdirs {
 		if sub == "testdata" {
 			_, ok := gl.goPkgRels[path.Join(args.Rel, "testdata")]
 			hasTestdata = !ok
+
+			// Check if testdata directory is empty
+			if hasTestdata {
+				testdataPath := filepath.Join(args.Dir, "testdata")
+				entries, err := os.ReadDir(testdataPath)
+				if err == nil && len(entries) == 0 {
+					hasTestdata = false
+				}
+			}
 			break
 		}
 	}
