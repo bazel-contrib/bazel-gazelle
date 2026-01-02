@@ -803,6 +803,9 @@ func (g *generator) setCommonAttrs(r *rule.Rule, pkgRel string, visibility []str
 	if target.cgo {
 		r.SetAttr("cgo", true)
 	}
+	if target.pgoprofile != "" {
+		r.SetAttr("pgoprofile", target.pgoprofile)
+	}
 	if !target.clinkopts.isEmpty() {
 		r.SetAttr("clinkopts", g.options(target.clinkopts.build(), pkgRel))
 	}

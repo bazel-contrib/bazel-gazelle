@@ -131,6 +131,10 @@ const (
 
 	// protoExt is applied to .proto files.
 	protoExt
+
+	// pgoExt is applied to .pgo files, expected to be in a pprof format.
+	// Currently, only "default.pgo" is supported. Other *.pgo files are ignored.
+	pgoExt
 )
 
 // fileNameInfo returns information that can be inferred from the name of
@@ -156,6 +160,8 @@ func fileNameInfo(path_ string) fileInfo {
 			ext = csExt
 		case ".proto":
 			ext = protoExt
+		case ".pgo":
+			ext = pgoExt
 		}
 	}
 

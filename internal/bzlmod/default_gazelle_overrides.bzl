@@ -16,6 +16,7 @@ visibility("private")
 
 DEFAULT_BUILD_FILE_GENERATION_BY_PATH = {
     "cel.dev/expr": "on",
+    "github.com/bazelbuild/remote-apis-sdks": "on",
     "github.com/cncf/xds/go": "on",
     "github.com/envoyproxy/protoc-gen-validate": "on",
     "github.com/google/safetext": "on",
@@ -112,10 +113,16 @@ DEFAULT_DIRECTIVES_BY_PATH = {
     "github.com/stackb/rules_proto": [
         "gazelle:go_naming_convention import",
     ],
+    "github.com/terraform-linters/tflint-plugin-sdk": [
+        "gazelle:proto disable",
+    ],
     "github.com/thanos-io/thanos": [
         "gazelle:proto disable",
     ],
     "github.com/weaveworks/common": [
+        "gazelle:proto disable",
+    ],
+    "go.chromium.org/luci": [
         "gazelle:proto disable",
     ],
     "google.golang.org/grpc": [

@@ -1,0 +1,6 @@
+package(
+    features = [
+        "b",  # keep
+        "c",
+    ],
+)

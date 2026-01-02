@@ -453,11 +453,24 @@ def parse_sumfile(module_ctx, label, sumfile):
 
 def parse_go_sum(content):
     hashes = {}
+    saw_git_conflict = False
     for line in content.splitlines():
+        # Merge conflicts in go.sum files can be solved by taking the union of
+        # the entries, so we simply ignore the conflict markers and keep
+        # going. This ensures that the build doesn't fail due to missing 
+        # hashes.
+        if line.startswith("<<<<<<<") or line.startswith("=======") or line.startswith(">>>>>>>"):
+            saw_git_conflict = True
+            continue
         path, version, sum = line.split(" ")
         version = _canonicalize_raw_version(version)
         if not version.endswith("/go.mod"):
             hashes[(path, version)] = sum
+    if saw_git_conflict:
+        print("""\
+Warning: go.sum file contained git conflict markers. Consider adding \
+'go.sum merge=union' to your .gitattributes file to resolve them \
+automatically.""")
     return hashes
 
 def _check_go_mod_name(name):

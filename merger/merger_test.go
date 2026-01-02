@@ -973,6 +973,38 @@ go_library(
 			"my_go_library": "go_library",
 		},
 	},
+	{
+		desc: "empty name rules with different kinds should not conflict",
+		previous: `
+exports_files(["foo.txt"])
+`,
+		current: `
+package(default_visibility = ["//visibility:public"])
+`,
+		expected: `
+exports_files(["foo.txt"])
+
+package(default_visibility = ["//visibility:public"])
+`,
+	},
+	{
+		desc: "empty name rules with different kinds should not conflict",
+		previous: `
+exports_files(["foo.txt"])
+
+exports_files(["bar.txt"])
+`,
+		current: `
+package(default_visibility = ["//visibility:public"])
+`,
+		expected: `
+exports_files(["foo.txt"])
+
+exports_files(["bar.txt"])
+
+package(default_visibility = ["//visibility:public"])
+`,
+	},
 }
 
 func TestMergeFile(t *testing.T) {

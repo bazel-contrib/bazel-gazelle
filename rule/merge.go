@@ -65,7 +65,7 @@ func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 	for key, srcAttr := range src.attrs {
 		if dstAttr, ok := dst.attrs[key]; !ok {
 			dst.SetAttr(key, srcAttr.expr.RHS)
-		} else if mergeable[key] && !ShouldKeep(dstAttr.expr) {
+		} else if mergeable[key] { // Defer the ShouldKeep check to mergeAttrValues
 			if mergedValue, err := mergeAttrValues(&srcAttr, &dstAttr); err != nil {
 				start, end := dstAttr.expr.RHS.Span()
 				log.Printf("%s:%d.%d-%d.%d: could not merge expression", filename, start.Line, start.LineRune, end.Line, end.LineRune)
@@ -80,33 +80,75 @@ func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 	dst.private = src.private
 }
 
+func areScalarsAndEqual(x, y bzl.Expr) bool {
+	if x, ok := x.(*bzl.LiteralExpr); ok {
+		y, ok := y.(*bzl.LiteralExpr)
+		if !ok {
+			return false
+		}
+		return x.Token == y.Token
+	}
+	if x, ok := x.(*bzl.StringExpr); ok {
+		y, ok := y.(*bzl.StringExpr)
+		if !ok {
+			return false
+		}
+		return x.Value == y.Value
+	}
+	if x, ok := x.(*bzl.Ident); ok {
+		y, ok := y.(*bzl.Ident)
+		if !ok {
+			return false
+		}
+		return x.Name == y.Name
+	}
+	return false
+}
+
 // mergeAttrValues combines information from src and dst and returns a merged
 // expression. dst may be modified during this process. The returned expression
 // may be different from dst when a structural change is needed.
 //
 // The following kinds of expressions are recognized.
 //
-//   * nil
-//   * strings (can only be merged with strings)
-//   * lists of strings
-//   * a call to select with a dict argument. The dict keys must be strings,
+//   - nil
+//   - strings (can only be merged with strings)
+//   - lists of strings
+//   - a call to select with a dict argument. The dict keys must be strings,
 //     and the values must be lists of strings.
-//   * a list of strings combined with a select call using +. The list must
+//   - a list of strings combined with a select call using +. The list must
 //     be the left operand.
-//   * an attr value that implements the Merger interface.
+//   - an attr value that implements the Merger interface.
 //
 // An error is returned if the expressions can't be merged, for example
 // because they are not in one of the above formats.
 func mergeAttrValues(srcAttr, dstAttr *attrValue) (bzl.Expr, error) {
+	// Maintain a "noop" behavior when expression should be kept.
+	var mergedScalarDst bzl.Expr
+	if ShouldKeep(dstAttr.expr) {
+		mergedScalarDst = dstAttr.expr.RHS
+	}
 	if ShouldKeep(dstAttr.expr.RHS) {
-		return nil, nil
+		return mergedScalarDst, nil
 	}
 	dst := dstAttr.expr.RHS
 	if srcAttr == nil && (dst == nil || isScalar(dst)) {
-		return nil, nil
+		return mergedScalarDst, nil
 	}
 	if srcAttr != nil && isScalar(srcAttr.expr.RHS) {
+		// Check if the scalars are equal, in which case a keep comment is a noop.
+		// For scalars however, the keep comment is attributed to the entire AssignExpr instead of the RHS Expr, so we must remove it from there.
+		if areScalarsAndEqual(srcAttr.expr.RHS, dstAttr.expr.RHS) && RemoveNoopKeepComments {
+			dstAttr.expr.Comments = removeKeep(dstAttr.expr)
+		} else if mergedScalarDst != nil {
+			return mergedScalarDst, nil
+		}
 		return srcAttr.expr.RHS, nil
+	}
+
+	// Check ShouldKeep here instead of the beginning of the function to allow possibility for removing keep comments above.
+	if ShouldKeep(dstAttr.expr) {
+		return mergedScalarDst, nil
 	}
 
 	if _, ok := dstAttr.val.(Merger); srcAttr == nil && ok {
@@ -154,6 +196,9 @@ func mergePlatformStringsExprs(src, dst platformStringsExprs) (platformStringsEx
 	return ps, nil
 }
 
+// RemoveNoopKeepComments controls whether comments with "# keep" are removed when they are not needed.
+var RemoveNoopKeepComments bool = false
+
 // MergeList merges two bzl.ListExpr of strings. The lists are merged in the
 // following way:
 //
@@ -196,7 +241,11 @@ func MergeList(srcExpr, dstExpr bzl.Expr) *bzl.ListExpr {
 	for _, v := range dst.List {
 		s := stringValue(v)
 		if keep := ShouldKeep(v); keep || srcSet[s] {
-			keepComment = keepComment || keep
+			if srcSet[s] && RemoveNoopKeepComments {
+				*v.Comment() = removeKeep(v)
+			} else {
+				keepComment = keepComment || keep
+			}
 			merged = append(merged, v)
 			if s != "" {
 				kept[s] = true

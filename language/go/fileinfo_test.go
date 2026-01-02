@@ -236,6 +236,20 @@ func TestFileNameInfo(t *testing.T) {
 			},
 		},
 		{
+			"pgo (default) file",
+			"default.pgo",
+			fileInfo{
+				ext: pgoExt,
+			},
+		},
+		{
+			"pgo (other) file",
+			"notDefault.pgo",
+			fileInfo{
+				ext: pgoExt,
+			},
+		},
+		{
 			"ignored test file",
 			"foo_test.py",
 			fileInfo{

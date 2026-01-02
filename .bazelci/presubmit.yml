@@ -26,6 +26,20 @@ tasks:
     - "//:gazelle_ci"
     test_targets:
     - "..."
+  ubuntu2204_race:
+    name: Ubuntu 22.04 with race detector
+    platform: ubuntu2204
+    build_flags:
+    - "--noenable_bzlmod"
+    - "--enable_workspace"
+    test_flags:
+    - "--noenable_bzlmod"
+    - "--enable_workspace"
+    - "--@io_bazel_rules_go//go/config:race"
+    build_targets:
+    - "..."
+    test_targets:
+    - "..."
   ubuntu2204_bzlmod:
     name: Ubuntu 22.04 with Bzlmod
     platform: ubuntu2204

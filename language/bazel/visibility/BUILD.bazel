@@ -13,6 +13,7 @@ go_library(
         "//config",
         "//label",
         "//language",
+        "//merger",
         "//repo",
         "//resolve",
         "//rule",
