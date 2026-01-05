@@ -113,14 +113,13 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	for _, sub := range args.Subdirs {
 		if sub == "testdata" {
 			_, ok := gl.goPkgRels[path.Join(args.Rel, "testdata")]
-			hasTestdata = !ok
 
-			// Check if testdata directory is empty
-			if hasTestdata {
+			// Check that testdata directory is not empty
+			if !ok {
 				testdataPath := filepath.Join(args.Dir, "testdata")
 				entries, err := os.ReadDir(testdataPath)
-				if err == nil && len(entries) == 0 {
-					hasTestdata = false
+				if err == nil && len(entries) > 0 {
+					hasTestdata = true
 				}
 			}
 			break
