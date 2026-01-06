@@ -5114,3 +5114,42 @@ go_library(
 		},
 	})
 }
+
+// TestEmptyTestdataNoData checks that an empty testdata subdirectory does not
+// result in a data attribute being added to go_test rules.
+func TestEmptyTestdataNoData(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{Path: "WORKSPACE"},
+		{
+			Path: "example_test.go",
+			Content: `
+package example
+
+import "testing"
+
+func TestExample(t *testing.T) {}
+`,
+		},
+		{Path: "testdata/"},
+	})
+	defer cleanup()
+
+	if err := runGazelle(dir, []string{"-go_prefix", "example.com/foo"}); err != nil {
+		t.Fatal(err)
+	}
+
+	buildContent, err := os.ReadFile(filepath.Join(dir, "BUILD.bazel"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify that the BUILD file doesn't contain a data attribute
+	if strings.Contains(string(buildContent), "data = ") {
+		t.Errorf("BUILD file should not contain data attribute for empty testdata\n%s", string(buildContent))
+	}
+
+	// Verify that a go_test rule was generated
+	if !strings.Contains(string(buildContent), "go_test(") {
+		t.Errorf("BUILD file should contain a go_test rule\n%s", string(buildContent))
+	}
+}
