@@ -204,34 +204,36 @@ func TestExample(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c, langs, _ := testConfig(t, "-go_prefix=example.com/repo")
+	c, langs, cexts := testConfig(t, "-go_prefix=example.com/repo")
 	goLang := langs[1].(*goLang)
 
-	res := goLang.GenerateRules(language.GenerateArgs{
-		Config:       c,
-		Dir:          dir,
-		Rel:          "example",
-		Subdirs:      []string{"testdata"},
-		RegularFiles: []string{"example_test.go"},
-	})
+	walk.Walk(c, cexts, []string{dir}, walk.VisitAllUpdateSubdirsMode, func(dir, rel string, c *config.Config, update bool, oldFile *rule.File, subdirs, regularFiles, genFiles []string) {
+		res := goLang.GenerateRules(language.GenerateArgs{
+			Config:       c,
+			Dir:          dir,
+			Rel:          "example",
+			Subdirs:      []string{"testdata"},
+			RegularFiles: []string{"example_test.go"},
+		})
 
-	// Find the go_test rule
-	var testRule *rule.Rule
-	for _, r := range res.Gen {
-		if r.Kind() == "go_test" {
-			testRule = r
-			break
+		// Find the go_test rule
+		var testRule *rule.Rule
+		for _, r := range res.Gen {
+			if r.Kind() == "go_test" {
+				testRule = r
+				break
+			}
 		}
-	}
 
-	if testRule == nil {
-		t.Fatal("expected a go_test rule to be generated")
-	}
+		if testRule == nil {
+			t.Fatal("expected a go_test rule to be generated")
+		}
 
-	// Verify that no data attribute was added
-	if data := testRule.Attr("data"); data != nil {
-		t.Errorf("expected no data attribute for empty testdata subdirectory, but got: %v", data)
-	}
+		// Verify that no data attribute was added
+		if data := testRule.Attr("data"); data != nil {
+			t.Errorf("expected no data attribute for empty testdata subdirectory, but got: %v", data)
+		}
+	})
 }
 
 func TestGenerateRulesEmptyLegacyProto(t *testing.T) {

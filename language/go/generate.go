@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"go/build"
 	"log"
-	"os"
 	"path"
 	"path/filepath"
 	"sort"
@@ -31,6 +30,7 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
 	"github.com/bazelbuild/bazel-gazelle/pathtools"
 	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazelbuild/bazel-gazelle/walk"
 )
 
 func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
@@ -116,9 +116,9 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 
 			// Check that testdata directory is not empty
 			if !ok {
-				testdataPath := filepath.Join(args.Dir, "testdata")
-				entries, err := os.ReadDir(testdataPath)
-				if err == nil && len(entries) > 0 {
+				testdataRel := path.Join(args.Rel, "testdata")
+				testdataDir, err := walk.GetDirInfo(testdataRel)
+				if err == nil && (len(testdataDir.Subdirs) > 0 || len(testdataDir.RegularFiles) > 0 || len(testdataDir.GenFiles) > 0) {
 					hasTestdata = true
 				}
 			}
