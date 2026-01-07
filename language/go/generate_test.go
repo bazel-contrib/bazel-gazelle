@@ -50,7 +50,7 @@ func TestGenerateRules(t *testing.T) {
 				continue
 			}
 			if strings.HasPrefix(rel, "..") {
-				// make sure we're not moving around file that we're not inrerested in
+				// make sure we're not moving around file that we're not interested in
 				continue
 			}
 			newPath := filepath.FromSlash(path.Join(testdataDir, rel))
@@ -174,6 +174,66 @@ go_test(name = "foo_test")
 	if got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}
+}
+
+
+// Test that no data attribute is added for an empty testdata subdirectory
+func TestGenerateRulesEmptyTestdata(t *testing.T) {
+	dir, err := bazel.NewTmpDir("example")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create an empty testdata subdirectory
+	testdataDir := filepath.Join(dir, "testdata")
+	if err := os.Mkdir(testdataDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a test file in the example directory
+	testFile := filepath.Join(dir, "example_test.go")
+	testContent := []byte(`package example
+
+import "testing"
+
+func TestExample(t *testing.T) {
+	t.Log("test")
+}
+`)
+	if err := os.WriteFile(testFile, testContent, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	c, langs, cexts := testConfig(t, "-go_prefix=example.com/repo")
+	goLang := langs[1].(*goLang)
+
+	walk.Walk(c, cexts, []string{dir}, walk.VisitAllUpdateSubdirsMode, func(dir, rel string, c *config.Config, update bool, oldFile *rule.File, subdirs, regularFiles, genFiles []string) {
+		res := goLang.GenerateRules(language.GenerateArgs{
+			Config:       c,
+			Dir:          dir,
+			Rel:          "example",
+			Subdirs:      []string{"testdata"},
+			RegularFiles: []string{"example_test.go"},
+		})
+
+		// Find the go_test rule
+		var testRule *rule.Rule
+		for _, r := range res.Gen {
+			if r.Kind() == "go_test" {
+				testRule = r
+				break
+			}
+		}
+
+		if testRule == nil {
+			t.Fatal("expected a go_test rule to be generated")
+		}
+
+		// Verify that no data attribute was added
+		if data := testRule.Attr("data"); data != nil {
+			t.Errorf("expected no data attribute for empty testdata subdirectory, but got: %v", data)
+		}
+	})
 }
 
 func TestGenerateRulesEmptyLegacyProto(t *testing.T) {

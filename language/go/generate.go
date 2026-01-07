@@ -30,6 +30,7 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
 	"github.com/bazelbuild/bazel-gazelle/pathtools"
 	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazelbuild/bazel-gazelle/walk"
 )
 
 func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
@@ -107,12 +108,20 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	}
 
 	// Look for a subdirectory named testdata. Only treat it as data if it does
-	// not contain a buildable package.
+	// not contain a buildable package and is not empty.
 	var hasTestdata bool
 	for _, sub := range args.Subdirs {
 		if sub == "testdata" {
 			_, ok := gl.goPkgRels[path.Join(args.Rel, "testdata")]
-			hasTestdata = !ok
+
+			// Check that testdata directory is not empty
+			if !ok {
+				testdataRel := path.Join(args.Rel, "testdata")
+				testdataDir, err := walk.GetDirInfo(testdataRel)
+				if err == nil && (len(testdataDir.Subdirs) > 0 || len(testdataDir.RegularFiles) > 0 || len(testdataDir.GenFiles) > 0) {
+					hasTestdata = true
+				}
+			}
 			break
 		}
 	}
