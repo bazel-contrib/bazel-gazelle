@@ -31,7 +31,7 @@ load("@io_bazel_rules_go//go:deps.bzl", "go_download_sdk", "go_register_nogo", "
 
 go_rules_dependencies()
 
-go_register_toolchains(version = "1.23.3")
+go_register_toolchains(version = "1.24.3")
 
 go_register_nogo(
     excludes = [
@@ -51,7 +51,7 @@ go_register_nogo(
 # TODO: Fix rules_go and set this back to 1.19.
 go_download_sdk(
     name = "go_compat_sdk",
-    version = "1.22.9",
+    version = "1.24.3",
 )
 
 # Load recent versions of core rulesets for compatibility with Bazel 8.
