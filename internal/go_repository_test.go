@@ -87,11 +87,14 @@ go_deps.gazelle_override(
 )
 use_repo(
     go_deps,
+    "bazel_gazelle_go_repository_config",
     "com_github_apex_log",
     "com_github_pkg_errors",
     "org_golang_x_xerrors",
-    "bazel_gazelle_go_repository_config",
 )
+
+non_module_deps = use_extension("@bazel_gazelle//:internal/bzlmod/non_module_deps.bzl", "non_module_deps")
+use_repo(non_module_deps, "bazel_gazelle_go_repository_cache")
 `,
 }
 
@@ -152,18 +155,7 @@ func TestRepoConfig(t *testing.T) {
 	if err := bazel_testing.RunBazel("build", "@bazel_gazelle_go_repository_config//:all"); err != nil {
 		t.Fatal(err)
 	}
-	stdout, err := bazel_testing.BazelOutput("mod", "dump_repo_mapping", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var mapping map[string]string
-	if err := json.Unmarshal(stdout, &mapping); err != nil {
-		t.Fatalf("unmarshaling repo mapping: %v", err)
-	}
-	configRepoName := mapping["bazel_gazelle_go_repository_config"]
-	if configRepoName == "" {
-		t.Fatal("repo mapping did not contain bazel_gazelle_go_repository_config")
-	}
+	configRepoName := getCanonicalRepoName(t, "bazel_gazelle_go_repository_config")
 	outputBase, err := getBazelOutputBase()
 	if err != nil {
 		t.Fatal(err)
@@ -283,12 +275,12 @@ func TestModcacheRW(t *testing.T) {
 	if err := bazel_testing.RunBazel("query", "@com_github_pkg_errors//:go_default_library"); err != nil {
 		t.Fatal(err)
 	}
-	out, err := bazel_testing.BazelOutput("info", "output_base")
+	outputBase, err := getBazelOutputBase()
 	if err != nil {
 		t.Fatal(err)
 	}
-	outputBase := strings.TrimSpace(string(out))
-	dir := filepath.Join(outputBase, "external/bazel_gazelle_go_repository_cache/pkg/mod/github.com/pkg/errors@v0.8.1")
+	cacheRepoName := getCanonicalRepoName(t, "bazel_gazelle_go_repository_cache")
+	dir := filepath.Join(outputBase, "external", cacheRepoName, "pkg/mod/github.com/pkg/errors@v0.8.1")
 	info, err := os.Stat(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -306,7 +298,8 @@ func TestRepoCacheContainsGoEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	goEnvPath := filepath.Join(outputBase, "external/bazel_gazelle_go_repository_cache", "go.env")
+	cacheRepoName := getCanonicalRepoName(t, "bazel_gazelle_go_repository_cache")
+	goEnvPath := filepath.Join(outputBase, "external", cacheRepoName, "go.env")
 	gotBytes, err := os.ReadFile(goEnvPath)
 	if err != nil {
 		t.Fatalf("could not read file %s: %v", goEnvPath, err)
@@ -335,4 +328,21 @@ func getBazelOutputBase() (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(buf.String()), nil
+}
+
+func getCanonicalRepoName(t *testing.T, apparentName string) string {
+	t.Helper()
+	stdout, err := bazel_testing.BazelOutput("mod", "dump_repo_mapping", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mapping map[string]string
+	if err := json.Unmarshal(stdout, &mapping); err != nil {
+		t.Fatalf("unmarshaling repo mapping: %v", err)
+	}
+	canonicalName := mapping[apparentName]
+	if canonicalName == "" {
+		t.Fatalf("repo mapping did not contain %s", apparentName)
+	}
+	return canonicalName
 }
