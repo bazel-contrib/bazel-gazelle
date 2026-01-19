@@ -24,6 +24,8 @@ common:ci --lockfile_mode=error
 
 common --lockfile_mode=update
 common --test_output=errors
+# Find bazel in PATH.
+common --test_env=PATH
 
 common:incompatible --incompatible_load_proto_rules_from_bzl
 common:incompatible --incompatible_config_setting_private_default_visibility

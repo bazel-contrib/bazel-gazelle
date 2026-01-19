@@ -135,6 +135,18 @@ func CheckFiles(t *testing.T, dir string, files []FileSpec) {
 			}
 			got := normalizeSpace(string(gotBytes))
 			if diff := cmp.Diff(want, got); diff != "" {
+				outputsDir := os.Getenv("TEST_UNDECLARED_OUTPUTS_DIR")
+				if outputsDir != "" {
+					outputPath := filepath.Join(outputsDir, f.Path)
+					if err := os.MkdirAll(filepath.Dir(outputPath), 0o700); err == nil {
+						err = os.WriteFile(outputPath, gotBytes, 0o600)
+						if err != nil {
+							t.Logf("Failed to write actual output to %s: %v", outputPath, err)
+						} else {
+							t.Logf("Wrote actual output to %s", outputPath)
+						}
+					}
+				}
 				t.Errorf("%s diff (-want,+got):\n%s", f.Path, diff)
 			}
 		}
