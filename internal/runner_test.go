@@ -34,10 +34,10 @@ func TestRunner(t *testing.T) {
 		}
 	}()
 
-	if err := bazel_testing.RunBazel("run", "--enable_workspace", "//:gazelle"); err != nil {
+	if err := bazel_testing.RunBazel("run", "//:gazelle"); err != nil {
 		t.Fatal(err)
 	}
-	out, err := bazel_testing.BazelOutput("query", "--enable_workspace", "//:all")
+	out, err := bazel_testing.BazelOutput("query", "//:all")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestRunnerUpdateReposFromGoMod(t *testing.T) {
 		}
 	}()
 
-	if err := bazel_testing.RunBazel("run", "--enable_workspace", "//:gazelle", "--", "update-repos", "-from_file=go.mod"); err != nil {
+	if err := bazel_testing.RunBazel("run", "//:gazelle", "--", "update-repos", "-from_file=go.mod"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -80,7 +80,7 @@ func TestRunnerUpdateReposCommand(t *testing.T) {
 		}
 	}()
 
-	if err := bazel_testing.RunBazel("run", "--enable_workspace", "//:gazelle-update-repos"); err != nil {
+	if err := bazel_testing.RunBazel("run", "//:gazelle-update-repos"); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -56,6 +56,8 @@ package main
 func main() {}
 `,
 	ModuleFileSuffix: `
+bazel_dep(name = "rules_go", version = "0.59.0", repo_name = "io_bazel_rules_go")
+
 go_deps = use_extension("@bazel_gazelle//:extensions.bzl", "go_deps")
 go_deps.config(
 	go_env = {
