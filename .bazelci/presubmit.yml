@@ -11,6 +11,7 @@ matrix:
 tasks:
   ubuntu2204:
     name: Ubuntu 22.04 with WORKSPACE
+    bazel: 8.*
     platform: ubuntu2204
     build_flags:
     - "--noenable_bzlmod"
@@ -18,31 +19,6 @@ tasks:
     test_flags:
     - "--noenable_bzlmod"
     - "--enable_workspace"
-    build_targets:
-    - "..."
-    run_targets:
-    # Run Gazelle on repo to verify BUILD files are up-to-date. The output shouldn't differ
-    # between platforms, so we only run it from one.
-    - "//:gazelle_ci"
-    test_targets:
-    - "..."
-  ubuntu2204_race:
-    name: Ubuntu 22.04 with race detector
-    platform: ubuntu2204
-    build_flags:
-    - "--noenable_bzlmod"
-    - "--enable_workspace"
-    test_flags:
-    - "--noenable_bzlmod"
-    - "--enable_workspace"
-    - "--@io_bazel_rules_go//go/config:race"
-    build_targets:
-    - "..."
-    test_targets:
-    - "..."
-  ubuntu2204_bzlmod:
-    name: Ubuntu 22.04 with Bzlmod
-    platform: ubuntu2204
     build_targets:
     - "..."
     run_targets:
@@ -52,7 +28,30 @@ tasks:
     test_targets:
     - "..."
     - "-//internal:bazel_test"
-    - "-//cmd/gazelle:gazelle_test"
+  ubuntu2204_race:
+    name: Ubuntu 22.04 with race detector
+    bazel: 9.*
+    platform: ubuntu2204
+    build_flags:
+    - "--@io_bazel_rules_go//go/config:race"
+    test_flags:
+    - "--@io_bazel_rules_go//go/config:race"
+    build_targets:
+    - "..."
+    test_targets:
+    - "..."
+  ubuntu2204_bzlmod:
+    name: Ubuntu 22.04 with Bzlmod
+    bazel: ${{ bazel }}
+    platform: ubuntu2204
+    build_targets:
+    - "..."
+    run_targets:
+    # Run Gazelle on repo to verify BUILD files are up-to-date. The output shouldn't differ
+    # between platforms, so we only run it from one.
+    - "//:gazelle_ci"
+    test_targets:
+    - "..."
   bcr_tests:
     # Keep in sync with .bcr/presubmit.yml
     name: BCR test module
