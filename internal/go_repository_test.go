@@ -285,6 +285,13 @@ func TestModcacheRW(t *testing.T) {
 	dir := filepath.Join(outputBase, "external", cacheRepoName, "pkg/mod/github.com/pkg/errors@v0.8.1")
 	info, err := os.Stat(dir)
 	if err != nil {
+		// Print the transitive directory listing for debugging:
+		b, lsErr := exec.Command("ls", "-lR", filepath.Join(outputBase, "external", cacheRepoName)).CombinedOutput()
+		if lsErr != nil {
+			t.Logf("error listing cache repo directory: %v", lsErr)
+		} else {
+			t.Logf("cache repo directory listing:\n%s", string(b))
+		}
 		t.Fatal(err)
 	}
 	if info.Mode()&0o200 == 0 {
