@@ -33,7 +33,7 @@ Tells Gazelle how to generate rules for _test.go files. Valid values are:
 * `file`: A distinct `go_test` rule will be generated for each `_test.go` file in the package directory.
 
 **Directive:** `# gazelle:go_grpc_compilers compiler1,compiler2,...`<br>
-**Default:** `@io_bazel_rules_go//proto:go_grpc_v2`<br>
+**Default:** `@io_bazel_rules_go//proto:go_proto,@io_bazel_rules_go//proto:go_grpc_v2`<br>
 The protocol buffers compiler(s) to use for building go bindings for gRPC. Multiple compilers, separated by commas, may be specified. Omit the directive value to reset `go_grpc_compilers` back to the default. See [Predefined plugins](https://github.com/bazelbuild/rules_go/blob/master/proto/core.rst#predefined-plugins) for available options; commonly used options include `@io_bazel_rules_go//proto:gofast_grpc` and `@io_bazel_rules_go//proto:gogofaster_grpc`.
 
 **Directive:** `# gazelle:go_naming_convention mode`<br>
@@ -79,7 +79,7 @@ By default, internal packages are only visible to its siblings. This directive a
 Determines how Gazelle resolves Go import paths that cannot be resolved in the current repository. May be :value:`external`, :value:`static` or :value:`vendored`. See [Dependency resolution](#dependency-resolution).
 
 **Flag:** `-go_grpc_compiler=label`<br>
-**Default:** `@io_bazel_rules_go//proto:go_grpc_v2`<br>
+**Default:** `@io_bazel_rules_go//proto:go_proto,@io_bazel_rules_go//proto:go_grpc_v2`<br>
 The protocol buffers compiler to use for building go bindings for gRPC. May be repeated. See [Predefined plugins](https://github.com/bazelbuild/rules_go/blob/master/proto/core.rst#predefined-plugins) for available options; commonly used options include `@io_bazel_rules_go//proto:gofast_grpc` and `@io_bazel_rules_go//proto:gogofaster_grpc`.
 
 **Flag:** `-go_naming_convention`<br>
@@ -184,7 +184,7 @@ The following transformations are performed:
 
 **Migrate library to embed (fix and update):** Gazelle replaces `library` attributes with `embed` attributes.
 
-**Migrate gRPC compilers (fix and update):** Gazelle converts `go_grpc_library` rules to `go_proto_library` rules with `compilers = ["@io_bazel_rules_go//proto:go_grpc_v2"]`.
+**Migrate gRPC compilers (fix and update):** Gazelle converts `go_grpc_library` rules to `go_proto_library` rules with `compilers = ["@io_bazel_rules_go//proto:go_proto", "@io_bazel_rules_go//proto:go_grpc_v2"]`.
 
 **Flatten srcs (fix and update):** Gazelle converts `srcs` attributes that use OS and architecture-specific `select` expressions to flat lists. rules_go filters these sources anyway.
 
