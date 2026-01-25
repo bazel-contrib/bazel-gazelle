@@ -625,6 +625,10 @@ func newFixUpdateConfiguration(wd string, args []string, cexts []config.Configur
 	return c, nil
 }
 
+// TODO(v2): Revise help text and all flag descriptions. This can mostly be
+// shared between v1 and v2, though we may need to change it in a few cases:
+// some flags may not be available or may have different defaults in v2,
+// and there are no subcommands in v2, so "the update command" won't make sense.
 func fixUpdateUsage(fs *flag.FlagSet) {
 	fmt.Fprint(os.Stderr, `usage: gazelle [fix|update] [flags...] [package-dirs...]
 
