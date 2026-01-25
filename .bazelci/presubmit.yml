@@ -19,13 +19,19 @@ tasks:
     - "--noenable_bzlmod"
     - "--enable_workspace"
     build_targets:
-    - "..."
+    - "//..."
+    # Docs no longer build in WORKSPACE mode, due to some hidden dependency in rules_cc.
+    - "-//docs:all"
+    - "-//tests/bzl_deps:all"
     run_targets:
     # Run Gazelle on repo to verify BUILD files are up-to-date. The output shouldn't differ
     # between platforms, so we only run it from one.
     - "//:gazelle_ci"
     test_targets:
     - "..."
+    # Docs no longer build in WORKSPACE mode, due to some hidden dependency in rules_cc.
+    - "-//docs:all"
+    - "-//tests/bzl_deps:all"
   ubuntu2204_race:
     name: Ubuntu 22.04 with race detector
     platform: ubuntu2204
@@ -38,8 +44,14 @@ tasks:
     - "--@io_bazel_rules_go//go/config:race"
     build_targets:
     - "..."
+    # Docs no longer build in WORKSPACE mode, due to some hidden dependency in rules_cc.
+    - "-//docs:all"
+    - "-//tests/bzl_deps:all"
     test_targets:
     - "..."
+    # Docs no longer build in WORKSPACE mode, due to some hidden dependency in rules_cc.
+    - "-//docs:all"
+    - "-//tests/bzl_deps:all"
   ubuntu2204_bzlmod:
     name: Ubuntu 22.04 with Bzlmod
     platform: ubuntu2204
@@ -96,8 +108,14 @@ tasks:
     - "--enable_workspace"
     build_targets:
     - "..."
+    # Docs no longer build in WORKSPACE mode, due to some hidden dependency in rules_cc.
+    - "-//docs:all"
+    - "-//tests/bzl_deps:all"
     test_targets:
     - "..."
+    # Docs no longer build in WORKSPACE mode, due to some hidden dependency in rules_cc.
+    - "-//docs:all"
+    - "-//tests/bzl_deps:all"
     # TODO: This is currently timing out due to infrastructure issues. We should
     # unblock development by temporarily disabling on MacOS.
     - "-//internal:bazel_test"
@@ -120,8 +138,14 @@ tasks:
     - "--enable_workspace"
     build_targets:
     - "..."
+    # Docs no longer build in WORKSPACE mode, due to some hidden dependency in rules_cc.
+    - "-//docs:all"
+    - "-//tests/bzl_deps:all"
     test_targets:
     - "..."
+    # Docs no longer build in WORKSPACE mode, due to some hidden dependency in rules_cc.
+    - "-//docs:all"
+    - "-//tests/bzl_deps:all"
   windows_bzlmod:
     name: Windows with Bzlmod
     platform: windows
