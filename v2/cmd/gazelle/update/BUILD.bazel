@@ -1,0 +1,51 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "update",
+    srcs = [
+        "diff.go",
+        "fix.go",
+        "metaresolver.go",
+        "print.go",
+        "profiler.go",
+        "update.go",
+    ],
+    importpath = "github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//config",
+        "//flag",
+        "//label",
+        "//language",
+        "//merger",
+        "//repo",
+        "//resolve",
+        "//rule",
+        "//v2/internal/wspace",
+        "//walk",
+        "@com_github_bazelbuild_buildtools//build",
+        "@com_github_pmezard_go_difflib//difflib",
+    ],
+)
+
+go_test(
+    name = "update_test",
+    srcs = ["profiler_test.go"],
+    embed = [":update"],
+)
+
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "diff.go",
+        "fix.go",
+        "metaresolver.go",
+        "print.go",
+        "profiler.go",
+        "profiler_test.go",
+        "update.go",
+    ],
+    visibility = ["//visibility:public"],
+)

@@ -1,3 +1,6 @@
+## workspace
+# github.com/bazel-contrib/bazel-gazelle/v2 v2.0.0-1 => ./v2
+## explicit; go 1.24.12
 # github.com/bazelbuild/buildtools v0.0.0-20250930140053-2eb4fccefb52
 ## explicit; go 1.20
 github.com/bazelbuild/buildtools/build

@@ -18,11 +18,14 @@ limitations under the License.
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 
+	"github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update"
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
 )
@@ -70,7 +73,7 @@ func main() {
 	}
 
 	if err := run(wd, os.Args[1:]); err != nil && err != flag.ErrHelp {
-		if err == errExit {
+		if errors.Is(err, update.ErrDiff) {
 			os.Exit(1)
 		} else {
 			log.Fatal(err)
@@ -79,28 +82,23 @@ func main() {
 }
 
 func run(wd string, args []string) error {
-	cmd := updateCmd
+	ctx := context.Background()
 	if len(args) == 1 && (args[0] == "-h" || args[0] == "-help" || args[0] == "--help") {
-		cmd = helpCmd
-	} else if len(args) > 0 {
-		c, ok := commandFromName[args[0]]
-		if ok {
-			cmd = c
-			args = args[1:]
-		}
-	}
-
-	switch cmd {
-	case fixCmd, updateCmd:
-		return runFixUpdate(wd, cmd, args)
-	case helpCmd:
 		return help()
-	case updateReposCmd:
-		return updateRepos(wd, args)
-	default:
-		log.Panicf("unknown command: %v", cmd)
 	}
-	return nil
+	if len(args) == 0 {
+		return update.Run(ctx, languages, wd, args)
+	}
+	switch args[0] {
+	case "help":
+		return help()
+	case "update-repos":
+		return updateRepos(wd, args[1:])
+	default:
+		// Either "fix", "update", or a directory name. Pass through args[0].
+		// update.Run knows what to do with it.
+		return update.Run(ctx, languages, wd, args)
+	}
 }
 
 func help() error {
