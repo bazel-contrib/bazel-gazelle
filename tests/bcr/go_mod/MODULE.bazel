@@ -23,7 +23,7 @@ bazel_dep(name = "rules_proto", version = "6.0.0", repo_name = "my_rules_proto")
 bazel_dep(name = "rules_testing", version = "0.6.0")
 
 go_sdk = use_extension("@my_rules_go//go:extensions.bzl", "go_sdk")
-go_sdk.download(version = "1.24.2")
+go_sdk.download(version = "1.24.12")
 
 # This bazel_dep provides the Go dependency github.com/cloudflare/circl, which requires custom
 # patches beyond what Gazelle can generate.
