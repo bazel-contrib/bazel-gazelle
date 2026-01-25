@@ -37,12 +37,6 @@ gazelle_binary(
     ],
 )
 
-go_cross_binary(
-    name = "gazelle_local_go1.22",
-    sdk_version = "1.22",
-    target = ":gazelle_local",
-)
-
 nogo(
     name = "nogo",
     vet = True,
