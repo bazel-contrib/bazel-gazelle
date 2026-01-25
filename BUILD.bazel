@@ -89,6 +89,7 @@ filegroup(
         "//rule:all_files",
         "//testtools:all_files",
         "//tools:all_files",
+        "//v2:all_files",
         "//walk:all_files",
     ],
     visibility = ["//visibility:public"],
