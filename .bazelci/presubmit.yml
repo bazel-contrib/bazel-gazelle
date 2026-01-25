@@ -181,6 +181,9 @@ tasks:
     - "--"
     - "..."
     - "-//cmd/autogazelle/..."
+    # Docs no longer build in WORKSPACE mode, due to some hidden dependency in rules_cc.
+    - "-//docs:all"
+    - "-//tests/bzl_deps:all"
     test_targets:
     - "--"
     - "..."
