@@ -8,10 +8,10 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
     name = "io_bazel_rules_go",
-    sha256 = "0936c9bc3c4321ee372cb8f66dd972d368cb940ed01a9ba9fd7debcf0093f09b",
+    sha256 = "68af54cb97fbdee5e5e8fe8d210d15a518f9d62abfd71620c3eaff3b26a5ff86",
     urls = [
-        "https://mirror.bazel.build/github.com/bazel-contrib/rules_go/releases/download/v0.51.0/rules_go-v0.51.0.zip",
-        "https://github.com/bazel-contrib/rules_go/releases/download/v0.51.0/rules_go-v0.51.0.zip",
+        "https://mirror.bazel.build/github.com/bazel-contrib/rules_go/releases/download/v0.59.0/rules_go-v0.59.0.zip",
+        "https://github.com/bazel-contrib/rules_go/releases/download/v0.59.0/rules_go-v0.59.0.zip",
     ],
 )
 
@@ -27,11 +27,11 @@ load("@bazel_features//:deps.bzl", "bazel_features_deps")
 
 bazel_features_deps()
 
-load("@io_bazel_rules_go//go:deps.bzl", "go_download_sdk", "go_register_nogo", "go_register_toolchains", "go_rules_dependencies")
+load("@io_bazel_rules_go//go:deps.bzl", "go_register_nogo", "go_register_toolchains", "go_rules_dependencies")
 
 go_rules_dependencies()
 
-go_register_toolchains(version = "1.23.3")
+go_register_toolchains(version = "1.24.12")
 
 go_register_nogo(
     excludes = [
@@ -40,18 +40,6 @@ go_register_nogo(
         "@//cmd/gazelle:__pkg__",
     ],
     nogo = "@bazel_gazelle//:nogo",
-)
-
-# Go 1.22 is needed since the non-hermeticity of GoToolchainBinaryBuild results in it downloading
-# Go 1.23 on Windows to build the builder, which then messes up Go version build tag filtering.
-# Go 1.21 is needed to support the toolchain directive in go.mod, which is non-hermetically read
-# by GoToolchainBinaryBuild on Windows.
-# Go 1.20 is needed so support nogo's use of token.File.FileStart.
-# Go 1.19 is needed for recent versions of golang.org/x/tools.
-# TODO: Fix rules_go and set this back to 1.19.
-go_download_sdk(
-    name = "go_compat_sdk",
-    version = "1.22.9",
 )
 
 # Load recent versions of core rulesets for compatibility with Bazel 8.

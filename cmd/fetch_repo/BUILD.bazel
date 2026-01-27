@@ -1,4 +1,4 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_cross_binary", "go_library", "go_test")
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
 go_library(
     name = "fetch_repo_lib",
@@ -23,13 +23,6 @@ go_binary(
     name = "fetch_repo",
     embed = [":fetch_repo_lib"],
     visibility = ["//visibility:public"],
-)
-
-# Verify that fetch_repo builds with Go 1.22.
-go_cross_binary(
-    name = "fetch_repo_go1.22",
-    sdk_version = "1.22",
-    target = ":fetch_repo",
 )
 
 go_test(
