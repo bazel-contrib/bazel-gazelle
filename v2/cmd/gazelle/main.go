@@ -31,6 +31,11 @@ func main() {
 	log.SetPrefix("gazelle: ")
 	log.SetFlags(0) // don't print timestamps
 
+	// TODO(#2279): interpret arguments as paths relative to either
+	// BUILD_WORKSPACE_DIRECTORY or BUILD_WORKING_DIRECTORY, depending on whether
+	// the paths were specified as arguments to the gazelle macro or passed as
+	// arguments to `bazel run`. Currently, we mix them together and interpret
+	// relative to BUILD_WORKSPACE_DIRECTORY.
 	var wd string
 	if wsDir := os.Getenv("BUILD_WORKSPACE_DIRECTORY"); wsDir != "" {
 		wd = wsDir
