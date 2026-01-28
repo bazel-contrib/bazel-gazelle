@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"Module providing the go_repository_tools internal rule."
+
 load("//internal:common.bzl", "env_execute", "executable_extension", "watch")
 load("//internal:go_repository_cache.bzl", "read_cache_env")
 load("//internal:go_repository_tools_srcs.bzl", "GO_REPOSITORY_TOOLS_SRCS")
@@ -41,21 +43,12 @@ def _go_repository_tools_impl(ctx):
     for src in ctx.attr._go_repository_tools_srcs:
         watch(ctx, src)
 
-    # Create a link to the gazelle repo. This will be our GOPATH.
     env = read_cache_env(ctx, str(ctx.path(ctx.attr.go_cache)))
     extension = executable_extension(ctx)
     go_tool = env["GOROOT"] + "/bin/go" + extension
     watch(ctx, go_tool)
 
-    ctx.symlink(
-        ctx.path(Label("//:WORKSPACE")).dirname,
-        "src/github.com/bazelbuild/bazel-gazelle",
-    )
-
     env.update({
-        "GOPATH": str(ctx.path(".")),
-        "GOBIN": "",
-        "GO111MODULE": "off",
         # workaround: avoid the Go SDK paths from leaking into the binary
         "GOROOT_FINAL": "GOROOT",
         # workaround: avoid cgo paths in /tmp leaking into binary
@@ -67,6 +60,9 @@ def _go_repository_tools_impl(ctx):
         env["PATH"] = ctx.os.environ["PATH"]
     if "GOPROXY" in ctx.os.environ:
         env["GOPROXY"] = ctx.os.environ["GOPROXY"]
+
+    bin_dir = str(ctx.path("bin"))
+    gazelle_dir = str(ctx.path(Label("//:MODULE.bazel")).dirname)
 
     # Make sure the list of source is up to date.
     # We don't want to run the script, then resolve each source file it returns.
@@ -81,7 +77,7 @@ def _go_repository_tools_impl(ctx):
                 go_tool,
                 "run",
                 ctx.path(ctx.attr._list_repository_tools_srcs),
-                "-dir=src/github.com/bazelbuild/bazel-gazelle",
+                "-dir=" + gazelle_dir,
                 "-check=internal/go_repository_tools_srcs.bzl",
             ],
             environment = env,
@@ -90,20 +86,21 @@ def _go_repository_tools_impl(ctx):
             fail("list_repository_tools_srcs: " + result.stderr)
 
     # Build the tools.
+    ctx.file("bin/empty", "")  # HACK: we want mkdir, but repository_ctx doesn't have it
     args = [
         go_tool,
-        "install",
+        "build",
+        "-o",
+        bin_dir,
         "-ldflags",
         "-w -s",
         "-gcflags",
-        "all=-trimpath=" + env["GOPATH"],
-        "-asmflags",
-        "all=-trimpath=" + env["GOPATH"],
+        "-trimpath",
         "github.com/bazelbuild/bazel-gazelle/cmd/gazelle",
         "github.com/bazelbuild/bazel-gazelle/cmd/fetch_repo",
         "github.com/bazelbuild/bazel-gazelle/cmd/generate_repo_config",
     ]
-    result = env_execute(ctx, args, environment = env)
+    result = env_execute(ctx, args, environment = env, working_directory = gazelle_dir)
     if result.return_code:
         fail("failed to build tools: " + result.stderr)
 
@@ -120,6 +117,7 @@ def _go_repository_tools_impl(ctx):
     )
     if hasattr(ctx, "repo_metadata"):
         return ctx.repo_metadata(reproducible = True)
+    return None
 
 go_repository_tools = repository_rule(
     _go_repository_tools_impl,
@@ -140,12 +138,11 @@ go_repository_tools = repository_rule(
         "GOPATH",
         "GO_REPOSITORY_USE_HOST_CACHE",
     ],
-)
-"""go_repository_tools is a synthetic repository used by go_repository.
-
+    doc = """go_repository_tools is a synthetic repository used by go_repository.
 
 go_repository depends on two Go binaries: fetch_repo and gazelle. We can't
 build these with Bazel inside a repository rule, and we don't want to manage
 prebuilt binaries, so we build them in here with go build, using whichever
 SDK rules_go is using.
-"""
+""",
+)

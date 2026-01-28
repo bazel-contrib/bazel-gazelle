@@ -13,6 +13,7 @@ load("//:def.bzl", "gazelle", "gazelle_binary")
 # gazelle:exclude .vscode
 # gazelle:exclude internal/module/testdata
 # gazelle:go_naming_convention import_alias
+# gazelle:go_naming_convention_external import
 gazelle(
     name = "gazelle",
     command = "fix",

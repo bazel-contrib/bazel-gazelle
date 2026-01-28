@@ -11,13 +11,7 @@ go_library(
     name = "gazelle_lib",
     # keep
     srcs = [
-        "diff.go",
-        "fix.go",
-        "fix-update.go",
         "main.go",
-        "metaresolver.go",
-        "print.go",
-        "profiler.go",
         "update-repos.go",
     ],
     importpath = "github.com/bazelbuild/bazel-gazelle/cmd/gazelle",
@@ -25,7 +19,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//config",
-        "//flag",
         "//internal/wspace",
         "//label",
         "//language",
@@ -34,11 +27,8 @@ go_library(
         "//language/proto",
         "//merger",
         "//repo",
-        "//resolve",
         "//rule",
-        "//walk",
-        "@com_github_bazelbuild_buildtools//build",
-        "@com_github_pmezard_go_difflib//difflib",
+        "//v2/cmd/gazelle/update",
     ],
 )
 
@@ -50,7 +40,6 @@ go_test(
         "fix_test.go",
         "integration_test.go",
         "langs.go",  # keep
-        "profiler_test.go",
     ],
     data = [
         "@go_sdk//:ROOT",
@@ -72,18 +61,11 @@ filegroup(
     testonly = True,
     srcs = [
         "BUILD.bazel",
-        "diff.go",
         "diff_test.go",
-        "fix.go",
-        "fix-update.go",
         "fix_test.go",
         "integration_test.go",
         "langs.go",
         "main.go",
-        "metaresolver.go",
-        "print.go",
-        "profiler.go",
-        "profiler_test.go",
         "update-repos.go",
     ],
     visibility = ["//visibility:public"],

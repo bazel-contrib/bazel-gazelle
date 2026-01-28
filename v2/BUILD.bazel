@@ -1,9 +1,14 @@
+# gazelle:prefix github.com/bazel-contrib/bazel-gazelle/v2
+# gazelle:go_naming_convention import
+
 filegroup(
     name = "all_files",
     testonly = True,
     srcs = [
         "BUILD.bazel",
         "go.mod",
+        "//v2/cmd:all_files",
+        "//v2/internal:all_files",
     ],
     visibility = ["//visibility:public"],
 )
