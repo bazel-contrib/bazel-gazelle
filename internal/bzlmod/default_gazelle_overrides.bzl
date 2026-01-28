@@ -38,6 +38,9 @@ DEFAULT_DIRECTIVES_BY_PATH = {
     "github.com/authzed/spicedb": [
         "gazelle:proto disable",
     ],
+    "github.com/bufbuild/protocompile": [
+        "gazelle:proto disable",
+    ],
     "github.com/census-instrumentation/opencensus-proto": [
         "gazelle:proto disable",
     ],
