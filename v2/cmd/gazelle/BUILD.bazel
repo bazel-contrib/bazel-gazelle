@@ -1,9 +1,36 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
 filegroup(
     name = "all_files",
     testonly = True,
     srcs = [
         "BUILD.bazel",
+        "langs.go",
+        "main.go",
         "//v2/cmd/gazelle/update:all_files",
     ],
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "gazelle_lib",
+    srcs = [
+        "langs.go",
+        "main.go",
+    ],
+    importpath = "github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//language",
+        "//language/bazel/visibility",
+        "//language/go",
+        "//language/proto",
+        "//v2/cmd/gazelle/update",
+    ],
+)
+
+go_binary(
+    name = "gazelle",
+    embed = [":gazelle_lib"],
     visibility = ["//visibility:public"],
 )
