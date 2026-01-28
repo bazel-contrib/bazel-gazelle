@@ -62,7 +62,7 @@ def _go_repository_tools_impl(ctx):
         env["GOPROXY"] = ctx.os.environ["GOPROXY"]
 
     bin_dir = str(ctx.path("bin"))
-    gazelle_dir = str(ctx.path(Label("//:WORKSPACE")).dirname)
+    gazelle_dir = str(ctx.path(Label("//:MODULE.bazel")).dirname)
 
     # Make sure the list of source is up to date.
     # We don't want to run the script, then resolve each source file it returns.
