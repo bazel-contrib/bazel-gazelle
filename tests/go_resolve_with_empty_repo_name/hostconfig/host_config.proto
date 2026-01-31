@@ -1,0 +1,5 @@
+package tests.host_config;
+
+message HostConfig {
+	string host = 1;
+}

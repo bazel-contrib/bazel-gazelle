@@ -1,0 +1,11 @@
+# gazelle:prefix example.com/repo
+#
+# gazelle:go_naming_convention go_default_library
+# gazelle:proto disable
+#
+# (1) Demonstrate resolving using regular expressions with empty repo name.
+# gazelle:resolve_regexp go example.com/repo/gen/(.*) //${1}:go_default_library
+# gazelle:resolve_regexp go example.com/repo/gen/(.*)/(.*)_pb //${1}:${2}_proto_go
+#
+# (2) Demonstrate resolving an override in the same package.
+# gazelle:resolve go example.com/repo/util //hostconfig:support_library
