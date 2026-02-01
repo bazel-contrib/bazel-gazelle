@@ -12,52 +12,46 @@ load("//tests:tools.bzl", "get_binary")
 # repository.
 # gazelle:exclude **
 
-# This test Gazelle binary only has the "test_filegroup" plugin installed.
-gazelle_binary(
-    name = "gazelle",
-    languages = [
-        "//internal/language/test_filegroup",
+_GAZELLE_BINARY_CONFIGS = [
+    [
+        "gazelle",
+        ["//internal/language/test_filegroup"],
     ],
-    visibility = ["//visibility:private"],
-)
+    [
+        "gazelle_with_language_loads_from_flag",
+        ["//internal/language/test_loads_from_flag"],
+    ],
+    [
+        "gazelle_with_language_load_for_packed_rules",
+        ["//internal/language/test_load_for_packed_rules"],
+    ],
+    [
+        "gazelle_with_proto_and_go_languages",
+        [
+            "//language/proto",
+            "//language/go:go_default_library",
+        ],
+    ],
+    [
+        "gazelle_with_visibility",
+        ["//language/bazel/visibility"],
+    ],
+]
 
-gazelle_binary(
-    name = "gazelle_with_language_loads_from_flag",
-    languages = [
-        "//internal/language/test_loads_from_flag",
-    ],
+[gazelle_binary(
+    name = name if version == 1 else name + "_v2",
+    languages = languages,
+    version = version,
     visibility = ["//visibility:private"],
-)
-
-gazelle_binary(
-    name = "gazelle_with_language_load_for_packed_rules",
-    languages = [
-        "//internal/language/test_load_for_packed_rules",
-    ],
-    visibility = ["//visibility:private"],
-)
-
-gazelle_binary(
-    name = "gazelle_with_proto_and_go_languages",
-    languages = [
-        "//language/proto:go_default_library",
-        "//language/go:go_default_library",
-    ],
-    visibility = ["//visibility:private"],
-)
-
-gazelle_binary(
-    name = "gazelle_with_visibility",
-    languages = [
-        "//language/bazel/visibility:go_default_library",
-    ],
-    visibility = ["//visibility:private"],
-)
+) for (name, languages) in _GAZELLE_BINARY_CONFIGS for version in [
+    1,
+    2,
+]]
 
 [gazelle_generation_test(
     # Name the test the path to the directory containing the WORKSPACE file.
-    name = test_dir,
-    gazelle_binary = get_binary(test_dir),
+    name = test_dir if version == 1 else test_dir + "_v2",
+    gazelle_binary = get_binary(test_dir) + ("" if version == 1 else "_v2"),
     # This is a noop as the default is False. However, it does confirm that
     # gazelle_generation_test accepts setting common test attributes.
     local = False,
@@ -73,7 +67,10 @@ gazelle_binary(
         "**/WORKSPACE",
         "**/MODULE.bazel",
     ])
-]))]
+])) for version in [
+    1,
+    2,
+]]
 
 filegroup(
     name = "all_files",
