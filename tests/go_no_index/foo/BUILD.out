@@ -1,0 +1,10 @@
+
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "foo",
+    srcs = ["foo.go"],
+    importpath = "example.com/repo/foo",
+    visibility = ["//visibility:public"],
+    deps = ["//vendor/example.com/bar"],
+)

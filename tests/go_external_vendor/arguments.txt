@@ -1,0 +1,4 @@
+-go_prefix
+example.com/foo
+-external
+vendored

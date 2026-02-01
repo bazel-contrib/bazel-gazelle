@@ -1,0 +1,5 @@
+update
+-go_prefix
+example.com/repo
+-proto_import_prefix
+/bar
