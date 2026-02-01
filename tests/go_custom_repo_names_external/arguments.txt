@@ -1,0 +1,5 @@
+-go_prefix=example.com/foo
+-go_naming_convention=import_alias
+-mode=fix
+-repo_root=.
+-repo_config=main/WORKSPACE

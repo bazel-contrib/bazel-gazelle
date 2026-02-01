@@ -1,0 +1,30 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        # bar comment
+        "bar.go",
+        # foo comment
+        "foo.go",  # side comment
+        "foo_android.go",
+        "foo_android_build_tag.go",
+    ],
+    importpath = "example.com/foo",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@io_bazel_rules_go//go/platform:android": [
+            "//outer:go_default_library",
+            "//outer/inner:go_default_library",
+            "//outer_android_build_tag:go_default_library",
+            "//outer_android_suffix:go_default_library",
+            "@com_github_jr_hacker_tools//:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "//outer:go_default_library",
+            "//outer/inner:go_default_library",
+            "@com_github_jr_hacker_tools//:go_default_library",
+        ],
+        "//conditions:default": [],
+    }),
+)

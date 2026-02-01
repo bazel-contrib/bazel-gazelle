@@ -1,0 +1,5 @@
+go_repository(
+    name = "custom_repo",
+    importpath = "example.com/bar",
+    commit = "123456",
+)

@@ -1,0 +1,26 @@
+
+# gazelle:proto file
+
+proto_library(
+    name = "bar_proto",
+    srcs = ["bar.proto"],
+	deps = ["//somedir:foo_proto"],
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "bar_go_proto",
+    importpath = "example.com/repo",
+    proto = ":bar_proto",
+	deps = ["//somedir:go_default_library"],
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+	name = "go_default_library",
+	embed = [":bar_go_proto"],
+	srcs = ["bar.go"],
+	importpath = "example.com/repo",
+	deps = ["//somedir:go_default_library"],
+	visibility = ["//visibility:public"],
+)
