@@ -1,4 +1,4 @@
-/* Copyright 2017 The Bazel Authors. All rights reserved.
+/* Copyright 2026 The Bazel Authors. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,7 +13,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+// Package update provides the driver logic for Gazelle, shared by v1 and v2.
+//
+// No compatibility guarantee is made for this package. It is an internal
+// package but cannot be in an "internal" directory because it needs to be
+// imported by both cmd/gazelle and v2/cmd/gazelle.
+package update
 
 import (
 	"bytes"
@@ -28,11 +33,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/bazelbuild/buildtools/build"
-
+	"github.com/bazel-contrib/bazel-gazelle/v2/internal/wspace"
 	"github.com/bazelbuild/bazel-gazelle/config"
 	gzflag "github.com/bazelbuild/bazel-gazelle/flag"
-	"github.com/bazelbuild/bazel-gazelle/internal/wspace"
 	"github.com/bazelbuild/bazel-gazelle/label"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/merger"
@@ -40,6 +43,7 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/resolve"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 	"github.com/bazelbuild/bazel-gazelle/walk"
+	"github.com/bazelbuild/buildtools/build"
 )
 
 // updateConfig holds configuration information needed to run the fix and
@@ -54,7 +58,7 @@ type updateConfig struct {
 	patchPath              string
 	patchBuffer            bytes.Buffer
 	print0                 bool
-	profile                profiler
+	profile                Profiler
 	removeNoopKeepComments bool
 }
 
@@ -114,7 +118,7 @@ func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) erro
 	if uc.patchPath != "" && !filepath.IsAbs(uc.patchPath) {
 		uc.patchPath = filepath.Join(c.WorkDir, uc.patchPath)
 	}
-	p, err := newProfiler(ucr.cpuProfile, ucr.memProfile)
+	p, err := NewProfiler(ucr.cpuProfile, ucr.memProfile)
 	if err != nil {
 		return err
 	}
@@ -260,7 +264,11 @@ var genericLoads = []rule.LoadInfo{
 	},
 }
 
-func runFixUpdate(wd string, cmd command, args []string) (err error) {
+func Run(
+	ctx context.Context,
+	languages []language.Language,
+	wd string,
+	args []string) error {
 	cexts := make([]config.Configurer, 0, len(languages)+4)
 	cexts = append(cexts,
 		&config.CommonConfigurer{},
@@ -272,7 +280,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		cexts = append(cexts, lang)
 	}
 
-	c, err := newFixUpdateConfiguration(wd, cmd, args, cexts)
+	c, err := newFixUpdateConfiguration(wd, args, cexts)
 	if err != nil {
 		return err
 	}
@@ -311,7 +319,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 	var visits []visitRecord
 	uc := getUpdateConfig(c)
 	defer func() {
-		if err := uc.profile.stop(); err != nil {
+		if err := uc.profile.Stop(); err != nil {
 			log.Printf("stopping profiler: %v", err)
 		}
 	}()
@@ -527,7 +535,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 	for _, v := range visits {
 		merger.FixLoads(v.file, applyKindMappings(v.mappedKinds, loads))
 		if err := uc.emit(v.c, v.file); err != nil {
-			if err == errExit {
+			if err == ErrDiff {
 				exit = err
 			} else {
 				log.Print(err)
@@ -574,7 +582,7 @@ func lookupMapKindReplacement(kindMap map[string]config.MappedKind, kind string)
 	return mapped, nil
 }
 
-func newFixUpdateConfiguration(wd string, cmd command, args []string, cexts []config.Configurer) (*config.Config, error) {
+func newFixUpdateConfiguration(wd string, args []string, cexts []config.Configurer) (*config.Config, error) {
 	c := config.New()
 	c.WorkDir = wd
 
@@ -583,8 +591,20 @@ func newFixUpdateConfiguration(wd string, cmd command, args []string, cexts []co
 	// -h or -help were passed explicitly.
 	fs.Usage = func() {}
 
+	// TODO(v2): introduce a -fix flag so that we don't need subcommands
+	cmdName := "update"
+	if len(args) > 0 {
+		switch args[0] {
+		case "fix":
+			cmdName = "fix"
+			args = args[1:]
+		case "update":
+			args = args[1:]
+		}
+	}
+
 	for _, cext := range cexts {
-		cext.RegisterFlags(fs, cmd.String(), c)
+		cext.RegisterFlags(fs, cmdName, c)
 	}
 
 	if err := fs.Parse(args); err != nil {
@@ -605,6 +625,10 @@ func newFixUpdateConfiguration(wd string, cmd command, args []string, cexts []co
 	return c, nil
 }
 
+// TODO(v2): Revise help text and all flag descriptions. This can mostly be
+// shared between v1 and v2, though we may need to change it in a few cases:
+// some flags may not be available or may have different defaults in v2,
+// and there are no subcommands in v2, so "the update command" won't make sense.
 func fixUpdateUsage(fs *flag.FlagSet) {
 	fmt.Fprint(os.Stderr, `usage: gazelle [fix|update] [flags...] [package-dirs...]
 
@@ -786,4 +810,29 @@ func appendOrMergeKindMapping(mappedLoads []rule.LoadInfo, mappedKind config.Map
 func isDirErr(err error) bool {
 	var pe *os.PathError
 	return errors.As(err, &pe) && pe.Err == syscall.EISDIR
+}
+
+// filterLanguages returns the subset of input languages that pass the config's
+// filter, if any. Gazelle should not generate rules for languages not returned.
+func filterLanguages(c *config.Config, langs []language.Language) []language.Language {
+	if len(c.Langs) == 0 {
+		return langs
+	}
+
+	var result []language.Language
+	for _, inputLang := range langs {
+		if containsLang(c.Langs, inputLang) {
+			result = append(result, inputLang)
+		}
+	}
+	return result
+}
+
+func containsLang(langNames []string, lang language.Language) bool {
+	for _, langName := range langNames {
+		if langName == lang.Name() {
+			return true
+		}
+	}
+	return false
 }

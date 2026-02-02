@@ -1,0 +1,9 @@
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "//v2/cmd/gazelle:all_files",
+    ],
+    visibility = ["//visibility:public"],
+)

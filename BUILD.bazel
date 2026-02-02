@@ -1,5 +1,5 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-load("@io_bazel_rules_go//go:def.bzl", "go_cross_binary", "nogo")
+load("@io_bazel_rules_go//go:def.bzl", "nogo")
 load("//:def.bzl", "gazelle", "gazelle_binary")
 
 # gazelle:prefix github.com/bazelbuild/bazel-gazelle
@@ -13,6 +13,7 @@ load("//:def.bzl", "gazelle", "gazelle_binary")
 # gazelle:exclude .vscode
 # gazelle:exclude internal/module/testdata
 # gazelle:go_naming_convention import_alias
+# gazelle:go_naming_convention_external import
 gazelle(
     name = "gazelle",
     command = "fix",
@@ -35,12 +36,6 @@ gazelle_binary(
         "//internal/language/test_filegroup",
         "@bazel_skylib_gazelle_plugin//bzl",
     ],
-)
-
-go_cross_binary(
-    name = "gazelle_local_go1.22",
-    sdk_version = "1.22",
-    target = ":gazelle_local",
 )
 
 nogo(
@@ -95,6 +90,7 @@ filegroup(
         "//rule:all_files",
         "//testtools:all_files",
         "//tools:all_files",
+        "//v2:all_files",
         "//walk:all_files",
     ],
     visibility = ["//visibility:public"],
