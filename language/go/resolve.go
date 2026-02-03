@@ -89,6 +89,9 @@ func (gl *goLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Remo
 				return "", nil
 			}
 		}
+		if l.Repo == "" {
+			l.Repo = c.RepoName
+		}
 		l = l.Rel(from.Repo, from.Pkg)
 		return l.String(), nil
 	})

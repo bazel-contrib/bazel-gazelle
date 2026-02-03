@@ -33,12 +33,18 @@ import (
 func FindRuleWithOverride(c *config.Config, imp ImportSpec, lang string) (label.Label, bool) {
 	rc := getResolveConfig(c)
 	if dep, ok := rc.findOverride(imp, lang); ok {
+		if dep.Repo == "" {
+			dep.Repo = c.RepoName
+		}
 		return dep, true
 	}
 	for i := len(rc.regexpOverrides) - 1; i >= 0; i-- {
 		o := rc.regexpOverrides[i]
 		if o.matches(imp, lang) {
 			dep := o.resolveRegexpDep(imp)
+			if dep.Repo == "" {
+				dep.Repo = c.RepoName
+			}
 			return dep, true
 		}
 	}
