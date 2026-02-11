@@ -183,8 +183,8 @@ foo_library(name = "a_lib")
     name = "a",
 )
 `,
-			want: `load("@foo", "foo_binary")
-load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
+			want: `load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
+load("@foo", "foo_binary")
 
 maybe(
     foo_binary,
@@ -285,6 +285,112 @@ foo_binary(
 			got := strings.TrimSpace(string(bzl.FormatWithoutRewriting(f.File)))
 			if diff := cmp.Diff(want, got); diff != "" {
 				t.Errorf("FixLoads() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestFixLoadsSortsLoads(t *testing.T) {
+	knownLoads := []rule.LoadInfo{
+		{
+			Name:    "@rules_python//python:defs.bzl",
+			Symbols: []string{"py_binary", "py_library"},
+		},
+		{
+			Name:    "@bazel_skylib//lib:selects.bzl",
+			Symbols: []string{"selects"},
+		},
+		{
+			Name:    "//tools:cc.bzl",
+			Symbols: []string{"cc_library"},
+		},
+		{
+			Name:    "//tools:py.bzl",
+			Symbols: []string{"py_library"},
+		},
+	}
+
+	type testCase struct {
+		input string
+		want  string
+	}
+
+	for name, tc := range map[string]testCase{
+		"existing loads are sorted": {
+			input: `load("//tools:py.bzl", "py_library")
+load("@rules_python//python:defs.bzl", "py_binary")
+load("//tools:cc.bzl", "cc_library")
+
+py_binary(name = "a")
+
+py_library(name = "b")
+
+cc_library(name = "c")
+`,
+			want: `load("@rules_python//python:defs.bzl", "py_binary")
+load("//tools:cc.bzl", "cc_library")
+load("//tools:py.bzl", "py_library")
+
+py_binary(name = "a")
+
+py_library(name = "b")
+
+cc_library(name = "c")
+`,
+		},
+		"inserted loads are sorted with existing": {
+			input: `load("//tools:py.bzl", "py_library")
+
+py_library(name = "b")
+
+selects.config_setting_group(
+    name = "a",
+    match_any = ["//:x"],
+)
+`,
+			want: `load("@bazel_skylib//lib:selects.bzl", "selects")
+load("//tools:py.bzl", "py_library")
+
+py_library(name = "b")
+
+selects.config_setting_group(
+    name = "a",
+    match_any = ["//:x"],
+)
+`,
+		},
+		"multiple inserted loads are sorted": {
+			input: `py_binary(name = "a")
+
+py_library(name = "b")
+
+cc_library(name = "c")
+`,
+			want: `load("@rules_python//python:defs.bzl", "py_binary")
+load("//tools:cc.bzl", "cc_library")
+load("//tools:py.bzl", "py_library")
+
+py_binary(name = "a")
+
+py_library(name = "b")
+
+cc_library(name = "c")
+`,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f, err := rule.LoadData("", "", []byte(tc.input))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			merger.FixLoads(f, knownLoads)
+			f.Sync()
+
+			want := strings.TrimSpace(tc.want)
+			got := strings.TrimSpace(string(bzl.FormatWithoutRewriting(f.File)))
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("FixLoads() sorting mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

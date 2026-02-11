@@ -509,6 +509,225 @@ def repos():
 	}
 }
 
+func TestSortLoads(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name: "external loads before internal loads",
+			input: `load("//tools:py.bzl", "py_library")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("//infra:rules.bzl", "declare_module")
+load("@bazel_clang_tidy//clang_tidy:clang_tidy.bzl", "tidy_list")
+`,
+			want: `load("@bazel_clang_tidy//clang_tidy:clang_tidy.bzl", "tidy_list")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("//infra:rules.bzl", "declare_module")
+load("//tools:py.bzl", "py_library")
+`,
+		},
+		{
+			name: "internal loads sorted by path",
+			input: `load("//tools:py.bzl", "py_library")
+load("//infra:rules.bzl", "declare_module")
+load("//tools:cc.bzl", "cc_library")
+`,
+			want: `load("//infra:rules.bzl", "declare_module")
+load("//tools:cc.bzl", "cc_library")
+load("//tools:py.bzl", "py_library")
+`,
+		},
+		{
+			name: "already sorted is unchanged",
+			input: `load("@bazel_skylib//lib:selects.bzl", "selects")
+load("//infra:rules.bzl", "declare_module")
+load("//tools:py.bzl", "py_library")
+`,
+			want: `load("@bazel_skylib//lib:selects.bzl", "selects")
+load("//infra:rules.bzl", "declare_module")
+load("//tools:py.bzl", "py_library")
+`,
+		},
+		{
+			name: "contiguous chunks sorted independently",
+			input: `load("//zzz:a.bzl", "a_rule")
+load("//aaa:b.bzl", "b_rule")
+
+"""Docstring separating load chunks."""
+
+load("//zzz:c.bzl", "c_rule")
+load("//aaa:d.bzl", "d_rule")
+`,
+			want: `load("//aaa:b.bzl", "b_rule")
+load("//zzz:a.bzl", "a_rule")
+
+"""Docstring separating load chunks."""
+
+load("//aaa:d.bzl", "d_rule")
+load("//zzz:c.bzl", "c_rule")
+`,
+		},
+		{
+			name:  "single load unchanged",
+			input: `load("//tools:py.bzl", "py_library")` + "\n",
+			want:  `load("//tools:py.bzl", "py_library")` + "\n",
+		},
+		{
+			name: "external loads sorted among themselves",
+			input: `load("@rules_python//python:defs.bzl", "py_binary")
+load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+`,
+			want: `load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@rules_python//python:defs.bzl", "py_binary")
+`,
+		},
+		{
+			name: "loads separated by rules form separate chunks",
+			input: `load("//zzz:a.bzl", "a_rule")
+load("//aaa:b.bzl", "b_rule")
+
+a_rule(name = "foo")
+
+load("//zzz:c.bzl", "c_rule")
+load("//aaa:d.bzl", "d_rule")
+`,
+			want: `load("//aaa:b.bzl", "b_rule")
+load("//zzz:a.bzl", "a_rule")
+
+a_rule(name = "foo")
+
+load("//aaa:d.bzl", "d_rule")
+load("//zzz:c.bzl", "c_rule")
+`,
+		},
+		{
+			name:  "empty file",
+			input: "",
+			want:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, err := LoadData("BUILD.bazel", "", []byte(tt.input))
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.SortLoads()
+			// Use FormatWithoutRewriting to avoid buildifier's rewriter
+			// moving loads around, which would mask our sorting behavior.
+			got := string(bzl.FormatWithoutRewriting(f.File))
+			if got != tt.want {
+				t.Errorf("SortLoads() mismatch:\ngot:\n%s\nwant:\n%s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSortLoadsWithInsertedLoads(t *testing.T) {
+	// Test that SortLoads handles recently inserted loads correctly.
+	// After Insert + Sync, f.Loads may have newly inserted loads appended
+	// out of AST order. SortLoads must re-order by index before sorting by name.
+	f, err := LoadData("BUILD.bazel", "", []byte(`load("@foo//lib:z.bzl", "z_rule")
+
+z_rule(name = "test")
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert a load that should sort before the existing one
+	newLoad := NewLoad("@bar//lib:a.bzl")
+	newLoad.Add("a_rule")
+	newLoad.Insert(f, 0)
+
+	f.SortLoads()
+	got := strings.TrimSpace(string(bzl.FormatWithoutRewriting(f.File)))
+	want := strings.TrimSpace(`
+load("@bar//lib:a.bzl", "a_rule")
+load("@foo//lib:z.bzl", "z_rule")
+
+z_rule(name = "test")
+`)
+	if got != want {
+		t.Errorf("SortLoads() with inserted load:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestCompareLoadLabels(t *testing.T) {
+	tests := []struct {
+		a, b string
+		want bool // a < b
+	}{
+		// External (@) comes before internal (//)
+		{"@foo//:defs.bzl", "//tools:py.bzl", true},
+		{"//tools:py.bzl", "@foo//:defs.bzl", false},
+		// External repos sorted by path
+		{"@bar//:defs.bzl", "@foo//:defs.bzl", true},
+		{"@foo//:defs.bzl", "@bar//:defs.bzl", false},
+		// Same repo, different files
+		{"@foo//:a.bzl", "@foo//:b.bzl", true},
+		{"@foo//:b.bzl", "@foo//:a.bzl", false},
+		// Internal loads sorted by package path
+		{"//aaa:x.bzl", "//zzz:x.bzl", true},
+		{"//zzz:x.bzl", "//aaa:x.bzl", false},
+		// Same package, different filename
+		{"//tools:a.bzl", "//tools:b.bzl", true},
+		{"//tools:b.bzl", "//tools:a.bzl", false},
+		// Case-insensitive path comparison
+		{"//Aaa:x.bzl", "//bbb:x.bzl", true},
+		{"//aaa:x.bzl", "//BBB:x.bzl", true},
+		// Equal labels
+		{"//tools:py.bzl", "//tools:py.bzl", false},
+		{"@foo//:defs.bzl", "@foo//:defs.bzl", false},
+		// No colon (no package)
+		{"@foo", "@bar", false},
+		{"@bar", "@foo", true},
+		// Non-empty package before empty package for non-@ labels
+		{"//pkg:file.bzl", "file.bzl", true},
+		{"file.bzl", "//pkg:file.bzl", false},
+	}
+	for _, tt := range tests {
+		got := compareLoadLabels(tt.a, tt.b)
+		if got != tt.want {
+			t.Errorf("compareLoadLabels(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
+		}
+	}
+}
+
+func TestComparePaths(t *testing.T) {
+	tests := []struct {
+		a, b string
+		want bool
+	}{
+		{"a", "b", true},
+		{"b", "a", false},
+		{"a", "a", false},
+		// Case-insensitive
+		{"A", "b", true},
+		{"a", "B", true},
+		// Component-by-component
+		{"a/b", "a/c", true},
+		{"a/c", "a/b", false},
+		// Shorter path is not less when it's a prefix
+		{"a/b", "a/b/c", true},
+		{"a/b/c", "a/b", false},
+		// Deep paths
+		{"//tools/bazel_tools", "//tools/other_tools", true},
+		{"//tools/other_tools", "//tools/bazel_tools", false},
+	}
+	for _, tt := range tests {
+		got := comparePaths(tt.a, tt.b)
+		if got != tt.want {
+			t.Errorf("comparePaths(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
+		}
+	}
+}
+
 func TestSortRulesByKindAndName(t *testing.T) {
 	f, err := LoadMacroData(
 		filepath.Join("third_party", "repos.bzl"),

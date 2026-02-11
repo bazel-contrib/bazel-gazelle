@@ -406,6 +406,59 @@ func (f *File) Format() []byte {
 	return bzl.Format(f.File)
 }
 
+// SortLoads sorts contiguous chunks of load statements in the file by name,
+// matching buildifier's out-of-order-load behavior. Load statements separated
+// by non-load statements (comments, docstrings, rules) are sorted independently.
+// This method calls Sync internally.
+func (f *File) SortLoads() {
+	f.Sync()
+
+	if len(f.Loads) <= 1 {
+		return
+	}
+
+	// Ensure f.Loads is ordered by statement index. After Sync, recently
+	// inserted loads may be appended out of AST order, which would cause
+	// loadsByName.Swap to produce incorrect results.
+	sort.SliceStable(f.Loads, func(i, j int) bool {
+		return f.Loads[i].index < f.Loads[j].index
+	})
+
+	// Group loads into contiguous chunks based on their position in the
+	// statement list. Two loads are in the same chunk if there are no
+	// non-load statements between them.
+	type chunk struct {
+		start, end int // indices into f.Loads
+	}
+	var chunks []chunk
+	chunkStart := 0
+	for i := 1; i < len(f.Loads); i++ {
+		prevIdx := f.Loads[i-1].index
+		currIdx := f.Loads[i].index
+		// Check if there are any non-load statements between these two loads
+		contiguous := true
+		for si := prevIdx + 1; si < currIdx; si++ {
+			if _, ok := f.File.Stmt[si].(*bzl.LoadStmt); !ok {
+				contiguous = false
+				break
+			}
+		}
+		if !contiguous {
+			chunks = append(chunks, chunk{chunkStart, i})
+			chunkStart = i
+		}
+	}
+	chunks = append(chunks, chunk{chunkStart, len(f.Loads)})
+
+	// Sort each chunk independently
+	for _, c := range chunks {
+		if c.end-c.start <= 1 {
+			continue
+		}
+		sort.Stable(loadsByName{f.Loads[c.start:c.end], f.File.Stmt})
+	}
+}
+
 // SortMacro sorts rules and loads in the macro of this File. It doesn't sort the rules if
 // this File does not have a macro, e.g., WORKSPACE.
 // This method calls Sync internally.
@@ -546,7 +599,67 @@ func (s loadsByName) Len() int {
 }
 
 func (s loadsByName) Less(i, j int) bool {
-	return s.loads[i].Name() < s.loads[j].Name()
+	return compareLoadLabels(s.loads[i].Name(), s.loads[j].Name())
+}
+
+// comparePaths compares two strings as if they were paths (splitting on '/'),
+// using case-insensitive comparison for each component. This matches the
+// sorting behavior of buildifier.
+func comparePaths(path1, path2 string) bool {
+	if path1 == path2 {
+		return false
+	}
+
+	chunks1 := strings.Split(path1, "/")
+	chunks2 := strings.Split(path2, "/")
+
+	for i, chunk1 := range chunks1 {
+		if i >= len(chunks2) {
+			return false
+		}
+		chunk1Lower := strings.ToLower(chunk1)
+		chunk2Lower := strings.ToLower(chunks2[i])
+		if chunk1Lower != chunk2Lower {
+			return chunk1Lower < chunk2Lower
+		}
+	}
+
+	return path1 <= path2
+}
+
+// compareLoadLabels compares two load statement module names using the same
+// ordering as buildifier's out-of-order-load warning:
+//   - Labels starting with @ (external repos) come first
+//   - Then sorted by package path (empty package first)
+//   - Ties broken by filename
+func compareLoadLabels(load1Label, load2Label string) bool {
+	isExplicitRepo1 := strings.HasPrefix(load1Label, "@")
+	isExplicitRepo2 := strings.HasPrefix(load2Label, "@")
+
+	if isExplicitRepo1 != isExplicitRepo2 {
+		return isExplicitRepo1
+	}
+
+	module1Parts := strings.SplitN(load1Label, ":", 2)
+	package1, filename1 := "", module1Parts[0]
+	if len(module1Parts) == 2 {
+		package1, filename1 = module1Parts[0], module1Parts[1]
+	}
+	module2Parts := strings.SplitN(load2Label, ":", 2)
+	package2, filename2 := "", module2Parts[0]
+	if len(module2Parts) == 2 {
+		package2, filename2 = module2Parts[0], module2Parts[1]
+	}
+
+	if package1 == package2 {
+		return comparePaths(filename1, filename2)
+	}
+
+	if len(package1) == 0 || len(package2) == 0 {
+		return len(package1) > 0
+	}
+
+	return comparePaths(package1, package2)
 }
 
 func (s loadsByName) Swap(i, j int) {

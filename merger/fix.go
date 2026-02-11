@@ -148,6 +148,8 @@ func FixLoads(f *rule.File, knownLoads []rule.LoadInfo) {
 			}
 		}
 	}
+
+	f.SortLoads()
 }
 
 // fixLoad updates a load statement with the given symbols. If load is nil,
