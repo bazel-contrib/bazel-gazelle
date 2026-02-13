@@ -91,6 +91,9 @@ func run(wd string, args []string) error {
 	if len(args) == 1 && (args[0] == "-h" || args[0] == "-help" || args[0] == "--help") {
 		return help()
 	}
+	if len(args) == 1 && (args[0] == "-version" || args[0] == "--version") {
+		return version()
+	}
 	if len(args) == 0 {
 		return update.Run(ctx, languages, wd, args)
 	}
@@ -104,6 +107,14 @@ func run(wd string, args []string) error {
 		// update.Run knows what to do with it.
 		return update.Run(ctx, languages, wd, args)
 	}
+}
+
+// This is substituted at build time using x_defs.
+var GazelleVersion = "unknown"
+
+func version() error {
+	fmt.Fprintf(os.Stderr, "gazelle %s\n", GazelleVersion)
+	return flag.ErrHelp
 }
 
 func help() error {
