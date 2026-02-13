@@ -203,6 +203,8 @@ Comma-separated list of visibility specifications. This directive adds the visib
 # gazelle:default_visibility //foo:__subpackages__,//src:__subpackages__
 ```
 
+You must include the extension `@gazelle//language/bazel/visibility` to use this directive.
+
 ### `WORKSPACE` directives
 
 Gazelle also reads directives from the WORKSPACE file. They may be used to discover custom repository names and known prefixes. The `fix` and `update` commands use these directives for dependency resolution. `update-repos` uses them to learn about repository rules defined in alternate locations.
