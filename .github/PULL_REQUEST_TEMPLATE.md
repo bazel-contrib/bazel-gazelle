@@ -11,22 +11,20 @@
 -->
 
 **What type of PR is this?**
+<!-- Pick one of: -->
 
-> Uncomment one line below and remove others.
->
-> Bug fix
-> Feature
-> Documentation
-> Other
+Bug fix
+Feature
+Documentation
+Other
 
 **What package or component does this PR mostly affect?**
+<!-- Pick one of: -->
 
-> For example:
->
-> language/go
-> cmd/gazelle
-> go_repository
-> all
+`language/go`
+`cmd/gazelle`
+`go_repository`
+`all`
 
 **What does this PR do? Why is it needed?**
 
