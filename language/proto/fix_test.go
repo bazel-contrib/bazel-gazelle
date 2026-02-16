@@ -31,7 +31,7 @@ type fixTestCase struct {
 func TestFix(t *testing.T) {
 	for _, tc := range []fixTestCase{
 		{
-			desc:                  "removes @rules_proto load when protobuf module is present",
+			desc:                  "switch from @rules_proto to @protobuf when protobuf module is present",
 			hasProtobufDependency: true,
 			shouldFix:             true,
 			old: `load("@rules_proto//proto:defs.bzl", "proto_library")
@@ -41,7 +41,9 @@ proto_library(
     srcs = ["foo.proto"],
 )
 `,
-			want: `proto_library(
+			want: `load("@protobuf//bazel:proto_library.bzl", "proto_library")
+
+proto_library(
     name = "foo_proto",
     srcs = ["foo.proto"],
 )
@@ -86,7 +88,7 @@ proto_library(
 `,
 		},
 		{
-			desc:                  "removes multiple symbols from @rules_proto load",
+			desc:                  "multiple symbols loaded from @rules_proto",
 			hasProtobufDependency: true,
 			shouldFix:             true,
 			old: `load("@rules_proto//proto:defs.bzl", "proto_library", "ProtoInfo")
@@ -96,18 +98,21 @@ proto_library(
     srcs = ["foo.proto"],
 )
 `,
-			want: `proto_library(
+			want: `load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@protobuf//bazel/common:proto_info.bzl", "ProtoInfo")
+
+proto_library(
     name = "foo_proto",
     srcs = ["foo.proto"],
 )
 `,
 		},
 		{
-			desc:                  "preserves other load statements",
+			desc:                  "preserve other load statements",
 			hasProtobufDependency: true,
 			shouldFix:             true,
-			old: `load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+			old: `load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
 
 proto_library(
     name = "foo_proto",
@@ -120,6 +125,7 @@ go_library(
 )
 `,
 			want: `load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
 
 proto_library(
     name = "foo_proto",
@@ -149,6 +155,15 @@ proto_library(
     name = "foo_proto",
     srcs = ["foo.proto"],
 )
+`,
+		},
+		{
+			desc:                  "no-op when no @rules_proto load and no protobuf module",
+			hasProtobufDependency: false,
+			shouldFix:             false,
+			old: `load("@rules_proto//proto:defs.bzl", "proto_library")
+`,
+			want: `load("@rules_proto//proto:defs.bzl", "proto_library")
 `,
 		},
 	} {

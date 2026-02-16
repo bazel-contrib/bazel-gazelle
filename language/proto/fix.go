@@ -19,21 +19,35 @@ import (
 	"log"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazelbuild/bazel-gazelle/label"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
+const deprecatedRulesFile = "@rules_proto//proto:defs.bzl"
+
+// Maps all old symbols from:
+// https://github.com/bazelbuild/rules_proto/blob/main/proto/defs.bzl
+// to their new file locations in the directory:
+// https://github.com/protocolbuffers/protobuf/tree/main/bazel
+var newBzlFileOfSymbol = map[string]label.Label{
+	"proto_library":        label.New("", "bazel", "proto_library.bzl"),
+	"proto_descriptor_set": label.New("", "bazel", "proto_descriptor_set.bzl"),
+	"proto_lang_toolchain": label.New("", "bazel/toolchains", "proto_lang_toolchain.bzl"),
+	"proto_toolchain":      label.New("", "bazel/toolchains", "proto_toolchain.bzl"),
+	"ProtoInfo":            label.New("", "bazel/common", "proto_info.bzl"),
+	"proto_common":         label.New("", "bazel/common", "proto_common.bzl"),
+}
+
 func (*protoLang) Fix(c *config.Config, f *rule.File) {
-	// Check if the module depends on protobuf
 	protoModule := c.ModuleToApparentName("protobuf")
 	if protoModule == "" {
 		// No protobuf dependency in MODULE.bazel, nothing to fix
 		return
 	}
 
-	// Find loads from @rules_proto//proto:defs.bzl
 	var rulesProtoLoads []*rule.Load
 	for _, l := range f.Loads {
-		if l.Name() == "@rules_proto//proto:defs.bzl" {
+		if l.Name() == deprecatedRulesFile {
 			rulesProtoLoads = append(rulesProtoLoads, l)
 		}
 	}
@@ -43,13 +57,29 @@ func (*protoLang) Fix(c *config.Config, f *rule.File) {
 	}
 
 	if !c.ShouldFix {
-		log.Printf("%s: @rules_proto//proto:defs.bzl is deprecated. Run 'gazelle fix' to replace with new load statement.", f.Path)
+		log.Printf("%s: %s is deprecated. Run 'gazelle fix' to replace with new load statement.", f.Path, deprecatedRulesFile)
 		return
 	}
 
-	// Delete the old load statements. The merger will restore them
-	// with the correct module name from ApparentLoads.
 	for _, l := range rulesProtoLoads {
-		l.Delete()
+		hasUnknownSymbol := false
+		for _, sym := range l.Symbols() {
+			if newBzlFile, ok := newBzlFileOfSymbol[sym]; ok {
+				// Match the apparent name from MODULE.bazel
+				newBzlFile.Repo = protoModule
+
+				// Add the new load statement nearby the old one
+				newLoad := rule.NewLoad(newBzlFile.String())
+				newLoad.Add(sym)
+				newLoad.Insert(f, l.Index())
+			} else {
+				hasUnknownSymbol = true
+				log.Printf("%s: unknown symbol %q loaded from %s", f.Path, sym, deprecatedRulesFile)
+			}
+		}
+
+		if !hasUnknownSymbol {
+			l.Delete()
+		}
 	}
 }
