@@ -28,10 +28,10 @@ const (
 	rulesProtoModuleName = "rules_proto"
 )
 
-// Returns the file name of of a deprecated load statement from #rules_proto.
+// Returns the file name of of a deprecated load statement from @rules_proto.
 // Used to identify which load statements to fix.
-func deprecatedLoadFile(c *config.Config) label.Label {
-	repoName := c.ModuleToApparentName(rulesProtoModuleName)
+func deprecatedFileLabel(moduleToApparentName func(string) string) label.Label {
+	repoName := moduleToApparentName(rulesProtoModuleName)
 	if repoName == "" {
 		repoName = rulesProtoModuleName
 	}
@@ -39,18 +39,14 @@ func deprecatedLoadFile(c *config.Config) label.Label {
 	return label.New(repoName, "proto", "defs.bzl")
 }
 
-func hasProtobufModuleDependency(c *config.Config) bool {
-	return c.ModuleToApparentName(protobufModuleName) != ""
-}
-
 // Maps all old symbols from:
 // https://github.com/bazelbuild/rules_proto/blob/main/proto/defs.bzl
 // to their new file locations in the directory:
 // https://github.com/protocolbuffers/protobuf/tree/main/bazel
-func newLoadFile(c *config.Config, sym string) label.Label {
-	repoName := c.ModuleToApparentName(protobufModuleName)
+func symbolToFileLabel(moduleToApparentName func(string) string, sym string) label.Label {
+	repoName := moduleToApparentName(protobufModuleName)
 	if repoName == "" {
-		log.Panic("should be checked earlier with hasProtobufModuleDependency()")
+		repoName = "com_google_protobuf"
 	}
 
 	switch sym {
@@ -71,16 +67,20 @@ func newLoadFile(c *config.Config, sym string) label.Label {
 	}
 }
 
+func hasProtobufModuleDependency(c *config.Config) bool {
+	return c.ModuleToApparentName(protobufModuleName) != ""
+}
+
 func (*protoLang) Fix(c *config.Config, f *rule.File) {
 	if !hasProtobufModuleDependency(c) {
 		return
 	}
 
 	// Collect deprecated Load statements
-	deprecatedLoadFileName := deprecatedLoadFile(c).String()
+	deprecatedFile := deprecatedFileLabel(c.ModuleToApparentName).String()
 	deprecatedLoads := make([]*rule.Load, 0, len(f.Loads))
 	for _, l := range f.Loads {
-		if l.Name() == deprecatedLoadFileName {
+		if l.Name() == deprecatedFile {
 			deprecatedLoads = append(deprecatedLoads, l)
 		}
 	}
@@ -90,7 +90,7 @@ func (*protoLang) Fix(c *config.Config, f *rule.File) {
 	}
 
 	if !c.ShouldFix {
-		log.Printf("%s: %s is deprecated. Run 'gazelle fix' to replace with new load statement.", f.Path, deprecatedLoadFileName)
+		log.Printf("%s: %s is deprecated. Run 'gazelle fix' to replace with new load statement.", f.Path, deprecatedFile)
 		return
 	}
 
@@ -99,12 +99,12 @@ func (*protoLang) Fix(c *config.Config, f *rule.File) {
 	for _, l := range deprecatedLoads {
 		l.Delete()
 		for _, sym := range l.Symbols() {
-			if newLoadFile := newLoadFile(c, sym); newLoadFile != label.NoLabel {
-				newLoad := rule.NewLoad(newLoadFile.String())
+			if newFileLabel := symbolToFileLabel(c.ModuleToApparentName, sym); newFileLabel != label.NoLabel {
+				newLoad := rule.NewLoad(newFileLabel.String())
 				newLoad.Add(sym)
 				newLoad.Insert(f, l.Index())
 			} else {
-				log.Printf("%s: unknown symbol %q loaded from %s", f.Path, sym, deprecatedLoadFileName)
+				log.Printf("%s: unknown symbol %q loaded from %s", f.Path, sym, deprecatedFile)
 			}
 		}
 	}

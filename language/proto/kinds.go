@@ -16,8 +16,6 @@ limitations under the License.
 package proto
 
 import (
-	"fmt"
-
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
@@ -41,13 +39,9 @@ func (pl *protoLang) Loads() []rule.LoadInfo {
 }
 
 func (*protoLang) ApparentLoads(moduleToApparentName func(string) string) []rule.LoadInfo {
-	rulesProto := moduleToApparentName("protobuf")
-	if rulesProto == "" {
-		rulesProto = "com_google_protobuf"
-	}
 	return []rule.LoadInfo{
 		{
-			Name: fmt.Sprintf("@%s//bazel:proto_library.bzl", rulesProto),
+			Name: symbolToFileLabel(moduleToApparentName, "proto_library").String(),
 			Symbols: []string{
 				"proto_library",
 			},
