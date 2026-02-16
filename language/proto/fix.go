@@ -23,63 +23,89 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
-const deprecatedRulesFile = "@rules_proto//proto:defs.bzl"
+const (
+	protobufModuleName   = "protobuf"
+	rulesProtoModuleName = "rules_proto"
+)
+
+// Returns the file name of of a deprecated load statement from #rules_proto.
+// Used to identify which load statements to fix.
+func deprecatedLoadFile(c *config.Config) label.Label {
+	repoName := c.ModuleToApparentName(rulesProtoModuleName)
+	if repoName == "" {
+		repoName = rulesProtoModuleName
+	}
+
+	return label.New(repoName, "proto", "defs.bzl")
+}
+
+func hasProtobufModuleDependency(c *config.Config) bool {
+	return c.ModuleToApparentName(protobufModuleName) != ""
+}
 
 // Maps all old symbols from:
 // https://github.com/bazelbuild/rules_proto/blob/main/proto/defs.bzl
 // to their new file locations in the directory:
 // https://github.com/protocolbuffers/protobuf/tree/main/bazel
-var newBzlFileOfSymbol = map[string]label.Label{
-	"proto_library":        label.New("", "bazel", "proto_library.bzl"),
-	"proto_descriptor_set": label.New("", "bazel", "proto_descriptor_set.bzl"),
-	"proto_lang_toolchain": label.New("", "bazel/toolchains", "proto_lang_toolchain.bzl"),
-	"proto_toolchain":      label.New("", "bazel/toolchains", "proto_toolchain.bzl"),
-	"ProtoInfo":            label.New("", "bazel/common", "proto_info.bzl"),
-	"proto_common":         label.New("", "bazel/common", "proto_common.bzl"),
+func newLoadFile(c *config.Config, sym string) label.Label {
+	repoName := c.ModuleToApparentName(protobufModuleName)
+	if repoName == "" {
+		log.Panic("should be checked earlier with hasProtobufModuleDependency()")
+	}
+
+	switch sym {
+	case "proto_library":
+		return label.New(repoName, "bazel", "proto_library.bzl")
+	case "proto_descriptor_set":
+		return label.New(repoName, "bazel", "proto_descriptor_set.bzl")
+	case "proto_lang_toolchain":
+		return label.New(repoName, "bazel/toolchains", "proto_lang_toolchain.bzl")
+	case "proto_toolchain":
+		return label.New(repoName, "bazel/toolchains", "proto_toolchain.bzl")
+	case "ProtoInfo":
+		return label.New(repoName, "bazel/common", "proto_info.bzl")
+	case "proto_common":
+		return label.New(repoName, "bazel/common", "proto_common.bzl")
+	default:
+		return label.NoLabel
+	}
 }
 
 func (*protoLang) Fix(c *config.Config, f *rule.File) {
-	protoModule := c.ModuleToApparentName("protobuf")
-	if protoModule == "" {
-		// No protobuf dependency in MODULE.bazel, nothing to fix
+	if !hasProtobufModuleDependency(c) {
 		return
 	}
 
-	var rulesProtoLoads []*rule.Load
+	// Collect deprecated Load statements
+	deprecatedLoadFileName := deprecatedLoadFile(c).String()
+	deprecatedLoads := make([]*rule.Load, 0, len(f.Loads))
 	for _, l := range f.Loads {
-		if l.Name() == deprecatedRulesFile {
-			rulesProtoLoads = append(rulesProtoLoads, l)
+		if l.Name() == deprecatedLoadFileName {
+			deprecatedLoads = append(deprecatedLoads, l)
 		}
 	}
 
-	if len(rulesProtoLoads) == 0 {
+	if len(deprecatedLoads) == 0 {
 		return
 	}
 
 	if !c.ShouldFix {
-		log.Printf("%s: %s is deprecated. Run 'gazelle fix' to replace with new load statement.", f.Path, deprecatedRulesFile)
+		log.Printf("%s: %s is deprecated. Run 'gazelle fix' to replace with new load statement.", f.Path, deprecatedLoadFileName)
 		return
 	}
 
-	for _, l := range rulesProtoLoads {
-		hasUnknownSymbol := false
+	// Replace the deprecated load statements with the new load statements for
+	// each symbol
+	for _, l := range deprecatedLoads {
+		l.Delete()
 		for _, sym := range l.Symbols() {
-			if newBzlFile, ok := newBzlFileOfSymbol[sym]; ok {
-				// Match the apparent name from MODULE.bazel
-				newBzlFile.Repo = protoModule
-
-				// Add the new load statement nearby the old one
-				newLoad := rule.NewLoad(newBzlFile.String())
+			if newLoadFile := newLoadFile(c, sym); newLoadFile != label.NoLabel {
+				newLoad := rule.NewLoad(newLoadFile.String())
 				newLoad.Add(sym)
 				newLoad.Insert(f, l.Index())
 			} else {
-				hasUnknownSymbol = true
-				log.Printf("%s: unknown symbol %q loaded from %s", f.Path, sym, deprecatedRulesFile)
+				log.Printf("%s: unknown symbol %q loaded from %s", f.Path, sym, deprecatedLoadFileName)
 			}
-		}
-
-		if !hasUnknownSymbol {
-			l.Delete()
 		}
 	}
 }

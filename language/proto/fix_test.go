@@ -24,16 +24,20 @@ import (
 )
 
 type fixTestCase struct {
-	desc, old, want                  string
-	hasProtobufDependency, shouldFix bool
+	desc                 string
+	protobufModuleName   string
+	rulesProtoModuleName string
+	shouldFix            bool
+	old                  string
+	want                 string
 }
 
 func TestFix(t *testing.T) {
 	for _, tc := range []fixTestCase{
 		{
-			desc:                  "switch from @rules_proto to @protobuf when protobuf module is present",
-			hasProtobufDependency: true,
-			shouldFix:             true,
+			desc:               "switch from @rules_proto to @protobuf when protobuf module is present",
+			protobufModuleName: "protobuf",
+			shouldFix:          true,
 			old: `load("@rules_proto//proto:defs.bzl", "proto_library")
 
 proto_library(
@@ -50,9 +54,8 @@ proto_library(
 `,
 		},
 		{
-			desc:                  "does not remove @rules_proto load when no protobuf module",
-			hasProtobufDependency: false,
-			shouldFix:             true,
+			desc:      "does not remove @rules_proto load when no protobuf module",
+			shouldFix: true,
 			old: `load("@rules_proto//proto:defs.bzl", "proto_library")
 
 proto_library(
@@ -69,9 +72,9 @@ proto_library(
 `,
 		},
 		{
-			desc:                  "does not remove @rules_proto load when shouldFix is false",
-			hasProtobufDependency: true,
-			shouldFix:             false,
+			desc:               "does not remove @rules_proto load when shouldFix is false",
+			protobufModuleName: "protobuf",
+			shouldFix:          false,
 			old: `load("@rules_proto//proto:defs.bzl", "proto_library")
 
 proto_library(
@@ -88,9 +91,9 @@ proto_library(
 `,
 		},
 		{
-			desc:                  "multiple symbols loaded from @rules_proto",
-			hasProtobufDependency: true,
-			shouldFix:             true,
+			desc:               "multiple symbols loaded from @rules_proto",
+			protobufModuleName: "protobuf",
+			shouldFix:          true,
 			old: `load("@rules_proto//proto:defs.bzl", "proto_library", "ProtoInfo")
 
 proto_library(
@@ -108,9 +111,9 @@ proto_library(
 `,
 		},
 		{
-			desc:                  "preserve other load statements",
-			hasProtobufDependency: true,
-			shouldFix:             true,
+			desc:               "preserve other load statements",
+			protobufModuleName: "protobuf",
+			shouldFix:          true,
 			old: `load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
@@ -139,9 +142,9 @@ go_library(
 `,
 		},
 		{
-			desc:                  "no-op when no @rules_proto load",
-			hasProtobufDependency: true,
-			shouldFix:             true,
+			desc:               "no-op when no @rules_proto load",
+			protobufModuleName: "protobuf",
+			shouldFix:          true,
 			old: `load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 
 proto_library(
@@ -158,12 +161,40 @@ proto_library(
 `,
 		},
 		{
-			desc:                  "no-op when no @rules_proto load and no protobuf module",
-			hasProtobufDependency: false,
-			shouldFix:             false,
+			desc:               "no-op when no @rules_proto load and no protobuf module",
+			protobufModuleName: "",
+			shouldFix:          false,
 			old: `load("@rules_proto//proto:defs.bzl", "proto_library")
 `,
 			want: `load("@rules_proto//proto:defs.bzl", "proto_library")
+`,
+		},
+		{
+			desc:               "custom protobuf module name",
+			protobufModuleName: "my_protobuf",
+			shouldFix:          true,
+			old: `load("@rules_proto//proto:defs.bzl", "proto_library")
+`,
+			want: `load("@my_protobuf//bazel:proto_library.bzl", "proto_library")
+`,
+		},
+		{
+			desc:                 "custom rules_proto module name",
+			protobufModuleName:   "protobuf",
+			rulesProtoModuleName: "my_rules_proto",
+			shouldFix:            true,
+			old: `load("@my_rules_proto//proto:defs.bzl", "proto_library")
+`,
+			want: `load("@protobuf//bazel:proto_library.bzl", "proto_library")
+`,
+		},
+		{
+			desc:               "drop an unknown symbol loaded from @rules_proto",
+			protobufModuleName: "protobuf",
+			shouldFix:          true,
+			old: `load("@rules_proto//proto:defs.bzl", "proto_library", "unknown_symbol")
+`,
+			want: `load("@protobuf//bazel:proto_library.bzl", "proto_library")
 `,
 		},
 	} {
@@ -181,15 +212,13 @@ func testFix(t *testing.T, tc fixTestCase) {
 
 	c := config.New()
 	c.ShouldFix = tc.shouldFix
-	if tc.hasProtobufDependency {
-		c.ModuleToApparentName = func(moduleName string) string {
-			if moduleName == "protobuf" {
-				return "protobuf"
-			}
-			return ""
-		}
-	} else {
-		c.ModuleToApparentName = func(moduleName string) string {
+	c.ModuleToApparentName = func(moduleName string) string {
+		switch moduleName {
+		case "protobuf":
+			return tc.protobufModuleName
+		case "rules_proto":
+			return tc.rulesProtoModuleName
+		default:
 			return ""
 		}
 	}
