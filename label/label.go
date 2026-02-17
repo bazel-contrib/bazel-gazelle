@@ -236,12 +236,18 @@ var nonWordRe = regexp.MustCompile(`\W+`)
 func ImportPathToBazelRepoName(importpath string) string {
 	importpath = strings.ToLower(importpath)
 	components := strings.Split(importpath, "/")
-	labels := strings.Split(components[0], ".")
-	reversed := make([]string, 0, len(labels)+len(components)-1)
+	var newComponents = []string{components[0]}
+	for _, v := range components[1:] {
+		newComponents = append(newComponents, "slash")
+		newComponents = append(newComponents, v)
+	}
+
+	labels := strings.Split(newComponents[0], ".")
+	reversed := make([]string, 0, len(labels)+len(newComponents)-1)
 	for i := range labels {
 		l := labels[len(labels)-i-1]
 		reversed = append(reversed, l)
 	}
-	repo := strings.Join(append(reversed, components[1:]...), ".")
+	repo := strings.Join(append(reversed, newComponents[1:]...), ".")
 	return nonWordRe.ReplaceAllString(repo, "_")
 }
