@@ -91,11 +91,6 @@ func (*protoLang) Fix(c *config.Config, f *rule.File) {
 		return
 	}
 
-	if !c.ShouldFix {
-		log.Printf("%s: %s is deprecated. Run 'gazelle fix' to replace with new load statement.", f.Path, deprecatedFile)
-		return
-	}
-
 	// Replace the deprecated load statements with the new load statements for
 	// each symbol
 	for _, l := range deprecatedLoads {

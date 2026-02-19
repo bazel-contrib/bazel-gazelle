@@ -28,7 +28,6 @@ type fixTestCase struct {
 	desc                 string
 	protobufModuleName   string
 	rulesProtoModuleName string
-	shouldFix            bool
 	old                  string
 	want                 string
 }
@@ -38,7 +37,6 @@ func TestFix(t *testing.T) {
 		{
 			desc:               "switch from @rules_proto to @protobuf when protobuf module is present",
 			protobufModuleName: "protobuf",
-			shouldFix:          true,
 			old: `
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
@@ -57,29 +55,7 @@ proto_library(
 `,
 		},
 		{
-			desc:      "does not remove @rules_proto load when no protobuf module",
-			shouldFix: true,
-			old: `
-load("@rules_proto//proto:defs.bzl", "proto_library")
-
-proto_library(
-    name = "foo_proto",
-    srcs = ["foo.proto"],
-)
-`,
-			want: `
-load("@rules_proto//proto:defs.bzl", "proto_library")
-
-proto_library(
-    name = "foo_proto",
-    srcs = ["foo.proto"],
-)
-`,
-		},
-		{
-			desc:               "does not remove @rules_proto load when shouldFix is false",
-			protobufModuleName: "protobuf",
-			shouldFix:          false,
+			desc: "does not remove @rules_proto load when no protobuf module",
 			old: `
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
@@ -100,7 +76,6 @@ proto_library(
 		{
 			desc:               "multiple symbols loaded from @rules_proto",
 			protobufModuleName: "protobuf",
-			shouldFix:          true,
 			old: `
 load("@rules_proto//proto:defs.bzl", "proto_library", "ProtoInfo")
 
@@ -122,7 +97,6 @@ proto_library(
 		{
 			desc:               "preserve other load statements",
 			protobufModuleName: "protobuf",
-			shouldFix:          true,
 			old: `
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
@@ -155,7 +129,6 @@ go_library(
 		{
 			desc:               "no-op when no @rules_proto load",
 			protobufModuleName: "protobuf",
-			shouldFix:          true,
 			old: `
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 
@@ -171,23 +144,11 @@ proto_library(
     name = "foo_proto",
     srcs = ["foo.proto"],
 )
-`,
-		},
-		{
-			desc:               "no-op when no @rules_proto load and no protobuf module",
-			protobufModuleName: "",
-			shouldFix:          false,
-			old: `
-load("@rules_proto//proto:defs.bzl", "proto_library")
-`,
-			want: `
-load("@rules_proto//proto:defs.bzl", "proto_library")
 `,
 		},
 		{
 			desc:               "custom protobuf module name",
 			protobufModuleName: "my_protobuf",
-			shouldFix:          true,
 			old: `
 load("@rules_proto//proto:defs.bzl", "proto_library")
 `,
@@ -199,7 +160,6 @@ load("@my_protobuf//bazel:proto_library.bzl", "proto_library")
 			desc:                 "custom rules_proto module name",
 			protobufModuleName:   "protobuf",
 			rulesProtoModuleName: "my_rules_proto",
-			shouldFix:            true,
 			old: `
 load("@my_rules_proto//proto:defs.bzl", "proto_library")
 `,
@@ -210,7 +170,6 @@ load("@protobuf//bazel:proto_library.bzl", "proto_library")
 		{
 			desc:               "drop an unknown symbol loaded from @rules_proto",
 			protobufModuleName: "protobuf",
-			shouldFix:          true,
 			old: `
 load("@rules_proto//proto:defs.bzl", "proto_library", "unknown_symbol")
 `,
@@ -232,7 +191,6 @@ func testFix(t *testing.T, tc fixTestCase) {
 	}
 
 	c := config.New()
-	c.ShouldFix = tc.shouldFix
 	c.ModuleToApparentName = func(moduleName string) string {
 		switch moduleName {
 		case "protobuf":
