@@ -24,8 +24,9 @@ import (
 )
 
 const (
-	protobufModuleName   = "protobuf"
-	rulesProtoModuleName = "rules_proto"
+	protobufModuleName    = "protobuf"
+	protobufWorkspaceName = "com_google_protobuf"
+	rulesProtoModuleName  = "rules_proto"
 )
 
 // Returns the file name of of a deprecated load statement from @rules_proto.
@@ -46,7 +47,8 @@ func deprecatedFileLabel(moduleToApparentName func(string) string) label.Label {
 func symbolToFileLabel(moduleToApparentName func(string) string, sym string) label.Label {
 	repoName := moduleToApparentName(protobufModuleName)
 	if repoName == "" {
-		repoName = "com_google_protobuf"
+		// Support legacy WORKSPACE files and fallback to the old repo name
+		repoName = protobufWorkspaceName
 	}
 
 	switch sym {
