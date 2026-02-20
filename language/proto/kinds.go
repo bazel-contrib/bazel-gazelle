@@ -1,4 +1,4 @@
-/* Copyright 2018 The Bazel Authors. All rights reserved.
+/* Copyright 2026 The Bazel Authors. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@ limitations under the License.
 package proto
 
 import (
-	"fmt"
-
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
@@ -41,13 +39,9 @@ func (pl *protoLang) Loads() []rule.LoadInfo {
 }
 
 func (*protoLang) ApparentLoads(moduleToApparentName func(string) string) []rule.LoadInfo {
-	rulesProto := moduleToApparentName("rules_proto")
-	if rulesProto == "" {
-		rulesProto = "rules_proto"
-	}
 	return []rule.LoadInfo{
 		{
-			Name: fmt.Sprintf("@%s//proto:defs.bzl", rulesProto),
+			Name: symbolToFileLabel(moduleToApparentName, "proto_library").String(),
 			Symbols: []string{
 				"proto_library",
 			},
