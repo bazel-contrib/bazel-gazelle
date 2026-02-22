@@ -1,0 +1,5 @@
+
+go_repository(
+		name = "com_example_m_logging",
+    importpath = "example.com/m/logging",
+)

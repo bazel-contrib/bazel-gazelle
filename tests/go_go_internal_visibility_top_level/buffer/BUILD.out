@@ -1,0 +1,12 @@
+
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "buffer",
+    srcs = ["buffer.go"],
+    importpath = "modernc.org/internal/buffer",
+    visibility = [
+        "//:__subpackages__",
+        "@org_modernc_ccgo//:__subpackages__",
+    ],
+)

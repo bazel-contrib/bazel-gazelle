@@ -1,0 +1,10 @@
+
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "bar",
+    srcs = ["bar.go"],
+    importpath = "example.com/foo/v2/bar",
+    importpath_aliases = ["example.com/foo/bar"],
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,5 @@
+update
+-go_grpc_compiler
+//foo
+-go_proto_compiler
+//bar

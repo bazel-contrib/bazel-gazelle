@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+		name = "foo_lib",
+		srcs = ["foo.go"],
+		importpath = "example.com/cmd/foo",
+		visibility = ["/visibility:private"],
+)
+
+go_binary(
+		name = "foo",
+		embed = [":foo_lib"],
+		visibility = ["/visibility:public"],
+)

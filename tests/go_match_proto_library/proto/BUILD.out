@@ -1,0 +1,25 @@
+
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+# gazelle:prefix example.com/foo
+
+proto_library(
+    name = "existing_proto",
+    srcs = ["foo.proto"],
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "existing_go_proto",
+    importpath = "example.com/foo",
+    proto = ":existing_proto",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "foo",
+    embed = [":existing_go_proto"],
+    importpath = "example.com/foo",
+    visibility = ["//visibility:public"],
+)

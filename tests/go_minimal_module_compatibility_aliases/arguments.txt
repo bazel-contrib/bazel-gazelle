@@ -1,0 +1,5 @@
+update
+-go_prefix
+example.com/foo/v2
+-go_repository_mode
+-go_repository_module_mode

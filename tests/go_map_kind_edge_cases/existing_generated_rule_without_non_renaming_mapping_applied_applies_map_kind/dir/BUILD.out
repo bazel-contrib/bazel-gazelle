@@ -1,0 +1,8 @@
+load("//custom:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["file.go"],
+    importpath = "example.com/mapkind/dir",
+    visibility = ["//visibility:public"],
+)

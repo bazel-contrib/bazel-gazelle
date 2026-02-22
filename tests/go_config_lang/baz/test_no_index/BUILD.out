@@ -1,0 +1,13 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["test_no_index.go"],
+    importpath = "root/baz/test_no_index",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//visible:go_default_library",
+        "@com_github_rule_indexing_invisible1//:go_default_library",
+        "@com_github_rule_indexing_invisible2//:go_default_library",
+    ],
+)

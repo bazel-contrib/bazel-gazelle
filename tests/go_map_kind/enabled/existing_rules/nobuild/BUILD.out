@@ -1,0 +1,9 @@
+
+load("//tools/go:def.bzl", "my_library")
+
+my_library(
+    name = "go_default_library",
+    srcs = ["nobuild_lib.go"],
+    importpath = "example.com/mapkind/enabled/existing_rules/nobuild",
+    visibility = ["//visibility:public"],
+)

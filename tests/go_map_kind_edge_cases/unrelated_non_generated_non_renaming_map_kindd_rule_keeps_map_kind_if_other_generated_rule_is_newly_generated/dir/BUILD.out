@@ -1,0 +1,13 @@
+load("//custom:def.bzl", "go_library", "go_test")
+
+go_test(
+    name = "custom_test",
+    srcs = ["custom_test.java"],
+)
+
+go_library(
+    name = "go_default_library",
+    srcs = ["file.go"],
+    importpath = "example.com/mapkind/dir",
+    visibility = ["//visibility:public"],
+)

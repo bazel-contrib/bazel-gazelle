@@ -1,0 +1,18 @@
+
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "version",
+    srcs = ["version.go"],
+    importpath = "example.com/m/internal/version",
+    visibility = [
+        "//:__subpackages__",
+        "@com_example_m_logging//:__subpackages__",
+    ],
+)
+
+go_test(
+    name = "version_test",
+    srcs = ["version_test.go"],
+    embed = [":version"],
+)

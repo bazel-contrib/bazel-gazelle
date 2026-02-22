@@ -1,0 +1,15 @@
+
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+# gazelle:prefix example.com/sub
+
+go_library(
+    name = "sub",
+    srcs = ["sub.go"],
+    importpath = "example.com/sub",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//sub/missing",
+        "//vendor/example.com/external",
+    ],
+)

@@ -1,0 +1,10 @@
+
+load("//tools/go:def.bzl", "my_library")
+
+# An existing rule with an unmapped type is updated
+my_library(
+    name = "go_default_library",
+    srcs = ["unmapped_lib.go"],
+    importpath = "example.com/mapkind/enabled/existing_rules/unmapped",
+    visibility = ["//visibility:public"],
+)

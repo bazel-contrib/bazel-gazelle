@@ -1,0 +1,6 @@
+load("//custom:def.bzl", "go_test")
+
+go_test(
+    name = "custom_test",
+    srcs = ["custom_test.java"],
+)

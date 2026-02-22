@@ -1,0 +1,6 @@
+load("//custom:def.bzl", "go_library")
+
+go_library(
+    name = "custom_lib",
+    srcs = ["custom_lib.go"],
+)

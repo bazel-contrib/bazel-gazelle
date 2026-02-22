@@ -1,0 +1,11 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+# gazelle:lang go,proto
+# gazelle:prefix github.com/rule_indexing/visible
+
+go_library(
+    name = "go_default_library",
+    srcs = ["visible.go"],
+    importpath = "github.com/rule_indexing/visible",
+    visibility = ["//visibility:public"],
+)

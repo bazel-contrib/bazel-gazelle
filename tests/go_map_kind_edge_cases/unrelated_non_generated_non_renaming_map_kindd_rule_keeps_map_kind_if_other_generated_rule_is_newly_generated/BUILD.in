@@ -1,0 +1,4 @@
+# gazelle:prefix example.com/mapkind
+# gazelle:go_naming_convention go_default_library
+# gazelle:map_kind go_library go_library //custom:def.bzl
+# gazelle:map_kind go_test go_test //custom:def.bzl

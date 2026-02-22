@@ -1,0 +1,10 @@
+load("//another/custom:def.bzl", "other_custom_go_library")
+
+# gazelle:map_kind custom_go_library other_custom_go_library //another/custom:def.bzl
+
+other_custom_go_library(
+    name = "go_default_library",
+    srcs = ["file.go"],
+    importpath = "example.com/mapkind/dir",
+    visibility = ["//visibility:public"],
+)

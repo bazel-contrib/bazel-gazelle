@@ -1,0 +1,1 @@
+gazelle: looking up mapped kind: found loop of map_kind replacements: go_library -> custom_go_library -> go_library -> custom_go_library

@@ -1,0 +1,9 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+# this should be ignored because -index=false
+go_library(
+    name = "baz",
+    srcs = ["baz.go"],
+    importpath = "example.com/dep/baz",
+    visibility = ["//visibility:public"],
+)

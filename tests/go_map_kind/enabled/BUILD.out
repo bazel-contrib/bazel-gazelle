@@ -1,0 +1,11 @@
+
+load("//tools/go:def.bzl", "my_library")
+
+# gazelle:map_kind go_library my_library //tools/go:def.bzl
+
+my_library(
+    name = "go_default_library",
+    srcs = ["enabled_lib.go"],
+    importpath = "example.com/mapkind/enabled",
+    visibility = ["//visibility:public"],
+)

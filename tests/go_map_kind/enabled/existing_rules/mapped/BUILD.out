@@ -1,0 +1,13 @@
+
+load("//tools/go:def.bzl", "my_library")
+
+# An existing rule with a mapped type is updated
+my_library(
+    name = "go_default_library",
+    srcs = [
+        "mapped_lib.go",
+        "mapped_lib2.go",
+    ],
+    importpath = "example.com/mapkind/enabled/existing_rules/mapped",
+    visibility = ["//visibility:public"],
+)
