@@ -53,7 +53,7 @@ go_test(
     deps = [
         "//pkg/data",
         "@circl//dh/x25519",
-        "@com_github_bazelbuild_buildtools//labels:go_default_library",
+        "@com_github_bazelbuild_buildtools//labels",
         "@com_github_bmatcuk_doublestar_v4//:doublestar",
         "@com_github_datadog_sketches_go//ddsketch",
         "@com_github_envoyproxy_protoc_gen_validate//validate",
