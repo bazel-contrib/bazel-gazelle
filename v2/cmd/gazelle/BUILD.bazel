@@ -22,9 +22,7 @@ filegroup(
 go_library(
     name = "gazelle_lib",
     # keep
-    srcs = [
-        "main.go",
-    ],
+    srcs = ["main.go"],
     importpath = "github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle",
     tags = ["manual"],
     visibility = ["//visibility:public"],
