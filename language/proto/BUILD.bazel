@@ -68,6 +68,7 @@ go_test(
     srcs = [
         "config_test.go",
         "fileinfo_test.go",
+        "fix_test.go",
         "generate_test.go",
         "resolve_test.go",
     ],
@@ -104,6 +105,7 @@ filegroup(
         "fileinfo.go",
         "fileinfo_test.go",
         "fix.go",
+        "fix_test.go",
         "generate.go",
         "generate_test.go",
         "kinds.go",
