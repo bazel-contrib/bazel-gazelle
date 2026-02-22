@@ -48,7 +48,6 @@ go_test(
     embed = [":gazelle_lib"],
     x_defs = {"goRootFile": "$(rlocationpath @go_sdk//:ROOT)"},
     deps = [
-        "//config",
         "//internal/wspace",
         "//testtools",
         "@com_github_google_go_cmp//cmp",
