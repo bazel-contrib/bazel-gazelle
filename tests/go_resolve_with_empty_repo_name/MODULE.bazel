@@ -1,0 +1,4 @@
+module(
+    name = "repo",
+    version = "1.0",
+)

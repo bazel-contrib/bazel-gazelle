@@ -1,0 +1,38 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "host_config_proto_lib",
+    srcs = ["host_config.proto"],
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "go_default_library",
+    srcs = ["host_config.go"],
+    importpath = "example.com/repo/hostconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":host_config_proto_go",
+        ":support_library",
+        "//self:go_default_library",
+    ],
+)
+
+go_library(
+    name = "support_library",
+    srcs = ["host_config.go"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":host_config_proto_go",
+        "//self:go_default_library",
+    ],
+)
+
+go_proto_library(
+    name = "host_config_proto_go",
+    importpath = "",
+    proto = ":host_config_proto_lib",
+    visibility = ["//visibility:public"],
+)
