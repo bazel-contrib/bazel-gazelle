@@ -1,0 +1,3 @@
+-go_prefix=example.com/use
+-external=static
+-go_naming_convention_external=import
