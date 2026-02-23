@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_prefix")
+load("@io_bazel_rules_go//go:def.bzl", "cgo_library", "go_test")
+
+go_prefix("example.com/foo")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "extra.go",
+        "pure.go",
+    ],
+    library = ":cgo_default_library",
+    visibility = ["//visibility:default"],
+)
+
+cgo_library(
+    name = "cgo_default_library",
+    srcs = ["cgo.go"],
+)

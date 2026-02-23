@@ -67,7 +67,8 @@ func main() {
 		}
 
 		base := filepath.Base(path)
-		if base == "bcr_tests" || base == "docs" || base == "vendor" || base == "third_party" || base == "testdata" || base == ".ijwb" || base == ".bazelbsp" {
+		switch base {
+		case "bcr_tests", "docs", "vendor", "third_party", "testdata", ".ijwb", ".bazelbsp", ".claude":
 			return filepath.SkipDir
 		}
 		if !info.IsDir() &&

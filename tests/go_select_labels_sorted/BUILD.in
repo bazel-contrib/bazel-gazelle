@@ -1,0 +1,16 @@
+
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = select({
+        "@io_bazel_rules_go//go/platform:linux": [
+            # foo comment
+            "foo.go",  # side comment
+            # bar comment
+            "bar.go",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "example.com/foo",
+)

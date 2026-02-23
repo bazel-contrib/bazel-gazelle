@@ -1,0 +1,1 @@
+gazelle: %WORKSPACEPATH%: go prefix is not set, so importpath can't be determined for rules. Set a prefix with a '# gazelle:prefix' comment or with -go_prefix on the command line
