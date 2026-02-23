@@ -23,13 +23,18 @@ bzl_library(
     visibility = ["//visibility:public"],
 )
 """)
-    repository_ctx.file("defs.bzl", "GAZELLE_IS_BAZEL_MODULE = {}".format(
+    repository_ctx.file("defs.bzl", """\
+GAZELLE_IS_BAZEL_MODULE = {}
+GAZELLE_MODULE_VERSION = "{}"
+""".format(
         repr(repository_ctx.attr.is_bazel_module),
+        repository_ctx.attr.module_version,
     ))
 
 is_bazel_module = repository_rule(
     implementation = _is_bazel_module_impl,
     attrs = {
         "is_bazel_module": attr.bool(mandatory = True),
+        "module_version": attr.string(default = ""),
     },
 )

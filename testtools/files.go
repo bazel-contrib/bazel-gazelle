@@ -352,16 +352,16 @@ Run %s to update BUILD.out and expected{Stdout,Stderr,ExitCode}.txt files.
 				))
 			}
 		}
-		actualStdout := redactWorkspacePath(stdout.String(), workspaceRoot)
-		if normalizeSpace(config.Stdout) != normalizeSpace(actualStdout) {
+		cleanStdout := cleanOutput(stdout.String(), workspaceRoot)
+		if normalizeSpace(config.Stdout) != cleanStdout {
 			errs = append(errs, fmt.Errorf("expected gazelle stdout: %s\ngot: %s",
-				config.Stdout, actualStdout,
+				config.Stdout, cleanStdout,
 			))
 		}
-		actualStderr := redactWorkspacePath(stderr.String(), workspaceRoot)
-		if normalizeSpace(config.Stderr) != normalizeSpace(actualStderr) {
+		cleanStderr := cleanOutput(stderr.String(), workspaceRoot)
+		if normalizeSpace(config.Stderr) != cleanStderr {
 			errs = append(errs, fmt.Errorf("expected gazelle stderr: %s\ngot: %s",
-				config.Stderr, actualStderr,
+				config.Stderr, cleanStderr,
 			))
 		}
 		if len(errs) > 0 {
@@ -419,10 +419,20 @@ func updateExpectedConfig(t *testing.T, expected string, actual string, srcTestD
 	}
 }
 
+func cleanOutput(s, wsPath string) string {
+	s = redactWorkspacePath(s, wsPath)
+	s = normalizeSlash(s)
+	return normalizeSpace(s)
+}
+
 // redactWorkspacePath replaces workspace path with a constant to make the test
 // output reproducible.
 func redactWorkspacePath(s, wsPath string) string {
 	return strings.ReplaceAll(s, wsPath, "%WORKSPACEPATH%")
+}
+
+func normalizeSlash(s string) string {
+	return strings.ReplaceAll(s, `\`, `/`)
 }
 
 func normalizeSpace(s string) string {

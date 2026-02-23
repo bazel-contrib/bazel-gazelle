@@ -13,6 +13,11 @@
 # limitations under the License.
 
 load(
+    "@bazel_gazelle_is_bazel_module//:defs.bzl",
+    "GAZELLE_IS_BAZEL_MODULE",
+    "GAZELLE_MODULE_VERSION",
+)
+load(
     "@io_bazel_rules_go//go:def.bzl",
     "GoArchive",
     "go_context",
@@ -21,6 +26,11 @@ load(
 
 def _gazelle_binary_impl(ctx):
     go = go_context(ctx)
+
+    version = ctx.attr.version
+    if version == 0:
+        version = _get_gazelle_major_version()
+    srcs = ctx.attr._srcs_v2 if version == 2 else ctx.attr._srcs_v1
 
     # Generate a source file with a list of languages. This will get compiled
     # with the rest of the sources in the main package.
@@ -50,7 +60,7 @@ var languages = []language.Language{{
     attr = struct(
         srcs = [struct(files = [langs_file])],
         deps = ctx.attr.languages,
-        embed = [ctx.attr._srcs],
+        embed = [srcs],
     )
     go_info = new_go_info(go, attr, is_main = True)
 
@@ -98,12 +108,26 @@ proto extension stores metadata in hidden attributes of generated
             mandatory = True,
             allow_empty = False,
         ),
+        "version": attr.int(
+            default = 0,
+            values = [0, 1, 2],
+            doc = """The major version of Gazelle to build for
+
+            - 0 (default): the version is chosen automatically, based on the
+              module version.
+            - 1: legacy CLI behavior. Includes update-repos subcommand for Go.
+            - 2: new CLI behavior.
+            """,
+        ),
         "_go_context_data": attr.label(default = "@io_bazel_rules_go//:go_context_data"),
         # _stdlib is needed for rules_go versions before v0.23.0. After that,
         # _go_context_data includes a dependency on stdlib.
         "_stdlib": attr.label(default = "@io_bazel_rules_go//:stdlib"),
-        "_srcs": attr.label(
+        "_srcs_v1": attr.label(
             default = "//cmd/gazelle:gazelle_lib",
+        ),
+        "_srcs_v2": attr.label(
+            default = "//v2/cmd/gazelle:gazelle_lib",
         ),
     },
     "executable": True,
@@ -126,3 +150,27 @@ def format_import(importpath):
 
 def format_call(importpath):
     return _import_alias(importpath) + ".NewLanguage()"
+
+def _get_gazelle_major_version():
+    """Parses a version string and returns either 1 or 2.
+
+    Returns 1 if the major version is 0 or 1 or when building in WORKSPACE mode.
+    Very little difference in behavior is expected between these versions.
+
+    Returns 2 if the major version is 2 or unset. When the major version is not
+    set, it's assumed to be a development version.
+    """
+    if not GAZELLE_IS_BAZEL_MODULE:
+        return 1
+    if not GAZELLE_MODULE_VERSION:
+        return 2
+    parts = GAZELLE_MODULE_VERSION.split(".", 1)
+    if not parts:
+        fail("Invalid version format: '{}'".format(GAZELLE_MODULE_VERSION))
+    major = parts[0]
+    if major == "0" or major == "1":
+        return 1
+    elif major == "2":
+        return 2
+    else:
+        fail("Unsupported Gazelle major version: {}. Only versions 0, 1, and 2 are supported.".format(major))
