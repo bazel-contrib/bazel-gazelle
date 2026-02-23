@@ -1,1 +1,0 @@
-# gazelle:map_kind custom_go_library other_custom_go_library //another/custom:def.bzl

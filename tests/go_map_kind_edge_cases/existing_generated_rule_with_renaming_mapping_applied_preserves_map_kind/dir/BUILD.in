@@ -1,8 +1,0 @@
-load("//custom:def.bzl", "custom_go_library")
-
-custom_go_library(
-    name = "go_default_library",
-    srcs = ["file.go"],
-    importpath = "example.com/mapkind/dir",
-    visibility = ["//visibility:public"],
-)

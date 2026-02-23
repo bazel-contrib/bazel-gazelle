@@ -1,2 +1,0 @@
--external=vendored
--index=false
