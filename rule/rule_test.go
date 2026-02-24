@@ -753,3 +753,57 @@ a_rule(
 		t.Errorf("Unexpected r.SortedAttrs(): %v", r.SortedAttrs())
 	}
 }
+
+func TestAttributeBool(t *testing.T) {
+	for _, tc := range []struct {
+		desc, src        string
+		defaultVal, want bool
+	}{
+		{
+			desc:       "missing attribute, default to true",
+			src:        `my_rule(name = "my_name")`,
+			defaultVal: true,
+			want:       true,
+		}, {
+			desc:       "missing attribute, default to false",
+			src:        `my_rule(name = "my_name")`,
+			defaultVal: false,
+			want:       false,
+		}, {
+			desc:       "attribute is true",
+			src:        `my_rule(name = "my_name", bool_attr = True)`,
+			defaultVal: true,
+			want:       true,
+		}, {
+			desc:       "attribute is false",
+			src:        `my_rule(name = "my_name", bool_attr = False)`,
+			defaultVal: false,
+			want:       false,
+		}, {
+			desc:       "attribute is not a boolean literal, default to true",
+			src:        `my_rule(name = "my_name", bool_attr = "foo")`,
+			defaultVal: true,
+			want:       true,
+		}, {
+			desc:       "attribute is not a boolean literal, default to false",
+			src:        `my_rule(name = "my_name", bool_attr = "foo")`,
+			defaultVal: false,
+			want:       false,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			f, err := LoadData(filepath.Join("old", "BUILD.bazel"), "", []byte(tc.src))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(f.Rules) != 1 {
+				t.Fatalf("expected 1 rule, got %d", len(f.Rules))
+			}
+			r := f.Rules[0]
+			got := r.AttrBool("bool_attr", tc.defaultVal)
+			if got != tc.want {
+				t.Errorf("got %v; want %v", got, tc.want)
+			}
+		})
+	}
+}

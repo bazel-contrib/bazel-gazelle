@@ -946,6 +946,28 @@ func (r *Rule) AttrStrings(key string) []string {
 	return strs
 }
 
+// AttrBool returns the value of the rule attribute key as a bool. If the
+// attribute is absent or not a boolean literal (True/False), it returns
+// defaultValue.
+func (r *Rule) AttrBool(key string, defaultValue bool) bool {
+	expr := r.Attr(key)
+	if expr == nil {
+		return defaultValue
+	}
+	ident, ok := expr.(*bzl.Ident)
+	if !ok {
+		return defaultValue
+	}
+	switch ident.Name {
+	case "True":
+		return true
+	case "False":
+		return false
+	default:
+		return defaultValue
+	}
+}
+
 // DelAttr removes the named attribute from the rule.
 func (r *Rule) DelAttr(key string) {
 	delete(r.attrs, key)
