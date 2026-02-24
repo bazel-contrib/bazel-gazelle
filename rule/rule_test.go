@@ -772,12 +772,12 @@ func TestAttributeBool(t *testing.T) {
 		}, {
 			desc:       "attribute is true",
 			src:        `my_rule(name = "my_name", bool_attr = True)`,
-			defaultVal: true,
+			defaultVal: false,
 			want:       true,
 		}, {
 			desc:       "attribute is false",
 			src:        `my_rule(name = "my_name", bool_attr = False)`,
-			defaultVal: false,
+			defaultVal: true,
 			want:       false,
 		}, {
 			desc:       "attribute is not a boolean literal, default to true",
