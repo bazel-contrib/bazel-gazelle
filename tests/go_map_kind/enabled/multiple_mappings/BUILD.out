@@ -1,0 +1,18 @@
+
+load("//tools/go:def.bzl", "go_binary", "go_library")
+
+# gazelle:map_kind go_binary go_binary //tools/go:def.bzl
+# gazelle:map_kind go_library go_library //tools/go:def.bzl
+
+go_library(
+    name = "go_default_library",
+    srcs = ["multiple_mappings.go"],
+    importpath = "example.com/mapkind/enabled/multiple_mappings",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "multiple_mappings",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)

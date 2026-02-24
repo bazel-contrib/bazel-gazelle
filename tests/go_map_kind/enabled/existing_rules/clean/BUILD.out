@@ -1,0 +1,3 @@
+
+# gazelle:go_naming_convention import
+# gazelle:map_kind go_library my_go_library //tools/go:def.bzl

@@ -1,0 +1,10 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+# gazelle:prefix root
+
+go_library(
+    name = "go_default_library",
+    srcs = ["invisible1.go"],
+    importpath = "root",
+    visibility = ["//visibility:public"],
+)

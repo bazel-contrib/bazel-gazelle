@@ -1,0 +1,3 @@
+
+# gazelle:prefix example.com/mapkind
+# gazelle:map_kind go_library my_go_library //:my.bzl

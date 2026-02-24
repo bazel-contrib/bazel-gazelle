@@ -1,0 +1,2 @@
+# gazelle:go_generate_proto false
+# gazelle:prefix example.com/proto

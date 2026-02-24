@@ -1,0 +1,14 @@
+
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+# gazelle:prefix modernc.org/internal
+
+go_library(
+    name = "internal",
+    srcs = ["internal.go"],
+    importpath = "modernc.org/internal",
+    visibility = [
+        "//:__subpackages__",
+        "@org_modernc_ccgo//:__subpackages__",
+    ],
+)

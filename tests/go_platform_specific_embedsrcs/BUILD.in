@@ -1,0 +1,11 @@
+
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+# gazelle:prefix example.com/foo
+
+go_library(
+    name = "foo",
+    embedsrcs = ["deleted.txt"],
+    importpath = "example.com/foo",
+    srcs = ["foo.go"],
+)

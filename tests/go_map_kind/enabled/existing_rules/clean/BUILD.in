@@ -1,0 +1,15 @@
+load("//tools/go:def.bzl", "my_go_library")
+
+# gazelle:go_naming_convention import
+# gazelle:map_kind go_library my_go_library //tools/go:def.bzl
+
+my_go_library(
+    name = "clean",
+    srcs = [
+        "foo.go",
+        "bar.go",
+        "buz.go",
+    ],
+    importpath = "example.com/mapkind/enabled/existing_rules/clean",
+    visibility = ["//visibility:private"],
+)

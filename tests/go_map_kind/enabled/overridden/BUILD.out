@@ -1,0 +1,11 @@
+
+load("//tools/overridden:def.bzl", "overridden_library")
+
+# gazelle:map_kind go_library overridden_library //tools/overridden:def.bzl
+
+overridden_library(
+    name = "go_default_library",
+    srcs = ["overridden_lib.go"],
+    importpath = "example.com/mapkind/enabled/overridden",
+    visibility = ["//visibility:public"],
+)

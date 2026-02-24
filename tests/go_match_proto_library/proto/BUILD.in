@@ -1,0 +1,8 @@
+
+load("@rules_proto//proto:defs.bzl", "proto_library")
+# gazelle:prefix example.com/foo
+
+proto_library(
+	name = "existing_proto",
+	srcs = ["foo.proto"],
+)

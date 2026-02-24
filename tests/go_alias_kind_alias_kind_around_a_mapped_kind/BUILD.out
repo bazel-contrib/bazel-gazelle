@@ -1,0 +1,17 @@
+
+# gazelle:prefix example.com/aliaskind
+# gazelle:go_naming_convention go_default_library
+# gazelle:map_kind go_library my_library //tools:go:def.bzl
+# gazelle:alias_kind my_custom_macro my_library
+load("//custom:def.bzl", "my_custom_macro")
+
+my_custom_macro(
+    name = "go_default_library",
+    srcs = ["file.go"],
+    importpath = "example.com/aliaskind",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//foo:go_default_library",
+        "//vendor/github.com/external:go_default_library",
+    ],
+)

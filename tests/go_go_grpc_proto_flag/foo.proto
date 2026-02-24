@@ -1,0 +1,6 @@
+
+syntax = "proto3";
+
+option go_package = "example.com/repo/foo";
+
+message Bar {};

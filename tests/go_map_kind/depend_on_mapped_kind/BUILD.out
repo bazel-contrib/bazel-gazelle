@@ -1,0 +1,16 @@
+
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["lib.go"],
+    importpath = "example.com/mapkind/depend_on_mapped_kind",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//disabled:go_default_library",
+        "//enabled:go_default_library",
+        "//enabled/existing_rules/mapped:go_default_library",
+        "//enabled/existing_rules/unmapped:go_default_library",
+        "//enabled/overridden:go_default_library",
+    ],
+)

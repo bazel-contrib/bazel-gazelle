@@ -1,0 +1,1 @@
+bazel_dep(name = "rules_go", version = "0.39.1", repo_name = "my_rules_go")

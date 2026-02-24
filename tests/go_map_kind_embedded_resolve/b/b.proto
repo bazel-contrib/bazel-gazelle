@@ -1,0 +1,7 @@
+
+syntax = "proto3";
+
+package test;
+option go_package = "example.com/mapkind/b";
+
+import "a/a.proto";
