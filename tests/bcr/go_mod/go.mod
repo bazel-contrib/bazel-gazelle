@@ -13,7 +13,7 @@ require (
 	github.com/bazelbuild/rules_go v0.59.0
 	// NOTE: keep <4.7.0 to test the 'replace'
 	github.com/bmatcuk/doublestar/v4 v4.6.0
-	github.com/cloudflare/circl v1.3.8
+	github.com/cloudflare/circl v1.6.3
 	github.com/envoyproxy/protoc-gen-validate v1.2.1
 	github.com/fmeum/dep_on_gazelle v1.0.0
 	github.com/google/go-jsonnet v0.20.0
@@ -48,7 +48,10 @@ require (
 	sigs.k8s.io/yaml v1.1.0 // indirect
 )
 
-require golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
+require (
+	golang.org/x/crypto v0.43.0 // indirect
+	golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
+)
 
 replace example.org/hello => ../../fixtures/hello
 
