@@ -243,7 +243,6 @@ func goFileInfo(path, srcdir string) fileInfo {
 
 	info.packageName = pf.Name.Name
 	if info.isTest && strings.HasSuffix(info.packageName, "_test") {
-		info.packageName = info.packageName[:len(info.packageName)-len("_test")]
 		info.isExternalTest = true
 	}
 
