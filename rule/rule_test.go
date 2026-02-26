@@ -756,39 +756,25 @@ a_rule(
 
 func TestAttributeBool(t *testing.T) {
 	for _, tc := range []struct {
-		desc, src        string
-		defaultVal, want bool
+		desc, src string
+		want      bool
 	}{
 		{
-			desc:       "missing attribute, default to true",
-			src:        `my_rule(name = "my_name")`,
-			defaultVal: true,
-			want:       true,
+			desc: "missing attribute returns false",
+			src:  `my_rule(name = "my_name")`,
+			want: false,
 		}, {
-			desc:       "missing attribute, default to false",
-			src:        `my_rule(name = "my_name")`,
-			defaultVal: false,
-			want:       false,
+			desc: "attribute is true",
+			src:  `my_rule(name = "my_name", bool_attr = True)`,
+			want: true,
 		}, {
-			desc:       "attribute is true",
-			src:        `my_rule(name = "my_name", bool_attr = True)`,
-			defaultVal: false,
-			want:       true,
+			desc: "attribute is false",
+			src:  `my_rule(name = "my_name", bool_attr = False)`,
+			want: false,
 		}, {
-			desc:       "attribute is false",
-			src:        `my_rule(name = "my_name", bool_attr = False)`,
-			defaultVal: true,
-			want:       false,
-		}, {
-			desc:       "attribute is not a boolean literal, default to true",
-			src:        `my_rule(name = "my_name", bool_attr = "foo")`,
-			defaultVal: true,
-			want:       true,
-		}, {
-			desc:       "attribute is not a boolean literal, default to false",
-			src:        `my_rule(name = "my_name", bool_attr = "foo")`,
-			defaultVal: false,
-			want:       false,
+			desc: "attribute is not a boolean literal returns false",
+			src:  `my_rule(name = "my_name", bool_attr = "foo")`,
+			want: false,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -800,7 +786,7 @@ func TestAttributeBool(t *testing.T) {
 				t.Fatalf("expected 1 rule, got %d", len(f.Rules))
 			}
 			r := f.Rules[0]
-			got := r.AttrBool("bool_attr", tc.defaultVal)
+			got := r.AttrBool("bool_attr")
 			if got != tc.want {
 				t.Errorf("got %v; want %v", got, tc.want)
 			}
