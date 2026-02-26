@@ -778,7 +778,7 @@ func TestAttributeBool(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			f, err := LoadData(filepath.Join("old", "BUILD.bazel"), "", []byte(tc.src))
+			f, err := LoadData("BUILD.bazel", "", []byte(tc.src))
 			if err != nil {
 				t.Fatal(err)
 			}
