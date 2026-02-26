@@ -914,11 +914,7 @@ func (r *Rule) Attr(key string) bzl.Expr {
 // AttrString returns the value of the named attribute if it is a scalar string.
 // "" is returned if the attribute is not set or is not a string.
 func (r *Rule) AttrString(key string) string {
-	attr, ok := r.attrs[key]
-	if !ok {
-		return ""
-	}
-	str, ok := attr.expr.RHS.(*bzl.StringExpr)
+	str, ok := r.Attr(key).(*bzl.StringExpr)
 	if !ok {
 		return ""
 	}
@@ -929,11 +925,7 @@ func (r *Rule) AttrString(key string) string {
 // nil is returned if the attribute is not set or is not a list. Non-string
 // values within the list won't be returned.
 func (r *Rule) AttrStrings(key string) []string {
-	attr, ok := r.attrs[key]
-	if !ok {
-		return nil
-	}
-	list, ok := attr.expr.RHS.(*bzl.ListExpr)
+	list, ok := r.Attr(key).(*bzl.ListExpr)
 	if !ok {
 		return nil
 	}
