@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package file_mode;
+
+// Note that this import doesn't result in a dependency added to BUILD
+// when evaluated by generate_test. Dependencies are added by the resolve
+// step which is tested elsewhere.
+//
+// This import is tested by generate_test.TestFileModeImports.
+import "file_mode/foo.proto";
+
+message Bar {
+    Foo foo = 1;
+}

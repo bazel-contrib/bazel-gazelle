@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package file_mode;
+
+import "scalapb/scalapb.proto";
+
+option (scalapb.options) = {
+    scope: PACKAGE
+    preserve_unknown_fields: false
+};
