@@ -43,6 +43,9 @@ func copyTree(destRoot, srcRoot string) error {
 				return err
 			}
 			err = os.Symlink(target, dest)
+			if err != nil {
+				return err
+			}
 		case info.Mode().IsRegular():
 			r, err := os.Open(src)
 			if err != nil {
