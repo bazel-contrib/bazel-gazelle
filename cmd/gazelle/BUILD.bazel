@@ -17,6 +17,7 @@ go_library(
     importpath = "github.com/bazelbuild/bazel-gazelle/cmd/gazelle",
     tags = ["manual"],
     visibility = ["//visibility:public"],
+    x_defs = {"main.GazelleVersion": module_version() or "dev"},
     deps = [
         "//config",
         "//internal/wspace",
