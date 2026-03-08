@@ -96,7 +96,7 @@ def _go_repository_tools_impl(ctx):
         "-w -s",
         "-gcflags",
         "-trimpath",
-        "github.com/bazelbuild/bazel-gazelle/cmd/gazelle",
+        "github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle",
         "github.com/bazelbuild/bazel-gazelle/cmd/fetch_repo",
         "github.com/bazelbuild/bazel-gazelle/cmd/generate_repo_config",
     ]
