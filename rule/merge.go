@@ -332,6 +332,10 @@ func MergeDict(srcExpr, dstExpr bzl.Expr) (*bzl.DictExpr, error) {
 			}
 		} else if e.mergedValue != nil {
 			keys = append(keys, e.key)
+		} else if e.srcValue != nil && len(e.srcValue.List) == 0 {
+			// Keep explicit empty list.
+			e.mergedValue = &bzl.ListExpr{}
+			keys = append(keys, e.key)
 		}
 	}
 	if len(keys) == 0 && (!haveDefault || len(entryMap["//conditions:default"].mergedValue.List) == 0) {
