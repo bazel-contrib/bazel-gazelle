@@ -1,4 +1,4 @@
-/* Copyright 2021 The Bazel Authors. All rights reserved.
+/* Copyright 2026 The Bazel Authors. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -148,56 +148,62 @@ func TestMergeRules_WithUnsortedStringAttr(t *testing.T) {
 	})
 }
 
-func TestMergeDict_SelectWithExplicitEmptyList(t *testing.T) {
-	// select({"@platforms//os:linux": [], "//conditions:default": ["//lib"]})
-	// Empty list for a select case must not be dropped when merging.
-	srcDict := &bzl.DictExpr{
-		List: []*bzl.KeyValueExpr{
-			{
-				Key:   &bzl.StringExpr{Value: "@platforms//os:linux"},
-				Value: &bzl.ListExpr{List: []bzl.Expr{}},
-			},
-			{
-				Key: &bzl.StringExpr{Value: "//conditions:default"},
-				Value: &bzl.ListExpr{
-					List: []bzl.Expr{&bzl.StringExpr{Value: "//lib"}},
+func TestMergeDict_ExplicitEmptyList(t *testing.T) {
+	srcDict := &bzl.DictExpr{List: []*bzl.KeyValueExpr{
+		{
+			Key:   &bzl.StringExpr{Value: "@platforms//os:linux"},
+			Value: &bzl.ListExpr{List: []bzl.Expr{}},
+		},
+		{
+			Key:   &bzl.StringExpr{Value: "//conditions:default"},
+			Value: &bzl.ListExpr{List: []bzl.Expr{&bzl.StringExpr{Value: "//lib"}}},
+		},
+	}}
+
+	want := `{
+    "@platforms//os:linux": [],
+    "//conditions:default": ["//lib"],
+}`
+
+	for _, tc := range []struct {
+		desc    string
+		dstDict *bzl.DictExpr
+	}{
+		{
+			desc: "explicit_empty_list_preserved",
+			dstDict: &bzl.DictExpr{List: []*bzl.KeyValueExpr{
+				{
+					Key:   &bzl.StringExpr{Value: "@platforms//os:linux"},
+					Value: &bzl.ListExpr{List: []bzl.Expr{}},
 				},
-			},
+			}},
 		},
-	}
-	// dst has the same key with empty list so MergeList([], []) returns nil;
-	// MergeDict must still keep the explicit empty list for the linux case.
-	dstDict := &bzl.DictExpr{
-		List: []*bzl.KeyValueExpr{
-			{
-				Key:   &bzl.StringExpr{Value: "@platforms//os:linux"},
-				Value: &bzl.ListExpr{List: []bzl.Expr{}},
-			},
+		{
+			desc:    "dst_nil_returns_src",
+			dstDict: nil,
 		},
-	}
-
-	merged, err := rule.MergeDict(srcDict, dstDict)
-	if err != nil {
-		t.Fatalf("MergeDict: %v", err)
-	}
-	if merged == nil {
-		t.Fatal("MergeDict: got nil; want non-nil dict with both cases preserved")
-	}
-
-	// Find "@platforms//os:linux" and ensure it has an explicit empty list.
-	var gotLinuxList *bzl.ListExpr
-	for _, kv := range merged.List {
-		if s, ok := kv.Key.(*bzl.StringExpr); ok && s.Value == "@platforms//os:linux" {
-			if l, ok := kv.Value.(*bzl.ListExpr); ok {
-				gotLinuxList = l
-				break
+		{
+			desc: "dst_default_only_merged",
+			dstDict: &bzl.DictExpr{List: []*bzl.KeyValueExpr{
+				{
+					Key:   &bzl.StringExpr{Value: "//conditions:default"},
+					Value: &bzl.ListExpr{List: []bzl.Expr{&bzl.StringExpr{Value: "//other"}}},
+				},
+			}},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			merged, err := rule.MergeDict(srcDict, tc.dstDict)
+			if err != nil {
+				t.Fatalf("MergeDict: %v", err)
 			}
-		}
-	}
-	if gotLinuxList == nil {
-		t.Fatal("MergeDict: result missing \"@platforms//os:linux\" case")
-	}
-	if len(gotLinuxList.List) != 0 {
-		t.Errorf("MergeDict: \"@platforms//os:linux\" should be empty list; got len=%d", len(gotLinuxList.List))
+			if merged == nil {
+				t.Fatalf("MergeDict: got nil; want non-nil dict")
+			}
+			got := bzl.FormatString(merged)
+			if got != want {
+				t.Errorf("MergeDict: got %s; want %s", got, want)
+			}
+		})
 	}
 }
