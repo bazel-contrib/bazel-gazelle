@@ -1,4 +1,4 @@
-/* Copyright 2016 The Bazel Authors. All rights reserved.
+/* Copyright 2026 The Bazel Authors. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -210,9 +210,9 @@ func (s SelectStringListValue) BzlExpr() bzl.Expr {
 
 	args := make([]*bzl.KeyValueExpr, 0, len(s))
 	for _, key := range keys {
-		value := ExprFromValue(s[key])
-		if key != defaultKey {
-			value.(*bzl.ListExpr).ForceMultiLine = true
+		value := ExprFromValue(s[key]).(*bzl.ListExpr)
+		if key != defaultKey && len(value.List) > 0 {
+			value.ForceMultiLine = true
 		}
 		args = append(args, &bzl.KeyValueExpr{
 			Key:   &bzl.StringExpr{Value: key},
