@@ -404,34 +404,39 @@ def sums_from_go_mod(module_ctx, go_mod_label):
     return parse_sumfile(module_ctx, go_mod_label, "go.sum")
 
 def sums_from_go_work(module_ctx, go_work_label):
-    """Loads the entries from a go.work.sum file given a go.work label.
+    """Loads the entries from a go.work.sum file given a go work file label.
 
     Args:
         module_ctx: a https://bazel.build/rules/lib/module_ctx object
             passed from the MODULE.bazel call.
-        go_work_label: a Label for a `go.work` file. This label is used
-            to find the associated `go.work.sum` file.
+        go_work_label: a Label for a go work file. The sum file is located
+            at `<go_work_label.name>.sum` in the same package, matching
+            the convention used by the go command.
 
     Returns:
         A Dict[(string, string) -> (string)] is returned where each entry
         is defined by a Go Module's sum:
             (path, version) -> (sum)
     """
-    _check_go_work_name(go_work_label.name)
 
-    # next we need to test if the go.work.sum file exists, this is a little tricky so we use an indirect approach:
+    # The go command accepts any file name via GOWORK and writes checksums
+    # to a sibling file with a .sum suffix, so derive the sum file name from
+    # the work file name rather than hardcoding go.work.sum.
+    sum_file_name = go_work_label.name + ".sum"
+
+    # next we need to test if the sum file exists, this is a little tricky so we use an indirect approach:
 
     # 1. convert go_work_label into a path
     go_work_path = module_ctx.path(go_work_label)
 
-    # 2. use the go_work_path to create a path for the heisen go.work.sum file
-    maybe_go_work_sum_path = go_work_path.dirname.get_child("go.work.sum")
+    # 2. use the go_work_path to create a path for the heisen sum file
+    maybe_go_work_sum_path = go_work_path.dirname.get_child(sum_file_name)
 
     # 3. check for its existence
     if maybe_go_work_sum_path.exists:
-        return parse_sumfile(module_ctx, go_work_label, "go.work.sum")
+        return parse_sumfile(module_ctx, go_work_label, sum_file_name)
     else:
-        # 4. if go.work.sum does not exist, we should watch it in case it appears in the future
+        # 4. if the sum file does not exist, we should watch it in case it appears in the future
         if hasattr(module_ctx, "watch"):
             # module_ctx.watch_tree is only available in bazel >= 7.1
             module_ctx.watch(maybe_go_work_sum_path)
@@ -476,10 +481,6 @@ automatically.""")
 def _check_go_mod_name(name):
     if name != "go.mod":
         fail("go_deps.from_file requires a 'go.mod' file, not '{}'".format(name))
-
-def _check_go_work_name(name):
-    if name != "go.work":
-        fail("go_deps.from_file requires a 'go.work' file, not '{}'".format(name))
 
 def _canonicalize_raw_version(raw_version):
     if raw_version.startswith("v"):

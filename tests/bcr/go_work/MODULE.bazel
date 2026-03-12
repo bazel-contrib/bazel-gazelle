@@ -31,8 +31,10 @@ go_deps.config(
     },
 )
 
-# Validate a full go workspace
-go_deps.from_file(go_work = "//:go.work")
+# Validate a full go workspace. The non-default file name exercises
+# go_deps.from_file's handling of custom work file names (the go command
+# itself accepts any name via GOWORK).
+go_deps.from_file(go_work = "//:workspace.go.work")
 go_deps.gazelle_default_attributes(
     build_file_generation = "on",
     directives = [

@@ -6,5 +6,6 @@
 /tests/bcr/*/bazel-bin
 /tests/bcr/*/bazel-out
 /tests/bcr/*/bazel-testlogs
+/tests/bcr/*/MODULE.bazel.lock
 .DS_STORE
 .ijwb/
