@@ -1,0 +1,43 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+
+proto_library(
+    name = "bar_proto",
+    srcs = ["bar.proto"],
+    _gazelle_imports = ["all/foo.proto"],
+    strip_import_prefix = "/path/to",
+    visibility = ["//visibility:public"],
+)
+
+proto_library(
+    name = "foo_proto",
+    srcs = ["foo.proto"],
+    _gazelle_imports = [],
+    strip_import_prefix = "/path/to",
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "bar_go_proto",
+    _gazelle_imports = ["all/foo.proto"],
+    importpath = "example.com/repo/single_file_protos/path/to/all",
+    proto = ":bar_proto",
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "foo_go_proto",
+    _gazelle_imports = [],
+    importpath = "example.com/repo/single_file_protos/path/to/all",
+    proto = ":foo_proto",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "all",
+    _gazelle_imports = [],
+    embed = [":bar_go_proto"],
+    importpath = "example.com/repo/single_file_protos/path/to/all",
+    visibility = ["//visibility:public"],
+)
