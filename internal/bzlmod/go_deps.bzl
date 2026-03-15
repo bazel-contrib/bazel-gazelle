@@ -322,7 +322,7 @@ def check_for_version_conflict(version, previous, module_tag, module_name_to_go_
 
     conflict_printer(message)
 
-def _noop(_):
+def _noop(*_):
     pass
 
 # These repos are shared between the isolated and non-isolated instances of go_deps as they are
