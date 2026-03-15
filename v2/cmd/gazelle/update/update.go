@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -46,6 +47,19 @@ import (
 	"github.com/bazelbuild/buildtools/build"
 )
 
+// BazelModuleVersion is the version of the Gazelle Bazel module. It may be used
+// to change behavior across versions built from the same code.
+var BazelModuleVersion string
+
+// IsBazelModule is set to a value that parses to "true" if Gazelle was built by
+// Bazel in module mode.
+var IsBazelModule string
+
+// errVersion is a special value indicating the -version flag was set, and the
+// version was printed. Run recovers from this by doing nothing and
+// returning nil.
+var errVersion = errors.New("version printed")
+
 // updateConfig holds configuration information needed to run the fix and
 // update commands. This includes everything in config.Config, but it also
 // includes some additional fields that aren't relevant to other packages.
@@ -60,6 +74,7 @@ type updateConfig struct {
 	print0                 bool
 	profile                Profiler
 	removeNoopKeepComments bool
+	printVersion           bool
 }
 
 type emitFunc func(c *config.Config, f *rule.File) error
@@ -102,10 +117,25 @@ func (ucr *updateConfigurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *conf
 	fs.Var(&gzflag.MultiFlag{Values: &ucr.knownImports}, "known_import", "import path for which external resolution is skipped (can specify multiple times)")
 	fs.StringVar(&ucr.repoConfigPath, "repo_config", "", "file where Gazelle should load repository configuration. Defaults to WORKSPACE.")
 	fs.BoolVar(&uc.removeNoopKeepComments, "remove_noop_keep_comments", false, "when set, gazelle will remove noop keep comments from BUILD files")
+	fs.BoolVar(&uc.printVersion, "version", false, "print gazelle's version and exit")
 }
 
 func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
 	uc := getUpdateConfig(c)
+
+	if uc.printVersion {
+		if BazelModuleVersion == "" {
+			fmt.Printf("gazelle version unknown\n")
+		} else {
+			fmt.Printf("gazelle %s\n", BazelModuleVersion)
+		}
+		if moduleMode, _ := strconv.ParseBool(IsBazelModule); moduleMode {
+			fmt.Printf("built in module mode\n")
+		} else {
+			fmt.Printf("built in workspace mode\n")
+		}
+		return errVersion
+	}
 
 	var ok bool
 	uc.emit, ok = modeFromName[ucr.mode]
@@ -281,7 +311,10 @@ func Run(
 	}
 
 	c, err := newFixUpdateConfiguration(wd, args, cexts)
-	if err != nil {
+	if errors.Is(err, errVersion) {
+		// sentinel error; we already printed the version so just exit
+		return nil
+	} else if err != nil {
 		return err
 	}
 

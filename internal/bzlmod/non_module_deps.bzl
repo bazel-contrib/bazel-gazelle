@@ -40,6 +40,12 @@ load(
 visibility("//")
 
 def _non_module_deps_impl(module_ctx):
+    gazelle_version = ""
+    for module in module_ctx.modules:
+        if module.name == "gazelle":
+            gazelle_version = module.version
+            break
+
     go_repository_cache(
         name = "bazel_gazelle_go_repository_cache",
         # Label.repo_name is always a canonical name, so use a canonical label.
@@ -49,10 +55,13 @@ def _non_module_deps_impl(module_ctx):
     go_repository_tools(
         name = "bazel_gazelle_go_repository_tools",
         go_cache = Label("@bazel_gazelle_go_repository_cache//:go.env"),
+        is_bazel_module = True,
+        gazelle_version = gazelle_version,
     )
     is_bazel_module(
         name = "bazel_gazelle_is_bazel_module",
         is_bazel_module = True,
+        module_version = gazelle_version,
     )
     return extension_metadata(module_ctx, reproducible = True)
 
