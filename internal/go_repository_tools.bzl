@@ -87,14 +87,22 @@ def _go_repository_tools_impl(ctx):
 
     # Build the tools.
     ctx.file("bin/empty", "")  # HACK: we want mkdir, but repository_ctx doesn't have it
+    gazelle_version = ctx.attr.gazelle_version if ctx.attr.gazelle_version != None else ""
+    ldflags = [
+        "-w",
+        "-s",
+        "-X",
+        "github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update.BazelModuleVersion=" + gazelle_version,
+        "-X",
+        "github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update.IsBazelModule=" + str(ctx.attr.is_bazel_module),
+    ]
     args = [
         go_tool,
         "build",
         "-o",
         bin_dir,
         "-ldflags",
-        "-w -s",
-        "-gcflags",
+        " ".join(ldflags),
         "-trimpath",
         "github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle",
         "github.com/bazelbuild/bazel-gazelle/cmd/fetch_repo",
@@ -125,6 +133,16 @@ go_repository_tools = repository_rule(
         "go_cache": attr.label(
             mandatory = True,
             allow_single_file = True,
+            doc = """The go.env file within the bazel_gazelle_go_repository_cache repo.
+
+go_repository_tools builds gazelle and other binaries using the go tool. This file
+sets GOCACHE and other environment variables.""",
+        ),
+        "is_bazel_module": attr.bool(
+            doc = "whether Bazel is building in module mode (with Bzlmod)",
+        ),
+        "gazelle_version": attr.string(
+            doc = "The Gazelle module version according to Bzlmod, if known",
         ),
         "_go_repository_tools_srcs": attr.label_list(
             default = GO_REPOSITORY_TOOLS_SRCS,

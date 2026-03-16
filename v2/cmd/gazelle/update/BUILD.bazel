@@ -1,3 +1,4 @@
+load("@bazel_gazelle_is_bazel_module//:defs.bzl", "GAZELLE_IS_BAZEL_MODULE", "GAZELLE_MODULE_VERSION")
 load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
@@ -12,6 +13,10 @@ go_library(
     ],
     importpath = "github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update",
     visibility = ["//visibility:public"],
+    x_defs = {
+        "BazelModuleVersion": GAZELLE_MODULE_VERSION,
+        "IsBazelModule": str(GAZELLE_IS_BAZEL_MODULE),
+    },
     deps = [
         "//config",
         "//flag",
