@@ -106,21 +106,18 @@ func GetDirInfo(rel string) (DirInfo, error) {
 	}
 	rel = path.Clean(rel)
 
-	// Ensure all ancestors are loaded before loading rel itself, since their
-	// configuration may exclude rel.
-	var prevCfg *walkConfig = nil
+	// Ensure all ancestors are loaded before loading rel itself, since any of
+	// them may stop traversal to rel.
 	var di DirInfo
 	var d string
 	var err error
 	pathtools.Prefixes(rel)(func(prefix string) bool {
 		d = prefix
-		if prevCfg != nil && prevCfg.isExcludedDir(prefix) {
+		di, err = globalWalker.cache.get(prefix, globalWalker.loadDirInfo)
+		if err == nil && !di.traversable {
 			di = DirInfo{}
 			err = fmt.Errorf("directory %q is excluded", prefix)
-			return false
 		}
-		di, err = globalWalker.cache.get(prefix, globalWalker.loadDirInfo)
-		prevCfg = di.config
 		return err == nil
 	})
 
@@ -128,6 +125,10 @@ func GetDirInfo(rel string) (DirInfo, error) {
 		if d != rel {
 			di = DirInfo{}
 		}
+	}
+	if vi, ok := globalWalker.visits[rel]; ok && vi.finalized {
+		di.RegularFiles = vi.regularFiles
+		di.Subdirs = vi.subdirs
 	}
 
 	return di, err

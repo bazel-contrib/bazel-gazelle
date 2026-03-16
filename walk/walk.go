@@ -320,6 +320,8 @@ type visitInfo struct {
 	// contain a build file. The parent directory may use regularFiles
 	// and subdirs.
 	containedByParent bool
+	visibleToParent   bool
+	finalized         bool
 
 	c                     *config.Config
 	regularFiles, subdirs []string
@@ -426,9 +428,10 @@ func (w *walker) visit(mode Mode, c *config.Config, rel string, updateParent boo
 	hasBuildFileError := err != nil
 	wc := info.config
 
-	if wc.isExcludedDir(rel) {
+	if !info.traversable {
 		return
 	}
+	selfExcluded := wc.isExcludedDir(rel)
 
 	containedByParent := info.File == nil && wc.updateOnly
 
@@ -438,24 +441,33 @@ func (w *walker) visit(mode Mode, c *config.Config, rel string, updateParent boo
 		configure(w.cexts, w.knownDirectives, c, rel, info.File, info.config)
 	}
 
-	regularFiles := info.RegularFiles
-	subdirs := info.Subdirs
+	regularFiles := append([]string(nil), info.RegularFiles...)
 	shouldUpdate := w.shouldUpdate(mode, rel, updateParent)
 	w.visits[rel] = visitInfo{
 		c:                 c,
 		containedByParent: containedByParent,
-		regularFiles:      regularFiles,
-		subdirs:           subdirs,
 	}
 
 	// Visit subdirectories, as needed.
-	for _, subdir := range subdirs {
+	for _, subdir := range info.traversalSubdirs {
 		subdirRel := path.Join(rel, subdir)
 		if w.shouldVisit(mode, subdirRel, shouldUpdate) {
 			w.visit(mode, c.Clone(), subdirRel, shouldUpdate)
 			if c.Strict && len(w.errs) > 0 {
 				return
 			}
+		}
+	}
+
+	subdirs := make([]string, 0, len(info.traversalSubdirs))
+	for _, subdir := range info.traversalSubdirs {
+		subdirRel := path.Join(rel, subdir)
+		if !wc.isExcludedDir(subdirRel) {
+			subdirs = append(subdirs, subdir)
+			continue
+		}
+		if vi, ok := w.visits[subdirRel]; ok && vi.visibleToParent {
+			subdirs = append(subdirs, subdir)
 		}
 	}
 
@@ -482,33 +494,54 @@ func (w *walker) visit(mode Mode, c *config.Config, rel string, updateParent boo
 			collect(path.Join(rel, subdir), subdir)
 		}
 
-		// Call the callback to update this directory.
-		update := !wc.ignore && shouldUpdate && !hasBuildFileError
-		result := w.wf(Walk2FuncArgs{
-			Dir:          dir,
-			Rel:          rel,
-			Config:       c,
-			Update:       update,
-			File:         info.File,
-			Subdirs:      subdirs,
-			RegularFiles: regularFiles,
-			GenFiles:     info.GenFiles,
-		})
-		if result.Err != nil {
-			w.errs = append(w.errs, result.Err)
+		shouldProcessSelf := !selfExcluded || len(regularFiles) > 0 || len(info.GenFiles) > 0
+		w.visits[rel] = visitInfo{
+			c:                 c,
+			containedByParent: containedByParent,
+			visibleToParent:   shouldProcessSelf,
+			finalized:         true,
+			regularFiles:      regularFiles,
+			subdirs:           subdirs,
 		}
-		for _, relToVisit := range result.RelsToVisit {
-			// Normalize RelsToVisit to clean relative paths and convert root "."
-			// to an empty string.
-			relToVisit = path.Clean(relToVisit)
-			if relToVisit == "." {
-				relToVisit = ""
-			}
 
-			if _, ok := w.relsToVisitSeen[relToVisit]; !ok {
-				w.relsToVisit = append(w.relsToVisit, relToVisit)
-				w.relsToVisitSeen[relToVisit] = struct{}{}
+		// Call the callback to update this directory.
+		if shouldProcessSelf {
+			update := !wc.ignore && shouldUpdate && !hasBuildFileError
+			result := w.wf(Walk2FuncArgs{
+				Dir:          dir,
+				Rel:          rel,
+				Config:       c,
+				Update:       update,
+				File:         info.File,
+				Subdirs:      subdirs,
+				RegularFiles: regularFiles,
+				GenFiles:     info.GenFiles,
+			})
+			if result.Err != nil {
+				w.errs = append(w.errs, result.Err)
 			}
+			for _, relToVisit := range result.RelsToVisit {
+				// Normalize RelsToVisit to clean relative paths and convert root "."
+				// to an empty string.
+				relToVisit = path.Clean(relToVisit)
+				if relToVisit == "." {
+					relToVisit = ""
+				}
+
+				if _, ok := w.relsToVisitSeen[relToVisit]; !ok {
+					w.relsToVisit = append(w.relsToVisit, relToVisit)
+					w.relsToVisitSeen[relToVisit] = struct{}{}
+				}
+			}
+		}
+	} else {
+		w.visits[rel] = visitInfo{
+			c:                 c,
+			containedByParent: containedByParent,
+			visibleToParent:   len(regularFiles) > 0 || len(subdirs) > 0,
+			finalized:         true,
+			regularFiles:      regularFiles,
+			subdirs:           subdirs,
 		}
 	}
 }

@@ -136,6 +136,10 @@ List of Go build tags Gazelle will defer to Bazel for evaluation. Gazelle applie
 **Default:** n/a<br>
 Prevents Gazelle from processing a file or directory if the given [`doublestar.Match`](https://pkg.go.dev/github.com/bmatcuk/doublestar/v4#Match) pattern matches. If the pattern refers to a source file, Gazelle won't include it in any rules. If the pattern refers to a directory, Gazelle won't recurse into it. This directive may be repeated to exclude multiple patterns, one per line.
 
+**Directive:** `# gazelle:include pattern`<br>
+**Default:** n/a<br>
+Re-includes a file or directory path prefix previously excluded by an earlier `# gazelle:exclude` directive. The given [`doublestar.Match`](https://pkg.go.dev/github.com/bmatcuk/doublestar/v4#Match) pattern uses the same path matching semantics as `# gazelle:exclude`, so a directory pattern may re-open traversal into that subtree. When multiple `# gazelle:exclude` and `# gazelle:include` directives match the same path, later directives win.
+
 **Directive:** `# gazelle:follow pattern`<br>
 **Default:** n/a<br>
 Instructs Gazelle to follow a symbolic link to a directory within the repository if the given [`doublestar.Match`](https://pkg.go.dev/github.com/bmatcuk/doublestar/v4#Match) pattern matches. Normally, Gazelle does not follow symbolic links unless they point outside of the repository root. Care must be taken to avoid visiting a directory more than once. The `# gazelle:exclude` directive may be used to prevent Gazelle from recursing into a directory.
