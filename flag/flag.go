@@ -16,77 +16,20 @@
 // flag.Value interface.
 package flag
 
-import (
-	stdflag "flag"
-	"fmt"
-	"strings"
-)
+import v2 "github.com/bazel-contrib/bazel-gazelle/v2/flag"
 
 // MultiFlag collects repeated string flags into a slice.
-type MultiFlag struct {
-	IsSet  *bool
-	Values *[]string
-}
-
-var _ stdflag.Value = (*MultiFlag)(nil)
-
-func (m *MultiFlag) Set(v string) error {
-	if m.IsSet != nil && !*m.IsSet {
-		*m.IsSet = true
-		*m.Values = nil // clear any default values
-	}
-	*m.Values = append(*m.Values, v)
-	return nil
-}
-
-func (m *MultiFlag) String() string {
-	if m == nil || m.Values == nil {
-		return ""
-	}
-	return strings.Join(*m.Values, ",")
-}
+//
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/flag.MultiFlag instead.
+//go:fix inline
+type MultiFlag = v2.MultiFlag
 
 // ExplicitFlag is a string flag that tracks whether it was set.
-type ExplicitFlag struct {
-	IsSet *bool
-	Value *string
-}
+//
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/flag.ExplicitFlag instead.
+//go:fix inline
+type ExplicitFlag = v2.ExplicitFlag
 
-var _ stdflag.Value = (*ExplicitFlag)(nil)
-
-func (f *ExplicitFlag) Set(value string) error {
-	*f.IsSet = true
-	*f.Value = value
-	return nil
-}
-
-func (f *ExplicitFlag) String() string {
-	if f == nil || f.Value == nil {
-		return ""
-	}
-	return *f.Value
-}
-
-var _ stdflag.Value = (*AllowedStringFlag)(nil)
-
-type AllowedStringFlag struct {
-	Allowed []string
-	Value   *string
-}
-
-func (f *AllowedStringFlag) Set(v string) error {
-	for _, a := range f.Allowed {
-		if v == a {
-			*f.Value = v
-			return nil
-		}
-	}
-	return fmt.Errorf("Invalid argument %q. Possible values are: %s", v, strings.Join(f.Allowed, ", "))
-}
-
-func (f *AllowedStringFlag) String() string {
-	if f == nil || f.Value == nil {
-		return ""
-	}
-	return *f.Value
-}
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/flag.AllowedStringFlag instead.
+//go:fix inline
+type AllowedStringFlag = v2.AllowedStringFlag
