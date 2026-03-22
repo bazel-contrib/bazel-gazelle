@@ -25,11 +25,13 @@ import (
 // rule attribute, i.e., a Skylark keyword argument.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.KeyValue instead.
+//go:fix inline
 type KeyValue = v2.KeyValue
 
 // GlobValue represents a Bazel glob expression.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.GlobValue instead.
+//go:fix inline
 type GlobValue = v2.GlobValue
 
 // ParseGlobExpr detects whether the given expression is a call to the glob
@@ -37,6 +39,7 @@ type GlobValue = v2.GlobValue
 // (if they are literal strings) and true. If not, ParseGlobExpr returns false.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.ParseGlobExpr instead.
+//go:fix inline
 func ParseGlobExpr(e bzl.Expr) (GlobValue, bool) {
 	return v2.ParseGlobExpr(e)
 }
@@ -45,6 +48,7 @@ func ParseGlobExpr(e bzl.Expr) (GlobValue, bool) {
 // to Starlark values.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.BzlExprValue instead.
+//go:fix inline
 type BzlExprValue = v2.BzlExprValue
 
 // Merger is implemented by types that can merge their data into an
@@ -55,18 +59,22 @@ type BzlExprValue = v2.BzlExprValue
 // Note that other can be nil, if no previous attr with this name existed.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.Merger instead.
+//go:fix inline
 type Merger = v2.Merger
 
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.SortedStrings instead.
+//go:fix inline
 type SortedStrings = v2.SortedStrings
 
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.UnsortedStrings instead.
+//go:fix inline
 type UnsortedStrings = v2.UnsortedStrings
 
 // SelectStringListValue is a value that can be translated to a Bazel
 // select expression that picks a string list based on a string condition.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.SelectStringListValue instead.
+//go:fix inline
 type SelectStringListValue = v2.SelectStringListValue
 
 // ExprFromValue converts a value into an expression that can be written into
@@ -83,6 +91,7 @@ type SelectStringListValue = v2.SelectStringListValue
 // Converting unsupported types will cause a panic.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.ExprFromValue instead.
+//go:fix inline
 func ExprFromValue(val interface{}) bzl.Expr {
 	return v2.ExprFromValue(val)
 }

@@ -27,6 +27,7 @@ import (
 // This function calls File.Sync before processing loads.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/merger.FixLoads instead.
+//go:fix inline
 func FixLoads(f *rule.File, knownLoads []rule.LoadInfo) {
 	v2.FixLoads(f, knownLoads)
 }
@@ -40,6 +41,7 @@ func FixLoads(f *rule.File, knownLoads []rule.LoadInfo) {
 // (i.e., after FixLoads) before writing it to disk.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/merger.CheckGazelleLoaded instead.
+//go:fix inline
 func CheckGazelleLoaded(f *rule.File) error {
 	return v2.CheckGazelleLoaded(f)
 }

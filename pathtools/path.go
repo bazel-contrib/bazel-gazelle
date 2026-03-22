@@ -27,6 +27,7 @@ import v2 "github.com/bazel-contrib/bazel-gazelle/v2/pathtools"
 // prefix is empty, this function always returns true.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/pathtools.HasPrefix instead.
+//go:fix inline
 func HasPrefix(p, prefix string) bool {
 	return v2.HasPrefix(p, prefix)
 }
@@ -37,6 +38,7 @@ func HasPrefix(p, prefix string) bool {
 // TrimPrefix("foo/bar", "foo") returns "baz".
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/pathtools.TrimPrefix instead.
+//go:fix inline
 func TrimPrefix(p, prefix string) string {
 	return v2.TrimPrefix(p, prefix)
 }
@@ -48,6 +50,7 @@ func TrimPrefix(p, prefix string) string {
 // to, then RelBaseName returns "root".
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/pathtools.RelBaseName instead.
+//go:fix inline
 func RelBaseName(rel, prefix, root string) string {
 	return v2.RelBaseName(rel, prefix, root)
 }
@@ -57,6 +60,7 @@ func RelBaseName(rel, prefix, root string) string {
 // boundaries within p.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/pathtools.Index instead.
+//go:fix inline
 func Index(p, sub string) int {
 	return v2.Index(p, sub)
 }
@@ -66,6 +70,7 @@ func Index(p, sub string) int {
 // boundaries within p.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/pathtools.LastIndex instead.
+//go:fix inline
 func LastIndex(p, sub string) int {
 	return v2.LastIndex(p, sub)
 }
@@ -79,6 +84,7 @@ func LastIndex(p, sub string) int {
 // if p is "a/../b//c/", the iterator yields "a", "..", "b", "c".
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/pathtools.Prefixes instead.
+//go:fix inline
 func Prefixes(p string) func(yield func(string) bool) {
 	return v2.Prefixes(p)
 }

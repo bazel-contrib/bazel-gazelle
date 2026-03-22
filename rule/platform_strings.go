@@ -23,6 +23,7 @@ import v2 "github.com/bazel-contrib/bazel-gazelle/v2/rule"
 // DEPRECATED: do not use outside language/go.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.PlatformConstraint instead.
+//go:fix inline
 type PlatformConstraint = v2.PlatformConstraint
 
 // PlatformStrings contains a set of strings associated with a buildable
@@ -40,4 +41,5 @@ type PlatformConstraint = v2.PlatformConstraint
 // should be moved to the Go extension.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.PlatformStrings instead.
+//go:fix inline
 type PlatformStrings = v2.PlatformStrings

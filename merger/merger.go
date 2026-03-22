@@ -44,12 +44,15 @@ import (
 // Phase indicates which attributes should be merged in matching rules.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/merger.Phase instead.
+//go:fix inline
 type Phase = v2.Phase
 
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/merger.PreResolve instead.
+//go:fix inline
 const PreResolve = v2.PreResolve
 
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/merger.PostResolve instead.
+//go:fix inline
 const PostResolve = v2.PostResolve
 
 // UnstableInsertIndexKey is the name of an internal attribute that may be set
@@ -62,6 +65,7 @@ const PostResolve = v2.PostResolve
 // TODO(jayconrod): make this stable *or* find a better way to express it.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/merger.UnstableInsertIndexKey instead.
+//go:fix inline
 const UnstableInsertIndexKey = v2.UnstableInsertIndexKey
 
 // MergeFile combines information from newly generated rules with matching
@@ -102,6 +106,7 @@ const UnstableInsertIndexKey = v2.UnstableInsertIndexKey
 // be modified.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/merger.MergeFile instead.
+//go:fix inline
 func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phase, kinds map[string]rule.KindInfo, aliasedKinds map[string]string) {
 	v2.MergeFile(oldFile, emptyRules, genRules, phase, kinds, aliasedKinds)
 }
@@ -124,6 +129,7 @@ func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phas
 // the rule and nil are returned. Otherwise, nil and an error are returned.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/merger.Match instead.
+//go:fix inline
 func Match(rules []*rule.Rule, x *rule.Rule, info rule.KindInfo, aliasedKinds map[string]string) (*rule.Rule, error) {
 	return v2.Match(rules, x, info, aliasedKinds)
 }

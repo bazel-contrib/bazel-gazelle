@@ -24,6 +24,7 @@ import v2 "github.com/bazel-contrib/bazel-gazelle/v2/rule"
 // and should be moved to the Go extension.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.Platform instead.
+//go:fix inline
 type Platform = v2.Platform
 
 // KnownPlatforms is the set of target platforms that Go supports. Gazelle
@@ -35,31 +36,40 @@ type Platform = v2.Platform
 // DEPRECATED: do not use outside language/go.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.KnownPlatforms instead.
+//go:fix inline
 var KnownPlatforms = v2.KnownPlatforms
 
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.OSAliases instead.
+//go:fix inline
 var OSAliases = v2.OSAliases
 
 // UnixOS is the set of GOOS values matched by the "unix" build tag.
 // This list is from go/src/cmd/dist/build.go.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.UnixOS instead.
+//go:fix inline
 var UnixOS = v2.UnixOS
 
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.KnownOSs instead.
+//go:fix inline
 var KnownOSs = v2.KnownOSs
 
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.KnownOSSet instead.
+//go:fix inline
 var KnownOSSet = v2.KnownOSSet
 
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.KnownArchs instead.
+//go:fix inline
 var KnownArchs = v2.KnownArchs
 
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.KnownArchSet instead.
+//go:fix inline
 var KnownArchSet = v2.KnownArchSet
 
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.KnownOSArchs instead.
+//go:fix inline
 var KnownOSArchs = v2.KnownOSArchs
 
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.KnownArchOSs instead.
+//go:fix inline
 var KnownArchOSs = v2.KnownArchOSs

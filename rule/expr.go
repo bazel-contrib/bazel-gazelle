@@ -26,6 +26,7 @@ import (
 // returned.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.MapExprStrings instead.
+//go:fix inline
 func MapExprStrings(e bzl.Expr, f func(string) string) bzl.Expr {
 	return v2.MapExprStrings(e, f)
 }
@@ -37,6 +38,7 @@ func MapExprStrings(e bzl.Expr, f func(string) string) bzl.Expr {
 // PlatformStrings, the expression will be returned unmodified.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.FlattenExpr instead.
+//go:fix inline
 func FlattenExpr(e bzl.Expr) bzl.Expr {
 	return v2.FlattenExpr(e)
 }

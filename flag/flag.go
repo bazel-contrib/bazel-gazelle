@@ -21,12 +21,15 @@ import v2 "github.com/bazel-contrib/bazel-gazelle/v2/flag"
 // MultiFlag collects repeated string flags into a slice.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/flag.MultiFlag instead.
+//go:fix inline
 type MultiFlag = v2.MultiFlag
 
 // ExplicitFlag is a string flag that tracks whether it was set.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/flag.ExplicitFlag instead.
+//go:fix inline
 type ExplicitFlag = v2.ExplicitFlag
 
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/flag.AllowedStringFlag instead.
+//go:fix inline
 type AllowedStringFlag = v2.AllowedStringFlag

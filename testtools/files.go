@@ -24,6 +24,7 @@ import (
 // FileSpec specifies the content of a test file.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/testtools.FileSpec instead.
+//go:fix inline
 type FileSpec = v2.FileSpec
 
 // CreateFiles creates a directory of test files. This is a more compact
@@ -32,6 +33,7 @@ type FileSpec = v2.FileSpec
 // after the test.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/testtools.CreateFiles instead.
+//go:fix inline
 func CreateFiles(t *testing.T, files []FileSpec) (dir string, cleanup func()) {
 	return v2.CreateFiles(t, files)
 }
@@ -41,11 +43,13 @@ func CreateFiles(t *testing.T, files []FileSpec) (dir string, cleanup func()) {
 // are allowed.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/testtools.CheckFiles instead.
+//go:fix inline
 func CheckFiles(t *testing.T, dir string, files []FileSpec) {
 	v2.CheckFiles(t, dir, files)
 }
 
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/testtools.TestGazelleGenerationArgs instead.
+//go:fix inline
 type TestGazelleGenerationArgs = v2.TestGazelleGenerationArgs
 
 // TestGazelleGenerationOnPath runs a full gazelle binary on a testdata directory.
@@ -65,6 +69,7 @@ type TestGazelleGenerationArgs = v2.TestGazelleGenerationArgs
 //	        └── BUILD.out --> BUILD file expected after running gazelle.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/testtools.TestGazelleGenerationOnPath instead.
+//go:fix inline
 func TestGazelleGenerationOnPath(t *testing.T, args *TestGazelleGenerationArgs) {
 	v2.TestGazelleGenerationOnPath(t, args)
 }

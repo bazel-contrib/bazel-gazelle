@@ -26,11 +26,13 @@ import v2 "github.com/bazel-contrib/bazel-gazelle/v2/label"
 // as @repo//pkg:target.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/label.Label instead.
+//go:fix inline
 type Label = v2.Label
 
 // New constructs a new label from components.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/label.New instead.
+//go:fix inline
 func New(repo, pkg, name string) Label {
 	return v2.New(repo, pkg, name)
 }
@@ -39,12 +41,14 @@ func New(repo, pkg, name string) Label {
 // returned when an error occurs.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/label.NoLabel instead.
+//go:fix inline
 var NoLabel = v2.NoLabel
 
 // Parse reads a label from a string.
 // See https://docs.bazel.build/versions/master/build-ref.html#lexi.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/label.Parse instead.
+//go:fix inline
 func Parse(s string) (Label, error) {
 	return v2.Parse(s)
 }
@@ -53,6 +57,7 @@ func Parse(s string) (Label, error) {
 // following the guidelines in http://bazel.io/docs/be/functions.html#workspace
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/label.ImportPathToBazelRepoName instead.
+//go:fix inline
 func ImportPathToBazelRepoName(importpath string) string {
 	return v2.ImportPathToBazelRepoName(importpath)
 }

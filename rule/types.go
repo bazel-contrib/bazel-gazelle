@@ -21,9 +21,11 @@ import v2 "github.com/bazel-contrib/bazel-gazelle/v2/rule"
 // it defines.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.LoadInfo instead.
+//go:fix inline
 type LoadInfo = v2.LoadInfo
 
 // KindInfo stores metadata for a kind of rule, for example, "go_library".
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.KindInfo instead.
+//go:fix inline
 type KindInfo = v2.KindInfo

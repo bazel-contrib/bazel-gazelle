@@ -31,6 +31,7 @@ import (
 // error is encountered while processing flags.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/testtools.NewTestConfig instead.
+//go:fix inline
 func NewTestConfig(t *testing.T, cexts []config.Configurer, langs []language.Language, args []string) *config.Config {
 	return v2.NewTestConfig(t, cexts, langs, args)
 }

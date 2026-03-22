@@ -40,6 +40,7 @@ import (
 // it will be deleted.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.MergeRules instead.
+//go:fix inline
 func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 	v2.MergeRules(src, dst, mergeable, filename)
 }
@@ -47,6 +48,7 @@ func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 // RemoveNoopKeepComments controls whether comments with "# keep" are removed when they are not needed.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.RemoveNoopKeepComments instead.
+//go:fix inline
 var RemoveNoopKeepComments = v2.RemoveNoopKeepComments
 
 // MergeList merges two bzl.ListExpr of strings. The lists are merged in the
@@ -64,6 +66,7 @@ var RemoveNoopKeepComments = v2.RemoveNoopKeepComments
 // have a "# keep" comment.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.MergeList instead.
+//go:fix inline
 func MergeList(srcExpr, dstExpr bzl.Expr) *bzl.ListExpr {
 	return v2.MergeList(srcExpr, dstExpr)
 }
@@ -77,6 +80,7 @@ func MergeList(srcExpr, dstExpr bzl.Expr) *bzl.ListExpr {
 // an error is returned.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.MergeDict instead.
+//go:fix inline
 func MergeDict(srcExpr, dstExpr bzl.Expr) (*bzl.DictExpr, error) {
 	return v2.MergeDict(srcExpr, dstExpr)
 }
@@ -88,6 +92,7 @@ func MergeDict(srcExpr, dstExpr bzl.Expr) (*bzl.DictExpr, error) {
 // and neither rule is modified.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.SquashRules instead.
+//go:fix inline
 func SquashRules(src, dst *Rule, filename string) error {
 	return v2.SquashRules(src, dst, filename)
 }

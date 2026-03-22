@@ -39,11 +39,13 @@ import (
 // changes have been made, call Save to write changes back to a file.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.File instead.
+//go:fix inline
 type File = v2.File
 
 // EmptyFile creates a File wrapped around an empty syntax tree.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.EmptyFile instead.
+//go:fix inline
 func EmptyFile(path, pkg string) *File {
 	return v2.EmptyFile(path, pkg)
 }
@@ -56,6 +58,7 @@ func EmptyFile(path, pkg string) *File {
 // to use os.IsNotExist and similar predicates.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.LoadFile instead.
+//go:fix inline
 func LoadFile(path, pkg string) (*File, error) {
 	return v2.LoadFile(path, pkg)
 }
@@ -64,6 +67,7 @@ func LoadFile(path, pkg string) (*File, error) {
 // file.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.LoadWorkspaceFile instead.
+//go:fix inline
 func LoadWorkspaceFile(path, pkg string) (*File, error) {
 	return v2.LoadWorkspaceFile(path, pkg)
 }
@@ -75,6 +79,7 @@ func LoadWorkspaceFile(path, pkg string) (*File, error) {
 // Sync and Save calls.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.LoadMacroFile instead.
+//go:fix inline
 func LoadMacroFile(path, pkg, defName string) (*File, error) {
 	return v2.LoadMacroFile(path, pkg, defName)
 }
@@ -84,6 +89,7 @@ func LoadMacroFile(path, pkg, defName string) (*File, error) {
 // by Sync and Save calls.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.EmptyMacroFile instead.
+//go:fix inline
 func EmptyMacroFile(path, pkg, defName string) (*File, error) {
 	return v2.EmptyMacroFile(path, pkg, defName)
 }
@@ -93,6 +99,7 @@ func EmptyMacroFile(path, pkg, defName string) (*File, error) {
 // by editing methods.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.LoadData instead.
+//go:fix inline
 func LoadData(path, pkg string, data []byte) (*File, error) {
 	return v2.LoadData(path, pkg, data)
 }
@@ -101,6 +108,7 @@ func LoadData(path, pkg string, data []byte) (*File, error) {
 // WORKSPACE file.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.LoadWorkspaceData instead.
+//go:fix inline
 func LoadWorkspaceData(path, pkg string, data []byte) (*File, error) {
 	return v2.LoadWorkspaceData(path, pkg, data)
 }
@@ -112,6 +120,7 @@ func LoadWorkspaceData(path, pkg string, data []byte) (*File, error) {
 // within File and can be modified by Sync and Save calls.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.LoadMacroData instead.
+//go:fix inline
 func LoadMacroData(path, pkg, defName string, data []byte) (*File, error) {
 	return v2.LoadMacroData(path, pkg, defName, data)
 }
@@ -120,6 +129,7 @@ func LoadMacroData(path, pkg, defName string, data []byte) (*File, error) {
 // will be modified by editing methods.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.ScanAST instead.
+//go:fix inline
 func ScanAST(pkg string, bzlFile *bzl.File) *File {
 	return v2.ScanAST(pkg, bzlFile)
 }
@@ -130,6 +140,7 @@ func ScanAST(pkg string, bzlFile *bzl.File) *File {
 // the next time Sync is called.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.ScanASTBody instead.
+//go:fix inline
 func ScanASTBody(pkg, defName string, bzlFile *bzl.File) *File {
 	return v2.ScanASTBody(pkg, defName, bzlFile)
 }
@@ -140,6 +151,7 @@ func ScanASTBody(pkg, defName string, bzlFile *bzl.File) *File {
 // empty string is returned.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.MatchBuildFile instead.
+//go:fix inline
 func MatchBuildFile(dir string, names []string, ents []fs.DirEntry) string {
 	return v2.MatchBuildFile(dir, names, ents)
 }
@@ -147,6 +159,7 @@ func MatchBuildFile(dir string, names []string, ents []fs.DirEntry) string {
 // Deprecated: Prefer MatchBuildFile, it's more efficient to fetch a []fs.DirEntry
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.MatchBuildFileName instead.
+//go:fix inline
 func MatchBuildFileName(dir string, names []string, files []os.FileInfo) string {
 	return v2.MatchBuildFileName(dir, names, files)
 }
@@ -154,11 +167,13 @@ func MatchBuildFileName(dir string, names []string, files []os.FileInfo) string 
 // Load represents a load statement within a build file.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.Load instead.
+//go:fix inline
 type Load = v2.Load
 
 // NewLoad creates a new, empty load statement for the given file name.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.NewLoad instead.
+//go:fix inline
 func NewLoad(name string) *Load {
 	return v2.NewLoad(name)
 }
@@ -166,11 +181,13 @@ func NewLoad(name string) *Load {
 // Rule represents a rule statement within a build file.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.Rule instead.
+//go:fix inline
 type Rule = v2.Rule
 
 // NewRule creates a new, empty rule with the given kind and name.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.NewRule instead.
+//go:fix inline
 func NewRule(kind, name string) *Rule {
 	return v2.NewRule(kind, name)
 }
@@ -179,6 +196,7 @@ func NewRule(kind, name string) *Rule {
 // expressions should not be removed or modified.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.ShouldKeep instead.
+//go:fix inline
 func ShouldKeep(e bzl.Expr) bool {
 	return v2.ShouldKeep(e)
 }
@@ -187,6 +205,7 @@ func ShouldKeep(e bzl.Expr) bool {
 // internal.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.CheckInternalVisibility instead.
+//go:fix inline
 func CheckInternalVisibility(rel, visibility string) string {
 	return v2.CheckInternalVisibility(rel, visibility)
 }
