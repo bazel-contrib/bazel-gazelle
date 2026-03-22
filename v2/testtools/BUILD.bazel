@@ -7,12 +7,12 @@ go_library(
         "config.go",
         "files.go",
     ],
-    importpath = "github.com/bazelbuild/bazel-gazelle/testtools",
+    importpath = "github.com/bazel-contrib/bazel-gazelle/v2/testtools",
     visibility = ["//visibility:public"],
     deps = [
         "//config",
         "//language",
-        "//v2/testtools",
+        "@com_github_google_go_cmp//cmp",
     ],
 )
 
@@ -24,11 +24,5 @@ filegroup(
         "config.go",
         "files.go",
     ],
-    visibility = ["//visibility:public"],
-)
-
-alias(
-    name = "go_default_library",
-    actual = ":testtools",
     visibility = ["//visibility:public"],
 )

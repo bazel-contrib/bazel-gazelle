@@ -15,33 +15,16 @@ limitations under the License.
 
 package rule
 
-import (
-	"sort"
-)
+import v2 "github.com/bazel-contrib/bazel-gazelle/v2/rule"
 
 // Platform represents a GOOS/GOARCH pair. When Platform is used to describe
 // sources, dependencies, or flags, either OS or Arch may be empty.
 //
 // DEPRECATED: do not use outside language/go. This type is Go-specific
 // and should be moved to the Go extension.
-type Platform struct {
-	OS, Arch string
-}
-
-// String returns OS, Arch, or "OS_Arch" if both are set. This must match
-// the names of config_setting rules in @io_bazel_rules_go//go/platform.
-func (p Platform) String() string {
-	switch {
-	case p.OS != "" && p.Arch != "":
-		return p.OS + "_" + p.Arch
-	case p.OS != "":
-		return p.OS
-	case p.Arch != "":
-		return p.Arch
-	default:
-		return ""
-	}
-}
+//
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.Platform instead.
+type Platform = v2.Platform
 
 // KnownPlatforms is the set of target platforms that Go supports. Gazelle
 // will generate multi-platform build files using these tags. rules_go and
@@ -50,124 +33,33 @@ func (p Platform) String() string {
 // If updating this list, please run `bazel run @io_bazel_rules_go//go generate ./...`
 //
 // DEPRECATED: do not use outside language/go.
-var KnownPlatforms = []Platform{
-	{"aix", "ppc64"},
-	{"android", "386"},
-	{"android", "amd64"},
-	{"android", "arm"},
-	{"android", "arm64"},
-	{"darwin", "386"},
-	{"darwin", "amd64"},
-	{"darwin", "arm"},
-	{"darwin", "arm64"},
-	{"dragonfly", "amd64"},
-	{"freebsd", "386"},
-	{"freebsd", "amd64"},
-	{"freebsd", "arm"},
-	{"freebsd", "arm64"},
-	{"illumos", "amd64"},
-	{"ios", "amd64"},
-	{"ios", "arm64"},
-	{"js", "wasm"},
-	{"linux", "386"},
-	{"linux", "amd64"},
-	{"linux", "arm"},
-	{"linux", "arm64"},
-	{"linux", "mips"},
-	{"linux", "mips64"},
-	{"linux", "mips64le"},
-	{"linux", "mipsle"},
-	{"linux", "ppc64"},
-	{"linux", "ppc64le"},
-	{"linux", "riscv64"},
-	{"linux", "s390x"},
-	{"netbsd", "386"},
-	{"netbsd", "amd64"},
-	{"netbsd", "arm"},
-	{"netbsd", "arm64"},
-	{"openbsd", "386"},
-	{"openbsd", "amd64"},
-	{"openbsd", "arm"},
-	{"openbsd", "arm64"},
-	{"osx", "386"},
-	{"osx", "amd64"},
-	{"osx", "arm"},
-	{"osx", "arm64"},
-	{"qnx", "386"},
-	{"qnx", "amd64"},
-	{"qnx", "arm"},
-	{"qnx", "arm64"},
-	{"plan9", "386"},
-	{"plan9", "amd64"},
-	{"plan9", "arm"},
-	{"solaris", "amd64"},
-	{"windows", "386"},
-	{"windows", "amd64"},
-	{"windows", "arm"},
-	{"windows", "arm64"},
-}
+//
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.KnownPlatforms instead.
+var KnownPlatforms = v2.KnownPlatforms
 
-var OSAliases = map[string][]string{
-	"android": {"linux"},
-	"ios":     {"darwin"},
-}
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.OSAliases instead.
+var OSAliases = v2.OSAliases
 
 // UnixOS is the set of GOOS values matched by the "unix" build tag.
 // This list is from go/src/cmd/dist/build.go.
-var UnixOS = map[string]bool{
-	"aix":       true,
-	"android":   true,
-	"darwin":    true,
-	"dragonfly": true,
-	"freebsd":   true,
-	"hurd":      true,
-	"illumos":   true,
-	"ios":       true,
-	"linux":     true,
-	"netbsd":    true,
-	"openbsd":   true,
-	"solaris":   true,
-}
+//
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.UnixOS instead.
+var UnixOS = v2.UnixOS
 
-var (
-	// KnownOSs is the sorted list of operating systems that Go supports.
-	KnownOSs []string
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.KnownOSs instead.
+var KnownOSs = v2.KnownOSs
 
-	// KnownOSSet is the set of operating systems that Go supports.
-	KnownOSSet map[string]bool
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.KnownOSSet instead.
+var KnownOSSet = v2.KnownOSSet
 
-	// KnownArchs is the sorted list of architectures that Go supports.
-	KnownArchs []string
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.KnownArchs instead.
+var KnownArchs = v2.KnownArchs
 
-	// KnownArchSet is the set of architectures that Go supports.
-	KnownArchSet map[string]bool
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.KnownArchSet instead.
+var KnownArchSet = v2.KnownArchSet
 
-	// KnownOSArchs is a map from OS to the archictures they run on.
-	KnownOSArchs map[string][]string
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.KnownOSArchs instead.
+var KnownOSArchs = v2.KnownOSArchs
 
-	// KnownArchOSs is a map from architectures to that OSs that run on them.
-	KnownArchOSs map[string][]string
-)
-
-func init() {
-	KnownOSSet = make(map[string]bool)
-	KnownArchSet = make(map[string]bool)
-	KnownOSArchs = make(map[string][]string)
-	KnownArchOSs = make(map[string][]string)
-	for _, p := range KnownPlatforms {
-		KnownOSSet[p.OS] = true
-		KnownArchSet[p.Arch] = true
-		KnownOSArchs[p.OS] = append(KnownOSArchs[p.OS], p.Arch)
-		KnownArchOSs[p.Arch] = append(KnownArchOSs[p.Arch], p.OS)
-	}
-	KnownOSs = make([]string, 0, len(KnownOSSet))
-	KnownArchs = make([]string, 0, len(KnownArchSet))
-	for os := range KnownOSSet {
-		KnownOSs = append(KnownOSs, os)
-	}
-	for arch := range KnownArchSet {
-		KnownArchs = append(KnownArchs, arch)
-	}
-	sort.Strings(KnownOSs)
-	sort.Strings(KnownArchs)
-}
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.KnownArchOSs instead.
+var KnownArchOSs = v2.KnownArchOSs
