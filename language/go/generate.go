@@ -149,7 +149,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		path := filepath.Join(args.Dir, name)
 		goFileInfos[i] = goFileInfo(path, srcdir)
 		if len(goFileInfos[i].embeds) > 0 && er == nil {
-			er = newEmbedResolver(args.Dir, args.Rel, c.ValidBuildFileNames, gl.goPkgRels, args.Subdirs, args.RegularFiles, args.GenFiles)
+			er = newEmbedResolver(args.Dir, args.Subdirs, args.RegularFiles, args.GenFiles)
 		}
 	}
 	goPackageMap, goFilesWithUnknownPackage := buildPackages(c, args.Dir, args.Rel, hasTestdata, er, goFileInfos)
