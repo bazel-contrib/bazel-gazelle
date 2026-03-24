@@ -50,32 +50,17 @@ func (f *embeddableNode) isHidden() bool {
 }
 
 // newEmbedResolver builds a set of files that may be embedded. This is
-// approximately all files in a Bazel package including explicitly declared
-// generated files and files in subdirectories without build files.
-// Files in other Bazel packages are not listed, since it might not be possible
-// to reference those files if they aren't listed in an export_files
-// declaration.
+// approximately all files reachable from a Bazel package directory, including
+// explicitly declared generated files and files in subdirectories.
 //
 // This function walks subdirectory trees and may be expensive. Don't call it
 // unless a go:embed directive is actually present.
 //
 // dir is the absolute path to the directory containing the embed directive.
 //
-// rel is the relative path from the workspace root to the same directory
-// (or "" if the directory is the workspace root itself).
-//
-// validBuildFileNames is the configured list of recognized build file names.
-// These are used to identify Bazel packages in subdirectories that Gazelle
-// did not visit.
-//
-// pkgRels is a set of relative paths from the workspace root to directories
-// that contain (or will contain) build files. It doesn't need to contain
-// entries for the entire workspace, but it should contain entries for
-// subdirectories processed earlier (this avoids redundant O(n^2) I/O).
-//
 // subdirs, regFiles, and genFiles are lists of subdirectories, regular files,
 // and declared generated files in dir, respectively.
-func newEmbedResolver(dir, rel string, validBuildFileNames []string, pkgRels map[string]bool, subdirs, regFiles, genFiles []string) *embedResolver {
+func newEmbedResolver(dir string, subdirs, regFiles, genFiles []string) *embedResolver {
 	root := &embeddableNode{entries: []*embeddableNode{}}
 	index := make(map[string]*embeddableNode)
 
@@ -123,17 +108,6 @@ func newEmbedResolver(dir, rel string, validBuildFileNames []string, pkgRels map
 			}
 			if isBadEmbedName(base) {
 				return filepath.SkipDir
-			}
-			if pkgRels[path.Join(rel, fileRel)] {
-				// Directory contains a Go package and will contain a build file,
-				// if it doesn't already.
-				return filepath.SkipDir
-			}
-			for _, name := range validBuildFileNames {
-				if bFileInfo, err := os.Stat(filepath.Join(p, name)); err == nil && !bFileInfo.IsDir() {
-					// Directory already contains a build file.
-					return filepath.SkipDir
-				}
 			}
 			add(fileRel, true)
 			return nil

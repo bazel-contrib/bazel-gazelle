@@ -6,8 +6,11 @@ go_library(
     _gazelle_imports = ["embed"],
     embedsrcs = [
         "_m_hidden.txt",
+        "m_dir/o_go/o.go",
         "m_dir/static.txt",
         "m_gen.txt",
+        "m_go/m.go",
+        "m_pkg/BUILD.old",
         "m_static.txt",
         "n_/static.txt",
         "o_dir/_hidden.txt",
