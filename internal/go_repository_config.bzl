@@ -42,7 +42,7 @@ def _go_repository_config_impl(ctx):
             fail("generate_repo_config: " + result.stderr)
         if result.stdout:
             for f in result.stdout.splitlines():
-                f = f.lstrip()
+                f = f.lstrip().replace("\\", "/")
                 if len(f) > 0:
                     # Reuse the repo prefix of the stringified label to use a
                     # canonical label literal on Bazel 6 and higher.
