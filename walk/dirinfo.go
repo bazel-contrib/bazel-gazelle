@@ -2,6 +2,7 @@ package walk
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -18,6 +19,13 @@ type DirInfo struct {
 	// of targets in the directory's build file.
 	// The content of these slices must not be modified.
 	Subdirs, RegularFiles, GenFiles []string
+
+	// traversalSubdirs holds subdirectories that should be traversed, including
+	// excluded directories that may contain explicitly included files.
+	traversalSubdirs []string
+
+	// traversable reports whether this directory should be visited at all.
+	traversable bool
 
 	// File is the directory's build File. May be nil if the build File doesn't
 	// exist or contains errors.
@@ -69,7 +77,10 @@ func (w *walker) loadDirInfo(rel string) (DirInfo, error) {
 	}
 
 	info.config = configureForWalk(parentConfig, rel, info.File)
-	if info.config.isExcludedDir(rel) {
+	// A directory may be excluded from its parent's visible Subdirs but still
+	// need traversal if a later include re-adds something below it.
+	info.traversable = w.shouldTraverseDir(info.config, dir, rel, entries, info.File, make(map[string]struct{}))
+	if !info.traversable {
 		// Build file excludes the current directory. Ignore contents.
 		entries = nil
 	}
@@ -77,8 +88,11 @@ func (w *walker) loadDirInfo(rel string) (DirInfo, error) {
 	for _, e := range entries {
 		entryRel := path.Join(rel, e.Name())
 		e = maybeResolveSymlink(info.config, dir, entryRel, e)
-		if e.IsDir() && !info.config.isExcludedDir(entryRel) {
-			info.Subdirs = append(info.Subdirs, e.Name())
+		if e.IsDir() && w.shouldTraverseDir(info.config, filepath.Join(dir, e.Name()), entryRel, nil, nil, make(map[string]struct{})) {
+			info.traversalSubdirs = append(info.traversalSubdirs, e.Name())
+			if !info.config.isExcludedDir(entryRel) {
+				info.Subdirs = append(info.Subdirs, e.Name())
+			}
 		} else if !e.IsDir() && !info.config.isExcludedFile(entryRel) {
 			info.RegularFiles = append(info.RegularFiles, e.Name())
 		}
@@ -92,8 +106,64 @@ func (w *walker) loadDirInfo(rel string) (DirInfo, error) {
 	info.RegularFiles = info.RegularFiles[:len(info.RegularFiles):len(info.RegularFiles)]
 	info.Subdirs = info.Subdirs[:len(info.Subdirs):len(info.Subdirs)]
 	info.GenFiles = info.GenFiles[:len(info.GenFiles):len(info.GenFiles)]
+	info.traversalSubdirs = info.traversalSubdirs[:len(info.traversalSubdirs):len(info.traversalSubdirs)]
 
 	return info, errors.Join(errs...)
+}
+
+// shouldTraverseDir reports whether rel must be visited at all.
+//
+// This is intentionally different from "is rel itself visible?".
+// An excluded directory still needs traversal when ordered path directives
+// re-include a descendant beneath it. In that case, rel stays out of the
+// public Subdirs list, but it remains in traversalSubdirs so the walker can
+// reach the included descendant.
+func (w *walker) shouldTraverseDir(wc *walkConfig, dir, rel string, entries []fs.DirEntry, file *rule.File, seen map[string]struct{}) bool {
+	if path.Base(rel) == ".git" || wc.ignoreFilter.isDirectoryIgnored(rel) {
+		return false
+	}
+	// Visible directories are always traversed.
+	if !wc.isExcludedByPathDirectives(rel) {
+		return true
+	}
+	if _, ok := seen[rel]; ok {
+		return false
+	}
+	seen[rel] = struct{}{}
+	defer delete(seen, rel)
+
+	if entries == nil {
+		var err error
+		entries, err = os.ReadDir(dir)
+		if err != nil {
+			return false
+		}
+	}
+	if file == nil {
+		file, _ = loadBuildFile(wc, w.rootConfig.ReadBuildFilesDir, rel, dir, entries)
+	}
+	// Generated outputs make the directory observable even when the directory
+	// path itself is excluded.
+	if len(findGenFiles(wc, file)) > 0 {
+		return true
+	}
+
+	// Search excluded subtrees for any descendant that survives the ordered
+	// include/exclude directives.
+	for _, e := range entries {
+		entryRel := path.Join(rel, e.Name())
+		e = maybeResolveSymlink(wc, dir, entryRel, e)
+		if e.IsDir() {
+			if w.shouldTraverseDir(wc, filepath.Join(dir, e.Name()), entryRel, nil, nil, seen) {
+				return true
+			}
+			continue
+		}
+		if !wc.isExcludedFile(entryRel) {
+			return true
+		}
+	}
+	return false
 }
 
 // populateCache loads directory information in a parallel tree traversal.
@@ -121,7 +191,7 @@ func (w *walker) populateCache(mode Mode) {
 			return
 		}
 
-		for _, subdir := range info.Subdirs {
+		for _, subdir := range info.traversalSubdirs {
 			subdirRel := path.Join(rel, subdir)
 
 			// Navigate to the subdirectory if it should be visited.

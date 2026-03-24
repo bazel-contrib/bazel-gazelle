@@ -54,10 +54,22 @@ const (
 type walkConfig struct {
 	updateOnly          bool
 	ignoreFilter        *ignoreFilter
-	excludes            []string
+	pathDirectives      []pathDirective
 	ignore              bool
 	follow              []string
 	validBuildFileNames []string // to be copied to config.Config
+}
+
+type pathDirectiveKind int
+
+const (
+	pathDirectiveExclude pathDirectiveKind = iota
+	pathDirectiveInclude
+)
+
+type pathDirective struct {
+	kind    pathDirectiveKind
+	pattern string
 }
 
 const (
@@ -71,20 +83,46 @@ func getWalkConfig(c *config.Config) *walkConfig {
 
 func (wc *walkConfig) clone() *walkConfig {
 	wcCopy := *wc
-	// Trim cap of exclude and follow. We may append to these slices in multiple
-	// goroutines. Doing so should allocate a copy of the backing array.
+	// Trim cap of path directives and follow. We may append to these slices in
+	// multiple goroutines. Doing so should allocate a copy of the backing array.
 	// Other slices are either immutable or replaced when written.
-	wcCopy.excludes = wcCopy.excludes[:len(wcCopy.excludes):len(wcCopy.excludes)]
+	wcCopy.pathDirectives = wcCopy.pathDirectives[:len(wcCopy.pathDirectives):len(wcCopy.pathDirectives)]
 	wcCopy.follow = wcCopy.follow[:len(wcCopy.follow):len(wcCopy.follow)]
 	return &wcCopy
 }
 
 func (wc *walkConfig) isExcludedDir(p string) bool {
-	return path.Base(p) == ".git" || wc.ignoreFilter.isDirectoryIgnored(p) || matchAnyGlob(wc.excludes, p)
+	return path.Base(p) == ".git" || wc.ignoreFilter.isDirectoryIgnored(p) || wc.isExcludedByPathDirectives(p)
 }
 
 func (wc *walkConfig) isExcludedFile(p string) bool {
-	return wc.ignoreFilter.isFileIgnored(p) || matchAnyGlob(wc.excludes, p)
+	return wc.ignoreFilter.isFileIgnored(p) || wc.isExcludedByPathDirectives(p)
+}
+
+func (wc *walkConfig) isExcludedByPathDirectives(p string) bool {
+	excluded := false
+	for _, d := range wc.pathDirectives {
+		if !d.matchesPath(p) {
+			continue
+		}
+		excluded = d.kind == pathDirectiveExclude
+	}
+	return excluded
+}
+
+func (d pathDirective) matchesPath(p string) bool {
+	for prefix := p; ; {
+		if doublestar.MatchUnvalidated(d.pattern, prefix) {
+			return true
+		}
+		if prefix == "" {
+			return false
+		}
+		prefix = path.Dir(prefix)
+		if prefix == "." {
+			prefix = ""
+		}
+	}
 }
 
 func (wc *walkConfig) shouldFollow(p string) bool {
@@ -128,10 +166,17 @@ func (cr *Configurer) CheckFlags(_ *flag.FlagSet, c *config.Config) error {
 	}
 
 	ignoreFilter := newIgnoreFilter(c.RepoRoot)
+	pathDirectives := make([]pathDirective, 0, len(cr.cliExcludes))
+	for _, pattern := range cr.cliExcludes {
+		pathDirectives = append(pathDirectives, pathDirective{
+			kind:    pathDirectiveExclude,
+			pattern: pattern,
+		})
+	}
 
 	wc := &walkConfig{
 		ignoreFilter:        ignoreFilter,
-		excludes:            cr.cliExcludes,
+		pathDirectives:      pathDirectives,
 		validBuildFileNames: c.ValidBuildFileNames,
 	}
 	c.Exts[walkName] = wc
@@ -139,7 +184,7 @@ func (cr *Configurer) CheckFlags(_ *flag.FlagSet, c *config.Config) error {
 }
 
 func (*Configurer) KnownDirectives() []string {
-	return []string{"build_file_name", "generation_mode", "exclude", "follow", "ignore"}
+	return []string{"build_file_name", "generation_mode", "exclude", "include", "follow", "ignore"}
 }
 
 func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
@@ -179,12 +224,24 @@ func configureForWalk(parent *walkConfig, rel string, f *rule.File) *walkConfig 
 					log.Fatalf("unknown generation_mode %q in //%s", d.Value, f.Pkg)
 					continue
 				}
-			case "exclude":
-				if err := checkPathMatchPattern(path.Join(rel, d.Value)); err != nil {
-					log.Printf("the exclusion pattern is not valid %q: %s", path.Join(rel, d.Value), err)
+			case "exclude", "include":
+				pattern := path.Join(rel, d.Value)
+				if err := checkPathMatchPattern(pattern); err != nil {
+					kind := "exclusion"
+					if d.Key == "include" {
+						kind = "inclusion"
+					}
+					log.Printf("the %s pattern is not valid %q: %s", kind, pattern, err)
 					continue
 				}
-				wc.excludes = append(wc.excludes, path.Join(rel, d.Value))
+				kind := pathDirectiveExclude
+				if d.Key == "include" {
+					kind = pathDirectiveInclude
+				}
+				wc.pathDirectives = append(wc.pathDirectives, pathDirective{
+					kind:    kind,
+					pattern: pattern,
+				})
 			case "follow":
 				if err := checkPathMatchPattern(path.Join(rel, d.Value)); err != nil {
 					log.Printf("the follow pattern is not valid %q: %s", path.Join(rel, d.Value), err)
