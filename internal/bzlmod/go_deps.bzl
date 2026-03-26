@@ -572,6 +572,7 @@ def _go_deps_impl(module_ctx):
             new_version = semver.to_comparable(replace.version)
             module_resolutions[path] = with_replaced_or_new_fields(
                 module_resolutions[path],
+                local_path = replace.local_path,
                 replace = replace.to_path,
                 version = new_version,
                 raw_version = replace.version,
