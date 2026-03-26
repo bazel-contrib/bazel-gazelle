@@ -2,6 +2,8 @@ package walk
 
 import (
 	"errors"
+	"fmt"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -68,6 +70,15 @@ func (w *walker) loadDirInfo(rel string) (DirInfo, error) {
 		errs = append(errs, err)
 	}
 
+	// Expand directive_file directives before configureForWalk so that
+	// directives loaded from external files (including walk directives like
+	// exclude and ignore) are visible to all configurers.
+	if info.File != nil {
+		if expandErrs := expandDirectiveFiles(info.File, w.rootConfig.RepoRoot); len(expandErrs) > 0 {
+			errs = append(errs, expandErrs...)
+		}
+	}
+
 	info.config = configureForWalk(parentConfig, rel, info.File)
 	if info.config.isExcludedDir(rel) {
 		// Build file excludes the current directory. Ignore contents.
@@ -94,6 +105,59 @@ func (w *walker) loadDirInfo(rel string) (DirInfo, error) {
 	info.GenFiles = info.GenFiles[:len(info.GenFiles):len(info.GenFiles)]
 
 	return info, errors.Join(errs...)
+}
+
+// expandDirectiveFiles scans f.Directives for "directive_file" entries, loads
+// the referenced files, and replaces each "directive_file" entry with the
+// directives parsed from that file. Directives from the external file are
+// inserted at the position of the directive_file entry, preserving ordering so
+// that later inline directives can override earlier external ones.
+//
+// Paths in directive_file values are resolved relative to the directory
+// containing the BUILD file (i.e., the package directory). The loaded
+// directives behave as if they were written inline in that BUILD file.
+// Directive files may not themselves contain directive_file entries (no
+// recursion); any such entries are reported as errors.
+func expandDirectiveFiles(f *rule.File, repoRoot string) []error {
+	hasDirectiveFile := false
+	for _, d := range f.Directives {
+		if d.Key == "directive_file" {
+			hasDirectiveFile = true
+			break
+		}
+	}
+	if !hasDirectiveFile {
+		return nil
+	}
+
+	pkgDir := filepath.Join(repoRoot, filepath.FromSlash(f.Pkg))
+
+	var expanded []rule.Directive
+	var errs []error
+	for _, d := range f.Directives {
+		if d.Key != "directive_file" {
+			expanded = append(expanded, d)
+			continue
+		}
+		filePath := filepath.Join(pkgDir, filepath.FromSlash(d.Value))
+		loaded, err := rule.ParseDirectivesFromFile(filePath)
+		if err != nil {
+			log.Printf("%s: %v", f.Path, err)
+			errs = append(errs, fmt.Errorf("%s: %v", f.Path, err))
+			continue
+		}
+		for _, ld := range loaded {
+			if ld.Key == "directive_file" {
+				err := fmt.Errorf("%s: directive_file in %s: recursive directive_file is not supported", f.Path, d.Value)
+				log.Print(err)
+				errs = append(errs, err)
+				continue
+			}
+			expanded = append(expanded, ld)
+		}
+	}
+	f.Directives = expanded
+	return errs
 }
 
 // populateCache loads directory information in a parallel tree traversal.
