@@ -455,6 +455,7 @@ def _go_deps_impl(module_ctx):
             additional_module_tags += [
                 with_replaced_or_new_fields(tag, _is_dev_dependency = is_dev_dependency)
                 for tag in module_tags_from_go_mod
+                if not _ignore_local_replaced_module(from_file_tag, go_mod_replace_map, tag)
             ]
 
             if module.is_root or getattr(module_ctx, "is_isolated", False):
@@ -831,6 +832,11 @@ def _canonicalize_raw_version(raw_version):
         return raw_version[1:]
     return raw_version
 
+def _ignore_local_replaced_module(from_file_tag, go_mod_replace_map, module_tag):
+    return (from_file_tag.ignore_local_replaced_modules and
+            module_tag.path in go_mod_replace_map and
+            go_mod_replace_map[module_tag.path].local_path != None)
+
 _config_tag = tag_class(
     doc = """
     Configures the general behavior of the go_deps extension.
@@ -866,6 +872,24 @@ _from_file_tag = tag_class(
         "fail_on_version_conflict": attr.bool(
             default = True,
             doc = "Fail if duplicate modules have different versions",
+        ),
+        "ignore_local_replaced_modules": attr.bool(
+            doc = """
+            When true, a Bazel module may contain multiple Go modules (go.mod files) that may refer to
+            each other using replace directives with relative paths. BUILD files may use labels that
+            cross Go module boundaries but not Bazel module boundaries. For example, if a repo has
+            a main go.mod file and a v2 subdiredctory with v2/go.mod, a "v1" package may depend on
+            a "v2" package with a label like "//v2/foo".
+
+            Concretely, when this flag is enabled, a "require" directive from a go.mod file (declared
+            with the go_mod or go_work tag) is IGNORED when a "replace" directive exists for the same
+            path at the same version. go_repository will not be instantiated for this module.
+
+            This applies not only to the main Bazel module but also to any modules that depend on it.
+            This breaks with Go conventions: typically go.mod and MODULE.bazel files should be
+            one-to-one, and local replacements should not be used.
+            """,
+            default = False,
         ),
     },
 )
