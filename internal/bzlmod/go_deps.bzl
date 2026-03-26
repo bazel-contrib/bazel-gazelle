@@ -833,7 +833,7 @@ def _canonicalize_raw_version(raw_version):
     return raw_version
 
 def _ignore_local_replaced_module(from_file_tag, go_mod_replace_map, module_tag):
-    return (from_file_tag.ignore_local_replaced_modules and
+    return (getattr(from_file_tag, "ignore_local_replaced_modules", False) and
             module_tag.path in go_mod_replace_map and
             go_mod_replace_map[module_tag.path].local_path != None)
 
