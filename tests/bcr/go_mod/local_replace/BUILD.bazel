@@ -1,0 +1,7 @@
+load("@my_rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "local_replace_test",
+    srcs = ["local_replace_test.go"],
+    deps = ["@com_github_bazel_contrib_bazel_gazelle_v2//internal/wspace"],
+)

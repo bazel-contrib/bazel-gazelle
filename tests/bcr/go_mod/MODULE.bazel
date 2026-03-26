@@ -138,6 +138,7 @@ use_repo(
     "bazel_gazelle_go_repository_config",
     "cc_mvdan_gofumpt",
     "co_honnef_go_tools",
+    "com_github_bazel_contrib_bazel_gazelle_v2",
     "com_github_bazelbuild_buildtools",
     "com_github_bmatcuk_doublestar_v4",
     "com_github_datadog_sketches_go",

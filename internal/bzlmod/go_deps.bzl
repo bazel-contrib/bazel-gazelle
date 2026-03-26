@@ -457,12 +457,15 @@ def _go_deps_impl(module_ctx):
                 for tag in module_tags_from_go_mod
             ]
 
-            if module.is_root or getattr(module_ctx, "is_isolated", False):
+            is_trusted = module.is_root or getattr(module_ctx, "is_isolated", False)
+            for mod_path, mod in go_mod_replace_map.items():
                 # for the replace_map, first in wins
-                for mod_path, mod in go_mod_replace_map.items():
-                    if not mod_path in replace_map:
-                        replace_map[mod_path] = mod
-            else:
+                # Local-path replaces from non-root modules are safe because they redirect within
+                # the module itself.
+                if not mod_path in replace_map and (is_trusted or mod.local_path):
+                    replace_map[mod_path] = mod
+
+            if not is_trusted:
                 # Register this Bazel module as providing the specified Go module. It participates
                 # in version resolution using its registry version, which uses a relaxed variant of
                 # semver that can however still be compared to strict semvers.
