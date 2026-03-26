@@ -132,6 +132,30 @@ Comma-separated list of file names. Gazelle recognizes these files as Bazel buil
 **Default:** n/a<br>
 List of Go build tags Gazelle will defer to Bazel for evaluation. Gazelle applies constraints when generating Go rules. It assumes certain tags are true on certain platforms (for example, `amd64,linux`). It assumes all Go release tags are true (for example, `go1.8`). It considers other tags to be false (for example, `ignore`). This flag allows custom tags to be evaluated by Bazel at build time. Bazel may still filter sources with these tags. Use `bazel build --define gotags=foo,bar` to set tags at build time.
 
+**Directive:** `# gazelle:directive_file path`<br>
+**Default:** n/a<br>
+Loads additional Gazelle directives from an external file. The path is relative to the directory containing the build file. The external file uses the same `# gazelle:key value` format as build file directives. Blank lines and comment lines that do not match the directive pattern are ignored.
+
+Directives from the external file are inserted at the position of the `directive_file` entry, so inline directives appearing after `directive_file` can override values from the file. This is useful for managing large numbers of directives (e.g., `resolve` overrides) in a separate, possibly generated file.
+
+Recursive use is not supported: a directive file may not itself contain a `directive_file` entry.
+
+For example, with the following build file:
+
+```bzl
+# gazelle:directive_file gazelle_resolve.cfg
+# gazelle:resolve go example.com/local //local:lib
+```
+
+And `gazelle_resolve.cfg`:
+
+```
+# gazelle:resolve go example.com/foo //third_party:foo
+# gazelle:resolve go example.com/bar //third_party:bar
+```
+
+Gazelle will process the three `resolve` directives as if they were all written inline in the build file, with `example.com/local` last (highest precedence).
+
 **Directive:** `# gazelle:exclude pattern`<br>
 **Default:** n/a<br>
 Prevents Gazelle from processing a file or directory if the given [`doublestar.Match`](https://pkg.go.dev/github.com/bmatcuk/doublestar/v4#Match) pattern matches. If the pattern refers to a source file, Gazelle won't include it in any rules. If the pattern refers to a directory, Gazelle won't recurse into it. This directive may be repeated to exclude multiple patterns, one per line.
