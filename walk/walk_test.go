@@ -23,6 +23,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -908,6 +909,205 @@ func (*testConfigurer) KnownDirectives() []string { return nil }
 
 func (tc *testConfigurer) Configure(c *config.Config, rel string, f *rule.File) {
 	tc.configure(c, rel, f)
+}
+
+func TestDirectiveFile(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{
+			Path: "BUILD.bazel",
+			Content: `# gazelle:directive_file directives.cfg
+# gazelle:exclude inline_excluded
+`,
+		},
+		{
+			Path: "directives.cfg",
+			Content: `# gazelle:exclude external_excluded
+`,
+		},
+		{Path: "kept/"},
+		{Path: "inline_excluded/"},
+		{Path: "external_excluded/"},
+	})
+	defer cleanup()
+
+	// Walk and collect visited rels. Both inline_excluded and
+	// external_excluded should be excluded.
+	var visited []string
+	c, cexts := testConfig(t, dir)
+	Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, rel string, _ *config.Config, _ bool, _ *rule.File, _, _, _ []string) {
+		visited = append(visited, rel)
+	})
+
+	want := []string{"kept", ""}
+	if diff := cmp.Diff(want, visited); diff != "" {
+		t.Errorf("visited directories (-want +got):\n%s", diff)
+	}
+}
+
+func TestDirectiveFileWithResolve(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{
+			Path: "BUILD.bazel",
+			Content: `# gazelle:directive_file resolve_overrides.cfg
+`,
+		},
+		{
+			Path: "resolve_overrides.cfg",
+			Content: `# gazelle:resolve go example.com/foo //third_party:foo
+# gazelle:resolve go example.com/bar //third_party:bar
+`,
+		},
+	})
+	defer cleanup()
+
+	// Walk and verify that the resolve directives from the external file
+	// are visible in the file's directives.
+	var gotDirectives []rule.Directive
+	c, cexts := testConfig(t, dir)
+	cexts = append(cexts, &testConfigurer{func(_ *config.Config, rel string, f *rule.File) {
+		if rel == "" && f != nil {
+			gotDirectives = f.Directives
+		}
+	}})
+	Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, _ string, _ *config.Config, _ bool, _ *rule.File, _, _, _ []string) {
+	})
+
+	want := []rule.Directive{
+		{Key: "resolve", Value: "go example.com/foo //third_party:foo"},
+		{Key: "resolve", Value: "go example.com/bar //third_party:bar"},
+	}
+	if diff := cmp.Diff(want, gotDirectives); diff != "" {
+		t.Errorf("directives (-want +got):\n%s", diff)
+	}
+}
+
+func TestDirectiveFileOrdering(t *testing.T) {
+	// Directives from the external file should appear at the position of
+	// the directive_file entry. Inline directives after it take precedence
+	// for last-writer-wins semantics.
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{
+			Path: "BUILD.bazel",
+			Content: `# gazelle:resolve go example.com/before //before
+# gazelle:directive_file overrides.cfg
+# gazelle:resolve go example.com/after //after
+`,
+		},
+		{
+			Path: "overrides.cfg",
+			Content: `# gazelle:resolve go example.com/external //external
+`,
+		},
+	})
+	defer cleanup()
+
+	var gotDirectives []rule.Directive
+	c, cexts := testConfig(t, dir)
+	cexts = append(cexts, &testConfigurer{func(_ *config.Config, rel string, f *rule.File) {
+		if rel == "" && f != nil {
+			gotDirectives = f.Directives
+		}
+	}})
+	Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, _ string, _ *config.Config, _ bool, _ *rule.File, _, _, _ []string) {
+	})
+
+	want := []rule.Directive{
+		{Key: "resolve", Value: "go example.com/before //before"},
+		{Key: "resolve", Value: "go example.com/external //external"},
+		{Key: "resolve", Value: "go example.com/after //after"},
+	}
+	if diff := cmp.Diff(want, gotDirectives); diff != "" {
+		t.Errorf("directives (-want +got):\n%s", diff)
+	}
+}
+
+func TestDirectiveFileNoRecursion(t *testing.T) {
+	// directive_file entries inside an external file should produce an error
+	// and be skipped.
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{
+			Path: "BUILD.bazel",
+			Content: `# gazelle:directive_file level1.cfg
+`,
+		},
+		{
+			Path: "level1.cfg",
+			Content: `# gazelle:resolve go example.com/foo //foo
+# gazelle:directive_file level2.cfg
+`,
+		},
+		{
+			Path: "level2.cfg",
+			Content: `# gazelle:resolve go example.com/bar //bar
+`,
+		},
+	})
+	defer cleanup()
+
+	var gotDirectives []rule.Directive
+	c, cexts := testConfig(t, dir)
+	cexts = append(cexts, &testConfigurer{func(_ *config.Config, rel string, f *rule.File) {
+		if rel == "" && f != nil {
+			gotDirectives = f.Directives
+		}
+	}})
+	err := Walk2(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+		return Walk2FuncResult{}
+	})
+
+	// Walk2 should return an error about recursive directive_file.
+	if err == nil {
+		t.Fatal("expected error for recursive directive_file, got nil")
+	}
+	if !strings.Contains(err.Error(), "recursive directive_file is not supported") {
+		t.Errorf("expected error about recursive directive_file, got: %v", err)
+	}
+
+	// Only the resolve from level1.cfg should be present; the recursive
+	// directive_file entry is skipped.
+	want := []rule.Directive{
+		{Key: "resolve", Value: "go example.com/foo //foo"},
+	}
+	if diff := cmp.Diff(want, gotDirectives); diff != "" {
+		t.Errorf("directives (-want +got):\n%s", diff)
+	}
+}
+
+func TestDirectiveFileRelativeToPackage(t *testing.T) {
+	// directive_file paths should be resolved relative to the directory
+	// containing the BUILD file, not the repo root.
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{Path: "BUILD.bazel", Content: ""},
+		{
+			Path: "sub/BUILD.bazel",
+			Content: `# gazelle:directive_file local_directives.cfg
+`,
+		},
+		{
+			Path: "sub/local_directives.cfg",
+			Content: `# gazelle:resolve go example.com/sub //sub:lib
+`,
+		},
+		{Path: "sub/child/"},
+	})
+	defer cleanup()
+
+	var gotDirectives []rule.Directive
+	c, cexts := testConfig(t, dir)
+	cexts = append(cexts, &testConfigurer{func(_ *config.Config, rel string, f *rule.File) {
+		if rel == "sub" && f != nil {
+			gotDirectives = f.Directives
+		}
+	}})
+	Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, _ string, _ *config.Config, _ bool, _ *rule.File, _, _, _ []string) {
+	})
+
+	want := []rule.Directive{
+		{Key: "resolve", Value: "go example.com/sub //sub:lib"},
+	}
+	if diff := cmp.Diff(want, gotDirectives); diff != "" {
+		t.Errorf("directives (-want +got):\n%s", diff)
+	}
 }
 
 // BenchmarkWalk measures how long it takes Walk to traverse a synthetic repo.

@@ -16,6 +16,8 @@ limitations under the License.
 package rule
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -59,5 +61,94 @@ foo(
 				t.Errorf("got %#v ; want %#v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestParseDirectivesFromFile(t *testing.T) {
+	for _, tc := range []struct {
+		desc    string
+		content string
+		want    []Directive
+		wantErr bool
+	}{
+		{
+			desc:    "empty file",
+			content: "",
+			want:    nil,
+		},
+		{
+			desc: "directives with hash prefix",
+			content: `# gazelle:resolve go example.com/foo //third_party:foo
+# gazelle:resolve proto google/api/annotations.proto @go_googleapis//google/api:annotations_proto
+`,
+			want: []Directive{
+				{"resolve", "go example.com/foo //third_party:foo"},
+				{"resolve", "proto google/api/annotations.proto @go_googleapis//google/api:annotations_proto"},
+			},
+		},
+		{
+			desc: "blank lines and plain comments ignored",
+			content: `# This is a plain comment
+# gazelle:resolve go example.com/foo //third_party:foo
+
+# Another comment
+# gazelle:exclude vendor
+`,
+			want: []Directive{
+				{"resolve", "go example.com/foo //third_party:foo"},
+				{"exclude", "vendor"},
+			},
+		},
+		{
+			desc: "no space after hash",
+			content: `#gazelle:resolve go example.com/foo //foo
+`,
+			want: []Directive{
+				{"resolve", "go example.com/foo //foo"},
+			},
+		},
+		{
+			desc: "mixed directive types",
+			content: `# gazelle:resolve go example.com/foo //third_party:foo
+# gazelle:resolve_regexp go ^example.com/bar/(.*)$ //bar/${1}
+# gazelle:exclude vendor
+# gazelle:ignore
+`,
+			want: []Directive{
+				{"resolve", "go example.com/foo //third_party:foo"},
+				{"resolve_regexp", "go ^example.com/bar/(.*)$ //bar/${1}"},
+				{"exclude", "vendor"},
+				{"ignore", ""},
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			dir := t.TempDir()
+			filePath := filepath.Join(dir, "directives.cfg")
+			if err := os.WriteFile(filePath, []byte(tc.content), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := ParseDirectivesFromFile(filePath)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("got %#v ; want %#v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestParseDirectivesFromFile_FileNotFound(t *testing.T) {
+	_, err := ParseDirectivesFromFile("/nonexistent/file.cfg")
+	if err == nil {
+		t.Fatal("expected error for nonexistent file, got nil")
 	}
 }
