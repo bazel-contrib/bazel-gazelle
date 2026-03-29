@@ -47,9 +47,6 @@ use_repo(
     # Dependencies of rules_go that require special handling in go_deps.
     "com_github_golang_protobuf",
     "org_golang_google_protobuf",
-    # A direct dependency in go.mod, but it's actually part of the same Bazel
-    # module, so we never use this repo.
-    "com_github_bazel_contrib_bazel_gazelle_v2",
 )
 
 bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.4.1", dev_dependency = True)

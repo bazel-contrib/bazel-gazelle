@@ -511,13 +511,23 @@ def _go_deps_impl(module_ctx):
 
             # For modules imported from a go.sum, we know which ones are direct
             # dependencies and can thus only report implicit version upgrades
-            # for direct dependencies. For manually specified go_deps.module
-            # tags, we always report version upgrades unless users override with
-            # the "indirect" attribute.
+            # for direct dependencies.
+            #
+            # For manually specified go_deps.module tags, we always report
+            # version upgrades unless users override with the "indirect"
+            # attribute.
+            #
             # We also need to disregard the "indirect" attribute for modules
             # that provide any tools listed with a "tool" directive, otherwise
             # tools can't be built after a `bazel mod tidy`.
-            if module.is_root and (not module_tag.indirect or module_tag.path in possible_tool_modules):
+            #
+            # Do not list use_repo dependencies on modules defined with a
+            # from_file tag. These modules are defined inside Bazel modules,
+            # not go_deps / go_repository.
+            if (module.is_root and
+                (not module_tag.indirect or
+                 module_tag.path in possible_tool_modules) and
+                module_tag.path not in module_name_to_go_dot_mod_label):
                 root_versions[module_tag.path] = raw_version
                 if _is_dev_dependency(module_ctx, module_tag):
                     root_module_direct_dev_deps[_repo_name(module_tag.path)] = None
