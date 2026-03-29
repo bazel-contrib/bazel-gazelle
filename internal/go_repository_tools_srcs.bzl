@@ -151,6 +151,8 @@ GO_REPOSITORY_TOOLS_SRCS = [
     Label("//v2/internal/wspace:finder.go"),
     Label("//v2/label:BUILD.bazel"),
     Label("//v2/label:label.go"),
+    Label("//v2/language:BUILD.bazel"),
+    Label("//v2/language:lang.go"),
     Label("//v2/merger:BUILD.bazel"),
     Label("//v2/merger:fix.go"),
     Label("//v2/merger:merger.go"),
