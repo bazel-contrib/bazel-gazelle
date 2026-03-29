@@ -37,28 +37,23 @@ limitations under the License.
 package merger
 
 import (
-	"fmt"
-	"sort"
-	"strings"
-
+	v2 "github.com/bazel-contrib/bazel-gazelle/v2/merger"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
 // Phase indicates which attributes should be merged in matching rules.
-type Phase int
+//
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/merger.Phase instead.
+//go:fix inline
+type Phase = v2.Phase
 
-const (
-	// The pre-resolve merge is performed before rules are indexed for dependency
-	// resolution. All attributes not related to dependencies are merged
-	// (i.e., rule.KindInfo.MergeableAttrs). This merge must be performed
-	// before indexing because attributes related to indexing (e.g.,
-	// srcs, importpath) will be affected.
-	PreResolve Phase = iota
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/merger.PreResolve instead.
+//go:fix inline
+const PreResolve = v2.PreResolve
 
-	// The post-resolve merge is performed after rules are indexed. All attributes
-	// related to dependencies are merged (i.e., rule.KindInfo.ResolveAttrs).
-	PostResolve
-)
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/merger.PostResolve instead.
+//go:fix inline
+const PostResolve = v2.PostResolve
 
 // UnstableInsertIndexKey is the name of an internal attribute that may be set
 // on newly generated rules. When MergeFile is given a generated rule that
@@ -68,7 +63,10 @@ const (
 // This definition is unstable and may be removed in the future.
 //
 // TODO(jayconrod): make this stable *or* find a better way to express it.
-const UnstableInsertIndexKey = "_gazelle_insert_index"
+//
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/merger.UnstableInsertIndexKey instead.
+//go:fix inline
+const UnstableInsertIndexKey = v2.UnstableInsertIndexKey
 
 // MergeFile combines information from newly generated rules with matching
 // rules in an existing build file. MergeFile can also delete rules which
@@ -106,92 +104,11 @@ const UnstableInsertIndexKey = "_gazelle_insert_index"
 // If an attribute is marked with a "# keep" comment, it will not be merged.
 // If a rule is marked with a "# keep" comment, the whole rule will not
 // be modified.
+//
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/merger.MergeFile instead.
+//go:fix inline
 func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phase, kinds map[string]rule.KindInfo, aliasedKinds map[string]string) {
-	getMergeAttrs := func(r *rule.Rule) map[string]bool {
-		if phase == PreResolve {
-			return kinds[r.Kind()].MergeableAttrs
-		} else {
-			return kinds[r.Kind()].ResolveAttrs
-		}
-	}
-
-	// Merge empty rules into the file and delete any rules which become empty.
-	for _, emptyRule := range emptyRules {
-		if oldRule, _ := match(oldFile.Rules, emptyRule, kinds[emptyRule.Kind()], false, aliasedKinds); oldRule != nil {
-			if oldRule.ShouldKeep() {
-				continue
-			}
-			rule.MergeRules(emptyRule, oldRule, getMergeAttrs(emptyRule), oldFile.Path)
-			if oldRule.IsEmpty(kinds[oldRule.Kind()]) {
-				oldRule.Delete()
-			}
-		}
-	}
-	oldFile.Sync()
-
-	// Match generated rules with existing rules in the file. Keep track of
-	// rules with non-standard names.
-	matchRules := make([]*rule.Rule, len(genRules))
-	matchErrors := make([]error, len(genRules))
-	substitutions := make(map[string]string)
-	for i, genRule := range genRules {
-		oldRule, err := Match(oldFile.Rules, genRule, kinds[genRule.Kind()], aliasedKinds)
-		if err != nil {
-			// TODO(jayconrod): add a verbose mode and log errors. They are too chatty
-			// to print by default.
-			matchErrors[i] = err
-			continue
-		}
-		matchRules[i] = oldRule
-		if oldRule != nil {
-			if oldRule.Name() != genRule.Name() {
-				substitutions[genRule.Name()] = oldRule.Name()
-			}
-		}
-	}
-
-	// Rename labels in generated rules that refer to other generated rules.
-	if len(substitutions) > 0 {
-		for _, genRule := range genRules {
-			substituteRule(genRule, substitutions, kinds[genRule.Kind()])
-		}
-	}
-
-	// Merge generated rules with existing rules or append to the end of the file.
-	for i, genRule := range genRules {
-		if matchErrors[i] != nil {
-			continue
-		}
-		if matchRules[i] == nil {
-			if index, ok := genRule.PrivateAttr(UnstableInsertIndexKey).(int); ok {
-				genRule.InsertAt(oldFile, index)
-			} else {
-				genRule.Insert(oldFile)
-			}
-		} else {
-			rule.MergeRules(genRule, matchRules[i], getMergeAttrs(genRule), oldFile.Path)
-		}
-	}
-}
-
-// substituteRule replaces local labels (those beginning with ":", referring to
-// targets in the same package) according to a substitution map. This is used
-// to update generated rules before merging when the corresponding existing
-// rules have different names. If substituteRule replaces a string, it returns
-// a new expression; it will not modify the original expression.
-func substituteRule(r *rule.Rule, substitutions map[string]string, info rule.KindInfo) {
-	for attr := range info.SubstituteAttrs {
-		if expr := r.Attr(attr); expr != nil {
-			expr = rule.MapExprStrings(expr, func(s string) string {
-				if rename, ok := substitutions[strings.TrimPrefix(s, ":")]; ok {
-					return ":" + rename
-				} else {
-					return s
-				}
-			})
-			r.SetAttr(attr, expr)
-		}
-	}
+	v2.MergeFile(oldFile, emptyRules, genRules, phase, kinds, aliasedKinds)
 }
 
 // Match searches for a rule that can be merged with x in rules.
@@ -210,90 +127,9 @@ func substituteRule(r *rule.Rule, substitutions map[string]string, info rule.Kin
 // the quality of the match (name match is best, then attribute match in the
 // order that attributes are listed). If disambiguation is successful,
 // the rule and nil are returned. Otherwise, nil and an error are returned.
+//
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/merger.Match instead.
+//go:fix inline
 func Match(rules []*rule.Rule, x *rule.Rule, info rule.KindInfo, aliasedKinds map[string]string) (*rule.Rule, error) {
-	return match(rules, x, info, true, aliasedKinds)
-}
-
-func match(rules []*rule.Rule, x *rule.Rule, info rule.KindInfo, wantError bool, aliasedKinds map[string]string) (*rule.Rule, error) {
-	xname := x.Name()
-	xkind := x.Kind()
-	var nameMatches []*rule.Rule
-	var kindMatches []*rule.Rule
-	for _, y := range rules {
-		if xname == y.Name() {
-			nameMatches = append(nameMatches, y)
-		}
-		if xkind == y.Kind() || aliasedKinds[y.Kind()] == xkind {
-			kindMatches = append(kindMatches, y)
-		}
-	}
-
-	if len(nameMatches) == 1 {
-		y := nameMatches[0]
-		if xkind == y.Kind() || xkind == aliasedKinds[y.Kind()] {
-			return y, nil
-		}
-		if xname != "" {
-			if !wantError {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("could not merge %s(%s): a rule of the same name has kind %s", xkind, xname, y.Kind())
-		}
-	}
-	if len(nameMatches) > 1 && xname != "" {
-		if !wantError {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("could not merge %s(%s): multiple rules have the same name", xkind, xname)
-	}
-
-	for _, key := range info.MatchAttrs {
-		var attrMatches []*rule.Rule
-		for _, y := range kindMatches {
-			if attrMatch(x, y, key) {
-				attrMatches = append(attrMatches, y)
-			}
-		}
-		if len(attrMatches) == 1 {
-			return attrMatches[0], nil
-		} else if len(attrMatches) > 1 {
-			if !wantError {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("could not merge %s(%s): multiple rules have the same attribute %s", xkind, xname, key)
-		}
-	}
-
-	if info.MatchAny {
-		if len(kindMatches) == 1 {
-			return kindMatches[0], nil
-		} else if len(kindMatches) > 1 {
-			if !wantError {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("could not merge %s(%s): multiple rules have the same kind but different names", xkind, xname)
-		}
-	}
-
-	return nil, nil
-}
-
-func attrMatch(x, y *rule.Rule, key string) bool {
-	xValue := x.AttrString(key)
-	if xValue != "" && xValue == y.AttrString(key) {
-		return true
-	}
-	xValues := x.AttrStrings(key)
-	yValues := y.AttrStrings(key)
-	if xValues == nil || yValues == nil || len(xValues) != len(yValues) {
-		return false
-	}
-	sort.Strings(xValues)
-	sort.Strings(yValues)
-	for i, v := range xValues {
-		if v != yValues[i] {
-			return false
-		}
-	}
-	return true
+	return v2.Match(rules, x, info, aliasedKinds)
 }

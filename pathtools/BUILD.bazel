@@ -1,17 +1,11 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "pathtools",
     srcs = ["path.go"],
     importpath = "github.com/bazelbuild/bazel-gazelle/pathtools",
     visibility = ["//visibility:public"],
-)
-
-go_test(
-    name = "pathtools_test",
-    srcs = ["path_test.go"],
-    embed = [":pathtools"],
-    deps = ["@com_github_google_go_cmp//cmp"],
+    deps = ["//v2/pathtools"],
 )
 
 filegroup(
@@ -20,7 +14,6 @@ filegroup(
     srcs = [
         "BUILD.bazel",
         "path.go",
-        "path_test.go",
     ],
     visibility = ["//visibility:public"],
 )
