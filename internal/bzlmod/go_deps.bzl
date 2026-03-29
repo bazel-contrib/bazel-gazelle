@@ -598,26 +598,26 @@ def _go_deps_impl(module_ctx):
                 else:
                     root_versions[path] = replace.version
 
-    for path, bazel_dep in bazel_go_modules.items():
+    for path, bazel_go_module in bazel_go_modules.items():
         # We can't apply overrides to Bazel dependencies and thus fall back to using the Go module.
         if path in archive_overrides or path in gazelle_overrides or path in module_overrides or path in replace_map:
-            # TODO: Consider adding a warning here. Users should patch the bazel_dep instead.
+            # TODO: Consider adding a warning here. Users should patch the bazel_go_module instead.
             continue
 
-        bazel_dep_is_older = path in module_resolutions and bazel_dep.version < module_resolutions[path].version
+        bazel_dep_is_older = path in module_resolutions and bazel_go_module.version < module_resolutions[path].version
 
-        # Version mismatches between the Go module and the bazel_dep are problematic. For consistency always
-        # prefer the bazel_dep version and report any mismatch to the user.
+        # Version mismatches between the Go module and the bazel_go_module are problematic. For consistency always
+        # prefer the bazel_go_module version and report any mismatch to the user.
         #
-        # The bazel_dep version can be relaxed semver (e.g. 1.2.3.bcr.1), which would always differ from valid Go
+        # The bazel_go_module version can be relaxed semver (e.g. 1.2.3.bcr.1), which would always differ from valid Go
         # versions. We assume that the extra segments don't affect Go compatibility and thus ignore them.
         if (path in module_resolutions and
-            not bazel_dep.is_root and
-            semver.make_strict(bazel_dep.version) != module_resolutions[path].version and
-            bazel_dep.version != _HIGHEST_VERSION_SENTINEL and
+            not bazel_go_module.is_root and
+            semver.make_strict(bazel_go_module.version) != module_resolutions[path].version and
+            bazel_go_module.version != _HIGHEST_VERSION_SENTINEL and
             (bazel_dep_is_older or path in root_versions)):
-            bazel_dep_name = bazel_dep.module_name
-            bazel_dep_version = bazel_dep.raw_version
+            bazel_dep_name = bazel_go_module.module_name
+            bazel_dep_version = bazel_go_module.raw_version
             go_module_version = module_resolutions[path].raw_version
             if bazel_dep_is_older:
                 remediation = [
@@ -663,9 +663,9 @@ Mismatch between versions requested for Go module {module}:
                 go_module_version = go_module_version,
             ), *remediation)
 
-        # TODO: We should update root_versions if the bazel_dep is a direct dependency of the root
+        # TODO: We should update root_versions if the bazel_go_module is a direct dependency of the root
         #   module. However, we currently don't have a way to determine that.
-        module_resolutions[path] = bazel_dep
+        module_resolutions[path] = bazel_go_module
 
     recommended_updates = []
     for path, root_version in root_versions.items():
@@ -695,7 +695,7 @@ Mismatch between versions requested for Go module {module}:
     repos_processed = {}
     for path, module in module_resolutions.items():
         if hasattr(module, "module_name") or (getattr(module_ctx, "is_isolated", False) and path in _SHARED_REPOS):
-            # Do not create a go_repository for a Go module provided by a bazel_dep or one shared with the non-isolated
+            # Do not create a go_repository for a Go module provided by a bazel_go_module or one shared with the non-isolated
             # instance of go_deps.
             root_module_direct_deps.pop(_repo_name(path), None)
             root_module_direct_dev_deps.pop(_repo_name(path), None)
