@@ -29,5 +29,3 @@ require (
 	google.golang.org/grpc v1.67.3 // indirect
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1 // indirect
 )
-
-replace github.com/bazel-contrib/bazel-gazelle/v2 => ./v2
