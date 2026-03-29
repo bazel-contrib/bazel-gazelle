@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "language",
+    srcs = ["lang.go"],
+    importpath = "github.com/bazel-contrib/bazel-gazelle/v2/language",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//v2/config",
+        "//v2/rule",
+    ],
+)
+
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "lang.go",
+    ],
+    visibility = ["//visibility:public"],
+)

@@ -12,6 +12,7 @@ filegroup(
         "//v2/flag:all_files",
         "//v2/internal:all_files",
         "//v2/label:all_files",
+        "//v2/language:all_files",
         "//v2/merger:all_files",
         "//v2/pathtools:all_files",
         "//v2/resolve:all_files",

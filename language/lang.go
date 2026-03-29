@@ -22,9 +22,9 @@ limitations under the License.
 package language
 
 import (
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/resolve"
-	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
 // Language describes an extension for Gazelle that provides support for
@@ -60,6 +60,9 @@ import (
 //
 // * Merging generated rules into existing rules: languages provide metadata
 // that helps with rule matching, merging, and deletion.
+//
+// Deprecated: use github.com/bazel-contrib/bazel-gazelle/v2/language.Language
+// or other smaller v2 interfaces instead.
 type Language interface {
 	// TODO(jayconrod): is embedding Configurer strictly necessary?
 	config.Configurer
