@@ -601,15 +601,15 @@ def _go_deps_impl(module_ctx):
     for path, bazel_go_module in bazel_go_modules.items():
         # We can't apply overrides to Bazel dependencies and thus fall back to using the Go module.
         if path in archive_overrides or path in gazelle_overrides or path in module_overrides or path in replace_map:
-            # TODO: Consider adding a warning here. Users should patch the bazel_go_module instead.
+            # TODO: Consider adding a warning here. Users should patch the bazel_dep instead.
             continue
 
         bazel_dep_is_older = path in module_resolutions and bazel_go_module.version < module_resolutions[path].version
 
-        # Version mismatches between the Go module and the bazel_go_module are problematic. For consistency always
-        # prefer the bazel_go_module version and report any mismatch to the user.
+        # Version mismatches between the Go module and the bazel_dep are problematic. For consistency always
+        # prefer the bazel_dep version and report any mismatch to the user.
         #
-        # The bazel_go_module version can be relaxed semver (e.g. 1.2.3.bcr.1), which would always differ from valid Go
+        # The bazel_dep version can be relaxed semver (e.g. 1.2.3.bcr.1), which would always differ from valid Go
         # versions. We assume that the extra segments don't affect Go compatibility and thus ignore them.
         if (path in module_resolutions and
             not bazel_go_module.is_root and
