@@ -463,6 +463,124 @@ a.file
 	})
 }
 
+func TestIncludeFiles(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{
+			Path: "BUILD.bazel",
+			Content: `
+# gazelle:exclude blocked
+# gazelle:include blocked/sub/keep.go
+# gazelle:exclude readded.go
+# gazelle:include readded.go
+# gazelle:include ordered.go
+# gazelle:exclude ordered.go
+`,
+		},
+		{Path: "blocked/sub/keep.go"},
+		{Path: "blocked/sub/drop.go"},
+		{Path: "blocked/peer.go"},
+		{Path: "readded.go"},
+		{Path: "ordered.go"},
+	})
+	defer cleanup()
+
+	check := func(t *testing.T, rels, files []string) {
+		t.Helper()
+		wantRels := []string{"blocked/sub", ""}
+		if diff := cmp.Diff(wantRels, rels); diff != "" {
+			t.Errorf("Walk relative paths (-want +got):\n%s", diff)
+		}
+		wantFiles := []string{"blocked/sub/keep.go", "BUILD.bazel", "readded.go"}
+		if diff := cmp.Diff(wantFiles, files); diff != "" {
+			t.Errorf("Walk files (-want +got):\n%s", diff)
+		}
+	}
+
+	t.Run("Walk", func(t *testing.T) {
+		c, cexts := testConfig(t, dir)
+		var rels, files []string
+		Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, rel string, _ *config.Config, _ bool, _ *rule.File, _, regularFiles, _ []string) {
+			rels = append(rels, rel)
+			for _, f := range regularFiles {
+				files = append(files, path.Join(rel, f))
+			}
+		})
+		check(t, rels, files)
+	})
+
+	t.Run("Walk2", func(t *testing.T) {
+		c, cexts := testConfig(t, dir)
+		var rels, files []string
+		err := Walk2(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+			rels = append(rels, args.Rel)
+			for _, f := range args.RegularFiles {
+				files = append(files, path.Join(args.Rel, f))
+			}
+			return Walk2FuncResult{}
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		check(t, rels, files)
+	})
+}
+
+func TestIncludeFilesUpdateOnly(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{
+			Path: "BUILD.bazel",
+			Content: `
+# gazelle:generation_mode update_only
+# gazelle:exclude blocked
+# gazelle:include blocked/keep.go
+`,
+		},
+		{Path: "blocked/keep.go"},
+		{Path: "blocked/drop.go"},
+	})
+	defer cleanup()
+
+	check := func(t *testing.T, rels, files []string) {
+		t.Helper()
+		wantRels := []string{""}
+		if diff := cmp.Diff(wantRels, rels); diff != "" {
+			t.Errorf("Walk relative paths (-want +got):\n%s", diff)
+		}
+		wantFiles := []string{"BUILD.bazel", "blocked/keep.go"}
+		if diff := cmp.Diff(wantFiles, files); diff != "" {
+			t.Errorf("Walk files (-want +got):\n%s", diff)
+		}
+	}
+
+	t.Run("Walk", func(t *testing.T) {
+		c, cexts := testConfig(t, dir)
+		var rels, files []string
+		Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, rel string, _ *config.Config, _ bool, _ *rule.File, _, regularFiles, _ []string) {
+			rels = append(rels, rel)
+			for _, f := range regularFiles {
+				files = append(files, path.Join(rel, f))
+			}
+		})
+		check(t, rels, files)
+	})
+
+	t.Run("Walk2", func(t *testing.T) {
+		c, cexts := testConfig(t, dir)
+		var rels, files []string
+		err := Walk2(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+			rels = append(rels, args.Rel)
+			for _, f := range args.RegularFiles {
+				files = append(files, path.Join(args.Rel, f))
+			}
+			return Walk2FuncResult{}
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		check(t, rels, files)
+	})
+}
+
 func TestExcludeSelf(t *testing.T) {
 	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
 		{
@@ -847,6 +965,76 @@ func TestGetDirInfoSubdir(t *testing.T) {
 
 		if _, err := GetDirInfo("x/y"); err == nil {
 			t.Errorf("x/y: unexpected success")
+		}
+		return Walk2FuncResult{}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGetDirInfoIncludedSubdir(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{
+			Path: "BUILD.bazel",
+			Content: `
+# gazelle:exclude blocked
+# gazelle:include blocked/sub
+`,
+		},
+		{
+			Path: "blocked/sub/keep.go",
+		},
+		{
+			Path: "blocked/sub/drop.go",
+		},
+		{
+			Path: "blocked/peer.go",
+		},
+	})
+	defer cleanup()
+
+	c, cexts := testConfig(t, dir)
+	err := Walk2(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+		if args.Rel != "blocked/sub" {
+			return Walk2FuncResult{}
+		}
+		info, err := GetDirInfo("blocked/sub")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if diff := cmp.Diff([]string{"drop.go", "keep.go"}, info.RegularFiles); diff != "" {
+			t.Errorf("blocked/sub: regular files (-want, +got):\n%s", diff)
+		}
+		return Walk2FuncResult{}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGetDirInfoIncludeBeforeExcludeDoesNotTraverse(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{
+			Path: "BUILD.bazel",
+			Content: `
+# gazelle:include blocked/sub
+# gazelle:exclude blocked
+`,
+		},
+		{
+			Path: "blocked/sub/keep.go",
+		},
+	})
+	defer cleanup()
+
+	c, cexts := testConfig(t, dir)
+	err := Walk2(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+		if args.Rel != "" {
+			return Walk2FuncResult{}
+		}
+		if _, err := GetDirInfo("blocked/sub"); err == nil {
+			t.Errorf("blocked/sub: unexpected success")
 		}
 		return Walk2FuncResult{}
 	})

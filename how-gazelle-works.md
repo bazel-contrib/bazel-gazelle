@@ -34,7 +34,7 @@ All of Gazelle's language-specific functionality is implemented in plugins calle
 
 When Gazelle starts, it begins traversing the directory tree. This process runs in parallel with later stages as an optimization.
 
-In each directory it visits, Gazelle parses the `BUILD` or `BUILD.bazel` file if present and makes a list of files and subdirectories, excluding those matched by `# gazelle:exclude` directives or `.bazelignore` files. This metadata is cached in memory so that later stages may access it quickly without requiring additional I/O.
+In each directory it visits, Gazelle parses the `BUILD` or `BUILD.bazel` file if present and makes a list of files and subdirectories, excluding those matched by `# gazelle:exclude` directives or `.bazelignore` files, except for paths later re-added by `# gazelle:include`. This metadata is cached in memory so that later stages may access it quickly without requiring additional I/O.
 
 Gazelle may or may not visit a directory based on directives and command line flags.
 
@@ -43,7 +43,7 @@ Gazelle may or may not visit a directory based on directives and command line fl
 - If eager indexing is enabled (with `-index=all`, enabled by default), Gazelle visits *all* directories.
 - If lazy indexing is enabled (with `-index=lazy`), Gazelle visits directories requested by language extensions in [`GenerateResult.RelsToIndex`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/language#GenerateResult.RelsToIndex). These directories are loaded lazily during the *Generate* stage.
 - If indexing is disabled (with `-index=none`), Gazelle does not visit additional directories.
-- Gazelle visits parent directories within the repository in addition to other directories it visits. This is necessary to apply `# gazelle:exclude` directives, which may tell Gazelle to act as if a subdirectory does not exist.
+- Gazelle visits parent directories within the repository in addition to other directories it visits. This is necessary to apply `# gazelle:exclude` and `# gazelle:include` directives, which may tell Gazelle to act as if a subdirectory does not exist or to re-add a path beneath one.
 
 The Load stage is implemented in [`walk.walker.populateCache`](https://github.com/bazel-contrib/bazel-gazelle/blob/028c500e9f911a73683b6ec390f3e59e8f31fccc/walk/dirinfo.go#L104), which is called from [`walk.Walk2`](https://pkg.go.dev/github.com/bazelbuild/bazel-gazelle/walk#Walk2). No extension methods are called during this stage.
 
