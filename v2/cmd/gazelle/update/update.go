@@ -352,7 +352,7 @@ func Run(
 	}
 
 	// Visit all directories in the repository.
-	var visits []visitRecord
+	visits := make(map[string]visitRecord)
 	uc := getUpdateConfig(c)
 	defer func() {
 		if err := uc.profile.Stop(); err != nil {
@@ -418,6 +418,20 @@ func Run(
 			imports = append(imports, res.Imports...)
 			if c.IndexLibraries {
 				relsToVisit = append(relsToVisit, res.RelsToIndex...)
+			}
+			// Insert rules targeting other packages (e.g., exports_files
+			// for cross-package go:embed).
+			for pkgRel, extRules := range res.ExternalGen {
+				if v, ok := visits[pkgRel]; ok {
+					for _, efRule := range extRules {
+						efRule.Insert(v.file)
+						v.rules = append(v.rules, efRule)
+						v.imports = append(v.imports, nil)
+					}
+					v.file.Sync()
+				} else {
+					log.Panicf("%q should be visited before %q", pkgRel, rel)
+				}
 			}
 		}
 		if f == nil && len(gen) == 0 {
@@ -501,7 +515,7 @@ func Run(
 				c.AliasMap,
 			)
 		}
-		visits = append(visits, visitRecord{
+		visits[rel] = visitRecord{
 			pkgRel:         rel,
 			c:              c,
 			rules:          gen,
@@ -510,7 +524,7 @@ func Run(
 			file:           f,
 			mappedKinds:    mappedKinds,
 			mappedKindInfo: mappedKindInfo,
-		})
+		}
 
 		// Add library rules to the dependency resolution table.
 		if c.IndexLibraries {
