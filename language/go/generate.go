@@ -341,6 +341,8 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 			}
 		}
 
+		res.ExternalGen = gl.genExportsFilesForEmbeds(pkg, args.Rel)
+
 		// Generate Go rules.
 		if protoName == "" {
 			// Empty proto rules for deletion.
@@ -413,6 +415,86 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	}
 
 	return res
+}
+
+// genExportsFilesForEmbeds detects embed sources that reference files in
+// subdirectory packages and generates exports_files rules for those packages.
+// It also rewrites the embed source paths in pkg targets to Bazel labels.
+// Since walk is post-order, subdirectory packages have already been visited,
+// so gl.goPkgRels is populated for all child packages.
+func (gl *goLang) genExportsFilesForEmbeds(pkg *goPackage, baseRel string) map[string][]*rule.Rule {
+	if pkg == nil {
+		log.Panicf("genExportsFilesForEmbeds called with nil pkg for %q", baseRel)
+	}
+
+	var allEmbedSrcs []string
+	for _, t := range []*goTarget{&pkg.library, &pkg.binary, &pkg.test} {
+		for s := range t.embedSrcs.strs {
+			allEmbedSrcs = append(allEmbedSrcs, s)
+		}
+	}
+	for i := range pkg.tests {
+		for s := range pkg.tests[i].embedSrcs.strs {
+			allEmbedSrcs = append(allEmbedSrcs, s)
+		}
+	}
+	
+	pkgToFiles := make(map[string][]string)
+	embedSrcsToLabel := make(map[string]string)
+	for _, src := range allEmbedSrcs {
+		// Find the longest/deepest subdirectory package that contains the embed source.
+		srcDir := path.Dir(src)
+		for srcDir != "." {
+			candidatePkg := path.Join(baseRel, srcDir)
+			if _, ok := gl.goPkgRels[candidatePkg]; ok {
+				file := strings.TrimPrefix(src, srcDir+"/")
+				pkgToFiles[candidatePkg] = append(pkgToFiles[candidatePkg], file)
+				embedSrcsToLabel[src] = "//" + candidatePkg + ":" + file
+				break
+			}
+			srcDir = path.Dir(srcDir)
+		}
+	}
+
+	if len(pkgToFiles) == 0 {
+		return nil
+	}
+
+	externalGen := make(map[string][]*rule.Rule)
+	for pkgRel, files := range pkgToFiles {
+		sort.Strings(files)
+		efRule := rule.NewRule("exports_files", "")
+		efRule.AddArg(rule.ExprFromValue(files))
+		externalGen[pkgRel] = append(externalGen[pkgRel], efRule)
+	}
+
+	for _, t := range []*goTarget{&pkg.library, &pkg.binary, &pkg.test} {
+		replaceEmbedSrcsWithLabels(t, embedSrcsToLabel)
+	}
+	for i := range pkg.tests {
+		replaceEmbedSrcsWithLabels(&pkg.tests[i], embedSrcsToLabel)
+	}
+
+	return externalGen
+}
+
+// replaceEmbedSrcsWithLabels rewrites embed source paths in a target,
+// replacing relative paths with Bazel labels for cross-package files.
+func replaceEmbedSrcsWithLabels(t *goTarget, embedSrcsToLabel map[string]string) {
+	if t.embedSrcs.isEmpty() {
+		return
+	}
+	newEmbedSrcs := platformStringsBuilder{
+		strs: make(map[string]platformStringInfo),
+	}
+	for rel := range t.embedSrcs.strs {
+		if label, ok := embedSrcsToLabel[rel]; ok {
+			newEmbedSrcs.strs[label] = t.embedSrcs.strs[rel]
+		} else {
+			newEmbedSrcs.strs[rel] = t.embedSrcs.strs[rel]
+		}
+	}
+	t.embedSrcs = newEmbedSrcs
 }
 
 func filterFiles(files *[]string, pred func(string) bool) {
