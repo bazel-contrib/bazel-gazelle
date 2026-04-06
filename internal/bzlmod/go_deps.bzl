@@ -365,6 +365,7 @@ def _go_deps_impl(module_ctx):
     outdated_direct_dep_printer = print
     go_env = {}
     dep_files = []
+    modules_from_go_work = {}
     debug_mode = False
     for module in module_ctx.modules:
         if len(module.tags.config) > 1:
@@ -442,6 +443,8 @@ def _go_deps_impl(module_ctx):
                     if tool[i] == "/":
                         possible_tool_modules[tool[:i]] = None
             module_name_to_go_dot_mod_label[module_path] = from_file_tag.go_mod
+            if getattr(from_file_tag, "_from_go_work", False):
+                modules_from_go_work[module_path] = True
 
             # Collect the relative path of the root module's go.mod file if it lives in the main
             # repository.
@@ -601,6 +604,13 @@ def _go_deps_impl(module_ctx):
         # We can't apply overrides to Bazel dependencies and thus fall back to using the Go module.
         if path in archive_overrides or path in gazelle_overrides or path in module_overrides or path in replace_map:
             # TODO: Consider adding a warning here. Users should patch the bazel_dep instead.
+            continue
+
+        # Don't print a message when the go.mod file is not defined in the Bazel module root directory.
+        # This is unusual, indicating there may not be a one-to-one correspondence between Bazel and Go
+        # modules, especially when a go.work file is involved. Gazelle itself follows this pattern.
+        if path in modules_from_go_work:
+            module_resolutions[path] = bazel_go_module
             continue
 
         bazel_dep_is_older = path in module_resolutions and bazel_go_module.version < module_resolutions[path].version

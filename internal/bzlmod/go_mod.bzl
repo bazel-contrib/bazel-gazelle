@@ -113,7 +113,7 @@ def parse_go_work(content, go_work_label):
     major, minor = go.split(".")[:2]
 
     go_mods = [use_spec_to_label(go_work_label.repo_name, use) for use in state["use"]]
-    from_file_tags = [struct(go_mod = go_mod, _is_dev_dependency = False) for go_mod in go_mods]
+    from_file_tags = [struct(go_mod = go_mod, _is_dev_dependency = False, _from_go_work = True) for go_mod in go_mods]
 
     module_tags = [struct(version = mod.version, path = mod.to_path, _parent_label = go_work_label, local_path = mod.local_path, indirect = False) for mod in state["replace"].values()]
 
@@ -462,7 +462,7 @@ def parse_go_sum(content):
     for line in content.splitlines():
         # Merge conflicts in go.sum files can be solved by taking the union of
         # the entries, so we simply ignore the conflict markers and keep
-        # going. This ensures that the build doesn't fail due to missing 
+        # going. This ensures that the build doesn't fail due to missing
         # hashes.
         if line.startswith("<<<<<<<") or line.startswith("=======") or line.startswith(">>>>>>>"):
             saw_git_conflict = True
