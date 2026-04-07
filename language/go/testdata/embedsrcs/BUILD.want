@@ -1,10 +1,11 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "embedsrcs",
     srcs = ["embedsrcs.go"],
     _gazelle_imports = ["embed"],
     embedsrcs = [
+        "//embedsrcs/deep:nested/deep.txt",
         "//embedsrcs/m_dir/o_go:o.go",
         "//embedsrcs/m_dir:static.txt",
         "//embedsrcs/m_go:m.go",
@@ -18,4 +19,16 @@ go_library(
     ],
     importpath = "example.com/repo/embedsrcs",
     visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "embedsrcs_test",
+    srcs = ["embedsrcs_test.go"],
+    _gazelle_imports = ["embed"],
+    embed = [":embedsrcs"],
+    embedsrcs = [
+        "//embedsrcs/deep:nested/deep.txt",
+        "//embedsrcs/m_go:m.go",
+        "m_static.txt",
+    ],
 )
