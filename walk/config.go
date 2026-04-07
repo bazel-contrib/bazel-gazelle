@@ -139,7 +139,7 @@ func (cr *Configurer) CheckFlags(_ *flag.FlagSet, c *config.Config) error {
 }
 
 func (*Configurer) KnownDirectives() []string {
-	return []string{"build_file_name", "generation_mode", "exclude", "follow", "ignore"}
+	return []string{"build_file_name", "directive_file", "generation_mode", "exclude", "follow", "ignore"}
 }
 
 func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
