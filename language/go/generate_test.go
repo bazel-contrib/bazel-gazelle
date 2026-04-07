@@ -414,6 +414,218 @@ func prebuiltProtoRules() []*rule.Rule {
 	return []*rule.Rule{protoRule, goProtoRule}
 }
 
+func TestGenExportsFilesForEmbeds(t *testing.T) {
+	tests := []struct {
+		name          string
+		baseRel       string
+		goPkgRels     map[string]bool
+		libEmbedSrcs  map[string]platformStringInfo
+		testEmbedSrcs map[string]platformStringInfo
+		wantExtGen    map[string][]string // pkgRel -> sorted exported file list
+		wantLibSrcs   map[string]bool     // expected keys in library.embedSrcs.strs
+		wantTestSrcs  map[string]bool     // expected keys in test.embedSrcs.strs
+	}{
+		{
+			name:         "no_cross_package_embeds",
+			baseRel:      "pkg",
+			goPkgRels:    map[string]bool{"pkg": true},
+			libEmbedSrcs: map[string]platformStringInfo{"local.txt": {}},
+			wantExtGen:   nil,
+			wantLibSrcs:  map[string]bool{"local.txt": true},
+		},
+		{
+			name:         "single_cross_package_embed",
+			baseRel:      "pkg",
+			goPkgRels:    map[string]bool{"pkg": true, "pkg/sub": true},
+			libEmbedSrcs: map[string]platformStringInfo{"sub/data.txt": {}},
+			wantExtGen:   map[string][]string{"pkg/sub": {"data.txt"}},
+			wantLibSrcs:  map[string]bool{"//pkg/sub:data.txt": true},
+		},
+		{
+			name:    "multiple_files_same_subpackage",
+			baseRel: "pkg",
+			goPkgRels: map[string]bool{
+				"pkg":     true,
+				"pkg/sub": true,
+			},
+			libEmbedSrcs: map[string]platformStringInfo{
+				"sub/a.txt": {},
+				"sub/b.txt": {},
+			},
+			wantExtGen:  map[string][]string{"pkg/sub": {"a.txt", "b.txt"}},
+			wantLibSrcs: map[string]bool{"//pkg/sub:a.txt": true, "//pkg/sub:b.txt": true},
+		},
+		{
+			name:    "multiple_subpackages",
+			baseRel: "pkg",
+			goPkgRels: map[string]bool{
+				"pkg":      true,
+				"pkg/sub1": true,
+				"pkg/sub2": true,
+			},
+			libEmbedSrcs: map[string]platformStringInfo{
+				"sub1/a.txt": {},
+				"sub2/b.txt": {},
+			},
+			wantExtGen: map[string][]string{
+				"pkg/sub1": {"a.txt"},
+				"pkg/sub2": {"b.txt"},
+			},
+			wantLibSrcs: map[string]bool{"//pkg/sub1:a.txt": true, "//pkg/sub2:b.txt": true},
+		},
+		{
+			name:    "deeply_nested_file",
+			baseRel: "pkg",
+			goPkgRels: map[string]bool{
+				"pkg":      true,
+				"pkg/a/b":  true,
+			},
+			libEmbedSrcs: map[string]platformStringInfo{"a/b/c/file.txt": {}},
+			wantExtGen:   map[string][]string{"pkg/a/b": {"c/file.txt"}},
+			wantLibSrcs:  map[string]bool{"//pkg/a/b:c/file.txt": true},
+		},
+		{
+			name:    "mixed_local_and_cross_package",
+			baseRel: "pkg",
+			goPkgRels: map[string]bool{
+				"pkg":     true,
+				"pkg/sub": true,
+			},
+			libEmbedSrcs: map[string]platformStringInfo{
+				"sub/x.txt": {},
+				"local.txt": {},
+			},
+			wantExtGen: map[string][]string{"pkg/sub": {"x.txt"}},
+			wantLibSrcs: map[string]bool{
+				"//pkg/sub:x.txt": true,
+				"local.txt":      true,
+			},
+		},
+		{
+			name:    "library_and_test_cross_package",
+			baseRel: "pkg",
+			goPkgRels: map[string]bool{
+				"pkg":     true,
+				"pkg/sub": true,
+			},
+			libEmbedSrcs:  map[string]platformStringInfo{"sub/lib.txt": {}},
+			testEmbedSrcs: map[string]platformStringInfo{"sub/test.txt": {}},
+			wantExtGen:    map[string][]string{"pkg/sub": {"lib.txt", "test.txt"}},
+			wantLibSrcs:   map[string]bool{"//pkg/sub:lib.txt": true},
+			wantTestSrcs:  map[string]bool{"//pkg/sub:test.txt": true},
+		},
+		{
+			name:         "empty_base_rel",
+			baseRel:      "",
+			goPkgRels:    map[string]bool{"": true, "sub": true},
+			libEmbedSrcs: map[string]platformStringInfo{"sub/f.txt": {}},
+			wantExtGen:   map[string][]string{"sub": {"f.txt"}},
+			wantLibSrcs:  map[string]bool{"//sub:f.txt": true},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gl := &goLang{
+				goPkgRels: tt.goPkgRels,
+			}
+			pkg := &goPackage{}
+			if tt.libEmbedSrcs != nil {
+				pkg.library.embedSrcs = platformStringsBuilder{
+					strs: make(map[string]platformStringInfo),
+				}
+				for k, v := range tt.libEmbedSrcs {
+					pkg.library.embedSrcs.strs[k] = v
+				}
+			}
+			if tt.testEmbedSrcs != nil {
+				pkg.test.embedSrcs = platformStringsBuilder{
+					strs: make(map[string]platformStringInfo),
+				}
+				for k, v := range tt.testEmbedSrcs {
+					pkg.test.embedSrcs.strs[k] = v
+				}
+			}
+
+			extGen := gl.genExportsFilesForEmbeds(pkg, tt.baseRel)
+
+			// Verify ExternalGen
+			if tt.wantExtGen == nil {
+				if extGen != nil {
+					t.Errorf("expected nil ExternalGen, got %v", extGen)
+				}
+			} else {
+				if extGen == nil {
+					t.Fatalf("expected ExternalGen with %d entries, got nil", len(tt.wantExtGen))
+				}
+				if len(extGen) != len(tt.wantExtGen) {
+					t.Errorf("ExternalGen has %d entries, want %d", len(extGen), len(tt.wantExtGen))
+				}
+				for pkgRel, wantFiles := range tt.wantExtGen {
+					rules, ok := extGen[pkgRel]
+					if !ok {
+						t.Errorf("ExternalGen missing entry for %q", pkgRel)
+						continue
+					}
+					if len(rules) != 1 {
+						t.Errorf("ExternalGen[%q] has %d rules, want 1", pkgRel, len(rules))
+						continue
+					}
+					r := rules[0]
+					if r.Kind() != "exports_files" {
+						t.Errorf("ExternalGen[%q] rule kind = %q, want exports_files", pkgRel, r.Kind())
+						continue
+					}
+					args := r.Args()
+					if len(args) != 1 {
+						t.Errorf("exports_files rule has %d args, want 1", len(args))
+						continue
+					}
+					listExpr, ok := args[0].(*bzl.ListExpr)
+					if !ok {
+						t.Errorf("exports_files arg is not a ListExpr")
+						continue
+					}
+					var gotFiles []string
+					for _, e := range listExpr.List {
+						se, ok := e.(*bzl.StringExpr)
+						if !ok {
+							t.Errorf("exports_files list element is not a StringExpr")
+							continue
+						}
+						gotFiles = append(gotFiles, se.Value)
+					}
+					if diff := cmp.Diff(wantFiles, gotFiles); diff != "" {
+						t.Errorf("exports_files for %q (-want +got):\n%s", pkgRel, diff)
+					}
+				}
+			}
+
+			// Verify library embedSrcs rewrites
+			if tt.wantLibSrcs != nil {
+				gotLibSrcs := make(map[string]bool)
+				for k := range pkg.library.embedSrcs.strs {
+					gotLibSrcs[k] = true
+				}
+				if diff := cmp.Diff(tt.wantLibSrcs, gotLibSrcs); diff != "" {
+					t.Errorf("library embedSrcs (-want +got):\n%s", diff)
+				}
+			}
+
+			// Verify test embedSrcs rewrites
+			if tt.wantTestSrcs != nil {
+				gotTestSrcs := make(map[string]bool)
+				for k := range pkg.test.embedSrcs.strs {
+					gotTestSrcs[k] = true
+				}
+				if diff := cmp.Diff(tt.wantTestSrcs, gotTestSrcs); diff != "" {
+					t.Errorf("test embedSrcs (-want +got):\n%s", diff)
+				}
+			}
+		})
+	}
+}
+
 // convertImportsAttrs copies private attributes to regular attributes, which
 // will later be written out to build files. This allows tests to check the
 // values of private attributes with simple string comparison.
