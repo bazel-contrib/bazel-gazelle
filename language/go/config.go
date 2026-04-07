@@ -523,6 +523,25 @@ func (*goLang) Configure(c *config.Config, rel string, f *rule.File) {
 			// The legacy name used in WORKSPACE.
 			gc.rulesGoRepoName = "io_bazel_rules_go"
 		}
+		if gc.rulesGoRepoName != "io_bazel_rules_go" {
+			reparent := func(compilers []string) []string {
+				out := make([]string, len(compilers))
+				for i, c := range compilers {
+					if after, ok := strings.CutPrefix(c, "@io_bazel_rules_go"); ok {
+						out[i] = fmt.Sprintf("@%s%s", gc.rulesGoRepoName, after)
+					} else {
+						out[i] = c
+					}
+				}
+				return out
+			}
+			if !gc.goProtoCompilersSet {
+				gc.goProtoCompilers = reparent(gc.goProtoCompilers)
+			}
+			if !gc.goGrpcCompilersSet {
+				gc.goGrpcCompilers = reparent(gc.goGrpcCompilers)
+			}
+		}
 
 		const message = `Gazelle may not be compatible with this version of rules_go.
 Update io_bazel_rules_go to a newer version in your WORKSPACE file.`
