@@ -16,7 +16,6 @@ limitations under the License.
 package golang
 
 import (
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -119,15 +118,8 @@ func TestDirectives(t *testing.T) {
 	if gc.importMapPrefixRel != "test" {
 		t.Errorf(`got importmapPrefixRel %q; want "test"`, gc.importMapPrefixRel)
 	}
-	if !gc.goGrpcCompilersSet {
-		t.Error("expected goGrpcCompilersSet to be set")
-	}
 	if diff := cmp.Diff([]string{"abc", "def"}, gc.goGrpcCompilers); diff != "" {
 		t.Errorf("(-want, +got): %s", diff)
-	}
-
-	if !gc.goProtoCompilersSet {
-		t.Error("expected goProtoCompilersSet to be set")
 	}
 	if diff := cmp.Diff(gc.goProtoCompilers, []string{"foo", "bar"}); diff != "" {
 		t.Errorf("(-want, +got): %s", diff)
@@ -145,67 +137,11 @@ func TestDirectives(t *testing.T) {
 		cext.Configure(c, "test/sub", f)
 	}
 	gc = getGoConfig(c)
-	if gc.goGrpcCompilersSet {
-		t.Error("expected goGrpcCompilersSet to be unset")
-	}
-	if diff := cmp.Diff(defaultGoGrpcCompilers, gc.goGrpcCompilers); diff != "" {
+	if diff := cmp.Diff([]string(nil), gc.goGrpcCompilers); diff != "" {
 		t.Errorf("(-want, +got): %s", diff)
 	}
-
-	if gc.goProtoCompilersSet {
-		t.Error("expected goProtoCompilersSet to be unset")
-	}
-	if diff := cmp.Diff(defaultGoProtoCompilers, gc.goProtoCompilers); diff != "" {
+	if diff := cmp.Diff([]string(nil), gc.goProtoCompilers); diff != "" {
 		t.Errorf("(-want, +got): %s", diff)
-	}
-
-}
-
-func TestProtoCompilersFromBzlmod(t *testing.T) {
-	for _, tc := range []struct {
-		desc, moduleContent string
-		wantProto, wantGrpc []string
-	}{
-		{
-			desc: "workspace_fallback",
-			// No MODULE.bazel: falls back to io_bazel_rules_go.
-			wantProto: defaultGoProtoCompilers,
-			wantGrpc:  defaultGoGrpcCompilers,
-		},
-		{
-			desc: "bzlmod_default_apparent_name",
-			moduleContent: `bazel_dep(name = "rules_go", version = "0.60.0")
-`,
-			wantProto: []string{"@rules_go//proto:go_proto"},
-			wantGrpc:  []string{"@rules_go//proto:go_proto", "@rules_go//proto:go_grpc_v2"},
-		},
-		{
-			desc: "bzlmod_custom_repo_name",
-			moduleContent: `bazel_dep(name = "rules_go", version = "0.60.0", repo_name = "my_rules_go")
-`,
-			wantProto: []string{"@my_rules_go//proto:go_proto"},
-			wantGrpc:  []string{"@my_rules_go//proto:go_proto", "@my_rules_go//proto:go_grpc_v2"},
-		},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			dir := t.TempDir()
-			if tc.moduleContent != "" {
-				if err := os.WriteFile(filepath.Join(dir, "MODULE.bazel"), []byte(tc.moduleContent), 0o644); err != nil {
-					t.Fatal(err)
-				}
-			}
-			c, _, cexts := testConfig(t, "-repo_root="+dir)
-			for _, cext := range cexts {
-				cext.Configure(c, "", nil)
-			}
-			gc := getGoConfig(c)
-			if diff := cmp.Diff(tc.wantProto, gc.goProtoCompilers); diff != "" {
-				t.Errorf("goProtoCompilers (-want, +got): %s", diff)
-			}
-			if diff := cmp.Diff(tc.wantGrpc, gc.goGrpcCompilers); diff != "" {
-				t.Errorf("goGrpcCompilers (-want, +got): %s", diff)
-			}
-		})
 	}
 }
 
