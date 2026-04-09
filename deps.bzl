@@ -43,7 +43,8 @@ go_repository = _go_repository
 def gazelle_dependencies(
         go_sdk = "",
         go_repository_default_config = "@//:WORKSPACE",
-        go_env = {}):
+        go_env = {},
+        go_env_inherit = []):
     _maybe(
         http_archive,
         name = "bazel_skylib",
@@ -93,6 +94,7 @@ def gazelle_dependencies(
             name = "bazel_gazelle_go_repository_cache",
             go_sdk_name = go_sdk,
             go_env = go_env,
+            go_env_inherit = go_env_inherit,
         )
     else:
         go_sdk_info = {}
@@ -111,6 +113,7 @@ def gazelle_dependencies(
             name = "bazel_gazelle_go_repository_cache",
             go_sdk_info = go_sdk_info,
             go_env = go_env,
+            go_env_inherit = go_env_inherit,
         )
 
     go_repository_tools(
@@ -121,6 +124,8 @@ def gazelle_dependencies(
     go_repository_config(
         name = "bazel_gazelle_go_repository_config",
         config = go_repository_default_config,
+        go_env = go_env,
+        go_env_inherit = go_env_inherit,
     )
 
     is_bazel_module(

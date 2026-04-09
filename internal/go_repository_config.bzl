@@ -12,10 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//internal:common.bzl", "env_execute", "executable_extension", "watch")
+load("//internal:common.bzl", "env_execute", "executable_extension", "resolve_env", "watch")
 load("//internal:go_repository_cache.bzl", "read_cache_env")
 
 def _go_repository_config_impl(ctx):
+    go_env = resolve_env(
+        ctx,
+        direct = ctx.attr.go_env,
+        inherit = ctx.attr.go_env_inherit,
+    )
+
     # Locate and resolve configuration files. Gazelle reads directives and
     # known repositories from these files. Resolving them here forces the
     # go_repository_config rule to be invalidated when they change. Gazelle's cache
@@ -61,7 +67,7 @@ def _go_repository_config_impl(ctx):
     # add empty go_env.bzl and go_tools.bzl files for compatibility with bzlmod
     ctx.file(
         "go_env.bzl",
-        "GO_ENV = {}",
+        "GO_ENV = {}".format(repr(go_env)),
         False,
     )
     ctx.file(
@@ -81,5 +87,7 @@ go_repository_config = repository_rule(
     implementation = _go_repository_config_impl,
     attrs = {
         "config": attr.label(),
+        "go_env": attr.string_dict(),
+        "go_env_inherit": attr.string_list(),
     },
 )

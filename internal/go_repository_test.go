@@ -75,6 +75,7 @@ gazelle_dependencies(
 		"GOPRIVATE": "example.com/m",
 		"GOSUMDB": "off",
 	},
+	go_env_inherit = ["GAZELLE_INHERITED_TOKEN"],
 )
 
 # gazelle:repo test
@@ -116,6 +117,9 @@ go_repository(
 }
 
 func TestMain(m *testing.M) {
+	if err := os.Setenv("GAZELLE_INHERITED_TOKEN", "top-secret-token"); err != nil {
+		panic(err)
+	}
 	bazel_testing.TestMain(m, testArgs)
 }
 
@@ -248,10 +252,23 @@ func TestRepoCacheContainsGoEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not read file %s: %v", goEnvPath, err)
 	}
-	for _, want := range []string{"GOPRIVATE='example.com/m'", "GOSUMDB='off'"} {
+	for _, want := range []string{
+		"GOPRIVATE='example.com/m'",
+		"GOSUMDB='off'",
+		"GAZELLE_INHERITED_TOKEN='top-secret-token'",
+	} {
 		if !strings.Contains(string(gotBytes), want) {
 			t.Fatalf("go.env did not contain %s", want)
 		}
+	}
+
+	goEnvBzlPath := filepath.Join(outputBase, "external/bazel_gazelle_go_repository_config", "go_env.bzl")
+	goEnvBzl, err := os.ReadFile(goEnvBzlPath)
+	if err != nil {
+		t.Fatalf("could not read file %s: %v", goEnvBzlPath, err)
+	}
+	if !strings.Contains(string(goEnvBzl), "\"GAZELLE_INHERITED_TOKEN\": \"top-secret-token\"") {
+		t.Fatalf("go_env.bzl did not contain inherited GAZELLE_INHERITED_TOKEN")
 	}
 }
 

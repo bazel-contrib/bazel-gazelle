@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//internal:common.bzl", "executable_extension", "getenv", "watch")
+load("//internal:common.bzl", "executable_extension", "getenv", "resolve_env", "watch")
 
 # Change to trigger cache invalidation: 1
 
@@ -75,10 +75,12 @@ def _go_repository_cache_impl(ctx):
     if go_mod_cache:
         cache_env["GOMODCACHE"] = go_mod_cache
 
-    for key, value in ctx.attr.go_env.items():
-        if key in cache_env:
-            fail("{} cannot be set in go_env".format(key))
-        cache_env[key] = value
+    cache_env.update(resolve_env(
+        ctx,
+        direct = ctx.attr.go_env,
+        inherit = ctx.attr.go_env_inherit,
+        reserved = cache_env.keys(),
+    ))
     env_content = "\n".join(["{k}='{v}'\n".format(k = k, v = v) for k, v in cache_env.items()])
 
     ctx.file("go.env", env_content)
@@ -90,11 +92,13 @@ go_repository_cache = repository_rule(
         "go_sdk_name": attr.string(),
         "go_sdk_info": attr.string_dict(),
         "go_env": attr.string_dict(),
+        "go_env_inherit": attr.string_list(),
     },
 )
 
 def read_go_env(ctx, go_tool, var):
     watch(ctx, go_tool)
+
     # watch var too if possible.
     getenv(ctx, var)
     res = ctx.execute([go_tool, "env", var])
