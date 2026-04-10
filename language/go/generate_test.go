@@ -16,6 +16,7 @@ limitations under the License.
 package golang
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -422,5 +423,90 @@ func convertImportsAttrs(f *rule.File) {
 		if v != nil {
 			r.SetAttr(config.GazelleImportsKey, v)
 		}
+	}
+}
+
+func TestProtoLibraryCompilers(t *testing.T) {
+	for _, tc := range []struct {
+		desc          string
+		moduleContent string
+		rulesGoName   string
+	}{
+		{
+			desc:        "workspace_fallback",
+			rulesGoName: "io_bazel_rules_go",
+		},
+		{
+			desc:          "bzlmod_default_apparent_name",
+			moduleContent: `bazel_dep(name = "rules_go", version = "0.60.0")
+`,
+			rulesGoName:   "rules_go",
+		},
+		{
+			desc:          "bzlmod_custom_repo_name",
+			moduleContent: `bazel_dep(name = "rules_go", version = "0.60.0", repo_name = "my_rules_go")
+`,
+			rulesGoName:   "my_rules_go",
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			dir := t.TempDir()
+			if tc.moduleContent != "" {
+				if err := os.WriteFile(filepath.Join(dir, "MODULE.bazel"), []byte(tc.moduleContent), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			svcDir := filepath.Join(dir, "svc")
+			if err := os.MkdirAll(svcDir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(svcDir, "svc.proto"), []byte(`
+syntax = "proto2";
+option go_package = "example.com/repo/svc";
+service S {}
+`), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			c, langs, cexts := testConfig(t,
+				"-go_prefix=example.com/repo",
+				"-repo_root="+dir)
+			for _, cext := range cexts {
+				cext.Configure(c, "", nil)
+			}
+
+			var got []string
+			walk.Walk(c, cexts, []string{dir}, walk.VisitAllUpdateSubdirsMode, func(walkDir, rel string, walkC *config.Config, _ bool, oldFile *rule.File, subdirs, regularFiles, genFiles []string) {
+				var empty, gen []*rule.Rule
+				for _, lang := range langs {
+					res := lang.GenerateRules(language.GenerateArgs{
+						Config:       walkC,
+						Dir:          walkDir,
+						Rel:          rel,
+						File:         oldFile,
+						Subdirs:      subdirs,
+						RegularFiles: regularFiles,
+						GenFiles:     genFiles,
+						OtherEmpty:   empty,
+						OtherGen:     gen,
+					})
+					empty = append(empty, res.Empty...)
+					gen = append(gen, res.Gen...)
+				}
+				for _, r := range gen {
+					if r.Kind() == "go_proto_library" {
+						got = r.AttrStrings("compilers")
+					}
+				}
+			})
+
+			want := []string{
+				fmt.Sprintf("@%s//proto:go_proto", tc.rulesGoName),
+				fmt.Sprintf("@%s//proto:go_grpc_v2", tc.rulesGoName),
+			}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("(-want, +got):\n%s", diff)
+			}
+		})
 	}
 }

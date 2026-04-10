@@ -89,17 +89,13 @@ type goConfig struct {
 	// imports in external repositories with unknown naming conventions.
 	goNamingConventionExternal namingConvention
 
-	// goProtoCompilers is the protocol buffers compiler(s) to use for go code.
+	// goProtoCompilers is the protocol buffers compiler(s) to use for go code,
+	// or nil if not explicitly set.
 	goProtoCompilers []string
 
-	// goProtoCompilersSet indicates whether goProtoCompiler was set explicitly.
-	goProtoCompilersSet bool
-
-	// goGrpcCompilers is the gRPC compiler(s) to use for go code.
+	// goGrpcCompilers is the gRPC compiler(s) to use for go code,
+	// or nil if not explicitly set.
 	goGrpcCompilers []string
-
-	// goGrpcCompilersSet indicates whether goGrpcCompiler was set explicitly.
-	goGrpcCompilersSet bool
 
 	// goRepositoryMode is true if Gazelle was invoked by a go_repository rule.
 	// In this mode, we won't go out to the network to resolve external deps.
@@ -154,11 +150,6 @@ const (
 	fileTestMode
 )
 
-var (
-	defaultGoProtoCompilers = []string{"@io_bazel_rules_go//proto:go_proto"}
-	defaultGoGrpcCompilers  = []string{"@io_bazel_rules_go//proto:go_proto", "@io_bazel_rules_go//proto:go_grpc_v2"}
-)
-
 func (m testMode) String() string {
 	switch m {
 	case defaultTestMode:
@@ -183,9 +174,8 @@ func testModeFromString(s string) (testMode, error) {
 
 func newGoConfig() *goConfig {
 	gc := &goConfig{
-		goProtoCompilers: defaultGoProtoCompilers,
-		goGrpcCompilers:  defaultGoGrpcCompilers,
-		goGenerateProto:  true,
+		rulesGoRepoName: "io_bazel_rules_go", // the legacy name used in WORKSPACE
+		goGenerateProto: true,
 	}
 	if gc.genericTags == nil {
 		gc.genericTags = make(map[string]bool)
@@ -197,6 +187,13 @@ func newGoConfig() *goConfig {
 
 func getGoConfig(c *config.Config) *goConfig {
 	return c.Exts[goName].(*goConfig)
+}
+
+func (gc *goConfig) defaultGoGrpcCompilers() []string {
+	return []string{
+		fmt.Sprintf("@%s//proto:go_proto", gc.rulesGoRepoName),
+		fmt.Sprintf("@%s//proto:go_grpc_v2", gc.rulesGoRepoName),
+	}
 }
 
 func (gc *goConfig) clone() *goConfig {
@@ -418,11 +415,11 @@ func (*goLang) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
 			"external",
 			"external: resolve external packages with go_repository\n\tvendored: resolve external packages as packages in vendor/")
 		fs.Var(
-			&gzflag.MultiFlag{Values: &gc.goProtoCompilers, IsSet: &gc.goProtoCompilersSet},
+			&gzflag.MultiFlag{Values: &gc.goProtoCompilers},
 			"go_proto_compiler",
 			"go_proto_library compiler to use (may be repeated)")
 		fs.Var(
-			&gzflag.MultiFlag{Values: &gc.goGrpcCompilers, IsSet: &gc.goGrpcCompilersSet},
+			&gzflag.MultiFlag{Values: &gc.goGrpcCompilers},
 			"go_grpc_compiler",
 			"go_proto_library compiler to use for gRPC (may be repeated)")
 		fs.BoolVar(
@@ -516,12 +513,8 @@ func (*goLang) Configure(c *config.Config, rel string, f *rule.File) {
 		moduleToApparentName, err := module.ExtractModuleToApparentNameMapping(c.RepoRoot)
 		if err != nil {
 			log.Print(err)
-		} else {
-			gc.rulesGoRepoName = moduleToApparentName("rules_go")
-		}
-		if gc.rulesGoRepoName == "" {
-			// The legacy name used in WORKSPACE.
-			gc.rulesGoRepoName = "io_bazel_rules_go"
+		} else if name := moduleToApparentName("rules_go"); name != "" {
+			gc.rulesGoRepoName = name
 		}
 
 		const message = `Gazelle may not be compatible with this version of rules_go.
@@ -622,20 +615,16 @@ Update io_bazel_rules_go to a newer version in your WORKSPACE file.`
 			case "go_grpc_compilers":
 				// Special syntax (empty value) to reset directive.
 				if d.Value == "" {
-					gc.goGrpcCompilersSet = false
-					gc.goGrpcCompilers = defaultGoGrpcCompilers
+					gc.goGrpcCompilers = nil
 				} else {
-					gc.goGrpcCompilersSet = true
 					gc.goGrpcCompilers = splitValue(d.Value)
 				}
 
 			case "go_proto_compilers":
 				// Special syntax (empty value) to reset directive.
 				if d.Value == "" {
-					gc.goProtoCompilersSet = false
-					gc.goProtoCompilers = defaultGoProtoCompilers
+					gc.goProtoCompilers = nil
 				} else {
-					gc.goProtoCompilersSet = true
 					gc.goProtoCompilers = splitValue(d.Value)
 				}
 
