@@ -27,7 +27,7 @@ var goKinds = map[string]rule.KindInfo{
 		MergeableAttrs: map[string]bool{"actual": true},
 	},
 	"exports_files": {
-		NonEmptyAttrs:  map[string]bool{},
+		NonEmptyAttrs:  nil,
 		MergeableAttrs: map[string]bool{},
 	},
 	"filegroup": {

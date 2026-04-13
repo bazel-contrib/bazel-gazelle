@@ -54,7 +54,7 @@ func Test_NoDirective(t *testing.T) {
 	file := rule.EmptyFile("path", "pkg")
 
 	ext := visibility.NewLanguage()
-	ext.Configure(cfg, "rel", file)
+	ext.Configure(cfg, "rel", file, config.DirInfo{})
 	res := ext.GenerateRules(language.GenerateArgs{
 		Config: cfg,
 		File:   rule.EmptyFile("path/file", "pkg"),
@@ -77,7 +77,7 @@ func Test_NewDirective(t *testing.T) {
 	}
 
 	ext := visibility.NewLanguage()
-	ext.Configure(cfg, "rel", file)
+	ext.Configure(cfg, "rel", file, config.DirInfo{})
 	res := ext.GenerateRules(language.GenerateArgs{
 		Config: cfg,
 		File:   rule.EmptyFile("path/file", "pkg"),
@@ -110,7 +110,7 @@ package(default_visibility = "//not-src:__subpackages__")
 	}
 
 	ext := visibility.NewLanguage()
-	ext.Configure(cfg, "rel", file)
+	ext.Configure(cfg, "rel", file, config.DirInfo{})
 	res := ext.GenerateRules(language.GenerateArgs{
 		Config: cfg,
 		File:   rule.EmptyFile("path/file", "pkg"),
@@ -143,7 +143,7 @@ func Test_MultipleDirectives(t *testing.T) {
 	}
 
 	ext := visibility.NewLanguage()
-	ext.Configure(cfg, "rel", file)
+	ext.Configure(cfg, "rel", file, config.DirInfo{})
 	res := ext.GenerateRules(language.GenerateArgs{
 		Config: cfg,
 		File:   rule.EmptyFile("path/file", "pkg"),
@@ -178,7 +178,7 @@ func Test_MultipleDefaultsSingleDirective(t *testing.T) {
 	}
 
 	ext := visibility.NewLanguage()
-	ext.Configure(cfg, "rel", file)
+	ext.Configure(cfg, "rel", file, config.DirInfo{})
 	res := ext.GenerateRules(language.GenerateArgs{
 		Config: cfg,
 		File:   rule.EmptyFile("path/file", "pkg"),
@@ -213,7 +213,7 @@ func Test_NoRuleIfNoBuildFile(t *testing.T) {
 	}
 
 	ext := visibility.NewLanguage()
-	ext.Configure(cfg, "rel", file)
+	ext.Configure(cfg, "rel", file, config.DirInfo{})
 	res := ext.GenerateRules(language.GenerateArgs{
 		Config: cfg,
 		File:   nil,
@@ -245,11 +245,11 @@ func Test_MultipleDirectivesAcrossFilesSupercede(t *testing.T) {
 
 	cfg := config.New()
 	ext := visibility.NewLanguage()
-	ext.Configure(cfg, "path", file1)
+	ext.Configure(cfg, "path", file1, config.DirInfo{})
 
 	// clone the config as if we were decending through Walk
 	cfg2 := cfg.Clone()
-	ext.Configure(cfg2, "path/path", file2)
+	ext.Configure(cfg2, "path/path", file2, config.DirInfo{})
 
 	res2 := ext.GenerateRules(language.GenerateArgs{
 		Config: cfg2,

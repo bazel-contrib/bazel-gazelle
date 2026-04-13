@@ -139,7 +139,7 @@ func (*Configurer) KnownDirectives() []string {
 	return []string{"resolve", "resolve_regexp"}
 }
 
-func (*Configurer) Configure(c *config.Config, rel string, f *rule.File) {
+func (*Configurer) Configure(c *config.Config, rel string, f *rule.File, _ config.DirInfo) {
 	if f == nil || len(f.Directives) == 0 {
 		return
 	}

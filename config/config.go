@@ -172,6 +172,13 @@ func (c *Config) DefaultBuildFileName() string {
 	return c.ValidBuildFileNames[0]
 }
 
+// DirInfo holds directory content information passed to Configure.
+// Subdirs and RegularFiles hold names (not paths) of non-excluded entries.
+// GenFiles lists generated files from build rule outputs.
+type DirInfo struct {
+	Subdirs, RegularFiles, GenFiles []string
+}
+
 // Configurer is the interface for language or library-specific configuration
 // extensions. Most (ideally all) modifications to Config should happen
 // via this interface.
@@ -203,7 +210,7 @@ type Configurer interface {
 	//
 	// f is the build file for the current directory or nil if there is no
 	// existing build file.
-	Configure(c *Config, rel string, f *rule.File)
+	Configure(c *Config, rel string, f *rule.File, di DirInfo)
 }
 
 var _ Configurer = (*CommonConfigurer)(nil)
@@ -269,7 +276,7 @@ func (cc *CommonConfigurer) KnownDirectives() []string {
 	return []string{"map_kind", "alias_kind", "lang"}
 }
 
-func (cc *CommonConfigurer) Configure(c *Config, rel string, f *rule.File) {
+func (cc *CommonConfigurer) Configure(c *Config, rel string, f *rule.File, _ DirInfo) {
 	if f == nil {
 		return
 	}

@@ -69,7 +69,7 @@ func TestCommonConfigurerDirectives(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cc.Configure(c, "", f)
+	cc.Configure(c, "", f, DirInfo{})
 
 	wantLangs := []string{"go"}
 	if !reflect.DeepEqual(c.Langs, wantLangs) {
@@ -142,7 +142,7 @@ func TestCommonConfigurerRepoName(t *testing.T) {
 			if err := cc.CheckFlags(fs, c); err != nil {
 				t.Fatalf("CheckFlags: %v", err)
 			}
-			cc.Configure(c, "", nil)
+			cc.Configure(c, "", nil, DirInfo{})
 
 			if got := c.RepoName; got != tc.want {
 				t.Errorf("for RepoName, got %q, want %q", got, tc.want)

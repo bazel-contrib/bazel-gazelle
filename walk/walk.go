@@ -435,7 +435,11 @@ func (w *walker) visit(mode Mode, c *config.Config, rel string, updateParent boo
 	// Configure the directory, if we haven't done so already.
 	_, alreadyConfigured := w.visits[rel]
 	if !containedByParent && !alreadyConfigured {
-		configure(w.cexts, w.knownDirectives, c, rel, info.File, info.config)
+		configure(w.cexts, w.knownDirectives, c, rel, info.File, info.config, config.DirInfo{
+			Subdirs:      info.Subdirs,
+			RegularFiles: info.RegularFiles,
+			GenFiles:     info.GenFiles,
+		})
 	}
 
 	regularFiles := info.RegularFiles
@@ -531,7 +535,7 @@ func loadBuildFile(wc *walkConfig, readBuildFilesDir string, pkg, dir string, en
 	return rule.LoadFile(path, pkg)
 }
 
-func configure(cexts []config.Configurer, knownDirectives map[string]bool, c *config.Config, rel string, f *rule.File, wc *walkConfig) {
+func configure(cexts []config.Configurer, knownDirectives map[string]bool, c *config.Config, rel string, f *rule.File, wc *walkConfig, di config.DirInfo) {
 	if f != nil {
 		for _, d := range f.Directives {
 			if !knownDirectives[d.Key] {
@@ -546,7 +550,7 @@ func configure(cexts []config.Configurer, knownDirectives map[string]bool, c *co
 	}
 	c.Exts[walkNameCached] = wc
 	for _, cext := range cexts {
-		cext.Configure(c, rel, f)
+		cext.Configure(c, rel, f, di)
 	}
 }
 

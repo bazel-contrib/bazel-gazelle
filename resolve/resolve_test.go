@@ -149,7 +149,7 @@ func getConfig(t *testing.T, path string, directives []rule.Directive, parent *c
 		cfg.Exts[resolveName] = parent.Exts[resolveName]
 	}
 
-	configurer.Configure(cfg, path, &rule.File{Directives: directives})
+	configurer.Configure(cfg, path, &rule.File{Directives: directives}, config.DirInfo{})
 	return cfg
 }
 

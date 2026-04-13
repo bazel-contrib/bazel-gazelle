@@ -613,7 +613,7 @@ go_repository(
 				}
 			}()
 			gl := NewLanguage()
-			gl.Configure(c, "", nil)
+			gl.Configure(c, "", nil, config.DirInfo{})
 			importer := gl.(language.RepoImporter)
 			result := importer.ImportRepos(language.ImportReposArgs{
 				Config: c,
