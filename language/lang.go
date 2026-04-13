@@ -201,11 +201,4 @@ type GenerateResult struct {
 	// Experimental: this functionality may change a bit until it's been tested
 	// with multiple language extensions.
 	RelsToIndex []string
-
-	// ExternalGen maps slash-separated relative paths to rules that should be
-	// inserted into other packages' build files. This is used when a rule in
-	// the current package needs to inject rules (e.g., exports_files) into
-	// previously visited subdirectory packages. Walk is post-order, so
-	// subdirectories are visited first.
-	ExternalGen map[string][]*rule.Rule
 }

@@ -21,6 +21,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/label"
 	"github.com/bazelbuild/bazel-gazelle/pathtools"
 	"github.com/bazelbuild/bazel-gazelle/repo"
@@ -954,7 +955,7 @@ go_proto_library(
 				}
 				if bf.rel == "" {
 					for _, cext := range cexts {
-						cext.Configure(c, "", f)
+						cext.Configure(c, "", f, config.DirInfo{})
 					}
 				}
 				for _, r := range f.Rules {

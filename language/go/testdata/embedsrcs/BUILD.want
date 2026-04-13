@@ -7,10 +7,10 @@ go_library(
     embedsrcs = [
         "//embedsrcs/deep:nested/deep.txt",
         "//embedsrcs/m_dir/o_go:o.go",
-        "//embedsrcs/m_dir:static.txt",
         "//embedsrcs/m_go:m.go",
         "//embedsrcs/m_pkg:BUILD.old",
         "_m_hidden.txt",
+        "m_dir/static.txt",
         "m_gen.txt",
         "m_static.txt",
         "n_/static.txt",

@@ -79,7 +79,7 @@ func TestGenerateRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, cext := range cexts {
-		cext.Configure(c, "", f)
+		cext.Configure(c, "", f, config.DirInfo{})
 	}
 
 	var loads []rule.LoadInfo
@@ -176,7 +176,6 @@ go_test(name = "foo_test")
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}
 }
-
 
 // Test that no data attribute is added for an empty testdata subdirectory
 func TestGenerateRulesEmptyTestdata(t *testing.T) {
@@ -351,8 +350,9 @@ func TestConsumedGenFiles(t *testing.T) {
 
 	gl := goLang{
 		goPkgRels: make(map[string]bool),
+		cer:       newCachedEmbedResolver(),
 	}
-	gl.Configure(args.Config, "", nil)
+	gl.Configure(args.Config, "", nil, config.DirInfo{})
 	res := gl.GenerateRules(args)
 	got := res.Gen[0].AttrStrings("srcs")
 	want := []string{"regular.go"}
@@ -414,113 +414,124 @@ func prebuiltProtoRules() []*rule.Rule {
 	return []*rule.Rule{protoRule, goProtoRule}
 }
 
-func TestGenExportsFilesForEmbeds(t *testing.T) {
+func TestCrossPkgEmbed(t *testing.T) {
 	tests := []struct {
-		name          string
-		baseRel       string
-		goPkgRels     map[string]bool
-		libEmbedSrcs  map[string]platformStringInfo
-		testEmbedSrcs map[string]platformStringInfo
-		wantExtGen    map[string][]string // pkgRel -> sorted exported file list
-		wantLibSrcs   map[string]bool     // expected keys in library.embedSrcs.strs
-		wantTestSrcs  map[string]bool     // expected keys in test.embedSrcs.strs
+		name string
+		// args.Rel for the child directory being processed
+		childRel       string
+		goPkgRels      map[string]bool
+		resolvedEmbeds map[string]string
+		relToEmbedSrcs map[string][]string
+		// The child directory has generated non-empty rules (is a package)
+		childIsPackage bool
+		// Expected exports_files entries in the child
+		wantExportFiles []string
+		// Expected embedSrcLabels after maybeGenerateExportsFiles
+		wantLabels map[string]string
 	}{
 		{
-			name:         "no_cross_package_embeds",
-			baseRel:      "pkg",
-			goPkgRels:    map[string]bool{"pkg": true},
-			libEmbedSrcs: map[string]platformStringInfo{"local.txt": {}},
-			wantExtGen:   nil,
-			wantLibSrcs:  map[string]bool{"local.txt": true},
+			name:            "no_cross_package_embeds",
+			childRel:        "pkg/sub",
+			goPkgRels:       map[string]bool{"pkg": true, "pkg/sub": true},
+			resolvedEmbeds:  map[string]string{},
+			relToEmbedSrcs:  map[string][]string{},
+			childIsPackage:  true,
+			wantExportFiles: nil,
+			wantLabels:      map[string]string{},
 		},
 		{
-			name:         "single_cross_package_embed",
-			baseRel:      "pkg",
-			goPkgRels:    map[string]bool{"pkg": true, "pkg/sub": true},
-			libEmbedSrcs: map[string]platformStringInfo{"sub/data.txt": {}},
-			wantExtGen:   map[string][]string{"pkg/sub": {"data.txt"}},
-			wantLibSrcs:  map[string]bool{"//pkg/sub:data.txt": true},
+			name:            "single_cross_package_embed",
+			childRel:        "pkg/sub",
+			goPkgRels:       map[string]bool{"pkg": true, "pkg/sub": true},
+			resolvedEmbeds:  map[string]string{"pkg/sub/data.txt": "pkg"},
+			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/sub/data.txt"}},
+			childIsPackage:  true,
+			wantExportFiles: []string{"data.txt"},
+			wantLabels:      map[string]string{"pkg/sub/data.txt": "//pkg/sub:data.txt"},
 		},
 		{
-			name:    "multiple_files_same_subpackage",
-			baseRel: "pkg",
+			name:     "multiple_files_same_subpackage",
+			childRel: "pkg/sub",
 			goPkgRels: map[string]bool{
 				"pkg":     true,
 				"pkg/sub": true,
 			},
-			libEmbedSrcs: map[string]platformStringInfo{
-				"sub/a.txt": {},
-				"sub/b.txt": {},
+			resolvedEmbeds: map[string]string{
+				"pkg/sub/a.txt": "pkg",
+				"pkg/sub/b.txt": "pkg",
 			},
-			wantExtGen:  map[string][]string{"pkg/sub": {"a.txt", "b.txt"}},
-			wantLibSrcs: map[string]bool{"//pkg/sub:a.txt": true, "//pkg/sub:b.txt": true},
+			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/sub/a.txt", "pkg/sub/b.txt"}},
+			childIsPackage:  true,
+			wantExportFiles: []string{"a.txt", "b.txt"},
+			wantLabels: map[string]string{
+				"pkg/sub/a.txt": "//pkg/sub:a.txt",
+				"pkg/sub/b.txt": "//pkg/sub:b.txt",
+			},
 		},
 		{
-			name:    "multiple_subpackages",
-			baseRel: "pkg",
+			name:     "deeply_nested_file",
+			childRel: "pkg/a/b",
 			goPkgRels: map[string]bool{
-				"pkg":      true,
-				"pkg/sub1": true,
-				"pkg/sub2": true,
+				"pkg":     true,
+				"pkg/a/b": true,
 			},
-			libEmbedSrcs: map[string]platformStringInfo{
-				"sub1/a.txt": {},
-				"sub2/b.txt": {},
-			},
-			wantExtGen: map[string][]string{
-				"pkg/sub1": {"a.txt"},
-				"pkg/sub2": {"b.txt"},
-			},
-			wantLibSrcs: map[string]bool{"//pkg/sub1:a.txt": true, "//pkg/sub2:b.txt": true},
+			resolvedEmbeds:  map[string]string{"pkg/a/b/c/file.txt": "pkg"},
+			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/a/b/c/file.txt"}},
+			childIsPackage:  true,
+			wantExportFiles: []string{"c/file.txt"},
+			wantLabels:      map[string]string{"pkg/a/b/c/file.txt": "//pkg/a/b:c/file.txt"},
 		},
 		{
-			name:    "deeply_nested_file",
-			baseRel: "pkg",
-			goPkgRels: map[string]bool{
-				"pkg":      true,
-				"pkg/a/b":  true,
-			},
-			libEmbedSrcs: map[string]platformStringInfo{"a/b/c/file.txt": {}},
-			wantExtGen:   map[string][]string{"pkg/a/b": {"c/file.txt"}},
-			wantLibSrcs:  map[string]bool{"//pkg/a/b:c/file.txt": true},
-		},
-		{
-			name:    "mixed_local_and_cross_package",
-			baseRel: "pkg",
+			name:     "mixed_local_and_cross_package",
+			childRel: "pkg/sub",
 			goPkgRels: map[string]bool{
 				"pkg":     true,
 				"pkg/sub": true,
 			},
-			libEmbedSrcs: map[string]platformStringInfo{
-				"sub/x.txt": {},
-				"local.txt": {},
-			},
-			wantExtGen: map[string][]string{"pkg/sub": {"x.txt"}},
-			wantLibSrcs: map[string]bool{
-				"//pkg/sub:x.txt": true,
-				"local.txt":      true,
-			},
+			resolvedEmbeds:  map[string]string{"pkg/sub/x.txt": "pkg"},
+			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/sub/x.txt"}},
+			childIsPackage:  true,
+			wantExportFiles: []string{"x.txt"},
+			wantLabels:      map[string]string{"pkg/sub/x.txt": "//pkg/sub:x.txt"},
 		},
 		{
-			name:    "library_and_test_cross_package",
-			baseRel: "pkg",
+			name:     "library_and_test_cross_package",
+			childRel: "pkg/sub",
 			goPkgRels: map[string]bool{
 				"pkg":     true,
 				"pkg/sub": true,
 			},
-			libEmbedSrcs:  map[string]platformStringInfo{"sub/lib.txt": {}},
-			testEmbedSrcs: map[string]platformStringInfo{"sub/test.txt": {}},
-			wantExtGen:    map[string][]string{"pkg/sub": {"lib.txt", "test.txt"}},
-			wantLibSrcs:   map[string]bool{"//pkg/sub:lib.txt": true},
-			wantTestSrcs:  map[string]bool{"//pkg/sub:test.txt": true},
+			resolvedEmbeds: map[string]string{
+				"pkg/sub/lib.txt":  "pkg",
+				"pkg/sub/test.txt": "pkg",
+			},
+			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/sub/lib.txt", "pkg/sub/test.txt"}},
+			childIsPackage:  true,
+			wantExportFiles: []string{"lib.txt", "test.txt"},
+			wantLabels: map[string]string{
+				"pkg/sub/lib.txt":  "//pkg/sub:lib.txt",
+				"pkg/sub/test.txt": "//pkg/sub:test.txt",
+			},
 		},
 		{
-			name:         "empty_base_rel",
-			baseRel:      "",
-			goPkgRels:    map[string]bool{"": true, "sub": true},
-			libEmbedSrcs: map[string]platformStringInfo{"sub/f.txt": {}},
-			wantExtGen:   map[string][]string{"sub": {"f.txt"}},
-			wantLibSrcs:  map[string]bool{"//sub:f.txt": true},
+			name:            "empty_base_rel",
+			childRel:        "sub",
+			goPkgRels:       map[string]bool{"": true, "sub": true},
+			resolvedEmbeds:  map[string]string{"sub/f.txt": ""},
+			relToEmbedSrcs:  map[string][]string{"": {"sub/f.txt"}},
+			childIsPackage:  true,
+			wantExportFiles: []string{"f.txt"},
+			wantLabels:      map[string]string{"sub/f.txt": "//sub:f.txt"},
+		},
+		{
+			name:            "child_not_a_package",
+			childRel:        "pkg/sub",
+			goPkgRels:       map[string]bool{"pkg": true},
+			resolvedEmbeds:  map[string]string{"pkg/sub/data.txt": "pkg"},
+			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/sub/data.txt"}},
+			childIsPackage:  false,
+			wantExportFiles: nil,
+			wantLabels:      map[string]string{},
 		},
 	}
 
@@ -528,99 +539,61 @@ func TestGenExportsFilesForEmbeds(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gl := &goLang{
 				goPkgRels: tt.goPkgRels,
+				cer: &cachedEmbedResolver{
+					resolvedEmbeds: make(map[string]string),
+					relToEmbedSrcs: tt.relToEmbedSrcs,
+					embedSrcLabels: make(map[string]string),
+				},
 			}
-			pkg := &goPackage{}
-			if tt.libEmbedSrcs != nil {
-				pkg.library.embedSrcs = platformStringsBuilder{
-					strs: make(map[string]platformStringInfo),
-				}
-				for k, v := range tt.libEmbedSrcs {
-					pkg.library.embedSrcs.strs[k] = v
-				}
-			}
-			if tt.testEmbedSrcs != nil {
-				pkg.test.embedSrcs = platformStringsBuilder{
-					strs: make(map[string]platformStringInfo),
-				}
-				for k, v := range tt.testEmbedSrcs {
-					pkg.test.embedSrcs.strs[k] = v
-				}
+			for k, v := range tt.resolvedEmbeds {
+				gl.cer.resolvedEmbeds[k] = v
 			}
 
-			extGen := gl.genExportsFilesForEmbeds(pkg, tt.baseRel)
+			// Build a mock rules list for the child. If childIsPackage, add
+			// a non-empty go_library rule.
+			var rules []*rule.Rule
+			if tt.childIsPackage {
+				lib := rule.NewRule("go_library", "lib")
+				lib.SetAttr("srcs", []string{"lib.go"})
+				rules = append(rules, lib)
+			}
 
-			// Verify ExternalGen
-			if tt.wantExtGen == nil {
-				if extGen != nil {
-					t.Errorf("expected nil ExternalGen, got %v", extGen)
-				}
-			} else {
-				if extGen == nil {
-					t.Fatalf("expected ExternalGen with %d entries, got nil", len(tt.wantExtGen))
-				}
-				if len(extGen) != len(tt.wantExtGen) {
-					t.Errorf("ExternalGen has %d entries, want %d", len(extGen), len(tt.wantExtGen))
-				}
-				for pkgRel, wantFiles := range tt.wantExtGen {
-					rules, ok := extGen[pkgRel]
+			// Simulate GenerateRules for the child directory.
+			args := language.GenerateArgs{
+				Rel: tt.childRel,
+			}
+			if efRule := gl.maybeGenerateExportsFiles(args, rules); efRule != nil {
+				rules = append(rules, efRule)
+			}
+
+			// Verify exports_files rule.
+			var gotExportFiles []string
+			for _, r := range rules {
+				if r.Kind() == "exports_files" {
+					ruleArgs := r.Args()
+					if len(ruleArgs) != 1 {
+						t.Fatalf("exports_files rule has %d args, want 1", len(ruleArgs))
+					}
+					listExpr, ok := ruleArgs[0].(*bzl.ListExpr)
 					if !ok {
-						t.Errorf("ExternalGen missing entry for %q", pkgRel)
-						continue
+						t.Fatalf("exports_files arg is not a ListExpr")
 					}
-					if len(rules) != 1 {
-						t.Errorf("ExternalGen[%q] has %d rules, want 1", pkgRel, len(rules))
-						continue
-					}
-					r := rules[0]
-					if r.Kind() != "exports_files" {
-						t.Errorf("ExternalGen[%q] rule kind = %q, want exports_files", pkgRel, r.Kind())
-						continue
-					}
-					args := r.Args()
-					if len(args) != 1 {
-						t.Errorf("exports_files rule has %d args, want 1", len(args))
-						continue
-					}
-					listExpr, ok := args[0].(*bzl.ListExpr)
-					if !ok {
-						t.Errorf("exports_files arg is not a ListExpr")
-						continue
-					}
-					var gotFiles []string
 					for _, e := range listExpr.List {
 						se, ok := e.(*bzl.StringExpr)
 						if !ok {
-							t.Errorf("exports_files list element is not a StringExpr")
-							continue
+							t.Fatalf("exports_files list element is not a StringExpr")
 						}
-						gotFiles = append(gotFiles, se.Value)
-					}
-					if diff := cmp.Diff(wantFiles, gotFiles); diff != "" {
-						t.Errorf("exports_files for %q (-want +got):\n%s", pkgRel, diff)
+						gotExportFiles = append(gotExportFiles, se.Value)
 					}
 				}
 			}
-
-			// Verify library embedSrcs rewrites
-			if tt.wantLibSrcs != nil {
-				gotLibSrcs := make(map[string]bool)
-				for k := range pkg.library.embedSrcs.strs {
-					gotLibSrcs[k] = true
-				}
-				if diff := cmp.Diff(tt.wantLibSrcs, gotLibSrcs); diff != "" {
-					t.Errorf("library embedSrcs (-want +got):\n%s", diff)
-				}
+			if diff := cmp.Diff(tt.wantExportFiles, gotExportFiles); diff != "" {
+				t.Errorf("exports_files (-want +got):\n%s", diff)
 			}
 
-			// Verify test embedSrcs rewrites
-			if tt.wantTestSrcs != nil {
-				gotTestSrcs := make(map[string]bool)
-				for k := range pkg.test.embedSrcs.strs {
-					gotTestSrcs[k] = true
-				}
-				if diff := cmp.Diff(tt.wantTestSrcs, gotTestSrcs); diff != "" {
-					t.Errorf("test embedSrcs (-want +got):\n%s", diff)
-				}
+			// Verify embedSrcLabels.
+			if diff := cmp.Diff(tt.wantLabels, gl.cer.embedSrcLabels); diff != "" {
+				t.Errorf("embedSrcLabels (-want +got):\n%s", diff)
 			}
 		})
 	}

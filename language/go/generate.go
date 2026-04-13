@@ -144,15 +144,11 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		}
 	}
 	goFileInfos := make([]fileInfo, len(goFiles))
-	var er *embedResolver
 	for i, name := range goFiles {
 		path := filepath.Join(args.Dir, name)
-		goFileInfos[i] = goFileInfo(path, srcdir)
-		if len(goFileInfos[i].embeds) > 0 && er == nil {
-			er = newEmbedResolver(args.Dir, args.Subdirs, args.RegularFiles, args.GenFiles)
-		}
+		goFileInfos[i] = goFileInfo(path, srcdir, filepath.Join(args.Rel, name))
 	}
-	goPackageMap, goFilesWithUnknownPackage := buildPackages(c, args.Dir, args.Rel, hasTestdata, er, goFileInfos)
+	goPackageMap, goFilesWithUnknownPackage := buildPackages(c, args.Dir, args.Rel, hasTestdata, gl.cer, goFileInfos)
 
 	// Select a package to generate rules for. If there is no package, create
 	// an empty package so we can generate empty rules.
@@ -294,15 +290,15 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		// compiler deal with the error.
 		cgo := pkg.haveCgo()
 		for _, info := range goFilesWithUnknownPackage {
-			if err := pkg.addFile(c, er, info, cgo); err != nil {
+			if err := pkg.addFile(c, gl.cer, info, cgo); err != nil {
 				log.Print(err)
 			}
 		}
 
 		// Process the other static files.
 		for _, file := range otherFiles {
-			info := otherFileInfo(filepath.Join(args.Dir, file))
-			if err := pkg.addFile(c, er, info, cgo); err != nil {
+			info := otherFileInfo(filepath.Join(args.Dir, file), path.Join(args.Rel, file))
+			if err := pkg.addFile(c, gl.cer, info, cgo); err != nil {
 				log.Print(err)
 			}
 		}
@@ -328,8 +324,8 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 			if regularFileSet[f] || consumedFileSet[f] {
 				continue
 			}
-			info := fileNameInfo(filepath.Join(args.Dir, f))
-			if err := pkg.addFile(c, er, info, cgo); err != nil {
+			info := fileNameInfo(filepath.Join(args.Dir, f), filepath.Join(args.Rel, f))
+			if err := pkg.addFile(c, gl.cer, info, cgo); err != nil {
 				log.Print(err)
 			}
 		}
@@ -340,8 +336,6 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 				genGoProtoRules = append(genGoProtoRules, r.Name())
 			}
 		}
-
-		res.ExternalGen = gl.genExportsFilesForEmbeds(pkg, args.Rel)
 
 		// Generate Go rules.
 		if protoName == "" {
@@ -383,6 +377,9 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		}
 		rules = append(rules, g.generateBin(pkg, libName))
 		rules = append(rules, g.generateTests(pkg, libName)...)
+		if rule := gl.maybeGenerateExportsFiles(args, rules); rule != nil {
+			rules = append(rules, rule)
+		}
 	}
 
 	for _, r := range rules {
@@ -417,84 +414,34 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	return res
 }
 
-// genExportsFilesForEmbeds detects embed sources that reference files in
-// subdirectory packages and generates exports_files rules for those packages.
-// It also rewrites the embed source paths in pkg targets to Bazel labels.
-// Since walk is post-order, subdirectory packages have already been visited,
-// so gl.goPkgRels is populated for all child packages.
-func (gl *goLang) genExportsFilesForEmbeds(pkg *goPackage, baseRel string) map[string][]*rule.Rule {
-	if pkg == nil {
-		log.Panicf("genExportsFilesForEmbeds called with nil pkg for %q", baseRel)
-	}
-
-	var allEmbedSrcs []string
-	for _, t := range []*goTarget{&pkg.library, &pkg.binary, &pkg.test} {
-		for s := range t.embedSrcs.strs {
-			allEmbedSrcs = append(allEmbedSrcs, s)
-		}
-	}
-	for i := range pkg.tests {
-		for s := range pkg.tests[i].embedSrcs.strs {
-			allEmbedSrcs = append(allEmbedSrcs, s)
-		}
-	}
-	
-	pkgToFiles := make(map[string][]string)
-	embedSrcsToLabel := make(map[string]string)
-	for _, src := range allEmbedSrcs {
-		// Find the longest/deepest subdirectory package that contains the embed source.
-		srcDir := path.Dir(src)
-		for srcDir != "." {
-			candidatePkg := path.Join(baseRel, srcDir)
-			if _, ok := gl.goPkgRels[candidatePkg]; ok {
-				file := strings.TrimPrefix(src, srcDir+"/")
-				pkgToFiles[candidatePkg] = append(pkgToFiles[candidatePkg], file)
-				embedSrcsToLabel[src] = "//" + candidatePkg + ":" + file
+// maybeGenerateExportsFiles checks if this package should generate exports_files
+// for files referenced by ancestor //go:embed directives. It claims matching
+// entries from gl.cer.resolvedEmbeds, stores labels in gl.cer.embedSrcLabels, and
+// returns an exports_files rule if needed.
+func (gl *goLang) maybeGenerateExportsFiles(args language.GenerateArgs, rules []*rule.Rule) *rule.Rule {
+	// Only generate exports_files if this directory is a Go package
+	// (has a BUILD file or generated non-empty rules).
+	isPackage := args.File != nil
+	if !isPackage {
+		for _, r := range rules {
+			if !r.IsEmpty(goKinds[r.Kind()]) {
+				isPackage = true
 				break
 			}
-			srcDir = path.Dir(srcDir)
 		}
 	}
-
-	if len(pkgToFiles) == 0 {
+	if !isPackage {
 		return nil
 	}
 
-	externalGen := make(map[string][]*rule.Rule)
-	for pkgRel, files := range pkgToFiles {
-		sort.Strings(files)
+	exportFiles := gl.cer.claimExportFiles(args.Rel)
+	if len(exportFiles) > 0 {
+		sort.Strings(exportFiles)
 		efRule := rule.NewRule("exports_files", "")
-		efRule.AddArg(rule.ExprFromValue(files))
-		externalGen[pkgRel] = append(externalGen[pkgRel], efRule)
+		efRule.AddArg(rule.ExprFromValue(exportFiles))
+		return efRule
 	}
-
-	for _, t := range []*goTarget{&pkg.library, &pkg.binary, &pkg.test} {
-		replaceEmbedSrcsWithLabels(t, embedSrcsToLabel)
-	}
-	for i := range pkg.tests {
-		replaceEmbedSrcsWithLabels(&pkg.tests[i], embedSrcsToLabel)
-	}
-
-	return externalGen
-}
-
-// replaceEmbedSrcsWithLabels rewrites embed source paths in a target,
-// replacing relative paths with Bazel labels for cross-package files.
-func replaceEmbedSrcsWithLabels(t *goTarget, embedSrcsToLabel map[string]string) {
-	if t.embedSrcs.isEmpty() {
-		return
-	}
-	newEmbedSrcs := platformStringsBuilder{
-		strs: make(map[string]platformStringInfo),
-	}
-	for rel := range t.embedSrcs.strs {
-		if label, ok := embedSrcsToLabel[rel]; ok {
-			newEmbedSrcs.strs[label] = t.embedSrcs.strs[rel]
-		} else {
-			newEmbedSrcs.strs[rel] = t.embedSrcs.strs[rel]
-		}
-	}
-	t.embedSrcs = newEmbedSrcs
+	return nil
 }
 
 func filterFiles(files *[]string, pred func(string) bool) {
@@ -509,7 +456,7 @@ func filterFiles(files *[]string, pred func(string) bool) {
 	*files = (*files)[:w]
 }
 
-func buildPackages(c *config.Config, dir, rel string, hasTestdata bool, er *embedResolver, goFiles []fileInfo) (packageMap map[string]*goPackage, goFilesWithUnknownPackage []fileInfo) {
+func buildPackages(c *config.Config, dir, rel string, hasTestdata bool, cer *cachedEmbedResolver, goFiles []fileInfo) (packageMap map[string]*goPackage, goFilesWithUnknownPackage []fileInfo) {
 	// Process .go and .proto files first, since these determine the package name.
 	packageMap = make(map[string]*goPackage)
 	for _, f := range goFiles {
@@ -530,7 +477,7 @@ func buildPackages(c *config.Config, dir, rel string, hasTestdata bool, er *embe
 				hasTestdata: hasTestdata,
 			}
 		}
-		if err := packageMap[f.packageName].addFile(c, er, f, false); err != nil {
+		if err := packageMap[f.packageName].addFile(c, cer, f, false); err != nil {
 			log.Print(err)
 		}
 	}

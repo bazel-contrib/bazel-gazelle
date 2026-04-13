@@ -74,7 +74,7 @@ func TestConfigurerDirectives(t *testing.T) {
 	if err := cc.CheckFlags(nil, c); err != nil {
 		t.Errorf("CheckFlags: %v", err)
 	}
-	cc.Configure(c, "", f)
+	cc.Configure(c, "", f, config.DirInfo{})
 	want := []string{"x", "y"}
 	if !reflect.DeepEqual(c.ValidBuildFileNames, want) {
 		t.Errorf("for ValidBuildFileNames, got %#v, want %#v", c.ValidBuildFileNames, want)

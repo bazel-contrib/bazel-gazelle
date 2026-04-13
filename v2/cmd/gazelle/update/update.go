@@ -258,7 +258,7 @@ func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) erro
 
 func (ucr *updateConfigurer) KnownDirectives() []string { return nil }
 
-func (ucr *updateConfigurer) Configure(c *config.Config, rel string, f *rule.File) {}
+func (ucr *updateConfigurer) Configure(c *config.Config, rel string, f *rule.File, _ config.DirInfo) {}
 
 // visitRecord stores information about a directory visited with
 // packages.Walk.
@@ -352,7 +352,7 @@ func Run(
 	}
 
 	// Visit all directories in the repository.
-	visits := make(map[string]visitRecord)
+	var visits []visitRecord
 	uc := getUpdateConfig(c)
 	defer func() {
 		if err := uc.profile.Stop(); err != nil {
@@ -418,20 +418,6 @@ func Run(
 			imports = append(imports, res.Imports...)
 			if c.IndexLibraries {
 				relsToVisit = append(relsToVisit, res.RelsToIndex...)
-			}
-			// Insert rules targeting other packages (e.g., exports_files
-			// for cross-package go:embed).
-			for pkgRel, extRules := range res.ExternalGen {
-				if v, ok := visits[pkgRel]; ok {
-					for _, efRule := range extRules {
-						efRule.Insert(v.file)
-						v.rules = append(v.rules, efRule)
-						v.imports = append(v.imports, nil)
-					}
-					v.file.Sync()
-				} else {
-					log.Panicf("%q should be visited before %q", pkgRel, rel)
-				}
 			}
 		}
 		if f == nil && len(gen) == 0 {
@@ -515,7 +501,7 @@ func Run(
 				c.AliasMap,
 			)
 		}
-		visits[rel] = visitRecord{
+		visits = append(visits, visitRecord{
 			pkgRel:         rel,
 			c:              c,
 			rules:          gen,
@@ -524,7 +510,7 @@ func Run(
 			file:           f,
 			mappedKinds:    mappedKinds,
 			mappedKindInfo: mappedKindInfo,
-		}
+		})
 
 		// Add library rules to the dependency resolution table.
 		if c.IndexLibraries {

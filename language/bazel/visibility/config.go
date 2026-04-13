@@ -61,7 +61,7 @@ func (*visibilityExtension) KnownDirectives() []string {
 //
 // To set multiple visibility targets, either multiple directives can be used, or a
 // list can be provided with comma-separated values.
-func (*visibilityExtension) Configure(c *config.Config, _ string, f *rule.File) {
+func (*visibilityExtension) Configure(c *config.Config, _ string, f *rule.File, _ config.DirInfo) {
 	cfg := getVisConfig(c)
 	if f == nil {
 		return
