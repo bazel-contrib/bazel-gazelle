@@ -98,7 +98,7 @@ func TestDirectives(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, cext := range cexts {
-		cext.Configure(c, "test", f, config.DirInfo{})
+		cext.Configure(c, "test", f)
 	}
 	gc := getGoConfig(c)
 	for _, tag := range []string{"foo", "bar", "gc"} {
@@ -134,7 +134,7 @@ func TestDirectives(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, cext := range cexts {
-		cext.Configure(c, "test/sub", f, config.DirInfo{})
+		cext.Configure(c, "test/sub", f)
 	}
 	gc = getGoConfig(c)
 	if diff := cmp.Diff([]string(nil), gc.goGrpcCompilers); diff != "" {
@@ -153,7 +153,7 @@ func TestVendorConfig(t *testing.T) {
 	gc.importMapPrefix = "bad-importmap-prefix"
 	gc.importMapPrefixRel = ""
 	for _, cext := range cexts {
-		cext.Configure(c, "x/vendor", nil, config.DirInfo{})
+		cext.Configure(c, "x/vendor", nil)
 	}
 	gc = getGoConfig(c)
 	if gc.prefix != "" {
@@ -243,7 +243,7 @@ load("@io_bazel_rules_go//proto:go_proto_library.bzl", "go_proto_library")
 				}
 			}
 			for _, cext := range cexts {
-				cext.Configure(c, tc.rel, f, config.DirInfo{})
+				cext.Configure(c, tc.rel, f)
 			}
 			pc = proto.GetProtoConfig(c)
 			if pc.Mode != tc.want {
@@ -281,7 +281,7 @@ gazelle(
 				t.Fatal(err)
 			}
 			for _, cext := range cexts {
-				cext.Configure(c, "x", f, config.DirInfo{})
+				cext.Configure(c, "x", f)
 			}
 			gc := getGoConfig(c)
 			if !gc.prefixSet {

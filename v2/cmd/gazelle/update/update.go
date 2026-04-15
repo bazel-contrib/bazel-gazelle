@@ -258,7 +258,7 @@ func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) erro
 
 func (ucr *updateConfigurer) KnownDirectives() []string { return nil }
 
-func (ucr *updateConfigurer) Configure(c *config.Config, rel string, f *rule.File, _ config.DirInfo) {}
+func (ucr *updateConfigurer) Configure(c *config.Config, rel string, f *rule.File) {}
 
 // visitRecord stores information about a directory visited with
 // packages.Walk.

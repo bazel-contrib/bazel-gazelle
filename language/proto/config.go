@@ -214,7 +214,7 @@ func (*protoLang) KnownDirectives() []string {
 	return []string{"proto", "proto_group", "proto_strip_import_prefix", "proto_import_prefix", "proto_search"}
 }
 
-func (*protoLang) Configure(c *config.Config, rel string, f *rule.File, _ config.DirInfo) {
+func (*protoLang) Configure(c *config.Config, rel string, f *rule.File) {
 	pc := &ProtoConfig{}
 	*pc = *GetProtoConfig(c)
 	c.Exts[protoName] = pc

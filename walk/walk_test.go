@@ -907,7 +907,7 @@ func (*testConfigurer) CheckFlags(_ *flag.FlagSet, _ *config.Config) error { ret
 
 func (*testConfigurer) KnownDirectives() []string { return nil }
 
-func (tc *testConfigurer) Configure(c *config.Config, rel string, f *rule.File, _ config.DirInfo) {
+func (tc *testConfigurer) Configure(c *config.Config, rel string, f *rule.File) {
 	tc.configure(c, rel, f)
 }
 
