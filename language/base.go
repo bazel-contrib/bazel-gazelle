@@ -52,7 +52,7 @@ func (b *BaseLang) KnownDirectives() []string {
 	return nil
 }
 
-func (b *BaseLang) Configure(c *config.Config, rel string, f *rule.File, _ config.DirInfo) {}
+func (b *BaseLang) Configure(c *config.Config, rel string, f *rule.File) {}
 
 func (b *BaseLang) Name() string {
 	return "BaseLang"

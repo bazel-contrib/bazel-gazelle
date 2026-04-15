@@ -78,7 +78,7 @@ func TestGenerateRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, cext := range cexts {
-		cext.Configure(c, "", f, config.DirInfo{})
+		cext.Configure(c, "", f)
 	}
 
 	var loads []rule.LoadInfo
@@ -351,7 +351,7 @@ func TestConsumedGenFiles(t *testing.T) {
 		goPkgRels: make(map[string]bool),
 		cer:       newCachedEmbedResolver(),
 	}
-	gl.Configure(args.Config, "", nil, config.DirInfo{})
+	gl.Configure(args.Config, "", nil)
 	res := gl.GenerateRules(args)
 	got := res.Gen[0].AttrStrings("srcs")
 	want := []string{"regular.go"}

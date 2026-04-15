@@ -142,7 +142,7 @@ func (*Configurer) KnownDirectives() []string {
 	return []string{"build_file_name", "directive_file", "generation_mode", "exclude", "follow", "ignore"}
 }
 
-func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File, _ config.DirInfo) {
+func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
 	if c.Exts[walkNameCached] != nil {
 		// A normal Configurer implementation would process directives and set
 		// c.Exts[walkName] here. However, we've parallelized the tree walk and

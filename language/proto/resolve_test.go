@@ -21,7 +21,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/label"
 	"github.com/bazelbuild/bazel-gazelle/repo"
 	"github.com/bazelbuild/bazel-gazelle/resolve"
@@ -399,7 +398,7 @@ proto_library(
 				}
 				if bf.rel == "" {
 					for _, cext := range cexts {
-						cext.Configure(c, "", f, config.DirInfo{})
+						cext.Configure(c, "", f)
 					}
 				}
 				for _, r := range f.Rules {

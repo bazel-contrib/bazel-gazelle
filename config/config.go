@@ -124,6 +124,9 @@ type Config struct {
 	// to the apparent name (repo_name) specified in the MODULE.bazel file. It
 	// returns the empty string if the module is not found.
 	ModuleToApparentName func(string) string
+
+	// DirInfo holds directory content information for the current directory.
+	DirInfo DirInfo
 }
 
 // MappedKind describes a replacement to use for a built-in kind.
@@ -210,7 +213,7 @@ type Configurer interface {
 	//
 	// f is the build file for the current directory or nil if there is no
 	// existing build file.
-	Configure(c *Config, rel string, f *rule.File, di DirInfo)
+	Configure(c *Config, rel string, f *rule.File)
 }
 
 var _ Configurer = (*CommonConfigurer)(nil)
@@ -276,7 +279,7 @@ func (cc *CommonConfigurer) KnownDirectives() []string {
 	return []string{"map_kind", "alias_kind", "lang"}
 }
 
-func (cc *CommonConfigurer) Configure(c *Config, rel string, f *rule.File, _ DirInfo) {
+func (cc *CommonConfigurer) Configure(c *Config, rel string, f *rule.File) {
 	if f == nil {
 		return
 	}

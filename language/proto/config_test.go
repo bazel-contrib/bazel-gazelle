@@ -171,7 +171,7 @@ func TestInferProtoMode(t *testing.T) {
 				return ""
 			}
 		}
-		NewLanguage().Configure(cfg, tc.build.rel, file, config.DirInfo{})
+		NewLanguage().Configure(cfg, tc.build.rel, file)
 		pc := GetProtoConfig(cfg)
 		if pc.Mode != tc.expected {
 			t.Errorf("for %q, got mode %v, want %v", tc.desc, pc.Mode, tc.expected)

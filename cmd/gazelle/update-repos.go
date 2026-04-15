@@ -138,7 +138,7 @@ func (*updateReposConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) err
 
 func (*updateReposConfigurer) KnownDirectives() []string { return nil }
 
-func (*updateReposConfigurer) Configure(c *config.Config, rel string, f *rule.File, _ config.DirInfo) {}
+func (*updateReposConfigurer) Configure(c *config.Config, rel string, f *rule.File) {}
 
 func updateRepos(wd string, args []string) (err error) {
 	// Build configuration with all languages.
