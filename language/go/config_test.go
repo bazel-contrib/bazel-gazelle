@@ -118,15 +118,8 @@ func TestDirectives(t *testing.T) {
 	if gc.importMapPrefixRel != "test" {
 		t.Errorf(`got importmapPrefixRel %q; want "test"`, gc.importMapPrefixRel)
 	}
-	if !gc.goGrpcCompilersSet {
-		t.Error("expected goGrpcCompilersSet to be set")
-	}
 	if diff := cmp.Diff([]string{"abc", "def"}, gc.goGrpcCompilers); diff != "" {
 		t.Errorf("(-want, +got): %s", diff)
-	}
-
-	if !gc.goProtoCompilersSet {
-		t.Error("expected goProtoCompilersSet to be set")
 	}
 	if diff := cmp.Diff(gc.goProtoCompilers, []string{"foo", "bar"}); diff != "" {
 		t.Errorf("(-want, +got): %s", diff)
@@ -144,20 +137,12 @@ func TestDirectives(t *testing.T) {
 		cext.Configure(c, "test/sub", f)
 	}
 	gc = getGoConfig(c)
-	if gc.goGrpcCompilersSet {
-		t.Error("expected goGrpcCompilersSet to be unset")
-	}
-	if diff := cmp.Diff(defaultGoGrpcCompilers, gc.goGrpcCompilers); diff != "" {
+	if diff := cmp.Diff([]string(nil), gc.goGrpcCompilers); diff != "" {
 		t.Errorf("(-want, +got): %s", diff)
 	}
-
-	if gc.goProtoCompilersSet {
-		t.Error("expected goProtoCompilersSet to be unset")
-	}
-	if diff := cmp.Diff(defaultGoProtoCompilers, gc.goProtoCompilers); diff != "" {
+	if diff := cmp.Diff([]string(nil), gc.goProtoCompilers); diff != "" {
 		t.Errorf("(-want, +got): %s", diff)
 	}
-
 }
 
 func TestVendorConfig(t *testing.T) {

@@ -612,8 +612,12 @@ func (g *generator) generateProto(mode proto.Mode, targets []protoTarget, import
 		}
 	}
 	if atLeastOneTargetHasServices {
-		goProtoLibrary.SetAttr("compilers", gc.goGrpcCompilers)
-	} else if gc.goProtoCompilersSet {
+		if gc.goGrpcCompilers != nil {
+			goProtoLibrary.SetAttr("compilers", gc.goGrpcCompilers)
+		} else {
+			goProtoLibrary.SetAttr("compilers", gc.defaultGoGrpcCompilers())
+		}
+	} else if gc.goProtoCompilers != nil {
 		goProtoLibrary.SetAttr("compilers", gc.goProtoCompilers)
 	}
 	if g.shouldSetVisibility {
