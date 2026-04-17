@@ -124,6 +124,9 @@ type Config struct {
 	// to the apparent name (repo_name) specified in the MODULE.bazel file. It
 	// returns the empty string if the module is not found.
 	ModuleToApparentName func(string) string
+
+	// DirInfo holds directory content information for the current directory.
+	DirInfo DirInfo
 }
 
 // MappedKind describes a replacement to use for a built-in kind.
@@ -170,6 +173,13 @@ func (c *Config) IsValidBuildFileName(name string) bool {
 // DefaultBuildFileName returns the base name used to create new build files.
 func (c *Config) DefaultBuildFileName() string {
 	return c.ValidBuildFileNames[0]
+}
+
+// DirInfo holds directory content information passed to Configure.
+// Subdirs and RegularFiles hold names (not paths) of non-excluded entries.
+// GenFiles lists generated files from build rule outputs.
+type DirInfo struct {
+	Subdirs, RegularFiles, GenFiles []string
 }
 
 // Configurer is the interface for language or library-specific configuration

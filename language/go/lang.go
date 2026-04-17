@@ -62,10 +62,18 @@ type goLang struct {
 	// Go code. If the value is false, it means the directory does not contain
 	// buildable Go code, but it has a subdir which does.
 	goPkgRels map[string]bool
+
+	// cer encapsulates the pre-resolved embed sources and their
+	// Bazel labels. Populated during Configure (pre-order), consumed during
+	// GenerateRules (post-order).
+	cer *cachedEmbedResolver
 }
 
 func (*goLang) Name() string { return goName }
 
 func NewLanguage() language.Language {
-	return &goLang{goPkgRels: make(map[string]bool)}
+	return &goLang{
+		goPkgRels: make(map[string]bool),
+		cer:       newCachedEmbedResolver(),
+	}
 }
