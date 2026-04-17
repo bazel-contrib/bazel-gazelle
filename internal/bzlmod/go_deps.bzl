@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("//internal:common.bzl", "resolve_env")
 load("//internal:go_repository.bzl", "go_repository")
 load(
     ":default_gazelle_overrides.bzl",
@@ -248,6 +249,11 @@ def _process_archive_override(archive_override_tag):
     )
 
 def _go_repository_config_impl(ctx):
+    go_env = resolve_env(
+        ctx,
+        direct = ctx.attr.go_env,
+        inherit = ctx.attr.go_env_inherit,
+    )
     repos = []
     for name, importpath in sorted(ctx.attr.importpaths.items()):
         repos.append(format_rule_call(
@@ -260,14 +266,14 @@ def _go_repository_config_impl(ctx):
 
     ctx.file("WORKSPACE", "\n".join(repos))
     ctx.file("BUILD.bazel", "exports_files(['WORKSPACE', 'config.json', 'go_env.bzl', 'go_tools.bzl'])")
-    ctx.file("go_env.bzl", content = "GO_ENV = " + repr(ctx.attr.go_env))
+    ctx.file("go_env.bzl", content = "GO_ENV = " + repr(go_env))
     ctx.file("go_tools.bzl", content = "GO_TOOLS = {{k: Label(v) for k, v in {}.items()}}".format(
         repr(ctx.attr.tool_targets),
     ))
 
     # For use by @rules_go//go.
     ctx.file("config.json", content = json.encode_indent({
-        "go_env": ctx.attr.go_env,
+        "go_env": go_env,
         "dep_files": ctx.attr.dep_files,
     }))
 
@@ -279,6 +285,7 @@ _go_repository_config = repository_rule(
         "tool_targets": attr.string_dict(mandatory = True),
         "build_naming_conventions": attr.string_dict(mandatory = True),
         "go_env": attr.string_dict(mandatory = True),
+        "go_env_inherit": attr.string_list(),
         "dep_files": attr.string_list(),
     },
 )
@@ -364,6 +371,7 @@ def _go_deps_impl(module_ctx):
 
     outdated_direct_dep_printer = print
     go_env = {}
+    go_env_inherit = []
     dep_files = []
     modules_from_go_work = {}
     debug_mode = False
@@ -386,6 +394,7 @@ def _go_deps_impl(module_ctx):
             elif check_direct_deps == "error":
                 outdated_direct_dep_printer = fail
             go_env = mod_config.go_env
+            go_env_inherit = mod_config.go_env_inherit
             debug_mode = mod_config.debug_mode
 
         _process_overrides(module_ctx, module, "gazelle_override", gazelle_overrides, _process_gazelle_override)
@@ -817,6 +826,7 @@ Mismatch between versions requested for Go module {module}:
             for path, module in module_resolutions.items()
         }),
         go_env = go_env,
+        go_env_inherit = go_env_inherit,
         dep_files = dep_files,
     )
 
@@ -876,6 +886,9 @@ _config_tag = tag_class(
         ),
         "go_env": attr.string_dict(
             doc = "The environment variables to use when fetching Go dependencies or running the `@rules_go//go` tool.",
+        ),
+        "go_env_inherit": attr.string_list(
+            doc = "Host environment variable names to inherit when fetching Go dependencies or running the `@rules_go//go` tool.",
         ),
         "debug_mode": attr.bool(doc = "Whether or not to print stdout and stderr messages from gazelle", default = False),
     },
