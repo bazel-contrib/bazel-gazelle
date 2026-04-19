@@ -144,6 +144,8 @@ GO_REPOSITORY_TOOLS_SRCS = [
     Label("//v2/cmd/gazelle/update:print.go"),
     Label("//v2/cmd/gazelle/update:profiler.go"),
     Label("//v2/cmd/gazelle/update:update.go"),
+    Label("//v2/compat:BUILD.bazel"),
+    Label("//v2/compat:compat.go"),
     Label("//v2/config:BUILD.bazel"),
     Label("//v2/config:config.go"),
     Label("//v2/flag:BUILD.bazel"),
