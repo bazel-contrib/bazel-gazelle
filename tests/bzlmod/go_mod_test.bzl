@@ -156,9 +156,9 @@ replace example.org/hello => ../fixtures/hello
 _EXPECTED_GO_WORK_PARSE_RESULT = struct(
     go = (1, 18),
     from_file_tags = [
-        struct(_is_dev_dependency = False, go_mod = Label("//go_mod_one:go.mod")),
-        struct(_is_dev_dependency = False, go_mod = Label("//foo/go_mod_two:go.mod")),
-        struct(_is_dev_dependency = False, go_mod = Label("//bar/baz/go_mod_three:go.mod")),
+        struct(_is_dev_dependency = False, go_mod = Label("//go_mod_one:go.mod"), _from_go_work = True),
+        struct(_is_dev_dependency = False, go_mod = Label("//foo/go_mod_two:go.mod"), _from_go_work = True),
+        struct(_is_dev_dependency = False, go_mod = Label("//bar/baz/go_mod_three:go.mod"), _from_go_work = True),
     ],
     module_tags = [
         struct(indirect = False, _parent_label = Label("//:go.work"), local_path = None, path = "github.com/fsnotify/fsnotify", version = "1.4.2"),
@@ -199,8 +199,8 @@ godebug (
 _EXPECTED_GO_WORK_GODEBUG_PARSE_RESULT = struct(
     go = (1, 24),
     from_file_tags = [
-        struct(_is_dev_dependency = False, go_mod = Label("//foo/go_mod_one:go.mod")),
-        struct(_is_dev_dependency = False, go_mod = Label("//bar/baz/go_mod_two:go.mod")),
+        struct(go_mod = Label("//foo/go_mod_one:go.mod"), _is_dev_dependency = False, _from_go_work = True),
+        struct(go_mod = Label("//bar/baz/go_mod_two:go.mod"), _is_dev_dependency = False, _from_go_work = True),
     ],
     module_tags = [],
     replace_map = {},

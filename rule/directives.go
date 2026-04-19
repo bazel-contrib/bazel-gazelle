@@ -24,12 +24,13 @@ import (
 // Directive is a key-value pair extracted from a top-level comment in
 // a build file. Directives have the following format:
 //
-//     # gazelle:key value
+//	# gazelle:key value
 //
 // Keys may not contain spaces. Values may be empty and may contain spaces,
 // but surrounding space is trimmed.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.Directive instead.
+//
 //go:fix inline
 type Directive = v2.Directive
 
@@ -38,6 +39,7 @@ type Directive = v2.Directive
 // out of place (after the first statement).
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.ParseDirectives instead.
+//
 //go:fix inline
 func ParseDirectives(f *bzl.File) []Directive {
 	return v2.ParseDirectives(f)
@@ -48,7 +50,20 @@ func ParseDirectives(f *bzl.File) []Directive {
 // directives and directives out of place (after the first statement).
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.ParseDirectivesFromMacro instead.
+//
 //go:fix inline
 func ParseDirectivesFromMacro(f *bzl.DefStmt) []Directive {
 	return v2.ParseDirectivesFromMacro(f)
+}
+
+// ParseDirectivesFromFile reads a file and extracts Gazelle directives from it.
+// Each line is matched against the same pattern used for BUILD file comments
+// (# gazelle:key value). Blank lines and comment lines that don't match
+// the directive pattern are ignored.
+//
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.ParseDirectivesFromFile instead.
+//
+//go:fix inline
+func ParseDirectivesFromFile(filePath string) ([]Directive, error) {
+	return v2.ParseDirectivesFromFile(filePath)
 }

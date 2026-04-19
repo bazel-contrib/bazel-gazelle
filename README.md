@@ -95,8 +95,12 @@ go_register_toolchains(version = "1.20.5")
 gazelle_dependencies()
 ```
 
-`gazelle_dependencies` supports optional argument `go_env` (dict-mapping)
-to set project specific go environment variables. If you are using a
+`gazelle_dependencies` supports optional arguments `go_env` (dict-mapping)
+to set project specific go environment variables and `go_env_inherit`
+(list of names) to copy selected variables from the host environment.
+This is useful when dependency fetching relies on runtime-provided
+authentication, proxy settings, or repository configuration that should
+not be checked into source control. If you are using a
 `WORKSPACE.bazel` file, you will need to specify that using:
 
 ```bzl

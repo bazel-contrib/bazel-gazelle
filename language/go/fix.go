@@ -179,7 +179,7 @@ func migrateGrpcCompilers(c *config.Config, f *rule.File) {
 			continue
 		}
 		r.SetKind("go_proto_library")
-		r.SetAttr("compilers", defaultGoGrpcCompilers)
+		r.SetAttr("compilers", getGoConfig(c).defaultGoGrpcCompilers())
 	}
 }
 

@@ -16,6 +16,9 @@ limitations under the License.
 package rule
 
 import (
+	"bufio"
+	"fmt"
+	"os"
 	"regexp"
 
 	bzl "github.com/bazelbuild/buildtools/build"
@@ -73,3 +76,30 @@ func parseDirectives(stmt []bzl.Expr) []Directive {
 }
 
 var directiveRe = regexp.MustCompile(`^#\s*gazelle:(\w+)\s*(.*?)\s*$`)
+
+// ParseDirectivesFromFile reads a file and extracts Gazelle directives from it.
+// Each line is matched against the same pattern used for BUILD file comments
+// (# gazelle:key value). Blank lines and comment lines that don't match
+// the directive pattern are ignored.
+func ParseDirectivesFromFile(filePath string) ([]Directive, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("reading directive file: %w", err)
+	}
+	defer f.Close()
+
+	var directives []Directive
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		match := directiveRe.FindStringSubmatch(line)
+		if match == nil {
+			continue
+		}
+		directives = append(directives, Directive{Key: match[1], Value: match[2]})
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("reading directive file: %w", err)
+	}
+	return directives, nil
+}
