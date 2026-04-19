@@ -6,13 +6,13 @@ go_library(
         "config.go",
         "index.go",
     ],
-    importpath = "github.com/bazelbuild/bazel-gazelle/resolve",
+    importpath = "github.com/bazel-contrib/bazel-gazelle/v2/resolve",
     visibility = ["//visibility:public"],
     deps = [
         "//config",
         "//repo",
+        "//v2/config",
         "//v2/label",
-        "//v2/resolve",
         "//v2/rule",
     ],
 )
@@ -29,20 +29,14 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
-alias(
-    name = "go_default_library",
-    actual = ":resolve",
-    visibility = ["//visibility:public"],
-)
-
 go_test(
     name = "resolve_test",
     srcs = ["resolve_test.go"],
     embed = [":resolve"],
     deps = [
         "//config",
-        "//label",
-        "//rule",
+        "//v2/label",
+        "//v2/rule",
         "@com_github_google_go_cmp//cmp",
     ],
 )
