@@ -19,6 +19,7 @@ filegroup(
         "//v2/resolve:all_files",
         "//v2/rule:all_files",
         "//v2/testtools:all_files",
+        "//v2/walk:all_files",
     ],
     visibility = ["//visibility:public"],
 )
