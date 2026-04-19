@@ -1,0 +1,29 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "label",
+    srcs = ["label.go"],
+    importpath = "github.com/bazel-contrib/bazel-gazelle/v2/label",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//v2/pathtools",
+        "@com_github_bazelbuild_buildtools//build",
+    ],
+)
+
+go_test(
+    name = "label_test",
+    srcs = ["label_test.go"],
+    embed = [":label"],
+)
+
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "label.go",
+        "label_test.go",
+    ],
+    visibility = ["//visibility:public"],
+)

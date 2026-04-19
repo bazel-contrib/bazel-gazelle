@@ -73,7 +73,9 @@ func main() {
 		}
 		if !info.IsDir() &&
 			(strings.HasSuffix(base, ".go") && !strings.HasSuffix(base, "_test.go") ||
-				base == "BUILD.bazel" || base == "BUILD") {
+				base == "BUILD.bazel" || base == "BUILD" ||
+				base == "go.mod" || base == "go.sum" ||
+				base == "go.work" || base == "go.work.sum") {
 			label := filepath.ToSlash(path)
 			if i := strings.LastIndexByte(label, '/'); i >= 0 {
 				label = fmt.Sprintf(`Label("//%s:%s")`, label[:i], label[i+1:])

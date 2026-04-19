@@ -16,7 +16,10 @@ limitations under the License.
 package rule
 
 import (
-	v2 "github.com/bazel-contrib/bazel-gazelle/v2/rule"
+	"bufio"
+	"fmt"
+	"os"
+	"regexp"
 
 	bzl "github.com/bazelbuild/buildtools/build"
 )
@@ -28,42 +31,75 @@ import (
 //
 // Keys may not contain spaces. Values may be empty and may contain spaces,
 // but surrounding space is trimmed.
-//
-// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.Directive instead.
-//
-//go:fix inline
-type Directive = v2.Directive
+type Directive struct {
+	Key, Value string
+}
+
+// TODO(jayconrod): annotation directives will apply to an individual rule.
+// They must appear in the block of comments above that rule.
 
 // ParseDirectives scans f for Gazelle directives. The full list of directives
 // is returned. Errors are reported for unrecognized directives and directives
 // out of place (after the first statement).
-//
-// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.ParseDirectives instead.
-//
-//go:fix inline
 func ParseDirectives(f *bzl.File) []Directive {
-	return v2.ParseDirectives(f)
+	return parseDirectives(f.Stmt)
 }
 
 // ParseDirectivesFromMacro scans a macro body for Gazelle directives. The
 // full list of directives is returned. Errors are reported for unrecognized
 // directives and directives out of place (after the first statement).
-//
-// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.ParseDirectivesFromMacro instead.
-//
-//go:fix inline
 func ParseDirectivesFromMacro(f *bzl.DefStmt) []Directive {
-	return v2.ParseDirectivesFromMacro(f)
+	return parseDirectives(f.Body)
 }
+
+func parseDirectives(stmt []bzl.Expr) []Directive {
+	var directives []Directive
+	parseComment := func(com bzl.Comment) {
+		match := directiveRe.FindStringSubmatch(com.Token)
+		if match == nil {
+			return
+		}
+		key, value := match[1], match[2]
+		directives = append(directives, Directive{key, value})
+	}
+
+	for _, s := range stmt {
+		coms := s.Comment()
+		for _, com := range coms.Before {
+			parseComment(com)
+		}
+		for _, com := range coms.After {
+			parseComment(com)
+		}
+	}
+	return directives
+}
+
+var directiveRe = regexp.MustCompile(`^#\s*gazelle:(\w+)\s*(.*?)\s*$`)
 
 // ParseDirectivesFromFile reads a file and extracts Gazelle directives from it.
 // Each line is matched against the same pattern used for BUILD file comments
 // (# gazelle:key value). Blank lines and comment lines that don't match
 // the directive pattern are ignored.
-//
-// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.ParseDirectivesFromFile instead.
-//
-//go:fix inline
 func ParseDirectivesFromFile(filePath string) ([]Directive, error) {
-	return v2.ParseDirectivesFromFile(filePath)
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("reading directive file: %w", err)
+	}
+	defer f.Close()
+
+	var directives []Directive
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		match := directiveRe.FindStringSubmatch(line)
+		if match == nil {
+			continue
+		}
+		directives = append(directives, Directive{Key: match[1], Value: match[2]})
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("reading directive file: %w", err)
+	}
+	return directives, nil
 }

@@ -19,28 +19,37 @@ limitations under the License.
 // string. Paths in this format may be used directly as package names in labels.
 package pathtools
 
-import v2 "github.com/bazel-contrib/bazel-gazelle/v2/pathtools"
+import (
+	"path"
+	"path/filepath"
+	"strings"
+)
 
 // HasPrefix returns whether the slash-separated path p has the given
 // prefix. Unlike strings.HasPrefix, this function respects component
 // boundaries, so "/home/foo" is not a prefix is "/home/foobar/baz". If the
 // prefix is empty, this function always returns true.
-//
-// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/pathtools.HasPrefix instead.
-//go:fix inline
 func HasPrefix(p, prefix string) bool {
-	return v2.HasPrefix(p, prefix)
+	p = trimTrailingSlash(p)
+	prefix = trimTrailingSlash(prefix)
+	return prefix == "" || p == prefix || strings.HasPrefix(p, prefix+"/")
 }
 
 // TrimPrefix returns p without the provided prefix. If p doesn't start
 // with prefix, it returns p unchanged. Unlike strings.HasPrefix, this function
 // respects component boundaries (assuming slash-separated paths), so
 // TrimPrefix("foo/bar", "foo") returns "baz".
-//
-// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/pathtools.TrimPrefix instead.
-//go:fix inline
 func TrimPrefix(p, prefix string) string {
-	return v2.TrimPrefix(p, prefix)
+	origPath := p
+	p = trimTrailingSlash(p)
+	prefix = trimTrailingSlash(prefix)
+	if prefix == "" {
+		return origPath
+	}
+	if prefix == p {
+		return ""
+	}
+	return strings.TrimPrefix(p, prefix+"/")
 }
 
 // RelBaseName returns the base name for rel, a slash-separated path relative
@@ -48,31 +57,101 @@ func TrimPrefix(p, prefix string) string {
 // of prefix. If prefix is empty, RelBaseName returns the base name of root,
 // the absolute file path of the repository root directory. If that's empty
 // to, then RelBaseName returns "root".
-//
-// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/pathtools.RelBaseName instead.
-//go:fix inline
 func RelBaseName(rel, prefix, root string) string {
-	return v2.RelBaseName(rel, prefix, root)
+	base := path.Base(rel)
+	if base == "." || base == "/" {
+		base = path.Base(prefix)
+	}
+	if base == "." || base == "/" {
+		base = filepath.Base(root)
+	}
+	if base == "." || base == "/" {
+		base = "root"
+	}
+	return base
 }
 
 // Index returns the starting index of the first ocurrence of the string sub
 // within the slash-separated path p. sub must start and end at component
 // boundaries within p.
-//
-// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/pathtools.Index instead.
-//go:fix inline
 func Index(p, sub string) int {
-	return v2.Index(p, sub)
+	if sub == "" {
+		return 0
+	}
+	if path.IsAbs(sub) {
+		if HasPrefix(p, sub) {
+			return 0
+		} else {
+			return -1
+		}
+	}
+	if p == "" || p == "/" {
+		return -1
+	}
+
+	i := 0 // i is the index of the first byte of a path element
+	if len(p) > 0 && p[0] == '/' {
+		i++
+	}
+	for {
+		suffix := p[i:]
+		if len(suffix) < len(sub) {
+			return -1
+		}
+		if suffix[:len(sub)] == sub && (len(suffix) == len(sub) || suffix[len(sub)] == '/') {
+			return i
+		}
+		j := strings.IndexByte(suffix, '/')
+		if j < 0 {
+			return -1
+		}
+		i += j + 1
+		if i >= len(p) {
+			return -1
+		}
+	}
 }
 
 // LastIndex returns the starting index of the last occurrence of the string sub
 // within the slash-separated path p. sub must start and end at component
 // boundaries within p.
-//
-// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/pathtools.LastIndex instead.
-//go:fix inline
 func LastIndex(p, sub string) int {
-	return v2.LastIndex(p, sub)
+	if sub == "" {
+		return len(p)
+	}
+	if path.IsAbs(sub) {
+		if HasPrefix(p, sub) {
+			return 0
+		} else {
+			return -1
+		}
+	}
+	if p == "" || p == "/" {
+		return -1
+	}
+
+	// prevIndex returns the starting index in p of the component that starts
+	// before index i.
+	prevIndex := func(i int) int {
+		slash := strings.LastIndexByte(p[:i], '/')
+		if slash < 0 {
+			return 0
+		}
+		return slash + 1
+	}
+	i := prevIndex(len(p))
+	for {
+		suffix := p[i:]
+		if len(suffix) >= len(sub) &&
+			suffix[:len(sub)] == sub &&
+			(len(suffix) == len(sub) || suffix[len(sub)] == '/') {
+			return i
+		}
+		if i == 0 || (p[0] == '/' && i == 1) {
+			return -1
+		}
+		i = prevIndex(i - 1)
+	}
 }
 
 // Prefixes returns an iterator (iter.Seq) over all the prefixes of p.
@@ -82,9 +161,39 @@ func LastIndex(p, sub string) int {
 // does not need to be a clean path, but if it is not clean, Prefixes ignores
 // redundant slashes while keeping redundant path elements. For example,
 // if p is "a/../b//c/", the iterator yields "a", "..", "b", "c".
-//
-// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/pathtools.Prefixes instead.
-//go:fix inline
 func Prefixes(p string) func(yield func(string) bool) {
-	return v2.Prefixes(p)
+	return func(yield func(string) bool) {
+		var slash int
+		if strings.HasPrefix(p, "/") {
+			slash = 0
+		} else {
+			slash = -1
+		}
+		if ok := yield(p[:slash+1]); !ok {
+			return
+		}
+		for {
+			i := strings.Index(p[slash+1:], "/")
+			if i < 0 {
+				break
+			}
+			if ok := yield(p[:slash+1+i]); !ok {
+				return
+			}
+			slash += 1 + i
+			for slash+1 < len(p) && p[slash+1] == '/' {
+				slash++ // skip over multiple slashes
+			}
+		}
+		if p != "" && !strings.HasSuffix(p, "/") {
+			yield(p)
+		}
+	}
+}
+
+func trimTrailingSlash(p string) string {
+	for len(p) > 1 && p[len(p)-1] == '/' {
+		p = p[:len(p)-1]
+	}
+	return p
 }
