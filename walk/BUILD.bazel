@@ -1,4 +1,4 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "walk",
@@ -12,27 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//config",
-        "//flag",
-        "//pathtools",
-        "//rule",
-        "@com_github_bazelbuild_buildtools//build",
-        "@com_github_bmatcuk_doublestar_v4//:doublestar",
-    ],
-)
-
-go_test(
-    name = "walk_test",
-    srcs = [
-        "config_test.go",
-        "walk_test.go",
-    ],
-    embed = [":walk"],
-    deps = [
-        "//config",
-        "//rule",
-        "//testtools",
-        "@com_github_bmatcuk_doublestar_v4//:doublestar",
-        "@com_github_google_go_cmp//cmp",
+        "//v2/walk",
     ],
 )
 
@@ -43,10 +23,8 @@ filegroup(
         "BUILD.bazel",
         "cache.go",
         "config.go",
-        "config_test.go",
         "dirinfo.go",
         "walk.go",
-        "walk_test.go",
     ],
     visibility = ["//visibility:public"],
 )

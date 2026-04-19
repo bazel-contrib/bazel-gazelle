@@ -27,7 +27,7 @@ go_library(
         "//v2/label",
         "//v2/merger",
         "//v2/rule",
-        "//walk",
+        "//v2/walk",
         "@com_github_bazelbuild_buildtools//build",
         "@com_github_pmezard_go_difflib//difflib",
     ],
