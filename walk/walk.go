@@ -18,6 +18,8 @@ limitations under the License.
 package walk
 
 import (
+	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
+	v2config "github.com/bazel-contrib/bazel-gazelle/v2/config"
 	v2 "github.com/bazel-contrib/bazel-gazelle/v2/walk"
 	"github.com/bazelbuild/bazel-gazelle/config"
 )
@@ -101,7 +103,11 @@ type WalkFunc = v2.WalkFunc
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/walk.Walk instead.
 func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode, wf WalkFunc) {
-	v2.Walk(c, cexts, dirs, mode, wf)
+	v2cexts := make([]v2config.Configurer, len(cexts))
+	for i, cext := range cexts {
+		v2cexts[i] = compat.MustConfigurerV2(cext)
+	}
+	v2.Walk(c, v2cexts, dirs, mode, wf)
 }
 
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/walk.Walk2Func instead.
@@ -134,5 +140,9 @@ type Walk2FuncResult = v2.Walk2FuncResult
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/walk.Walk2 instead.
 func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode, wf Walk2Func) error {
-	return v2.Walk2(c, cexts, dirs, mode, wf)
+	v2cexts := make([]v2config.Configurer, len(cexts))
+	for i, cext := range cexts {
+		v2cexts[i] = compat.MustConfigurerV2(cext)
+	}
+	return v2.Walk2(c, v2cexts, dirs, mode, wf)
 }

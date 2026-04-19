@@ -17,6 +17,7 @@ package walk
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -27,12 +28,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	gzflag "github.com/bazel-contrib/bazel-gazelle/v2/flag"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	bzl "github.com/bazelbuild/buildtools/build"
 	"github.com/bmatcuk/doublestar/v4"
-
-	gzflag "github.com/bazelbuild/bazel-gazelle/flag"
 )
 
 // generationModeType represents one of the generation modes.
@@ -142,7 +142,8 @@ func (*Configurer) KnownDirectives() []string {
 	return []string{"build_file_name", "directive_file", "generation_mode", "exclude", "follow", "ignore"}
 }
 
-func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
+func (cr *Configurer) Configure(_ context.Context, args config.ConfigureArgs) error {
+	c := args.Config
 	if c.Exts[walkNameCached] != nil {
 		// A normal Configurer implementation would process directives and set
 		// c.Exts[walkName] here. However, we've parallelized the tree walk and
@@ -155,9 +156,10 @@ func (cr *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
 	} else {
 		// In some unit tests, c.Exts[walkNameCached] is not set.
 		// Process directives normally using the same code.
-		c.Exts[walkName] = configureForWalk(getWalkConfig(c), rel, f)
+		c.Exts[walkName] = configureForWalk(getWalkConfig(c), args.Rel, args.File)
 	}
 	c.ValidBuildFileNames = getWalkConfig(c).validBuildFileNames
+	return nil
 }
 
 func configureForWalk(parent *walkConfig, rel string, f *rule.File) *walkConfig {

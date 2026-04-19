@@ -12,6 +12,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//config",
+        "//rule",
+        "//v2/compat",
+        "//v2/config",
         "//v2/walk",
     ],
 )

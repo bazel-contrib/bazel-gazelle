@@ -17,6 +17,7 @@ package walk
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -26,9 +27,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/rule"
-	"github.com/bazelbuild/bazel-gazelle/testtools"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/testtools"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -901,14 +902,11 @@ type testConfigurer struct {
 	configure func(c *config.Config, rel string, f *rule.File)
 }
 
-func (*testConfigurer) RegisterFlags(_ *flag.FlagSet, _ string, _ *config.Config) {}
-
-func (*testConfigurer) CheckFlags(_ *flag.FlagSet, _ *config.Config) error { return nil }
-
 func (*testConfigurer) KnownDirectives() []string { return nil }
 
-func (tc *testConfigurer) Configure(c *config.Config, rel string, f *rule.File) {
-	tc.configure(c, rel, f)
+func (tc *testConfigurer) Configure(_ context.Context, args config.ConfigureArgs) error {
+	tc.configure(args.Config, args.Rel, args.File)
+	return nil
 }
 
 func TestDirectiveFile(t *testing.T) {
@@ -1170,14 +1168,14 @@ func BenchmarkWalk(b *testing.B) {
 	c.IndexLibraries = true
 	fs := flag.NewFlagSet("gazelle", flag.ContinueOnError)
 	for _, cext := range cexts {
-		cext.RegisterFlags(fs, "update", c)
+		cext.(*Configurer).RegisterFlags(fs, "update", c)
 	}
 	args := []string{rootDir}
 	if err := fs.Parse(args); err != nil {
 		b.Fatal(err)
 	}
 	for _, cext := range cexts {
-		cext.CheckFlags(fs, c)
+		cext.(*Configurer).CheckFlags(fs, c)
 	}
 
 	// Benchmark calling Walk with a trivial callback function.

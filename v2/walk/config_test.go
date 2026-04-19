@@ -1,14 +1,15 @@
 package walk
 
 import (
+	"context"
 	"flag"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"github.com/bmatcuk/doublestar/v4"
 )
 
@@ -74,7 +75,7 @@ func TestConfigurerDirectives(t *testing.T) {
 	if err := cc.CheckFlags(nil, c); err != nil {
 		t.Errorf("CheckFlags: %v", err)
 	}
-	cc.Configure(c, "", f)
+	cc.Configure(context.TODO(), config.ConfigureArgs{Config: c, Rel: "", File: f})
 	want := []string{"x", "y"}
 	if !reflect.DeepEqual(c.ValidBuildFileNames, want) {
 		t.Errorf("for ValidBuildFileNames, got %#v, want %#v", c.ValidBuildFileNames, want)

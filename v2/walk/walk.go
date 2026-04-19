@@ -18,6 +18,7 @@ limitations under the License.
 package walk
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -27,9 +28,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/pathtools"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/pathtools"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 )
 
 // Mode determines which directories Walk visits and which directories
@@ -435,7 +436,9 @@ func (w *walker) visit(mode Mode, c *config.Config, rel string, updateParent boo
 	// Configure the directory, if we haven't done so already.
 	_, alreadyConfigured := w.visits[rel]
 	if !containedByParent && !alreadyConfigured {
-		configure(w.cexts, w.knownDirectives, c, rel, info.File, info.config)
+		if err := configure(w.cexts, w.knownDirectives, c, rel, info.File, info.config); err != nil {
+			w.errs = append(w.errs, err)
+		}
 	}
 
 	regularFiles := info.RegularFiles
@@ -531,7 +534,7 @@ func loadBuildFile(wc *walkConfig, readBuildFilesDir string, pkg, dir string, en
 	return rule.LoadFile(path, pkg)
 }
 
-func configure(cexts []config.Configurer, knownDirectives map[string]bool, c *config.Config, rel string, f *rule.File, wc *walkConfig) {
+func configure(cexts []config.Configurer, knownDirectives map[string]bool, c *config.Config, rel string, f *rule.File, wc *walkConfig) error {
 	if f != nil {
 		for _, d := range f.Directives {
 			if !knownDirectives[d.Key] {
@@ -545,9 +548,17 @@ func configure(cexts []config.Configurer, knownDirectives map[string]bool, c *co
 		}
 	}
 	c.Exts[walkNameCached] = wc
+	var errs []error
 	for _, cext := range cexts {
-		cext.Configure(c, rel, f)
+		if err := cext.Configure(context.TODO(), config.ConfigureArgs{
+			Config: c,
+			Rel:    rel,
+			File:   f,
+		}); err != nil {
+			errs = append(errs, err)
+		}
 	}
+	return errors.Join(errs...)
 }
 
 func findGenFiles(wc *walkConfig, f *rule.File) []string {

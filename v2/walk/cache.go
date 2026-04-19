@@ -5,7 +5,7 @@ import (
 	"path"
 	"sync"
 
-	"github.com/bazelbuild/bazel-gazelle/pathtools"
+	"github.com/bazel-contrib/bazel-gazelle/v2/pathtools"
 )
 
 // cache is an in-memory cache for file system information. Its purpose is to
