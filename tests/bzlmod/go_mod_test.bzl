@@ -75,9 +75,14 @@ _EXPECTED_GO_MOD_21_PARSE_RESULT = struct(
 def _use_spec_to_label_test_impl(ctx):
     env = unittest.begin(ctx)
 
-    asserts.equals(env, Label("@@org_example//go_mod_one:go.mod"), use_spec_to_label("org_example", "./go_mod_one"))
-    asserts.equals(env, Label("@@org_example//go_mod_one:go.mod"), use_spec_to_label("org_example", "./go_mod_one/"))
-    asserts.equals(env, Label("@@org_example//bar/go_mod_one:go.mod"), use_spec_to_label("org_example", "./bar/go_mod_one"))
+    root_go_work = Label("@@org_example//:go.work")
+    asserts.equals(env, Label("@@org_example//go_mod_one:go.mod"), use_spec_to_label(root_go_work, "./go_mod_one"))
+    asserts.equals(env, Label("@@org_example//go_mod_one:go.mod"), use_spec_to_label(root_go_work, "./go_mod_one/"))
+    asserts.equals(env, Label("@@org_example//bar/go_mod_one:go.mod"), use_spec_to_label(root_go_work, "./bar/go_mod_one"))
+
+    package_go_work = Label("@@org_example//go:go.work")
+    asserts.equals(env, Label("@@org_example//go/foo/bar:go.mod"), use_spec_to_label(package_go_work, "./foo/bar"))
+    asserts.equals(env, Label("@@org_example//go:go.mod"), use_spec_to_label(package_go_work, "."))
 
     return unittest.end(env)
 
@@ -217,6 +222,34 @@ def _go_work_godebug_test_impl(ctx):
 
 go_work_godebug_test = unittest.make(_go_work_godebug_test_impl)
 
+_GO_WORK_IN_PACKAGE_CONTENT = """go 1.24
+use (
+    ./foo/bar
+    .
+)
+"""
+
+_EXPECTED_GO_WORK_IN_PACKAGE_PARSE_RESULT = struct(
+    go = (1, 24),
+    from_file_tags = [
+        struct(go_mod = Label("//go/foo/bar:go.mod"), _is_dev_dependency = False, _from_go_work = True),
+        struct(go_mod = Label("//go:go.mod"), _is_dev_dependency = False, _from_go_work = True),
+    ],
+    module_tags = [],
+    replace_map = {},
+    use = [
+        "./foo/bar",
+        ".",
+    ],
+)
+
+def _go_work_in_package_test_impl(ctx):
+    env = unittest.begin(ctx)
+    asserts.equals(env, _EXPECTED_GO_WORK_IN_PACKAGE_PARSE_RESULT, parse_go_work(_GO_WORK_IN_PACKAGE_CONTENT, Label("@@//go:go.work")))
+    return unittest.end(env)
+
+go_work_in_package_test = unittest.make(_go_work_in_package_test_impl)
+
 def go_mod_test_suite(name):
     unittest.suite(
         name,
@@ -226,5 +259,6 @@ def go_mod_test_suite(name):
         go_sum_test,
         go_work_test,
         go_work_godebug_test,
+        go_work_in_package_test,
         use_spec_test,
     )
