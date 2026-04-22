@@ -26,7 +26,7 @@ def _validate_go_version(path, state, tokens, line_no):
     if len(tokens) > 2:
         fail("{}:{}: unexpected token '{}' after '{}'".format(path, line_no, tokens[2], tokens[1]))
 
-def use_spec_to_label(repo_name, use_directive):
+def use_spec_to_label(repo_name, use_directive, package = ""):
     if use_directive.startswith("../") or "/../" in use_directive or use_directive.endswith("/.."):
         fail("go.work use directive: '{}' contains '..' which is not currently supported.".format(use_directive))
 
@@ -42,7 +42,11 @@ def use_spec_to_label(repo_name, use_directive):
     if use_directive == ".":
         use_directive = ""
 
-    return Label("@@{}//{}:go.mod".format(repo_name, use_directive))
+    label_package = package
+    if use_directive:
+        label_package = package + "/" + use_directive if package else use_directive
+
+    return Label("@@{}//{}:go.mod".format(repo_name, label_package))
 
 def go_work_from_label(module_ctx, go_work_label):
     """Loads deps from a go.work file"""
@@ -112,7 +116,7 @@ def parse_go_work(content, go_work_label):
 
     major, minor = go.split(".")[:2]
 
-    go_mods = [use_spec_to_label(go_work_label.repo_name, use) for use in state["use"]]
+    go_mods = [use_spec_to_label(go_work_label.repo_name, use, go_work_label.package) for use in state["use"]]
     from_file_tags = [struct(go_mod = go_mod, _is_dev_dependency = False, _from_go_work = True) for go_mod in go_mods]
 
     module_tags = [struct(version = mod.version, path = mod.to_path, _parent_label = go_work_label, local_path = mod.local_path, indirect = False) for mod in state["replace"].values()]
