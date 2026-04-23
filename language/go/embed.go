@@ -24,6 +24,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/bazelbuild/bazel-gazelle/config"
 	"golang.org/x/mod/module"
 )
 
@@ -50,32 +51,17 @@ func (f *embeddableNode) isHidden() bool {
 }
 
 // newEmbedResolver builds a set of files that may be embedded. This is
-// approximately all files in a Bazel package including explicitly declared
-// generated files and files in subdirectories without build files.
-// Files in other Bazel packages are not listed, since it might not be possible
-// to reference those files if they aren't listed in an export_files
-// declaration.
+// approximately all files reachable from a Bazel package directory, including
+// explicitly declared generated files and files in subdirectories.
 //
 // This function walks subdirectory trees and may be expensive. Don't call it
 // unless a go:embed directive is actually present.
 //
 // dir is the absolute path to the directory containing the embed directive.
 //
-// rel is the relative path from the workspace root to the same directory
-// (or "" if the directory is the workspace root itself).
-//
-// validBuildFileNames is the configured list of recognized build file names.
-// These are used to identify Bazel packages in subdirectories that Gazelle
-// did not visit.
-//
-// pkgRels is a set of relative paths from the workspace root to directories
-// that contain (or will contain) build files. It doesn't need to contain
-// entries for the entire workspace, but it should contain entries for
-// subdirectories processed earlier (this avoids redundant O(n^2) I/O).
-//
 // subdirs, regFiles, and genFiles are lists of subdirectories, regular files,
 // and declared generated files in dir, respectively.
-func newEmbedResolver(dir, rel string, validBuildFileNames []string, pkgRels map[string]bool, subdirs, regFiles, genFiles []string) *embedResolver {
+func newEmbedResolver(dir string, subdirs, regFiles, genFiles []string) *embedResolver {
 	root := &embeddableNode{entries: []*embeddableNode{}}
 	index := make(map[string]*embeddableNode)
 
@@ -123,17 +109,6 @@ func newEmbedResolver(dir, rel string, validBuildFileNames []string, pkgRels map
 			}
 			if isBadEmbedName(base) {
 				return filepath.SkipDir
-			}
-			if pkgRels[path.Join(rel, fileRel)] {
-				// Directory contains a Go package and will contain a build file,
-				// if it doesn't already.
-				return filepath.SkipDir
-			}
-			for _, name := range validBuildFileNames {
-				if bFileInfo, err := os.Stat(filepath.Join(p, name)); err == nil && !bFileInfo.IsDir() {
-					// Directory already contains a build file.
-					return filepath.SkipDir
-				}
 			}
 			add(fileRel, true)
 			return nil
@@ -197,6 +172,130 @@ func (er *embedResolver) resolve(embed fileEmbed) (list []string, err error) {
 		return nil, fmt.Errorf("matched no files")
 	}
 	return list, nil
+}
+
+// cachedEmbedResolver looks up pre-resolved embed sources for a Go file.
+// It maps each Go file (by repo-root-relative path) to the list of embed
+// source paths discovered during Configure, and substitutes Bazel labels
+// for cross-package sources.
+type cachedEmbedResolver struct {
+	// resolvedEmbeds stores repo-root-relative file paths resolved from
+	// //go:embed directives in ancestor directories.
+	// The value is the top most/shallowest directory that embeds it.
+	// Populated during Configure (pre-order). In GenerateRules (post-order),
+	// child packages remove entries they claim via exports_files.
+	// Key: repo-root-relative path (e.g., "embedsrcs/m_go/m.go")
+	// Value: rel of the directory that originated the embed
+	resolvedEmbeds map[string]string
+	// relToEmbedSrcs maps a Go file's repo-root-relative path to the
+	// repo-root-relative paths of its resolved embed sources.
+	relToEmbedSrcs map[string][]string
+	// embedSrcLabels maps repo-root-relative embed source paths to Bazel
+	// labels for cross-package access.
+	embedSrcLabels map[string]string
+}
+
+func newCachedEmbedResolver() *cachedEmbedResolver {
+	return &cachedEmbedResolver{
+		resolvedEmbeds: make(map[string]string),
+		relToEmbedSrcs: make(map[string][]string),
+		embedSrcLabels: make(map[string]string),
+	}
+}
+
+// resolve returns the embed source paths for a Go file identified by its
+// repo-root-relative path (fileRel). Cross-package sources are returned as
+// Bazel labels; same-package sources are returned as paths relative to the
+// file's directory.
+func (r *cachedEmbedResolver) resolve(fileRel string) []string {
+	srcs := r.relToEmbedSrcs[fileRel]
+	if len(srcs) == 0 {
+		return nil
+	}
+	dir := path.Dir(fileRel)
+	result := make([]string, 0, len(srcs))
+	for _, src := range srcs {
+		if label, ok := r.embedSrcLabels[src]; ok {
+			result = append(result, label)
+		} else {
+			relToDir := strings.TrimPrefix(src, dir+"/")
+			result = append(result, relToDir)
+		}
+	}
+	return result
+}
+
+// addEmbedSrc records that a resolved embed source (embedRel, repo-root-relative)
+// originated from directory rel and is referenced by the Go file at fileRel.
+// The shallowest originator is preserved in resolvedEmbeds.
+func (r *cachedEmbedResolver) addEmbedSrc(rel, fileRel, embedRel string) {
+	// Only record the shallowest originator of an embed source. So that it knows when to stop exporting embedded files.
+	// A embeded file is exported, if it's not exprted by a sub-package and there's parent package that embeds it.
+	if _, exists := r.resolvedEmbeds[embedRel]; !exists {
+		r.resolvedEmbeds[embedRel] = rel
+	}
+	r.relToEmbedSrcs[fileRel] = append(r.relToEmbedSrcs[fileRel], embedRel)
+}
+
+// discoverCrossPkgEmbeds reads Go files in the directory, resolves //go:embed
+// patterns, and stores repo-root-relative paths for files in subdirectories
+// into resolvedEmbeds. This is called during Configure (pre-order), so
+// when child directories' GenerateRules runs (post-order), they can check
+// whether they should generate exports_files rules.
+func (r *cachedEmbedResolver) resolveDir(c *config.Config, rel string, di config.DirInfo) {
+	dir := filepath.Join(c.RepoRoot, rel)
+
+	er := newEmbedResolver(dir, di.Subdirs, di.RegularFiles, di.GenFiles)
+
+	// Parse Go files for embed directives.
+	for _, name := range di.RegularFiles {
+		if !strings.HasSuffix(name, ".go") {
+			continue
+		}
+
+		info := goFileInfo(filepath.Join(dir, name), rel, path.Join(rel, name))
+		fileRel := path.Join(rel, name)
+		for _, embed := range info.embeds {
+			resolved, err := er.resolve(embed)
+			if err != nil {
+				log.Print(err)
+				continue
+			}
+			for _, src := range resolved {
+				embedRel := path.Join(rel, src)
+				r.addEmbedSrc(rel, fileRel, embedRel)
+			}
+		}
+	}
+}
+
+// claimExportFiles finds resolved embed sources under the given package prefix
+// (rel) that were originated by a different (ancestor) package. It removes
+// claimed entries from resolvedEmbeds, records their Bazel labels in
+// embedSrcLabels, and returns the package-relative file paths to export.
+func (r *cachedEmbedResolver) claimExportFiles(rel string) []string {
+	prefix := rel + "/"
+	if rel == "" {
+		prefix = ""
+	}
+	var exportFiles []string
+	for embedRel, shallowestEmbedPackage := range r.resolvedEmbeds {
+		if !strings.HasPrefix(embedRel, prefix) {
+			continue
+		}
+		// Skip files that belong to the embedder's own package — it doesn't
+		// need exports_files for its own embed targets.
+		if shallowestEmbedPackage == rel {
+			continue
+		}
+		fileRelToPackage := strings.TrimPrefix(embedRel, prefix)
+
+		// Delete the file from resolvedEmbeds to indicate that we've claimed it.
+		delete(r.resolvedEmbeds, embedRel)
+		exportFiles = append(exportFiles, fileRelToPackage)
+		r.embedSrcLabels[embedRel] = "//" + rel + ":" + fileRelToPackage
+	}
+	return exportFiles
 }
 
 // Copied from cmd/go/internal/load.validEmbedPattern.

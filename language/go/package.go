@@ -95,7 +95,7 @@ var pkgVersionRe = regexp.MustCompile("^v[0-9]+$")
 // An error is returned if a file is buildable but invalid (for example, a
 // test .go file containing cgo code). Files that are not buildable will not
 // be added to any target (for example, .txt files).
-func (pkg *goPackage) addFile(c *config.Config, er *embedResolver, info fileInfo, cgo bool) error {
+func (pkg *goPackage) addFile(c *config.Config, cer *cachedEmbedResolver, info fileInfo, cgo bool) error {
 	switch {
 	case info.ext == unknownExt || !cgo && (info.ext == cExt || info.ext == csExt):
 		return nil
@@ -121,13 +121,13 @@ func (pkg *goPackage) addFile(c *config.Config, er *embedResolver, info fileInfo
 		// or the only test target (in defaultMode).
 		// In both cases, this will be the last element in the slice.
 		test := &pkg.tests[len(pkg.tests)-1]
-		test.addFile(c, er, info)
+		test.addFile(c, cer, info)
 		if !info.isExternalTest {
 			test.hasInternalTest = true
 		}
 	default:
 		pkg.hasMainFunction = pkg.hasMainFunction || info.hasMainFunction
-		pkg.library.addFile(c, er, info)
+		pkg.library.addFile(c, cer, info)
 	}
 
 	return nil
@@ -302,20 +302,13 @@ func goProtoImportPath(c *config.Config, pkg proto.Package, rel string) string {
 	return InferImportPath(c, rel)
 }
 
-func (t *goTarget) addFile(c *config.Config, er *embedResolver, info fileInfo) {
+func (t *goTarget) addFile(c *config.Config, cer *cachedEmbedResolver, info fileInfo) {
 	t.cgo = t.cgo || info.isCgo
 	add := getPlatformStringsAddFunction(c, info, nil)
 	add(&t.sources, info.name)
 	add(&t.imports, info.imports...)
-	if er != nil {
-		for _, embed := range info.embeds {
-			embedSrcs, err := er.resolve(embed)
-			if err != nil {
-				log.Print(err)
-				continue
-			}
-			add(&t.embedSrcs, embedSrcs...)
-		}
+	for _, src := range cer.resolve(info.rel) {
+		add(&t.embedSrcs, src)
 	}
 	for _, cppopts := range info.cppopts {
 		optAdd := add

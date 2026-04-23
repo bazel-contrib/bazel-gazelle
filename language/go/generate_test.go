@@ -177,7 +177,6 @@ go_test(name = "foo_test")
 	}
 }
 
-
 // Test that no data attribute is added for an empty testdata subdirectory
 func TestGenerateRulesEmptyTestdata(t *testing.T) {
 	dir, err := bazel.NewTmpDir("example")
@@ -351,6 +350,7 @@ func TestConsumedGenFiles(t *testing.T) {
 
 	gl := goLang{
 		goPkgRels: make(map[string]bool),
+		cer:       newCachedEmbedResolver(),
 	}
 	gl.Configure(args.Config, "", nil)
 	res := gl.GenerateRules(args)
@@ -412,6 +412,191 @@ func prebuiltProtoRules() []*rule.Rule {
 	protoRule.SetAttr("visibility", []string{"//visibility:public"})
 
 	return []*rule.Rule{protoRule, goProtoRule}
+}
+
+func TestCrossPkgEmbed(t *testing.T) {
+	tests := []struct {
+		name string
+		// args.Rel for the child directory being processed
+		childRel       string
+		goPkgRels      map[string]bool
+		resolvedEmbeds map[string]string
+		relToEmbedSrcs map[string][]string
+		// The child directory has generated non-empty rules (is a package)
+		childIsPackage bool
+		// Expected exports_files entries in the child
+		wantExportFiles []string
+		// Expected embedSrcLabels after maybeGenerateExportsFiles
+		wantLabels map[string]string
+	}{
+		{
+			name:            "no_cross_package_embeds",
+			childRel:        "pkg/sub",
+			goPkgRels:       map[string]bool{"pkg": true, "pkg/sub": true},
+			resolvedEmbeds:  map[string]string{},
+			relToEmbedSrcs:  map[string][]string{},
+			childIsPackage:  true,
+			wantExportFiles: nil,
+			wantLabels:      map[string]string{},
+		},
+		{
+			name:            "single_cross_package_embed",
+			childRel:        "pkg/sub",
+			goPkgRels:       map[string]bool{"pkg": true, "pkg/sub": true},
+			resolvedEmbeds:  map[string]string{"pkg/sub/data.txt": "pkg"},
+			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/sub/data.txt"}},
+			childIsPackage:  true,
+			wantExportFiles: []string{"data.txt"},
+			wantLabels:      map[string]string{"pkg/sub/data.txt": "//pkg/sub:data.txt"},
+		},
+		{
+			name:     "multiple_files_same_subpackage",
+			childRel: "pkg/sub",
+			goPkgRels: map[string]bool{
+				"pkg":     true,
+				"pkg/sub": true,
+			},
+			resolvedEmbeds: map[string]string{
+				"pkg/sub/a.txt": "pkg",
+				"pkg/sub/b.txt": "pkg",
+			},
+			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/sub/a.txt", "pkg/sub/b.txt"}},
+			childIsPackage:  true,
+			wantExportFiles: []string{"a.txt", "b.txt"},
+			wantLabels: map[string]string{
+				"pkg/sub/a.txt": "//pkg/sub:a.txt",
+				"pkg/sub/b.txt": "//pkg/sub:b.txt",
+			},
+		},
+		{
+			name:     "deeply_nested_file",
+			childRel: "pkg/a/b",
+			goPkgRels: map[string]bool{
+				"pkg":     true,
+				"pkg/a/b": true,
+			},
+			resolvedEmbeds:  map[string]string{"pkg/a/b/c/file.txt": "pkg"},
+			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/a/b/c/file.txt"}},
+			childIsPackage:  true,
+			wantExportFiles: []string{"c/file.txt"},
+			wantLabels:      map[string]string{"pkg/a/b/c/file.txt": "//pkg/a/b:c/file.txt"},
+		},
+		{
+			name:     "mixed_local_and_cross_package",
+			childRel: "pkg/sub",
+			goPkgRels: map[string]bool{
+				"pkg":     true,
+				"pkg/sub": true,
+			},
+			resolvedEmbeds:  map[string]string{"pkg/sub/x.txt": "pkg"},
+			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/sub/x.txt"}},
+			childIsPackage:  true,
+			wantExportFiles: []string{"x.txt"},
+			wantLabels:      map[string]string{"pkg/sub/x.txt": "//pkg/sub:x.txt"},
+		},
+		{
+			name:     "library_and_test_cross_package",
+			childRel: "pkg/sub",
+			goPkgRels: map[string]bool{
+				"pkg":     true,
+				"pkg/sub": true,
+			},
+			resolvedEmbeds: map[string]string{
+				"pkg/sub/lib.txt":  "pkg",
+				"pkg/sub/test.txt": "pkg",
+			},
+			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/sub/lib.txt", "pkg/sub/test.txt"}},
+			childIsPackage:  true,
+			wantExportFiles: []string{"lib.txt", "test.txt"},
+			wantLabels: map[string]string{
+				"pkg/sub/lib.txt":  "//pkg/sub:lib.txt",
+				"pkg/sub/test.txt": "//pkg/sub:test.txt",
+			},
+		},
+		{
+			name:            "empty_base_rel",
+			childRel:        "sub",
+			goPkgRels:       map[string]bool{"": true, "sub": true},
+			resolvedEmbeds:  map[string]string{"sub/f.txt": ""},
+			relToEmbedSrcs:  map[string][]string{"": {"sub/f.txt"}},
+			childIsPackage:  true,
+			wantExportFiles: []string{"f.txt"},
+			wantLabels:      map[string]string{"sub/f.txt": "//sub:f.txt"},
+		},
+		{
+			name:            "child_not_a_package",
+			childRel:        "pkg/sub",
+			goPkgRels:       map[string]bool{"pkg": true},
+			resolvedEmbeds:  map[string]string{"pkg/sub/data.txt": "pkg"},
+			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/sub/data.txt"}},
+			childIsPackage:  false,
+			wantExportFiles: nil,
+			wantLabels:      map[string]string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gl := &goLang{
+				goPkgRels: tt.goPkgRels,
+				cer: &cachedEmbedResolver{
+					resolvedEmbeds: make(map[string]string),
+					relToEmbedSrcs: tt.relToEmbedSrcs,
+					embedSrcLabels: make(map[string]string),
+				},
+			}
+			for k, v := range tt.resolvedEmbeds {
+				gl.cer.resolvedEmbeds[k] = v
+			}
+
+			// Build a mock rules list for the child. If childIsPackage, add
+			// a non-empty go_library rule.
+			var rules []*rule.Rule
+			if tt.childIsPackage {
+				lib := rule.NewRule("go_library", "lib")
+				lib.SetAttr("srcs", []string{"lib.go"})
+				rules = append(rules, lib)
+			}
+
+			// Simulate GenerateRules for the child directory.
+			args := language.GenerateArgs{
+				Rel: tt.childRel,
+			}
+			if efRule := gl.maybeGenerateExportsFiles(args, rules); efRule != nil {
+				rules = append(rules, efRule)
+			}
+
+			// Verify exports_files rule.
+			var gotExportFiles []string
+			for _, r := range rules {
+				if r.Kind() == "exports_files" {
+					ruleArgs := r.Args()
+					if len(ruleArgs) != 1 {
+						t.Fatalf("exports_files rule has %d args, want 1", len(ruleArgs))
+					}
+					listExpr, ok := ruleArgs[0].(*bzl.ListExpr)
+					if !ok {
+						t.Fatalf("exports_files arg is not a ListExpr")
+					}
+					for _, e := range listExpr.List {
+						se, ok := e.(*bzl.StringExpr)
+						if !ok {
+							t.Fatalf("exports_files list element is not a StringExpr")
+						}
+						gotExportFiles = append(gotExportFiles, se.Value)
+					}
+				}
+			}
+			if diff := cmp.Diff(tt.wantExportFiles, gotExportFiles); diff != "" {
+				t.Errorf("exports_files (-want +got):\n%s", diff)
+			}
+
+			// Verify embedSrcLabels.
+			if diff := cmp.Diff(tt.wantLabels, gl.cer.embedSrcLabels); diff != "" {
+				t.Errorf("embedSrcLabels (-want +got):\n%s", diff)
+			}
+		})
+	}
 }
 
 // convertImportsAttrs copies private attributes to regular attributes, which

@@ -54,7 +54,7 @@ func TestOtherFileInfo(t *testing.T) {
 			}
 			defer os.Remove(tc.name)
 
-			got := otherFileInfo(filepath.Join(dir, tc.name))
+			got := otherFileInfo(filepath.Join(dir, tc.name), tc.name)
 
 			// Only check that we can extract tags. Everything else is covered
 			// by other tests.
@@ -70,10 +70,10 @@ var fi fileInfo
 func BenchmarkFileNameInfo(b *testing.B) {
 	b.ReportAllocs()
 	for range b.N {
-		fi = fileNameInfo("path/to/foo_linux_amd64.go")
-		fi = fileNameInfo("path/to/foo_linux.go")
-		fi = fileNameInfo("path/to/foo_linux_amd64_test.go")
-		fi = fileNameInfo("foo_amd64.s")
+		fi = fileNameInfo("path/to/foo_linux_amd64.go", "path/to/foo_linux_amd64.go")
+		fi = fileNameInfo("path/to/foo_linux.go", "path/to/foo_linux.go")
+		fi = fileNameInfo("path/to/foo_linux_amd64_test.go", "path/to/foo_linux_amd64_test.go")
+		fi = fileNameInfo("foo_amd64.s", "foo_amd64.s")
 	}
 }
 
@@ -280,8 +280,9 @@ func TestFileNameInfo(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			tc.want.name = tc.name
+			tc.want.rel = tc.name
 			tc.want.path = filepath.Join("dir", tc.name)
-			got := fileNameInfo(tc.want.path)
+			got := fileNameInfo(tc.want.path, tc.name)
 			if diff := cmp.Diff(tc.want, got, fileInfoCmpOption); diff != "" {
 				t.Errorf("(-want, +got): %s", diff)
 			}
@@ -625,7 +626,7 @@ import "C"
 				t.Fatal(err)
 			}
 
-			fi := goFileInfo(path, "")
+			fi := goFileInfo(path, "", "")
 			var cgoTags *cgoTagsAndOpts
 			if len(fi.copts) > 0 {
 				cgoTags = fi.copts[0]
@@ -724,7 +725,7 @@ func TestIsOSArchSpecific(t *testing.T) {
 			if err := os.WriteFile(path, []byte(tc.content), 0o666); err != nil {
 				t.Fatal(err)
 			}
-			fi := goFileInfo(path, "")
+			fi := goFileInfo(path, "", "")
 			var cgoTags *cgoTagsAndOpts
 			if len(fi.copts) > 0 {
 				cgoTags = fi.copts[0]
