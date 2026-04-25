@@ -435,11 +435,6 @@ func (w *walker) visit(mode Mode, c *config.Config, rel string, updateParent boo
 	// Configure the directory, if we haven't done so already.
 	_, alreadyConfigured := w.visits[rel]
 	if !containedByParent && !alreadyConfigured {
-		c.DirInfo = config.DirInfo{
-			Subdirs:      info.Subdirs,
-			RegularFiles: info.RegularFiles,
-			GenFiles:     info.GenFiles,
-		}
 		configure(w.cexts, w.knownDirectives, c, rel, info.File, info.config)
 	}
 

@@ -25,6 +25,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazelbuild/bazel-gazelle/walk"
 	"golang.org/x/mod/module"
 )
 
@@ -242,7 +243,13 @@ func (r *cachedEmbedResolver) addEmbedSrc(rel, fileRel, embedRel string) {
 // into resolvedEmbeds. This is called during Configure (pre-order), so
 // when child directories' GenerateRules runs (post-order), they can check
 // whether they should generate exports_files rules.
-func (r *cachedEmbedResolver) resolveDir(c *config.Config, rel string, di config.DirInfo) {
+func (r *cachedEmbedResolver) resolveDir(c *config.Config, rel string) {
+	di, err := walk.GetDirInfo(rel)
+	if err != nil {
+		log.Printf("resolveDir: %v", err)
+		return
+	}
+
 	dir := filepath.Join(c.RepoRoot, rel)
 
 	er := newEmbedResolver(dir, di.Subdirs, di.RegularFiles, di.GenFiles)
