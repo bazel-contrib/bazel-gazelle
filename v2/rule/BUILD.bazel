@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "directives.go",
         "expr.go",
+        "kinds.go",
         "merge.go",
         "platform.go",
         "platform_strings.go",
@@ -46,6 +47,7 @@ filegroup(
         "directives.go",
         "directives_test.go",
         "expr.go",
+        "kinds.go",
         "merge.go",
         "merge_test.go",
         "platform.go",

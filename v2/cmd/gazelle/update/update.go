@@ -320,6 +320,9 @@ func Run(
 
 	mrslv := newMetaResolver()
 	kinds := make(map[string]rule.KindInfo)
+	for kind, info := range rule.GenericKinds {
+		kinds[kind] = info
+	}
 	loads := genericLoads
 	exts := make([]interface{}, 0, len(languages))
 	for _, lang := range languages {

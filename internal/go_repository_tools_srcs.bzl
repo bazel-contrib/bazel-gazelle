@@ -160,6 +160,7 @@ GO_REPOSITORY_TOOLS_SRCS = [
     Label("//v2/rule:BUILD.bazel"),
     Label("//v2/rule:directives.go"),
     Label("//v2/rule:expr.go"),
+    Label("//v2/rule:kinds.go"),
     Label("//v2/rule:merge.go"),
     Label("//v2/rule:platform.go"),
     Label("//v2/rule:platform_strings.go"),
