@@ -26,6 +26,7 @@ import (
 
 	radix "github.com/armon/go-radix"
 	"github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazelbuild/bazel-gazelle/label"
 	"github.com/bazelbuild/bazel-gazelle/walk"
 	"golang.org/x/mod/module"
 )
@@ -194,14 +195,14 @@ type cachedEmbedResolver struct {
 	relToEmbedSrcs map[string][]string
 	// embedSrcLabels maps repo-root-relative embed source paths to Bazel
 	// labels for cross-package access.
-	embedSrcLabels map[string]string
+	embedSrcLabels map[string]label.Label
 }
 
 func newCachedEmbedResolver() *cachedEmbedResolver {
 	return &cachedEmbedResolver{
 		resolvedEmbeds: radix.New(),
 		relToEmbedSrcs: make(map[string][]string),
-		embedSrcLabels: make(map[string]string),
+		embedSrcLabels: make(map[string]label.Label),
 	}
 }
 
@@ -217,8 +218,8 @@ func (r *cachedEmbedResolver) resolve(fileRel string) []string {
 	dir := path.Dir(fileRel)
 	result := make([]string, 0, len(srcs))
 	for _, src := range srcs {
-		if label, ok := r.embedSrcLabels[src]; ok {
-			result = append(result, label)
+		if l, ok := r.embedSrcLabels[src]; ok {
+			result = append(result, l.String())
 		} else {
 			relToDir := strings.TrimPrefix(src, dir+"/")
 			result = append(result, relToDir)
@@ -299,7 +300,7 @@ func (r *cachedEmbedResolver) claimExportFiles(rel string) []string {
 
 		toDelete = append(toDelete, embedRel)
 		exportFiles = append(exportFiles, fileRelToPackage)
-		r.embedSrcLabels[embedRel] = "//" + rel + ":" + fileRelToPackage
+		r.embedSrcLabels[embedRel] = label.Label{Pkg: rel, Name: fileRelToPackage}
 		return false
 	})
 	for _, key := range toDelete {

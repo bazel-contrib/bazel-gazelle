@@ -26,6 +26,7 @@ import (
 
 	radix "github.com/armon/go-radix"
 	"github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazelbuild/bazel-gazelle/label"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
 	"github.com/bazelbuild/bazel-gazelle/merger"
@@ -428,7 +429,7 @@ func TestCrossPkgEmbed(t *testing.T) {
 		// Expected exports_files entries in the child
 		wantExportFiles []string
 		// Expected embedSrcLabels after maybeGenerateExportsFiles
-		wantLabels map[string]string
+		wantLabels map[string]label.Label
 	}{
 		{
 			name:            "no_cross_package_embeds",
@@ -438,7 +439,7 @@ func TestCrossPkgEmbed(t *testing.T) {
 			relToEmbedSrcs:  map[string][]string{},
 			childIsPackage:  true,
 			wantExportFiles: nil,
-			wantLabels:      map[string]string{},
+			wantLabels:      map[string]label.Label{},
 		},
 		{
 			name:            "single_cross_package_embed",
@@ -448,7 +449,7 @@ func TestCrossPkgEmbed(t *testing.T) {
 			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/sub/data.txt"}},
 			childIsPackage:  true,
 			wantExportFiles: []string{"data.txt"},
-			wantLabels:      map[string]string{"pkg/sub/data.txt": "//pkg/sub:data.txt"},
+			wantLabels:      map[string]label.Label{"pkg/sub/data.txt": {Pkg: "pkg/sub", Name: "data.txt"}},
 		},
 		{
 			name:     "multiple_files_same_subpackage",
@@ -464,9 +465,9 @@ func TestCrossPkgEmbed(t *testing.T) {
 			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/sub/a.txt", "pkg/sub/b.txt"}},
 			childIsPackage:  true,
 			wantExportFiles: []string{"a.txt", "b.txt"},
-			wantLabels: map[string]string{
-				"pkg/sub/a.txt": "//pkg/sub:a.txt",
-				"pkg/sub/b.txt": "//pkg/sub:b.txt",
+			wantLabels: map[string]label.Label{
+				"pkg/sub/a.txt": {Pkg: "pkg/sub", Name: "a.txt"},
+				"pkg/sub/b.txt": {Pkg: "pkg/sub", Name: "b.txt"},
 			},
 		},
 		{
@@ -480,7 +481,7 @@ func TestCrossPkgEmbed(t *testing.T) {
 			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/a/b/c/file.txt"}},
 			childIsPackage:  true,
 			wantExportFiles: []string{"c/file.txt"},
-			wantLabels:      map[string]string{"pkg/a/b/c/file.txt": "//pkg/a/b:c/file.txt"},
+			wantLabels:      map[string]label.Label{"pkg/a/b/c/file.txt": {Pkg: "pkg/a/b", Name: "c/file.txt"}},
 		},
 		{
 			name:     "mixed_local_and_cross_package",
@@ -493,7 +494,7 @@ func TestCrossPkgEmbed(t *testing.T) {
 			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/sub/x.txt"}},
 			childIsPackage:  true,
 			wantExportFiles: []string{"x.txt"},
-			wantLabels:      map[string]string{"pkg/sub/x.txt": "//pkg/sub:x.txt"},
+			wantLabels:      map[string]label.Label{"pkg/sub/x.txt": {Pkg: "pkg/sub", Name: "x.txt"}},
 		},
 		{
 			name:     "library_and_test_cross_package",
@@ -509,9 +510,9 @@ func TestCrossPkgEmbed(t *testing.T) {
 			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/sub/lib.txt", "pkg/sub/test.txt"}},
 			childIsPackage:  true,
 			wantExportFiles: []string{"lib.txt", "test.txt"},
-			wantLabels: map[string]string{
-				"pkg/sub/lib.txt":  "//pkg/sub:lib.txt",
-				"pkg/sub/test.txt": "//pkg/sub:test.txt",
+			wantLabels: map[string]label.Label{
+				"pkg/sub/lib.txt":  {Pkg: "pkg/sub", Name: "lib.txt"},
+				"pkg/sub/test.txt": {Pkg: "pkg/sub", Name: "test.txt"},
 			},
 		},
 		{
@@ -522,7 +523,7 @@ func TestCrossPkgEmbed(t *testing.T) {
 			relToEmbedSrcs:  map[string][]string{"": {"sub/f.txt"}},
 			childIsPackage:  true,
 			wantExportFiles: []string{"f.txt"},
-			wantLabels:      map[string]string{"sub/f.txt": "//sub:f.txt"},
+			wantLabels:      map[string]label.Label{"sub/f.txt": {Pkg: "sub", Name: "f.txt"}},
 		},
 		{
 			name:            "child_not_a_package",
@@ -532,7 +533,7 @@ func TestCrossPkgEmbed(t *testing.T) {
 			relToEmbedSrcs:  map[string][]string{"pkg": {"pkg/sub/data.txt"}},
 			childIsPackage:  false,
 			wantExportFiles: nil,
-			wantLabels:      map[string]string{},
+			wantLabels:      map[string]label.Label{},
 		},
 	}
 
@@ -543,7 +544,7 @@ func TestCrossPkgEmbed(t *testing.T) {
 				cer: &cachedEmbedResolver{
 					resolvedEmbeds: radix.New(),
 					relToEmbedSrcs: tt.relToEmbedSrcs,
-					embedSrcLabels: make(map[string]string),
+					embedSrcLabels: make(map[string]label.Label),
 				},
 			}
 			for k, v := range tt.resolvedEmbeds {
