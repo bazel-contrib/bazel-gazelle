@@ -717,7 +717,7 @@ Update io_bazel_rules_go to a newer version in your WORKSPACE file.`
 		gc.goNamingConvention = detectNamingConvention(c, f)
 	}
 
-	gl.cer.resolveDir(c, rel, c.DirInfo)
+	gl.cer.resolveDir(c, rel)
 }
 
 // checkPrefix checks that a string may be used as a prefix. We forbid local

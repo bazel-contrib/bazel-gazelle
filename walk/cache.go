@@ -102,7 +102,7 @@ func setGlobalWalker(w *walker) func() {
 // that get called earlier without the same information.
 func GetDirInfo(rel string) (DirInfo, error) {
 	if globalWalker == nil {
-		panic("globalWalker is not set")
+		return DirInfo{}, fmt.Errorf("GetDirInfo: walker is not initialized")
 	}
 	rel = path.Clean(rel)
 
