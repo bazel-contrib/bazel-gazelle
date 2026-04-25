@@ -229,9 +229,10 @@ func (r *cachedEmbedResolver) resolve(fileRel string) []string {
 }
 
 // addEmbedSrc records that a resolved embed source (embedRel, repo-root-relative)
-// originated from directory rel and is referenced by the Go file at fileRel.
+// is referenced by the Go file at fileRel.
 // The shallowest originator is preserved in resolvedEmbeds.
-func (r *cachedEmbedResolver) addEmbedSrc(rel, fileRel, embedRel string) {
+func (r *cachedEmbedResolver) addEmbedSrc(fileRel, embedRel string) {
+	rel := path.Dir(fileRel)
 	// Only record the shallowest originator of an embed source. So that it knows when to stop exporting embedded files.
 	// A embeded file is exported, if it's not exprted by a sub-package and there's parent package that embeds it.
 	if _, found := r.resolvedEmbeds.Get(embedRel); !found {
@@ -272,7 +273,7 @@ func (r *cachedEmbedResolver) resolveDir(c *config.Config, rel string) {
 			}
 			for _, src := range resolved {
 				embedRel := path.Join(rel, src)
-				r.addEmbedSrc(rel, fileRel, embedRel)
+				r.addEmbedSrc(fileRel, embedRel)
 			}
 		}
 	}
