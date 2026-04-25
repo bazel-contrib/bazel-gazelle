@@ -3,6 +3,7 @@ module github.com/bazelbuild/bazel-gazelle
 go 1.24.12
 
 require (
+	github.com/armon/go-radix v1.0.0
 	github.com/bazel-contrib/bazel-gazelle/v2 v2.0.0-1
 	github.com/bazelbuild/buildtools v0.0.0-20250930140053-2eb4fccefb52
 	github.com/bazelbuild/rules_go v0.59.0

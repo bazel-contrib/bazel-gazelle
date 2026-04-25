@@ -24,6 +24,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	radix "github.com/armon/go-radix"
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/walk"
 	"golang.org/x/mod/module"
@@ -181,13 +182,13 @@ func (er *embedResolver) resolve(embed fileEmbed) (list []string, err error) {
 // for cross-package sources.
 type cachedEmbedResolver struct {
 	// resolvedEmbeds stores repo-root-relative file paths resolved from
-	// //go:embed directives in ancestor directories.
+	// //go:embed directives in ancestor directories as a radix tree.
 	// The value is the top most/shallowest directory that embeds it.
 	// Populated during Configure (pre-order). In GenerateRules (post-order),
 	// child packages remove entries they claim via exports_files.
 	// Key: repo-root-relative path (e.g., "embedsrcs/m_go/m.go")
 	// Value: rel of the directory that originated the embed
-	resolvedEmbeds map[string]string
+	resolvedEmbeds *radix.Tree
 	// relToEmbedSrcs maps a Go file's repo-root-relative path to the
 	// repo-root-relative paths of its resolved embed sources.
 	relToEmbedSrcs map[string][]string
@@ -198,7 +199,7 @@ type cachedEmbedResolver struct {
 
 func newCachedEmbedResolver() *cachedEmbedResolver {
 	return &cachedEmbedResolver{
-		resolvedEmbeds: make(map[string]string),
+		resolvedEmbeds: radix.New(),
 		relToEmbedSrcs: make(map[string][]string),
 		embedSrcLabels: make(map[string]string),
 	}
@@ -232,8 +233,8 @@ func (r *cachedEmbedResolver) resolve(fileRel string) []string {
 func (r *cachedEmbedResolver) addEmbedSrc(rel, fileRel, embedRel string) {
 	// Only record the shallowest originator of an embed source. So that it knows when to stop exporting embedded files.
 	// A embeded file is exported, if it's not exprted by a sub-package and there's parent package that embeds it.
-	if _, exists := r.resolvedEmbeds[embedRel]; !exists {
-		r.resolvedEmbeds[embedRel] = rel
+	if _, found := r.resolvedEmbeds.Get(embedRel); !found {
+		r.resolvedEmbeds.Insert(embedRel, rel)
 	}
 	r.relToEmbedSrcs[fileRel] = append(r.relToEmbedSrcs[fileRel], embedRel)
 }
@@ -286,21 +287,23 @@ func (r *cachedEmbedResolver) claimExportFiles(rel string) []string {
 		prefix = ""
 	}
 	var exportFiles []string
-	for embedRel, shallowestEmbedPackage := range r.resolvedEmbeds {
-		if !strings.HasPrefix(embedRel, prefix) {
-			continue
-		}
+	var toDelete []string
+	r.resolvedEmbeds.WalkPrefix(prefix, func(embedRel string, v interface{}) bool {
+		shallowestEmbedPackage := v.(string)
 		// Skip files that belong to the embedder's own package — it doesn't
 		// need exports_files for its own embed targets.
 		if shallowestEmbedPackage == rel {
-			continue
+			return false
 		}
 		fileRelToPackage := strings.TrimPrefix(embedRel, prefix)
 
-		// Delete the file from resolvedEmbeds to indicate that we've claimed it.
-		delete(r.resolvedEmbeds, embedRel)
+		toDelete = append(toDelete, embedRel)
 		exportFiles = append(exportFiles, fileRelToPackage)
 		r.embedSrcLabels[embedRel] = "//" + rel + ":" + fileRelToPackage
+		return false
+	})
+	for _, key := range toDelete {
+		r.resolvedEmbeds.Delete(key)
 	}
 	return exportFiles
 }
