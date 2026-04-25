@@ -24,6 +24,7 @@ import (
 	"strings"
 	"testing"
 
+	radix "github.com/armon/go-radix"
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
@@ -540,13 +541,13 @@ func TestCrossPkgEmbed(t *testing.T) {
 			gl := &goLang{
 				goPkgRels: tt.goPkgRels,
 				cer: &cachedEmbedResolver{
-					resolvedEmbeds: make(map[string]string),
+					resolvedEmbeds: radix.New(),
 					relToEmbedSrcs: tt.relToEmbedSrcs,
 					embedSrcLabels: make(map[string]string),
 				},
 			}
 			for k, v := range tt.resolvedEmbeds {
-				gl.cer.resolvedEmbeds[k] = v
+				gl.cer.resolvedEmbeds.Insert(k, v)
 			}
 
 			// Build a mock rules list for the child. If childIsPackage, add
