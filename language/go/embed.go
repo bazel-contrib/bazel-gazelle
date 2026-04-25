@@ -234,6 +234,8 @@ func (r *cachedEmbedResolver) resolve(fileRel string) []string {
 func (r *cachedEmbedResolver) addEmbedSrc(fileRel, embedRel string) {
 	rel := path.Dir(fileRel)
 	// Only record the shallowest originator of an embed source. So that it knows when to stop exporting embedded files.
+	// This assumes Configure(), which calles addEmbedSrc eventually, is called in pre-order. 
+	// In another words, a parent directory is accessed before its children, thus the first one is the shallowest.
 	// A embeded file is exported, if it's not exprted by a sub-package and there's parent package that embeds it.
 	if _, found := r.resolvedEmbeds.Get(embedRel); !found {
 		r.resolvedEmbeds.Insert(embedRel, rel)
@@ -241,7 +243,7 @@ func (r *cachedEmbedResolver) addEmbedSrc(fileRel, embedRel string) {
 	r.relToEmbedSrcs[fileRel] = append(r.relToEmbedSrcs[fileRel], embedRel)
 }
 
-// discoverCrossPkgEmbeds reads Go files in the directory, resolves //go:embed
+// resolveDir reads Go files in the directory, resolves //go:embed
 // patterns, and stores repo-root-relative paths for files in subdirectories
 // into resolvedEmbeds. This is called during Configure (pre-order), so
 // when child directories' GenerateRules runs (post-order), they can check
