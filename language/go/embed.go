@@ -264,7 +264,7 @@ func (r *cachedEmbedResolver) resolveDir(c *config.Config, rel string) {
 		if !strings.HasSuffix(name, ".go") {
 			continue
 		}
-
+		// TODO(#2338): goFileInfo incurs extra disk I/O. Think about ways to avoid it.
 		info := goFileInfo(filepath.Join(dir, name), rel, path.Join(rel, name))
 		fileRel := path.Join(rel, name)
 		for _, embed := range info.embeds {
