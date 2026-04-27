@@ -544,7 +544,11 @@ def _go_deps_impl(module_ctx):
             # We also need to disregard the "indirect" attribute for modules
             # that provide any tools listed with a "tool" directive, otherwise
             # tools can't be built after a `bazel mod tidy`.
-            if module.is_root and (not module_tag.indirect or module_tag.path in possible_tool_modules):
+            # We ignore non-root modules from go.work files, since these can't
+            # be referenced by repo name.
+            if (module.is_root and
+                (not module_tag.indirect or module_tag.path in possible_tool_modules) and
+                module_tag.path not in modules_from_go_work):
                 root_versions[module_tag.path] = raw_version
                 if _is_dev_dependency(module_ctx, module_tag):
                     root_module_direct_dev_deps[_repo_name(module_tag.path)] = None
