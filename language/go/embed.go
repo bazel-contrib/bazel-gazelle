@@ -221,7 +221,7 @@ func (r *cachedEmbedResolver) resolve(fileRel string) []string {
 		if l, ok := r.embedSrcLabels[src]; ok {
 			result = append(result, l.String())
 		} else {
-			relToDir := strings.TrimPrefix(src, dir+"/")
+			relToDir, _ := filepath.Rel(dir, src)
 			result = append(result, relToDir)
 		}
 	}
@@ -265,7 +265,7 @@ func (r *cachedEmbedResolver) resolveDir(c *config.Config, rel string) {
 			continue
 		}
 		// TODO(#2338): goFileInfo incurs extra disk I/O. Think about ways to avoid it.
-		info := goFileInfo(filepath.Join(dir, name), rel, path.Join(rel, name))
+		info := goFileInfo(filepath.Join(dir, name), rel)
 		fileRel := path.Join(rel, name)
 		for _, embed := range info.embeds {
 			resolved, err := er.resolve(embed)

@@ -41,7 +41,6 @@ import (
 type fileInfo struct {
 	path string
 	name string
-	rel string
 
 	// ext is the type of file, based on extension.
 	ext ext
@@ -140,7 +139,7 @@ const (
 
 // fileNameInfo returns information that can be inferred from the name of
 // a file. It does not read data from the file.
-func fileNameInfo(path_, rel string) fileInfo {
+func fileNameInfo(path_ string) fileInfo {
 	name := filepath.Base(path_)
 	nameExt := path.Ext(name)
 
@@ -202,7 +201,6 @@ func fileNameInfo(path_, rel string) fileInfo {
 	return fileInfo{
 		path:   path_,
 		name:   name,
-		rel:    rel,
 		ext:    ext,
 		isTest: isTest,
 		goos:   goos,
@@ -213,8 +211,8 @@ func fileNameInfo(path_, rel string) fileInfo {
 // otherFileInfo returns information about a non-.go file. It will parse
 // part of the file to determine build tags. If the file can't be read, an
 // error will be logged, and partial information will be returned.
-func otherFileInfo(path, rel string) fileInfo {
-	info := fileNameInfo(path, rel)
+func otherFileInfo(path string) fileInfo {
+	info := fileNameInfo(path)
 	if info.ext == unknownExt {
 		return info
 	}
@@ -234,8 +232,8 @@ func otherFileInfo(path, rel string) fileInfo {
 // will be returned.
 // This function is intended to match go/build.Context.Import.
 // TODD(#53): extract canonical import path
-func goFileInfo(path, srcdir, rel string) fileInfo {
-	info := fileNameInfo(path, rel)
+func goFileInfo(path, srcdir string) fileInfo {
+	info := fileNameInfo(path)
 	fset := token.NewFileSet()
 	pf, err := parser.ParseFile(fset, info.path, nil, parser.ImportsOnly|parser.ParseComments)
 	if err != nil {

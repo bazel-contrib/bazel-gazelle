@@ -146,7 +146,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	goFileInfos := make([]fileInfo, len(goFiles))
 	for i, name := range goFiles {
 		path := filepath.Join(args.Dir, name)
-		goFileInfos[i] = goFileInfo(path, srcdir, filepath.Join(args.Rel, name))
+		goFileInfos[i] = goFileInfo(path, srcdir)
 	}
 	goPackageMap, goFilesWithUnknownPackage := buildPackages(c, args.Dir, args.Rel, hasTestdata, gl.cer, goFileInfos)
 
@@ -297,7 +297,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 
 		// Process the other static files.
 		for _, file := range otherFiles {
-			info := otherFileInfo(filepath.Join(args.Dir, file), path.Join(args.Rel, file))
+			info := otherFileInfo(filepath.Join(args.Dir, file))
 			if err := pkg.addFile(c, gl.cer, info, cgo); err != nil {
 				log.Print(err)
 			}
@@ -324,7 +324,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 			if regularFileSet[f] || consumedFileSet[f] {
 				continue
 			}
-			info := fileNameInfo(filepath.Join(args.Dir, f), filepath.Join(args.Rel, f))
+			info := fileNameInfo(filepath.Join(args.Dir, f))
 			if err := pkg.addFile(c, gl.cer, info, cgo); err != nil {
 				log.Print(err)
 			}
