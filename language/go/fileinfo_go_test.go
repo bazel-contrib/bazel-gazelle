@@ -180,7 +180,7 @@ var src string
 				t.Fatal(err)
 			}
 
-			got := goFileInfo(path, "", "")
+			got := goFileInfo(path, "")
 			// Clear fields we don't care about for testing.
 			got = fileInfo{
 				packageName: got.packageName,
@@ -214,7 +214,7 @@ func TestGoFileInfoFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := goFileInfo(path, "", "")
+	got := goFileInfo(path, "")
 	want := fileInfo{
 		path:   path,
 		name:   name,
@@ -363,7 +363,7 @@ import "C"
 				t.Fatal(err)
 			}
 
-			got := goFileInfo(path, "", "")
+			got := goFileInfo(path, "")
 
 			// Clear fields we don't care about for testing.
 			got = fileInfo{
@@ -449,7 +449,7 @@ import "C"
 		t,
 		"-repo_root="+repo,
 		"-go_prefix=example.com/repo")
-	fi := goFileInfo(filepath.Join(sub, "sub.go"), "sub", "sub")
+	fi := goFileInfo(filepath.Join(sub, "sub.go"), "sub")
 	er := newCachedEmbedResolver()
 	pkgs, _ := buildPackages(c, sub, "sub", false, er, []fileInfo{fi})
 	got, ok := pkgs["sub"]
@@ -522,7 +522,7 @@ func TestGoExperimentsTagsIgnored(t *testing.T) {
 			}
 
 			c, _, _ := testConfig(t)
-			fi := goFileInfo(path, "", "")
+			fi := goFileInfo(path, "")
 			if !checkConstraints(c, "", "", fi.goos, fi.goarch, fi.tags, nil) {
 				t.Fatalf("constraints should be satisfied for %s", tc.desc)
 			}

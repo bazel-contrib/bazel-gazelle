@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log"
 	"path"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -307,7 +308,12 @@ func (t *goTarget) addFile(c *config.Config, cer *cachedEmbedResolver, info file
 	add := getPlatformStringsAddFunction(c, info, nil)
 	add(&t.sources, info.name)
 	add(&t.imports, info.imports...)
-	for _, src := range cer.resolve(info.rel) {
+	rel, err := filepath.Rel(c.RepoRoot, info.path)
+	if err != nil {
+		log.Panicf("failed to compute relative path for path: %q, repo root: %q: %v", info.path, c.RepoRoot, err)
+		return
+	}
+	for _, src := range cer.resolve(rel) {
 		add(&t.embedSrcs, src)
 	}
 	for _, cppopts := range info.cppopts {
