@@ -65,6 +65,7 @@ go_library(
         "//resolve",
         "//rule",
         "//walk",
+        "@com_github_armon_go_radix//:go-radix",
         "@com_github_bazelbuild_buildtools//build",
         "@org_golang_x_mod//modfile",
         "@org_golang_x_mod//module",
