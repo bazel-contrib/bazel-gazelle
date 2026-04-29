@@ -63,10 +63,10 @@ type goLang struct {
 	// buildable Go code, but it has a subdir which does.
 	goPkgRels map[string]bool
 
-	// cer encapsulates the pre-resolved embed sources and their
+	// cachedEmbedResolver encapsulates the pre-resolved embed sources and their
 	// Bazel labels. Populated during Configure (pre-order), consumed during
 	// GenerateRules (post-order).
-	cer *cachedEmbedResolver
+	cachedEmbedResolver *cachedEmbedResolver
 }
 
 func (*goLang) Name() string { return goName }
@@ -74,6 +74,6 @@ func (*goLang) Name() string { return goName }
 func NewLanguage() language.Language {
 	return &goLang{
 		goPkgRels: make(map[string]bool),
-		cer:       newCachedEmbedResolver(),
+		cachedEmbedResolver: newCachedEmbedResolver(),
 	}
 }

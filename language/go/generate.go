@@ -148,7 +148,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		path := filepath.Join(args.Dir, name)
 		goFileInfos[i] = goFileInfo(path, srcdir)
 	}
-	goPackageMap, goFilesWithUnknownPackage := buildPackages(c, args.Dir, args.Rel, hasTestdata, gl.cer, goFileInfos)
+	goPackageMap, goFilesWithUnknownPackage := buildPackages(c, args.Dir, args.Rel, hasTestdata, gl.cachedEmbedResolver, goFileInfos)
 
 	// Select a package to generate rules for. If there is no package, create
 	// an empty package so we can generate empty rules.
@@ -290,7 +290,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		// compiler deal with the error.
 		cgo := pkg.haveCgo()
 		for _, info := range goFilesWithUnknownPackage {
-			if err := pkg.addFile(c, gl.cer, info, cgo); err != nil {
+			if err := pkg.addFile(c, gl.cachedEmbedResolver, info, cgo); err != nil {
 				log.Print(err)
 			}
 		}
@@ -298,7 +298,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		// Process the other static files.
 		for _, file := range otherFiles {
 			info := otherFileInfo(filepath.Join(args.Dir, file))
-			if err := pkg.addFile(c, gl.cer, info, cgo); err != nil {
+			if err := pkg.addFile(c, gl.cachedEmbedResolver, info, cgo); err != nil {
 				log.Print(err)
 			}
 		}
@@ -325,7 +325,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 				continue
 			}
 			info := fileNameInfo(filepath.Join(args.Dir, f))
-			if err := pkg.addFile(c, gl.cer, info, cgo); err != nil {
+			if err := pkg.addFile(c, gl.cachedEmbedResolver, info, cgo); err != nil {
 				log.Print(err)
 			}
 		}
@@ -416,7 +416,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 
 // maybeGenerateExportsFiles checks if this package should generate exports_files
 // for files referenced by ancestor //go:embed directives. It claims matching
-// entries from gl.cer.resolvedEmbeds, stores labels in gl.cer.embedSrcLabels, and
+// entries from gl.cachedEmbedResolver.resolvedEmbeds, stores labels in gl.cachedEmbedResolver.embedSrcLabels, and
 // returns an exports_files rule if needed.
 func (gl *goLang) maybeGenerateExportsFiles(args language.GenerateArgs, rules []*rule.Rule) *rule.Rule {
 	// Only generate exports_files if this directory is a Go package
@@ -434,7 +434,7 @@ func (gl *goLang) maybeGenerateExportsFiles(args language.GenerateArgs, rules []
 		return nil
 	}
 
-	exportFiles := gl.cer.claimExportFiles(args.Rel)
+	exportFiles := gl.cachedEmbedResolver.claimExportFiles(args.Rel)
 	if len(exportFiles) > 0 {
 		sort.Strings(exportFiles)
 		efRule := rule.NewRule("exports_files", "")
@@ -456,7 +456,7 @@ func filterFiles(files *[]string, pred func(string) bool) {
 	*files = (*files)[:w]
 }
 
-func buildPackages(c *config.Config, dir, rel string, hasTestdata bool, cer *cachedEmbedResolver, goFiles []fileInfo) (packageMap map[string]*goPackage, goFilesWithUnknownPackage []fileInfo) {
+func buildPackages(c *config.Config, dir, rel string, hasTestdata bool, cachedEmbedResolver *cachedEmbedResolver, goFiles []fileInfo) (packageMap map[string]*goPackage, goFilesWithUnknownPackage []fileInfo) {
 	// Process .go and .proto files first, since these determine the package name.
 	packageMap = make(map[string]*goPackage)
 	for _, f := range goFiles {
@@ -477,7 +477,7 @@ func buildPackages(c *config.Config, dir, rel string, hasTestdata bool, cer *cac
 				hasTestdata: hasTestdata,
 			}
 		}
-		if err := packageMap[f.packageName].addFile(c, cer, f, false); err != nil {
+		if err := packageMap[f.packageName].addFile(c, cachedEmbedResolver, f, false); err != nil {
 			log.Print(err)
 		}
 	}
