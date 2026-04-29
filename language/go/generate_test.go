@@ -352,7 +352,7 @@ func TestConsumedGenFiles(t *testing.T) {
 
 	gl := goLang{
 		goPkgRels: make(map[string]bool),
-		cer:       newCachedEmbedResolver(),
+		cachedEmbedResolver: newCachedEmbedResolver(),
 	}
 	gl.Configure(args.Config, "", nil)
 	res := gl.GenerateRules(args)
@@ -541,14 +541,14 @@ func TestCrossPkgEmbed(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gl := &goLang{
 				goPkgRels: tt.goPkgRels,
-				cer: &cachedEmbedResolver{
+				cachedEmbedResolver: &cachedEmbedResolver{
 					resolvedEmbeds: radix.New(),
 					relToEmbedSrcs: tt.relToEmbedSrcs,
 					embedSrcLabels: make(map[string]label.Label),
 				},
 			}
 			for k, v := range tt.resolvedEmbeds {
-				gl.cer.resolvedEmbeds.Insert(k, v)
+				gl.cachedEmbedResolver.resolvedEmbeds.Insert(k, v)
 			}
 
 			// Build a mock rules list for the child. If childIsPackage, add
@@ -594,7 +594,7 @@ func TestCrossPkgEmbed(t *testing.T) {
 			}
 
 			// Verify embedSrcLabels.
-			if diff := cmp.Diff(tt.wantLabels, gl.cer.embedSrcLabels); diff != "" {
+			if diff := cmp.Diff(tt.wantLabels, gl.cachedEmbedResolver.embedSrcLabels); diff != "" {
 				t.Errorf("embedSrcLabels (-want +got):\n%s", diff)
 			}
 		})
