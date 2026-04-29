@@ -45,6 +45,7 @@ use_repo(
     # Referenced by `gazelle_binary`.
     "bazel_gazelle_go_repository_config",
     # Dependencies of rules_go that require special handling in go_deps.
+    "com_github_armon_go_radix",
     "com_github_golang_protobuf",
     "org_golang_google_protobuf",
 )
