@@ -46,6 +46,9 @@ func TestLabelString(t *testing.T) {
 		}, {
 			l:    Label{Repo: "@", Pkg: "foo/bar", Name: "baz"},
 			want: "@//foo/bar:baz",
+		}, {
+			l:    Label{Repo: "foo", Name: "foo"},
+			want: "@foo",
 		},
 	} {
 		if got, want := spec.l.String(), spec.want; got != want {
@@ -130,7 +133,7 @@ func TestParseStringRoundtrip(t *testing.T) {
 		{in: "//pkg:target"},
 		{in: "@repo//:target"},
 		{in: "@repo//pkg:target"},
-		{in: "@repo", out: "@repo//:repo"},
+		{in: "@repo"},
 		{in: "@//pkg:target"},
 		{in: "@@canonical~name//:target"},
 		{in: "@@//:target"},

@@ -175,6 +175,9 @@ func (l Label) String() string {
 	if path.Base(l.Pkg) == l.Name {
 		return repo + "//" + l.Pkg
 	}
+	if l.Pkg == "" && repo != "" && repo[1:] == l.Name {
+		return repo
+	}
 	return repo + "//" + l.Pkg + ":" + l.Name
 }
 
