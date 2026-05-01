@@ -297,6 +297,7 @@ func (r *cachedEmbedResolver) claimExportFiles(rel string) []string {
 		// Skip files that belong to the embedder's own package — it doesn't
 		// need exports_files for its own embed targets.
 		if shallowestEmbedPackage == rel {
+			toDelete = append(toDelete, embedRel)
 			return false
 		}
 		fileRelToPackage := strings.TrimPrefix(embedRel, prefix)
