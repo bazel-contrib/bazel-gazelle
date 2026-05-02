@@ -222,6 +222,7 @@ func (r *cachedEmbedResolver) resolve(fileRel string) []string {
 			result = append(result, l.String())
 		} else {
 			relToDir, _ := filepath.Rel(dir, src)
+			relToDir = filepath.ToSlash(relToDir)
 			result = append(result, relToDir)
 		}
 	}
@@ -233,8 +234,11 @@ func (r *cachedEmbedResolver) resolve(fileRel string) []string {
 // The shallowest originator is preserved in resolvedEmbeds.
 func (r *cachedEmbedResolver) addEmbedSrc(fileRel, embedRel string) {
 	rel := path.Dir(fileRel)
+	if rel == "." {
+		rel = ""
+	}
 	// Only record the shallowest originator of an embed source. So that it knows when to stop exporting embedded files.
-	// This assumes Configure(), which calles addEmbedSrc eventually, is called in pre-order. 
+	// This assumes Configure(), which calles addEmbedSrc eventually, is called in pre-order.
 	// In another words, a parent directory is accessed before its children, thus the first one is the shallowest.
 	// A embeded file is exported, if it's not exprted by a sub-package and there's parent package that embeds it.
 	if _, found := r.resolvedEmbeds.Get(embedRel); !found {
@@ -300,9 +304,9 @@ func (r *cachedEmbedResolver) claimExportFiles(rel string) []string {
 			toDelete = append(toDelete, embedRel)
 			return false
 		}
-		fileRelToPackage := strings.TrimPrefix(embedRel, prefix)
-
 		toDelete = append(toDelete, embedRel)
+
+		fileRelToPackage := filepath.ToSlash(strings.TrimPrefix(embedRel, prefix))
 		exportFiles = append(exportFiles, fileRelToPackage)
 		r.embedSrcLabels[embedRel] = label.Label{Pkg: rel, Name: fileRelToPackage}
 		return false
