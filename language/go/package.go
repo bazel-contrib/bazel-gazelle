@@ -309,6 +309,7 @@ func (t *goTarget) addFile(c *config.Config, cachedEmbedResolver *cachedEmbedRes
 	add(&t.sources, info.name)
 	add(&t.imports, info.imports...)
 	rel, err := filepath.Rel(c.RepoRoot, info.path)
+	rel = filepath.ToSlash(rel)
 	if err != nil {
 		log.Panicf("failed to compute relative path for path: %q, repo root: %q: %v", info.path, c.RepoRoot, err)
 		return
