@@ -63,9 +63,8 @@ type goLang struct {
 	// buildable Go code, but it has a subdir which does.
 	goPkgRels map[string]bool
 
-	// cachedEmbedResolver encapsulates the pre-resolved embed sources and their
-	// Bazel labels. Populated during Configure (pre-order), consumed during
-	// GenerateRules (post-order).
+	// cachedEmbedResolver is used to generate embedsrcs in library and test,
+	// as well as generate exports_files, so that the embedsrcs can reference them.
 	cachedEmbedResolver *cachedEmbedResolver
 }
 

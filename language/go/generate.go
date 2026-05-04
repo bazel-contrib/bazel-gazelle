@@ -415,9 +415,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 }
 
 // maybeGenerateExportsFiles checks if this package should generate exports_files
-// for files referenced by ancestor //go:embed directives. It claims matching
-// entries from gl.cachedEmbedResolver.resolvedEmbeds, stores labels in gl.cachedEmbedResolver.embedSrcLabels, and
-// returns an exports_files rule if needed.
+// for files referenced by ancestor //go:embed directives.
 func (gl *goLang) maybeGenerateExportsFiles(args language.GenerateArgs, rules []*rule.Rule) *rule.Rule {
 	// Only generate exports_files if this directory is a Go package
 	// (has a BUILD file or generated non-empty rules).

@@ -181,20 +181,28 @@ func (er *embedResolver) resolve(embed fileEmbed) (list []string, err error) {
 // It maps each Go file (by repo-root-relative path) to the list of embed
 // source paths discovered during Configure, and substitutes Bazel labels
 // for cross-package sources.
+// All relevant paths use forward slashes.
 type cachedEmbedResolver struct {
 	// resolvedEmbeds stores repo-root-relative file paths resolved from
 	// //go:embed directives in ancestor directories as a radix tree.
-	// The value is the top most/shallowest directory that embeds it.
 	// Populated during Configure (pre-order). In GenerateRules (post-order),
 	// child packages remove entries they claim via exports_files.
-	// Key: repo-root-relative path (e.g., "embedsrcs/m_go/m.go")
-	// Value: rel of the directory that originated the embed
+	// Key: repo-root-relative path of an embeded file.
+	// Value: the top most/shallowest package that embeds it.
+	// It uses the shallowest package as the value, so that it knows when to
+	// stop exporting embedded files.
+	// See `claimExportFiles()` for details.
 	resolvedEmbeds *radix.Tree
-	// relToEmbedSrcs maps a Go file's repo-root-relative path to the
-	// repo-root-relative paths of its resolved embed sources.
+	// relToEmbedSrcs maps a Go file, that has the go:embed directive, to its
+	// resolved embedding files.
+	// Both keys and values are repo-root-relative paths.
+	// Populated during Configure.
 	relToEmbedSrcs map[string][]string
-	// embedSrcLabels maps repo-root-relative embed source paths to Bazel
-	// labels for cross-package access.
+	// embedSrcLabels maps embeded file paths to its Bazel labels for
+	// cross-package access.
+	// Polpulated during claimExportFiles, which is called during GenerateRules.
+	// GenerateRules is called in post-order, so child packages claim embeded
+	// file to export before parent packages.
 	embedSrcLabels map[string]label.Label
 }
 
@@ -231,13 +239,13 @@ func (r *cachedEmbedResolver) resolve(fileRel string) []string {
 
 // addEmbedSrc records that a resolved embed source (embedRel, repo-root-relative)
 // is referenced by the Go file at fileRel.
-// The shallowest originator is preserved in resolvedEmbeds.
+// The shallowest package that embeds the file is preserved in resolvedEmbeds.
 func (r *cachedEmbedResolver) addEmbedSrc(fileRel, embedRel string) {
 	rel := path.Dir(fileRel)
 	if rel == "." {
 		rel = ""
 	}
-	// Only record the shallowest originator of an embed source. So that it knows when to stop exporting embedded files.
+	// Only record the shallowest embed source. So that it knows when to stop exporting embedded files.
 	// This assumes Configure(), which calles addEmbedSrc eventually, is called in pre-order.
 	// In another words, a parent directory is accessed before its children, thus the first one is the shallowest.
 	// A embeded file is exported, if it's not exprted by a sub-package and there's parent package that embeds it.
@@ -285,10 +293,9 @@ func (r *cachedEmbedResolver) resolveDir(c *config.Config, rel string) {
 	}
 }
 
-// claimExportFiles finds resolved embed sources under the given package prefix
-// (rel) that were originated by a different (ancestor) package. It removes
-// claimed entries from resolvedEmbeds, records their Bazel labels in
-// embedSrcLabels, and returns the package-relative file paths to export.
+// claimExportFiles finds the embeded files to export in the package, identified by rel.
+// Since a embeded file is exported once, it removes the claimed file from resolvedEmbeds
+// to avoid it being exported again.
 func (r *cachedEmbedResolver) claimExportFiles(rel string) []string {
 	prefix := rel + "/"
 	if rel == "" {
@@ -297,17 +304,19 @@ func (r *cachedEmbedResolver) claimExportFiles(rel string) []string {
 	var exportFiles []string
 	var toDelete []string
 	r.resolvedEmbeds.WalkPrefix(prefix, func(embedRel string, v interface{}) bool {
+		toDelete = append(toDelete, embedRel)
+
 		shallowestEmbedPackage := v.(string)
-		// Skip files that belong to the embedder's own package — it doesn't
-		// need exports_files for its own embed targets.
+		// shallowestEmbedPackage is the top most/shallowest package that embeds the file.
+		// If rel is the shallowestEmbedPackage, it doesn't need to export it anymore,
+		// since none of the parent packages will embed it.
 		if shallowestEmbedPackage == rel {
-			toDelete = append(toDelete, embedRel)
 			return false
 		}
-		toDelete = append(toDelete, embedRel)
 
 		fileRelToPackage := filepath.ToSlash(strings.TrimPrefix(embedRel, prefix))
 		exportFiles = append(exportFiles, fileRelToPackage)
+		// Record where an embeded file is exported.
 		r.embedSrcLabels[embedRel] = label.Label{Pkg: rel, Name: fileRelToPackage}
 		return false
 	})
