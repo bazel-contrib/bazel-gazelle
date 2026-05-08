@@ -1,0 +1,177 @@
+name: Draft release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example 0.51.0 or v0.51.0"
+        required: true
+        type: string
+      source_ref:
+        description: "Branch, tag, or commit SHA to archive"
+        required: false
+        default: "master"
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: draft-release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  draft-release:
+    name: Create draft release archive
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out source ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || 'master' }}
+          fetch-depth: 0
+
+      - name: Prepare release metadata
+        id: release
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          set -euo pipefail
+
+          version="$(printf '%s' "${INPUT_VERSION}" | tr -d '[:space:]')"
+          source_ref="$(printf '%s' "${INPUT_SOURCE_REF:-master}" | tr -d '[:space:]')"
+
+          if [[ -z "${version}" ]]; then
+            echo "::error::version is required"
+            exit 1
+          fi
+
+          if [[ -z "${source_ref}" ]]; then
+            source_ref="master"
+          fi
+
+          if [[ "${version}" == v* ]]; then
+            tag="${version}"
+          else
+            tag="v${version}"
+          fi
+
+          if [[ ! "${tag}" =~ ^v[0-9]+(\.[0-9]+)*([.-][0-9A-Za-z]+)*$ ]]; then
+            echo "::error::version must look like 0.51.0 or v0.51.0"
+            exit 1
+          fi
+
+          archive="bazel-gazelle-${tag}.tar.gz"
+
+          {
+            echo "tag=${tag}"
+            echo "archive=${archive}"
+            echo "source_ref=${source_ref}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Create archive
+        id: archive
+        env:
+          ARCHIVE: ${{ steps.release.outputs.archive }}
+        run: |
+          set -euo pipefail
+
+          source_sha="$(git rev-parse HEAD)"
+          git archive --format=tar.gz --output="${ARCHIVE}" HEAD
+
+          {
+            echo "source_sha=${source_sha}"
+            echo "integrity=sha256-$(openssl dgst -sha256 -binary "${ARCHIVE}" | openssl base64 -A)"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Verify archive layout
+        env:
+          ARCHIVE: ${{ steps.release.outputs.archive }}
+        run: |
+          set -euo pipefail
+
+          tar -tzf "${ARCHIVE}" | grep -qx 'BUILD.bazel'
+          tar -tzf "${ARCHIVE}" | grep -qx 'MODULE.bazel'
+
+          if tar -tzf "${ARCHIVE}" | grep -Eq '^bazel-gazelle-v?[0-9][^/]*/'; then
+            echo "::error::Archive unexpectedly contains a bazel-gazelle version directory prefix"
+            exit 1
+          fi
+
+      - name: Create and push release tag
+        env:
+          SOURCE_SHA: ${{ steps.archive.outputs.source_sha }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "::error::Release ${TAG} already exists"
+            exit 1
+          fi
+
+          git fetch --force --tags origin
+
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "::error::Tag ${TAG} already exists"
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" "${SOURCE_SHA}" -m "Release ${TAG}"
+          git push origin "refs/tags/${TAG}"
+
+      - name: Create draft release and attach archive
+        env:
+          ARCHIVE: ${{ steps.release.outputs.archive }}
+          SOURCE_REF: ${{ steps.release.outputs.source_ref }}
+          SOURCE_SHA: ${{ steps.archive.outputs.source_sha }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "::error::Release ${TAG} already exists"
+            exit 1
+          fi
+
+          cat > release-notes.md <<EOF
+          Draft release for ${TAG}
+
+          Source ref: ${SOURCE_REF}
+          Source commit: ${SOURCE_SHA}
+
+          Archive generated with git archive and no directory prefix.
+          EOF
+
+          gh release create "${TAG}" "${ARCHIVE}#${ARCHIVE}" \
+            --draft \
+            --title "${TAG}" \
+            --notes-file release-notes.md
+
+      - name: Write summary
+        env:
+          ARCHIVE: ${{ steps.release.outputs.archive }}
+          INTEGRITY: ${{ steps.archive.outputs.integrity }}
+          SOURCE_REF: ${{ steps.release.outputs.source_ref }}
+          SOURCE_SHA: ${{ steps.archive.outputs.source_sha }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          cat >> "${GITHUB_STEP_SUMMARY}" <<EOF
+          Created draft release \`${TAG}\`.
+
+          Archive: \`${ARCHIVE}\`
+
+          Source ref: \`${SOURCE_REF}\`
+
+          Source commit: \`${SOURCE_SHA}\`
+
+          Integrity: \`${INTEGRITY}\`
+          EOF
