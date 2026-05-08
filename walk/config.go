@@ -273,6 +273,56 @@ func loadBazelIgnore(repoRoot string) (map[string]struct{}, error) {
 	return excludes, nil
 }
 
+// collectStringsFromExpr recursively evaluates a Starlark expression to extract
+// string values from list literals, binary concatenation (+), and variable
+// references (resolved against top-level assignments in the same file).
+func collectStringsFromExpr(expr bzl.Expr, vars map[string]bzl.Expr) ([]string, error) {
+	switch e := expr.(type) {
+	case *bzl.ListExpr:
+		var result []string
+		for _, item := range e.List {
+			if strExpr, isStr := item.(*bzl.StringExpr); isStr {
+				result = append(result, strExpr.Value)
+			}
+		}
+		return result, nil
+	case *bzl.BinaryExpr:
+		if e.Op != "+" {
+			return nil, fmt.Errorf("unsupported binary operator %q in ignore_directories()", e.Op)
+		}
+		left, err := collectStringsFromExpr(e.X, vars)
+		if err != nil {
+			return nil, err
+		}
+		right, err := collectStringsFromExpr(e.Y, vars)
+		if err != nil {
+			return nil, err
+		}
+		return append(left, right...), nil
+	case *bzl.Ident:
+		resolved, ok := vars[e.Name]
+		if !ok {
+			return nil, fmt.Errorf("unresolved variable %q in ignore_directories()", e.Name)
+		}
+		return collectStringsFromExpr(resolved, vars)
+	default:
+		return nil, fmt.Errorf("unsupported expression type %T in ignore_directories()", expr)
+	}
+}
+
+// buildVarMap extracts top-level variable assignments from a parsed REPO.bazel file.
+func buildVarMap(stmts []bzl.Expr) map[string]bzl.Expr {
+	vars := make(map[string]bzl.Expr)
+	for _, stmt := range stmts {
+		if assign, ok := stmt.(*bzl.AssignExpr); ok {
+			if ident, ok := assign.LHS.(*bzl.Ident); ok && assign.Op == "=" {
+				vars[ident.Name] = assign.RHS
+			}
+		}
+	}
+	return vars
+}
+
 func loadRepoDirectoryIgnore(repoRoot string) ([]string, error) {
 	repoFilePath := path.Join(repoRoot, "REPO.bazel")
 	repoFileContent, err := os.ReadFile(repoFilePath)
@@ -298,20 +348,17 @@ func loadRepoDirectoryIgnore(repoRoot string) ([]string, error) {
 					return nil, fmt.Errorf("REPO.bazel ignore_directories() expects one argument")
 				}
 
-				list, isList := call.List[0].(*bzl.ListExpr)
-				if !isList {
-					return nil, fmt.Errorf("REPO.bazel ignore_directories() unexpected argument type: %T", call.List[0])
+				vars := buildVarMap(ast.Stmt)
+				strs, err := collectStringsFromExpr(call.List[0], vars)
+				if err != nil {
+					return nil, fmt.Errorf("REPO.bazel ignore_directories(): %w", err)
 				}
-
-				for _, item := range list.List {
-					if strExpr, isStr := item.(*bzl.StringExpr); isStr {
-						if err := checkPathMatchPattern(strExpr.Value); err != nil {
-							log.Printf("the ignore_directories() pattern %q is not valid: %s", strExpr.Value, err)
-							continue
-						}
-
-						ignoreDirectories = append(ignoreDirectories, strExpr.Value)
+				for _, s := range strs {
+					if err := checkPathMatchPattern(s); err != nil {
+						log.Printf("the ignore_directories() pattern %q is not valid: %s", s, err)
+						continue
 					}
+					ignoreDirectories = append(ignoreDirectories, s)
 				}
 
 				// Only a single ignore_directories() is supported in REPO.bazel and searching can stop.
