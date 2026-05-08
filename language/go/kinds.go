@@ -22,6 +22,10 @@ import (
 )
 
 var goKinds = map[string]rule.KindInfo{
+	"exports_files": {
+		NonEmptyAttrs:  nil,
+		MergeableAttrs: map[string]bool{},
+	},
 	"go_binary": {
 		MatchAny: true,
 		NonEmptyAttrs: map[string]bool{

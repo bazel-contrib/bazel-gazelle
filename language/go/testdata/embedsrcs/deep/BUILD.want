@@ -1,0 +1,11 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "deep",
+    srcs = ["m_deep.go"],
+    _gazelle_imports = [],
+    importpath = "example.com/repo/embedsrcs/deep",
+    visibility = ["//visibility:public"],
+)
+
+exports_files(["nested/deep.txt"])

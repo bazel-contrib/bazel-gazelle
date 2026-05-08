@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+# gazelle:prefix example.com/foo
+
+go_library(
+    name = "foo",
+    srcs = ["foo.go"],
+    embedsrcs = ["dir/visible.txt"],
+    importpath = "example.com/foo",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "foo_test",
+    srcs = ["foo_test.go"],
+    embed = [":foo"],
+    embedsrcs = ["dir/visible.txt"],
+)
