@@ -3,9 +3,9 @@ package resolve
 import (
 	"testing"
 
+	"github.com/bazel-contrib/bazel-gazelle/v2/label"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/label"
-	"github.com/bazelbuild/bazel-gazelle/rule"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -136,9 +136,6 @@ func TestFindRuleWithOverride_ParentTraversal(t *testing.T) {
 		})
 	}
 }
-
-// HACK: copied from v2
-const resolveName = "_resolve"
 
 func getConfig(t *testing.T, path string, directives []rule.Directive, parent *config.Config) *config.Config {
 	cfg := &config.Config{
