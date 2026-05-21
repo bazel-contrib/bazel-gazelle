@@ -26,6 +26,9 @@ go_deps.module_override(
     patches = [
         "//patches:testify.patch",
     ],
+    patch_cmds = [
+        "echo 'const PatchCmdHello = \"not_patch_cmd_hello\"' >> require/require.go",
+    ],
     path = "github.com/stretchr/testify",
 )
 go_deps.module(
