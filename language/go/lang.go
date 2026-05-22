@@ -62,10 +62,17 @@ type goLang struct {
 	// Go code. If the value is false, it means the directory does not contain
 	// buildable Go code, but it has a subdir which does.
 	goPkgRels map[string]bool
+
+	// cachedEmbedResolver is used to generate embedsrcs in library and test,
+	// as well as generate exports_files, so that the embedsrcs can reference them.
+	cachedEmbedResolver *cachedEmbedResolver
 }
 
 func (*goLang) Name() string { return goName }
 
 func NewLanguage() language.Language {
-	return &goLang{goPkgRels: make(map[string]bool)}
+	return &goLang{
+		goPkgRels: make(map[string]bool),
+		cachedEmbedResolver: newCachedEmbedResolver(),
+	}
 }

@@ -155,9 +155,9 @@ func TestInferProtoMode(t *testing.T) {
 			t.Fatal(err)
 		}
 		// Set up the minimal config for the test, we populate only with the data required for the protoConfig mode inferring logic.
-		config := config.New()
-		config.Exts[protoName] = &ProtoConfig{GoPrefix: tc.build.goPrefix}
-		config.ModuleToApparentName = func(module string) string {
+		cfg := config.New()
+		cfg.Exts[protoName] = &ProtoConfig{GoPrefix: tc.build.goPrefix}
+		cfg.ModuleToApparentName = func(module string) string {
 			if tc.build.usingWorkspace {
 				return ""
 			}
@@ -171,8 +171,8 @@ func TestInferProtoMode(t *testing.T) {
 				return ""
 			}
 		}
-		NewLanguage().Configure(config, tc.build.rel, file)
-		pc := GetProtoConfig(config)
+		NewLanguage().Configure(cfg, tc.build.rel, file)
+		pc := GetProtoConfig(cfg)
 		if pc.Mode != tc.expected {
 			t.Errorf("for %q, got mode %v, want %v", tc.desc, pc.Mode, tc.expected)
 		}

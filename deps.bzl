@@ -134,6 +134,13 @@ def gazelle_dependencies(
     )
     _maybe(
         go_repository,
+        name = "com_github_armon_go_radix",
+        importpath = "github.com/armon/go-radix",
+        sum = "h1:F4z6KzEeeQIMeLFa97iZU6vupzoecKdU5TX24SNppXI=",
+        version = "v1.0.0",
+    )
+    _maybe(
+        go_repository,
         name = "com_github_bazelbuild_buildtools",
         importpath = "github.com/bazelbuild/buildtools",
         sum = "h1:njQAmjTv/YHRm/0Lfv9DXHFZ4MdT2IA/RKHTnqZkgDw=",

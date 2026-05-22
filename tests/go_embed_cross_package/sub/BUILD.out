@@ -1,0 +1,10 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sub",
+    srcs = ["lib.go"],
+    importpath = "example.com/foo/sub",
+    visibility = ["//visibility:public"],
+)
+
+exports_files(["data.txt"])

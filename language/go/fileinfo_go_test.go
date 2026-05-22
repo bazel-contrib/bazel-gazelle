@@ -450,7 +450,8 @@ import "C"
 		"-repo_root="+repo,
 		"-go_prefix=example.com/repo")
 	fi := goFileInfo(filepath.Join(sub, "sub.go"), "sub")
-	pkgs, _ := buildPackages(c, sub, "sub", false, nil, []fileInfo{fi})
+	er := newCachedEmbedResolver()
+	pkgs, _ := buildPackages(c, sub, "sub", false, er, []fileInfo{fi})
 	got, ok := pkgs["sub"]
 	if !ok {
 		t.Fatal("did not build package 'sub'")
