@@ -131,7 +131,10 @@ proto extension stores metadata in hidden attributes of generated
         ),
     },
     "executable": True,
-    "toolchains": ["@io_bazel_rules_go//go:toolchain"],
+    "toolchains": [
+        "@io_bazel_rules_go//go:toolchain",
+        config_common.toolchain_type("@bazel_tools//tools/cpp:toolchain_type", mandatory = False),
+    ],
 }
 
 gazelle_binary = rule(**_gazelle_binary_kwargs)
