@@ -23,6 +23,12 @@ load(
     "go_context",
     "new_go_info",
 )
+load(
+    "@io_bazel_rules_go//go/private:context.bzl",
+    "CGO_ATTRS",
+    "CGO_FRAGMENTS",
+    "CGO_TOOLCHAINS",
+)
 
 def _gazelle_binary_impl(ctx):
     go = go_context(ctx)
@@ -129,12 +135,10 @@ proto extension stores metadata in hidden attributes of generated
         "_srcs_v2": attr.label(
             default = "//v2/cmd/gazelle:gazelle_lib",
         ),
-    },
+    } | CGO_ATTRS,
     "executable": True,
-    "toolchains": [
-        "@io_bazel_rules_go//go:toolchain",
-        config_common.toolchain_type("@bazel_tools//tools/cpp:toolchain_type", mandatory = False),
-    ],
+    "fragments": CGO_FRAGMENTS,
+    "toolchains": ["@io_bazel_rules_go//go:toolchain"] + CGO_TOOLCHAINS,
 }
 
 gazelle_binary = rule(**_gazelle_binary_kwargs)
