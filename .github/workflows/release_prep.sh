@@ -7,9 +7,9 @@ set -o errexit -o nounset -o pipefail
 TAG=${GITHUB_REF_NAME}
 # The prefix is chosen to match what GitHub generates for source archives
 PREFIX="bazel-gazelle-${TAG:1}"
-ARCHIVE="bazel-gazelle-$TAG.tar.gz"
-git archive --format=tar --prefix=${PREFIX}/ ${TAG} | gzip > $ARCHIVE
-SHA=$(shasum -a 256 $ARCHIVE | awk '{print $1}')
+ARCHIVE="bazel-gazelle-$TAG.tar.zst"
+git archive --format=tar "${TAG}" | zstd >"$ARCHIVE"
+SHA=$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')
 
 cat << EOF
 ## Using Bzlmod
@@ -25,7 +25,6 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 http_archive(
     name = "bazel-gazelle",
     sha256 = "${SHA}",
-    strip_prefix = "${PREFIX}",
     url = "https://github.com/bazel-contrib/bazel-gazelle/releases/download/${TAG}/${ARCHIVE}",
 )
 load("@bazel-gazelle//:deps.bzl", "gazelle_dependencies")
