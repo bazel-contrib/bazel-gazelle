@@ -76,11 +76,12 @@ func parseDirectives(stmt []bzl.Expr) []Directive {
 }
 
 var directiveRe = regexp.MustCompile(`^#\s*gazelle:(\w+)\s*(.*?)\s*$`)
+var fileDirectiveRe = regexp.MustCompile(`^(?:#\s*gazelle:)?(\w+)\s*(.*?)\s*$`)
 
 // ParseDirectivesFromFile reads a file and extracts Gazelle directives from it.
-// Each line is matched against the same pattern used for BUILD file comments
-// (# gazelle:key value). Blank lines and comment lines that don't match
-// the directive pattern are ignored.
+// Each line is matched against a permissive version of the pattern used
+// for BUILD file comments ("# gazelle:key value" or "key value"). Blank lines
+// and comment lines that don't match the directive pattern are ignored.
 func ParseDirectivesFromFile(filePath string) ([]Directive, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -92,9 +93,12 @@ func ParseDirectivesFromFile(filePath string) ([]Directive, error) {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
-		match := directiveRe.FindStringSubmatch(line)
+		match := fileDirectiveRe.FindStringSubmatch(line)
 		if match == nil {
 			continue
+		}
+		if match[1] == "gazelle" {
+			return nil, fmt.Errorf("invalid directive: %q: directive must use format '# gazelle:key value' or 'key value'", line)
 		}
 		directives = append(directives, Directive{Key: match[1], Value: match[2]})
 	}

@@ -77,7 +77,7 @@ func TestParseDirectivesFromFile(t *testing.T) {
 			want:    nil,
 		},
 		{
-			desc: "directives with hash prefix",
+			desc: "directives with '# gazelle:' prefix",
 			content: `# gazelle:resolve go example.com/foo //third_party:foo
 # gazelle:resolve proto google/api/annotations.proto @go_googleapis//google/api:annotations_proto
 `,
@@ -85,6 +85,32 @@ func TestParseDirectivesFromFile(t *testing.T) {
 				{"resolve", "go example.com/foo //third_party:foo"},
 				{"resolve", "proto google/api/annotations.proto @go_googleapis//google/api:annotations_proto"},
 			},
+		},
+		{
+			desc: "directives with no prefix",
+			content: `resolve go example.com/foo //third_party:foo
+resolve proto google/api/annotations.proto @go_googleapis//google/api:annotations_proto
+`,
+			want: []Directive{
+				{"resolve", "go example.com/foo //third_party:foo"},
+				{"resolve", "proto google/api/annotations.proto @go_googleapis//google/api:annotations_proto"},
+			},
+		},
+		{
+			desc: "directives with mixed prefixes",
+			content: `# gazelle:resolve go example.com/foo //third_party:foo
+exclude vendor
+`,
+			want: []Directive{
+				{"resolve", "go example.com/foo //third_party:foo"},
+				{"exclude", "vendor"},
+			},
+		},
+		{
+			desc:    "directives with 'gazelle:' prefix return error",
+			content: `gazelle:resolve go example.com/foo //third_party:foo`,
+			want:    nil,
+			wantErr: true,
 		},
 		{
 			desc: "blank lines and plain comments ignored",
