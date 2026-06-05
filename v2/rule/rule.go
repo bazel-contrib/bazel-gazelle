@@ -1064,7 +1064,15 @@ func (r *Rule) InsertAt(f *File, index int) {
 // IsEmpty returns true when the rule contains none of the attributes in attrs
 // for its kind. attrs should contain attributes that make the rule buildable
 // like srcs or deps and not descriptive attributes like name or visibility.
+//
+// If info.NonEmptyAttrs is nil, IsEmpty falls back to metadata for Bazel
+// built-in kinds (e.g. "alias", "filegroup") so that language extensions
+// that generate these kinds without declaring them are still classified
+// correctly.
 func (r *Rule) IsEmpty(info KindInfo) bool {
+	if info.NonEmptyAttrs == nil {
+		info = GenericKinds[r.Kind()]
+	}
 	if info.NonEmptyAttrs == nil {
 		return false
 	}
