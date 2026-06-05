@@ -164,6 +164,9 @@ def _get_patch_args(path, module_overrides):
     override = _get_override_or_default(module_overrides, struct(), {}, path, None, "patch_strip")
     return ["-p{}".format(override)] if override else []
 
+def _get_patch_cmds(path, module_overrides):
+    return _get_override_or_default(module_overrides, struct(), {}, path, [], "patch_cmds")
+
 def _repo_name(importpath):
     path_segments = importpath.split("/")
     segments = reversed(path_segments[0].split(".")) + path_segments[1:]
@@ -237,6 +240,7 @@ def _process_module_override(module_override_tag):
     return struct(
         patches = module_override_tag.patches,
         patch_strip = module_override_tag.patch_strip,
+        patch_cmds = module_override_tag.patch_cmds,
     )
 
 def _process_archive_override(archive_override_tag):
@@ -246,6 +250,7 @@ def _process_archive_override(archive_override_tag):
         strip_prefix = archive_override_tag.strip_prefix,
         patches = archive_override_tag.patches,
         patch_strip = archive_override_tag.patch_strip,
+        patch_cmds = archive_override_tag.patch_cmds,
     )
 
 def _go_repository_config_impl(ctx):
@@ -544,7 +549,11 @@ def _go_deps_impl(module_ctx):
             # We also need to disregard the "indirect" attribute for modules
             # that provide any tools listed with a "tool" directive, otherwise
             # tools can't be built after a `bazel mod tidy`.
-            if module.is_root and (not module_tag.indirect or module_tag.path in possible_tool_modules):
+            # We ignore non-root modules from go.work files, since these can't
+            # be referenced by repo name.
+            if (module.is_root and
+                (not module_tag.indirect or module_tag.path in possible_tool_modules) and
+                module_tag.path not in modules_from_go_work):
                 root_versions[module_tag.path] = raw_version
                 if _is_dev_dependency(module_ctx, module_tag):
                     root_module_direct_dev_deps[_repo_name(module_tag.path)] = None
@@ -737,6 +746,7 @@ Mismatch between versions requested for Go module {module}:
             "build_extra_args": _get_build_extra_args(path, gazelle_overrides, gazelle_default_attributes),
             "patches": _get_patches(path, module_overrides),
             "patch_args": _get_patch_args(path, module_overrides),
+            "patch_cmds": _get_patch_cmds(path, module_overrides),
             "debug_mode": debug_mode,
         }
 
@@ -748,6 +758,7 @@ Mismatch between versions requested for Go module {module}:
                 "sha256": archive_override.sha256,
                 "patches": _get_patches(path, archive_overrides),
                 "patch_args": _get_patch_args(path, archive_overrides),
+                "patch_cmds": _get_patch_cmds(path, archive_overrides),
             })
         elif module.local_path:
             go_repository_args.update({
@@ -964,6 +975,9 @@ _archive_override_tag = tag_class(
             default = 0,
             doc = "The number of leading path segments to be stripped from the file name in the patches.",
         ),
+        "patch_cmds": attr.string_list(
+            doc = "Commands to run in the repository after patches are applied.",
+        ),
     },
     doc = "Override the default source location on a given Go module in this extension.",
 )
@@ -1001,6 +1015,9 @@ _module_override_tag = tag_class(
         "patch_strip": attr.int(
             default = 0,
             doc = "The number of leading path segments to be stripped from the file name in the patches.",
+        ),
+        "patch_cmds": attr.string_list(
+            doc = "Commands to run in the repository after patches are applied.",
         ),
     },
     doc = "Apply patches to a given Go module defined by other tags in this extension.",

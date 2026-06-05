@@ -134,7 +134,7 @@ List of Go build tags Gazelle will defer to Bazel for evaluation. Gazelle applie
 
 **Directive:** `# gazelle:directive_file path`<br>
 **Default:** n/a<br>
-Loads additional Gazelle directives from an external file. The path is relative to the directory containing the build file. The external file uses the same `# gazelle:key value` format as build file directives. Blank lines and comment lines that do not match the directive pattern are ignored.
+Loads additional Gazelle directives from an external file. The path is relative to the directory containing the build file. The external file supports the same format as build file directives (`# gazelle:key value`) or a shorter `key value` format. Blank lines and comment lines that do not match the directive pattern are ignored.
 
 Directives from the external file are inserted at the position of the `directive_file` entry, so inline directives appearing after `directive_file` can override values from the file. This is useful for managing large numbers of directives (e.g., `resolve` overrides) in a separate, possibly generated file.
 
