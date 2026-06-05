@@ -10,8 +10,9 @@ go_library(
     importpath = "github.com/bazel-contrib/bazel-gazelle/v2/testtools",
     visibility = ["//visibility:public"],
     deps = [
-        "//config",
-        "//language",
+        "//v2/compat",
+        "//v2/config",
+        "//v2/language",
         "@com_github_google_go_cmp//cmp",
     ],
 )

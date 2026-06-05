@@ -19,8 +19,9 @@ import (
 	"flag"
 	"testing"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
 )
 
 // NewTestConfig returns a Config used for tests in any language extension.
@@ -34,18 +35,24 @@ func NewTestConfig(t *testing.T, cexts []config.Configurer, langs []language.Lan
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 
 	for _, lang := range langs {
-		cexts = append(cexts, lang)
+		if cfg, ok := compat.ConfigurerV2(lang); ok {
+			cexts = append(cexts, cfg)
+		}
 	}
 	for _, cext := range cexts {
-		cext.RegisterFlags(fs, "update", c)
+		if fc, ok := cext.(compat.FlagConfigurer); ok {
+			fc.RegisterFlags(fs, "update", c)
+		}
 	}
 
 	if err := fs.Parse(args); err != nil {
 		t.Fatal(err)
 	}
 	for _, cext := range cexts {
-		if err := cext.CheckFlags(fs, c); err != nil {
-			t.Fatal(err)
+		if fc, ok := cext.(compat.FlagConfigurer); ok {
+			if err := fc.CheckFlags(fs, c); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 
