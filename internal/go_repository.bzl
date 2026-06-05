@@ -225,6 +225,7 @@ def _go_repository_impl(ctx):
         # not go out to the network at all. This means *the build*
         # goes out to the network. We tolerate this for downloading
         # archives, but finding module roots is a bit much.
+        "GOAUTH",
         "GONOPROXY",
         "GONOSUMDB",
         "GOPRIVATE",

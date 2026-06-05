@@ -30,6 +30,7 @@ func TestReplace(t *testing.T) {
 func TestPatch(t *testing.T) {
 	// a patch is used to add this constant.
 	require.Equal(t, "hello", require.Hello)
+	require.Equal(t, "patch_cmd_hello", require.PatchCmdHello)
 }
 
 func TestBuildFileGeneration(t *testing.T) {
