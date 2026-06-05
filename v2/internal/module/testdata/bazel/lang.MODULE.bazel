@@ -1,0 +1,4 @@
+bazel_dep(name = "rules_lang", version = "1.2.3", repo_name = "my_rules_lang")
+
+include("//:deps.MODULE.bazel")
+include("//bazel:dir/deps.MODULE.bazel")

@@ -5,10 +5,10 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "module",
     srcs = ["module.go"],
-    importpath = "github.com/bazelbuild/bazel-gazelle/internal/module",
-    visibility = ["//:__subpackages__"],
+    importpath = "github.com/bazel-contrib/bazel-gazelle/v2/internal/module",
+    visibility = ["//v2:__subpackages__"],
     deps = [
-        "//label",
+        "//v2/label",
         "@com_github_bazelbuild_buildtools//build",
     ],
 )
@@ -22,12 +22,6 @@ filegroup(
         "module_test.go",
     ],
     visibility = ["//visibility:public"],
-)
-
-alias(
-    name = "go_default_library",
-    actual = ":module",
-    visibility = ["//:__subpackages__"],
 )
 
 go_test(
