@@ -295,6 +295,39 @@ _go_repository_config = repository_rule(
     },
 )
 
+def _module_to_apparent_name(module_ctx, module_name, fallback = ""):
+    if not module_ctx.modules:
+        return fallback
+    return getattr(module_ctx.modules[0], "repo_mapping", {}).get(module_name, fallback)
+
+# Some external Go modules still load symbols from @rules_proto//proto:defs.bzl.
+# Forward those loads to Protobuf so generated repositories continue to analyze.
+def _rules_proto_compat_repository_impl(repository_ctx):
+    repository_ctx.file("WORKSPACE")
+    repository_ctx.file("proto/BUILD.bazel", 'exports_files(["defs.bzl"])')
+    repository_ctx.file("proto/defs.bzl", """\
+load("{proto_library_bzl}", _proto_library = "proto_library")
+load("{proto_descriptor_set_bzl}", _proto_descriptor_set = "proto_descriptor_set")
+load("{proto_lang_toolchain_bzl}", _proto_lang_toolchain = "proto_lang_toolchain")
+load("{proto_toolchain_bzl}", _proto_toolchain = "proto_toolchain")
+load("{proto_info_bzl}", _ProtoInfo = "ProtoInfo")
+load("{proto_common_bzl}", _proto_common = "proto_common")
+
+proto_library = _proto_library
+proto_descriptor_set = _proto_descriptor_set
+proto_lang_toolchain = _proto_lang_toolchain
+proto_toolchain = _proto_toolchain
+ProtoInfo = _ProtoInfo
+proto_common = _proto_common
+""".format(**repository_ctx.attr.symbol_files))
+
+_rules_proto_compat_repository = repository_rule(
+    implementation = _rules_proto_compat_repository_impl,
+    attrs = {
+        "symbol_files": attr.string_dict(mandatory = True),
+    },
+)
+
 def check_for_version_conflict(version, previous, module_tag, module_name_to_go_dot_mod_label, conflict_printer):
     """
     Check if duplicate modules have different versions, and fail with a useful error message if they do.
@@ -718,6 +751,19 @@ Mismatch between versions requested for Go module {module}:
                 ] + ["\n\n"])]
             )
         )
+
+    protobuf_repo_name = _module_to_apparent_name(module_ctx, "protobuf", "com_google_protobuf")
+    _rules_proto_compat_repository(
+        name = "rules_proto",
+        symbol_files = {
+            "proto_library_bzl": "@{}//bazel:proto_library.bzl".format(protobuf_repo_name),
+            "proto_descriptor_set_bzl": "@{}//bazel:proto_descriptor_set.bzl".format(protobuf_repo_name),
+            "proto_lang_toolchain_bzl": "@{}//bazel/toolchains:proto_lang_toolchain.bzl".format(protobuf_repo_name),
+            "proto_toolchain_bzl": "@{}//bazel/toolchains:proto_toolchain.bzl".format(protobuf_repo_name),
+            "proto_info_bzl": "@{}//bazel/common:proto_info.bzl".format(protobuf_repo_name),
+            "proto_common_bzl": "@{}//bazel/common:proto_common.bzl".format(protobuf_repo_name),
+        },
+    )
 
     repos_processed = {}
     for path, module in module_resolutions.items():

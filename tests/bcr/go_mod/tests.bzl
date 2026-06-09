@@ -16,6 +16,13 @@ def _test_package_info(name):
         provider_subject_factories = [_PackageInfoSubjectFactory],
     )
 
+def _test_buildifier_tool(name):
+    analysis_test(
+        name = name,
+        impl = _test_buildifier_tool_impl,
+        target = "//tools:buildifier",
+    )
+
 def _test_package_info_impl(env, target):
     # The package_info functionality requires REPO.bazel support, which is only
     # available in Bazel 7 and higher. Use this unrelated feature launched in
@@ -34,6 +41,9 @@ def _test_package_info_impl(env, target):
     subject.package_version().equals("1.0.0")
     subject.package_url().equals("https://github.com/fmeum/dep_on_gazelle")
     subject.purl().equals("pkg:golang/github.com/fmeum/dep_on_gazelle@v1.0.0")
+
+def _test_buildifier_tool_impl(env, target):
+    env.expect.that_target(target).has_provider(DefaultInfo)
 
 def _package_info_aspect_impl(_, ctx):
     if hasattr(ctx.rule.attr, "applicable_licenses"):
@@ -85,6 +95,7 @@ def starlark_tests(name):
     test_suite(
         name = name,
         tests = [
+            _test_buildifier_tool,
             _test_package_info,
         ],
     )
