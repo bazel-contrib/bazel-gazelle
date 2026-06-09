@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package proto_compat;
+
+option go_package = "example.org/proto_compat";
+
+message Hello {
+  string greeting = 1;
+}

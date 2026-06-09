@@ -1,0 +1,22 @@
+# This checked-in BUILD file mimics those shipped with Go modules that predate
+# the move of proto_library from @rules_proto to @com_google_protobuf, e.g.
+# github.com/bazelbuild/buildtools. Neither Gazelle nor the test workspace
+# depends on rules_proto; the load below only resolves because the go_deps
+# extension generates a compatibility shim repo with that name.
+# See https://github.com/bazel-contrib/bazel-gazelle/issues/2358.
+
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "proto_compat_proto",
+    srcs = ["proto_compat.proto"],
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "proto_compat",
+    srcs = ["proto_compat.go"],
+    importpath = "example.org/proto_compat",
+    visibility = ["//visibility:public"],
+)

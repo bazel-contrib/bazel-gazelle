@@ -80,12 +80,12 @@ go_deps.gazelle_override(
 
 # Apply a patch to test the `module_override` tags.
 go_deps.module_override(
+    patch_cmds = [
+        "echo 'const PatchCmdHello = \"patch_cmd_hello\"' >> require/require.go",
+    ],
     patch_strip = 1,
     patches = [
         "//patches:testify.patch",
-    ],
-    patch_cmds = [
-        "echo 'const PatchCmdHello = \"patch_cmd_hello\"' >> require/require.go",
     ],
     path = "github.com/stretchr/testify",
 )
@@ -112,6 +112,15 @@ go_deps.archive_override(
 go_deps.gazelle_override(
     build_file_generation = "clean",
     path = "github.com/google/go-jsonnet",
+)
+
+# Test a module that ships with its own BUILD files that load proto rules from
+# @rules_proto, which is provided as a compatibility shim by the go_deps
+# extension since Gazelle no longer depends on rules_proto.
+# See https://github.com/bazel-contrib/bazel-gazelle/issues/2358.
+go_deps.gazelle_override(
+    build_file_generation = "off",
+    path = "example.org/proto_compat",
 )
 
 # Transitive dependencies have to be listed here explicitly.
@@ -150,6 +159,7 @@ use_repo(
     "com_github_google_safetext",
     "com_github_stretchr_testify",
     "org_example_hello",
+    "org_example_proto_compat",
     "org_golang_google_genproto",
     "org_golang_google_genproto_googleapis_bytestream",
     "org_golang_google_protobuf",
