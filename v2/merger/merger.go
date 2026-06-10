@@ -122,7 +122,14 @@ func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phas
 				continue
 			}
 			rule.MergeRules(emptyRule, oldRule, getMergeAttrs(emptyRule), oldFile.Path)
-			if oldRule.IsEmpty(kinds[oldRule.Kind()]) {
+			// Resolve aliased kinds to look up the correct KindInfo.
+			// e.g., if oldRule is "my_py_library" aliased to "py_library",
+			// use KindInfo for "py_library" to determine emptiness.
+			kindForInfo := oldRule.Kind()
+			if underlying, ok := aliasedKinds[kindForInfo]; ok {
+				kindForInfo = underlying
+			}
+			if oldRule.IsEmpty(kinds[kindForInfo]) {
 				oldRule.Delete()
 			}
 		}
