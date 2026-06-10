@@ -8,6 +8,7 @@ replace github.com/bmatcuk/doublestar/v4 => github.com/bmatcuk/doublestar/v4 v4.
 
 require (
 	example.org/hello v1.0.0
+	example.org/proto_compat v1.0.0
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/bazelbuild/buildtools v0.0.0-20251031164759-f48b23493530
 	github.com/bazelbuild/rules_go v0.59.0
@@ -51,6 +52,8 @@ require (
 require golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
 
 replace example.org/hello => ../../fixtures/hello
+
+replace example.org/proto_compat => ../fixtures/proto_compat
 
 tool (
 	honnef.co/go/tools/cmd/staticcheck
