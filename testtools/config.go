@@ -16,9 +16,9 @@ limitations under the License.
 package testtools
 
 import (
+	"flag"
 	"testing"
 
-	v2 "github.com/bazel-contrib/bazel-gazelle/v2/testtools"
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
 )
@@ -31,7 +31,25 @@ import (
 // error is encountered while processing flags.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/testtools.NewTestConfig instead.
-//go:fix inline
 func NewTestConfig(t *testing.T, cexts []config.Configurer, langs []language.Language, args []string) *config.Config {
-	return v2.NewTestConfig(t, cexts, langs, args)
+	c := config.New()
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+
+	for _, lang := range langs {
+		cexts = append(cexts, lang)
+	}
+	for _, cext := range cexts {
+		cext.RegisterFlags(fs, "update", c)
+	}
+
+	if err := fs.Parse(args); err != nil {
+		t.Fatal(err)
+	}
+	for _, cext := range cexts {
+		if err := cext.CheckFlags(fs, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	return c
 }

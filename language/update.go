@@ -16,9 +16,9 @@ limitations under the License.
 package language
 
 import (
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/repo"
-	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
 // RepoUpdater may be implemented by languages that support updating

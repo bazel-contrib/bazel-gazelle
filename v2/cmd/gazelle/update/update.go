@@ -39,11 +39,11 @@ import (
 	"github.com/bazel-contrib/bazel-gazelle/v2/label"
 	"github.com/bazel-contrib/bazel-gazelle/v2/merger"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
+	"github.com/bazelbuild/bazel-gazelle/walk"
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/repo"
 	"github.com/bazelbuild/bazel-gazelle/resolve"
-	"github.com/bazelbuild/bazel-gazelle/walk"
 	"github.com/bazelbuild/buildtools/build"
 )
 
@@ -320,6 +320,9 @@ func Run(
 
 	mrslv := newMetaResolver()
 	kinds := make(map[string]rule.KindInfo)
+	for kind, info := range rule.GenericKinds {
+		kinds[kind] = info
+	}
 	loads := genericLoads
 	exts := make([]interface{}, 0, len(languages))
 	for _, lang := range languages {

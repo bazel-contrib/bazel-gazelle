@@ -35,68 +35,68 @@ func TestFindRuleWithOverride_ParentTraversal(t *testing.T) {
 	}, nil)
 
 	tests := []struct {
-		name      string
-		cfg       *config.Config
+		name       string
+		cfg        *config.Config
 		importSpec ImportSpec
-		lang      string
-		want      label.Label
-		wantFound bool
+		lang       string
+		want       label.Label
+		wantFound  bool
 	}{
 		{
-			name:      "Child exact match",
-			cfg:       childCfg,
+			name:       "Child exact match",
+			cfg:        childCfg,
 			importSpec: ImportSpec{Lang: "go", Imp: "github.com/child/repo"},
-			lang:      "go",
-			want:      getTestLabel(t, "//some/local/child:replacement"),
-			wantFound: true,
+			lang:       "go",
+			want:       getTestLabel(t, "//some/local/child:replacement"),
+			wantFound:  true,
 		},
 		{
-			name:      "Child regexp match",
-			cfg:       childCfg,
+			name:       "Child regexp match",
+			cfg:        childCfg,
 			importSpec: ImportSpec{Lang: "go", Imp: "github.com/child/other"},
-			lang:      "go",
-			want:      getTestLabel(t, "//child/rel:relative/child/regexp"),
-			wantFound: true,
+			lang:       "go",
+			want:       getTestLabel(t, "//child/rel:relative/child/regexp"),
+			wantFound:  true,
 		},
 		{
-			name:      "Root exact match from child",
-			cfg:       childCfg,
+			name:       "Root exact match from child",
+			cfg:        childCfg,
 			importSpec: ImportSpec{Lang: "go", Imp: "github.com/root/repo"},
-			lang:      "go",
-			want:      getTestLabel(t, "@com_example//root:replacement"),
-			wantFound: true,
+			lang:       "go",
+			want:       getTestLabel(t, "@com_example//root:replacement"),
+			wantFound:  true,
 		},
 		{
-			name:      "Root regexp match from child",
-			cfg:       childCfg,
+			name:       "Root regexp match from child",
+			cfg:        childCfg,
 			importSpec: ImportSpec{Lang: "go", Imp: "github.com/root/some"},
-			lang:      "go",
-			want:      getTestLabel(t, "@com_example//regexp:replacement"),
-			wantFound: true,
+			lang:       "go",
+			want:       getTestLabel(t, "@com_example//regexp:replacement"),
+			wantFound:  true,
 		},
 		{
-			name:      "No match in child or root",
-			cfg:       childCfg,
+			name:       "No match in child or root",
+			cfg:        childCfg,
 			importSpec: ImportSpec{Lang: "go", Imp: "github.com/nonexistent/repo"},
-			lang:      "go",
-			want:      label.NoLabel,
-			wantFound: false,
+			lang:       "go",
+			want:       label.NoLabel,
+			wantFound:  false,
 		},
 		{
-			name:      "Second child does not find child directive",
-			cfg:       secondChildCfg,
+			name:       "Second child does not find child directive",
+			cfg:        secondChildCfg,
 			importSpec: ImportSpec{Lang: "go", Imp: "github.com/child/repo"},
-			lang:      "go",
-			want:      label.NoLabel,
-			wantFound: false,
+			lang:       "go",
+			want:       label.NoLabel,
+			wantFound:  false,
 		},
 		{
-			name:      "Second child finds root directive",
-			cfg:       secondChildCfg,
+			name:       "Second child finds root directive",
+			cfg:        secondChildCfg,
 			importSpec: ImportSpec{Lang: "go", Imp: "github.com/root/repo"},
-			lang:      "go",
-			want:      getTestLabel(t, "@com_example//root:replacement"),
-			wantFound: true,
+			lang:       "go",
+			want:       getTestLabel(t, "@com_example//root:replacement"),
+			wantFound:  true,
 		},
 		{
 			name:       "Target resolves to label populated by regexp",
@@ -136,6 +136,9 @@ func TestFindRuleWithOverride_ParentTraversal(t *testing.T) {
 		})
 	}
 }
+
+// HACK: copied from v2
+const resolveName = "_resolve"
 
 func getConfig(t *testing.T, path string, directives []rule.Directive, parent *config.Config) *config.Config {
 	cfg := &config.Config{

@@ -1,0 +1,39 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+# gazelle:exclude testdata
+
+go_library(
+    name = "module",
+    srcs = ["module.go"],
+    importpath = "github.com/bazel-contrib/bazel-gazelle/v2/internal/module",
+    visibility = ["//v2:__subpackages__"],
+    deps = [
+        "//v2/label",
+        "@com_github_bazelbuild_buildtools//build",
+    ],
+)
+
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "module.go",
+        "module_test.go",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "module_test",
+    srcs = ["module_test.go"],
+    data = glob(
+        ["testdata/**"],
+        allow_empty = True,
+    ),
+    embed = [":module"],
+    deps = [
+        "@com_github_google_go_cmp//cmp",
+        "@io_bazel_rules_go//go/runfiles",
+    ],
+)
