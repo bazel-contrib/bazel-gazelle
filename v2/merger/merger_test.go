@@ -974,6 +974,39 @@ go_library(
 		},
 	},
 	{
+		desc: "aliased kind deleted by empty rule",
+		previous: `
+load("//:defs.bzl", "my_go_library")
+
+my_go_library(
+    name = "lib",
+    srcs = ["deleted.go"],
+    importpath = "example.com/repo",
+)
+
+my_go_library(
+    name = "kept",
+    srcs = ["kept.go"],
+    importpath = "example.com/repo/kept",
+)
+`,
+		empty: `
+go_library(name = "lib")
+`,
+		expected: `
+load("//:defs.bzl", "my_go_library")
+
+my_go_library(
+    name = "kept",
+    srcs = ["kept.go"],
+    importpath = "example.com/repo/kept",
+)
+`,
+		aliasedKinds: map[string]string{
+			"my_go_library": "go_library",
+		},
+	},
+	{
 		desc: "empty name rules with different kinds should not conflict",
 		previous: `
 exports_files(["foo.txt"])
