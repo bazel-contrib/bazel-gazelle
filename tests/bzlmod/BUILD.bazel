@@ -1,6 +1,9 @@
+load(":go_deps_test.bzl", "go_deps_test_suite")
 load(":go_mod_test.bzl", "go_mod_test_suite")
 load(":semver_test.bzl", "semver_test_suite")
 load(":utils_test.bzl", "utils_test_suite")
+
+go_deps_test_suite(name = "go_deps_test")
 
 go_mod_test_suite(name = "go_mod_test")
 
