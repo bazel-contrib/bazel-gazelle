@@ -31,7 +31,10 @@ load(
     "with_replaced_or_new_fields",
 )
 
-visibility("//")
+visibility([
+    "//",
+    "//tests/bzlmod/...",
+])
 
 _HIGHEST_VERSION_SENTINEL = semver.to_comparable("999999.999999.999999")
 
@@ -173,6 +176,19 @@ def _repo_name(importpath):
     candidate_name = "_".join(segments).replace("-", "_")
     return "".join([c.lower() if c.isalnum() else "_" for c in candidate_name.elems()])
 
+def get_repo_name(importpath, module_overrides):
+    """Returns the Bazel repo name for a Go module path.
+
+    If a module_override for the path specifies a non-empty repo_name, that
+    value is used verbatim. Otherwise the name is derived from the import path
+    via _repo_name. This allows the root module to break collisions between two
+    modules whose import paths mangle to the same default repo name.
+    """
+    override = module_overrides.get(importpath)
+    if override and getattr(override, "repo_name", ""):
+        return override.repo_name
+    return _repo_name(importpath)
+
 def _is_dev_dependency(module_ctx, tag):
     if hasattr(tag, "_is_dev_dependency"):
         # Synthetic tags generated from go_deps.from_file have this "hidden" attribute.
@@ -241,6 +257,7 @@ def _process_module_override(module_override_tag):
         patches = module_override_tag.patches,
         patch_strip = module_override_tag.patch_strip,
         patch_cmds = module_override_tag.patch_cmds,
+        repo_name = module_override_tag.repo_name,
     )
 
 def _process_archive_override(archive_override_tag):
@@ -587,9 +604,9 @@ def _go_deps_impl(module_ctx):
                 module_tag.path not in modules_from_go_work):
                 root_versions[module_tag.path] = raw_version
                 if _is_dev_dependency(module_ctx, module_tag):
-                    root_module_direct_dev_deps[_repo_name(module_tag.path)] = None
+                    root_module_direct_dev_deps[get_repo_name(module_tag.path, module_overrides)] = None
                 else:
-                    root_module_direct_deps[_repo_name(module_tag.path)] = None
+                    root_module_direct_deps[get_repo_name(module_tag.path, module_overrides)] = None
 
             version = semver.to_comparable(raw_version)
             previous = paths.get(module_tag.path)
@@ -611,7 +628,7 @@ def _go_deps_impl(module_ctx):
                     local_path = replacement.local_path
 
                 module_resolutions[module_tag.path] = struct(
-                    repo_name = _repo_name(module_tag.path),
+                    repo_name = get_repo_name(module_tag.path, module_overrides),
                     version = version,
                     raw_version = raw_version,
                     to_path = to_path,
@@ -755,11 +772,11 @@ Mismatch between versions requested for Go module {module}:
         if hasattr(module, "module_name") or (getattr(module_ctx, "is_isolated", False) and path in _SHARED_REPOS):
             # Do not create a go_repository for a Go module provided by a bazel_go_module or one shared with the non-isolated
             # instance of go_deps.
-            root_module_direct_deps.pop(_repo_name(path), None)
-            root_module_direct_dev_deps.pop(_repo_name(path), None)
+            root_module_direct_deps.pop(get_repo_name(path, module_overrides), None)
+            root_module_direct_dev_deps.pop(get_repo_name(path, module_overrides), None)
             continue
         if module.repo_name in repos_processed:
-            fail("Go module {prev_path} and {path} will resolve to the same Bazel repo name: {name}. While Go allows modules to only differ in case, this isn't supported in Gazelle. Please ensure you only use one of these modules in your go.mod(s)".format(
+            fail("Go module {prev_path} and {path} will resolve to the same Bazel repo name: {name}. While Go allows modules to only differ in case, this isn't supported in Gazelle. Please ensure you only use one of these modules in your go.mod(s), or assign a distinct repo name to one of them via the \"repo_name\" attribute of a \"module_override\" tag.".format(
                 prev_path = repos_processed[module.repo_name],
                 path = path,
                 name = module.repo_name,
@@ -1058,8 +1075,20 @@ _module_override_tag = tag_class(
         "patch_cmds": attr.string_list(
             doc = "Commands to run in the repository after patches are applied.",
         ),
+        "repo_name": attr.string(
+            doc = """The Bazel repository name to use for this Go module.
+
+            By default, Gazelle derives the repository name from the module's
+            import path. Two distinct modules whose import paths differ only by
+            "/" vs "_" (or only by case) derive the same default name, which
+            Gazelle rejects with an error. When both are pulled in transitively,
+            dropping one from the go.mod is not always possible. Setting this
+            attribute lets the root module assign a distinct repository name to
+            one of the colliding modules so they can coexist. The collision
+            check still runs on the resulting names.""",
+        ),
     },
-    doc = "Apply patches to a given Go module defined by other tags in this extension.",
+    doc = "Override the definition of a Go module defined by other tags in this extension, e.g. to apply patches or change its Bazel repository name.",
 )
 
 go_deps = module_extension(

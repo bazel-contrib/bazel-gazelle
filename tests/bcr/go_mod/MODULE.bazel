@@ -90,6 +90,14 @@ go_deps.module_override(
     path = "github.com/stretchr/testify",
 )
 
+# example.org/collision/mangle and example.org/collision_mangle mangle to the
+# same default Bazel repo name (org_example_collision_mangle). Assign a distinct
+# repo name to one of them via module_override so both can be depended on.
+go_deps.module_override(
+    path = "example.org/collision_mangle",
+    repo_name = "org_example_collision_mangle_alt",
+)
+
 # Test an archive override from a known archive.
 go_deps.gazelle_override(
     build_file_generation = "clean",
@@ -158,6 +166,8 @@ use_repo(
     "com_github_google_go_jsonnet",
     "com_github_google_safetext",
     "com_github_stretchr_testify",
+    "org_example_collision_mangle",
+    "org_example_collision_mangle_alt",
     "org_example_hello",
     "org_example_proto_compat",
     "org_golang_google_genproto",

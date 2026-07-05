@@ -62,6 +62,8 @@ go_test(
         "@com_github_google_safetext//yamltemplate",
         "@com_github_stretchr_testify//require:go_default_library",
         "@my_rules_go//go/runfiles",
+        "@org_example_collision_mangle//:mangle",
+        "@org_example_collision_mangle_alt//:collision_mangle",
         "@org_example_hello//:hello",
         "@org_example_proto_compat//:proto_compat",
     ],

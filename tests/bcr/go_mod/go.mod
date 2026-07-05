@@ -7,6 +7,8 @@ go 1.24.12
 replace github.com/bmatcuk/doublestar/v4 => github.com/bmatcuk/doublestar/v4 v4.9.1
 
 require (
+	example.org/collision/mangle v1.0.0
+	example.org/collision_mangle v1.0.0
 	example.org/hello v1.0.0
 	example.org/proto_compat v1.0.0
 	github.com/DataDog/sketches-go v1.4.1
@@ -54,6 +56,10 @@ require golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
 replace example.org/hello => ../../fixtures/hello
 
 replace example.org/proto_compat => ../fixtures/proto_compat
+
+replace example.org/collision/mangle => ../fixtures/collision_slash
+
+replace example.org/collision_mangle => ../fixtures/collision_underscore
 
 tool (
 	honnef.co/go/tools/cmd/staticcheck
