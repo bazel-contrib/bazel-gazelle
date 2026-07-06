@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 
+	"example.org/collision/mangle"
+	collision_underscore "example.org/collision_mangle"
 	"example.org/hello"
 	"example.org/proto_compat"
 	"github.com/DataDog/sketches-go/ddsketch"
@@ -80,6 +82,14 @@ func TestBazelDepUsedAsGoDep(t *testing.T) {
 func TestArchiveOverrideUsed(t *testing.T) {
 	label := labels.Parse("@com_github_bazelbuild_buildtools//labels:labels")
 	require.NotEmpty(t, label)
+}
+
+func TestRepoNameOverrideBreaksCollision(t *testing.T) {
+	// example.org/collision/mangle and example.org/collision_mangle mangle to the
+	// same default Bazel repo name. A module_override repo_name on the latter lets
+	// both coexist; being able to import and use both here proves it worked.
+	require.Equal(t, "slash", mangle.Name)
+	require.Equal(t, "underscore", collision_underscore.Name)
 }
 
 func TestArchiveOverrideWithPatch(t *testing.T) {
