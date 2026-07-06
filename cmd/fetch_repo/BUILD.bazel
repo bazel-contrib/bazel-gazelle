@@ -13,10 +13,7 @@ go_library(
     ],
     importpath = "github.com/bazelbuild/bazel-gazelle/cmd/fetch_repo",
     visibility = ["//visibility:private"],
-    deps = [
-        "@org_golang_x_mod//sumdb/dirhash",
-        "@org_golang_x_tools_go_vcs//:vcs",
-    ],
+    deps = ["@org_golang_x_tools_go_vcs//:vcs"],
 )
 
 go_binary(

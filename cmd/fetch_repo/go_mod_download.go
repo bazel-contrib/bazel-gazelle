@@ -55,6 +55,11 @@ func runGoModDownload(dl *GoModDownloadResult, dest string, importpath string, v
 
 	// Parse the JSON output.
 	if err := json.Unmarshal(buf.Bytes(), &dl); err != nil {
+		// A failed download (e.g. a go.sum checksum mismatch) may print to
+		// stderr with no JSON on stdout. Surface stderr instead of a JSON error.
+		if dlErr != nil && bufErr.Len() > 0 {
+			return fmt.Errorf("go mod download error: `%s %s`: %s", cmd.Path, strings.Join(cmd.Args, " "), strings.TrimSpace(bufErr.String()))
+		}
 		if bufErr.Len() > 0 {
 			return fmt.Errorf("go mod download output format: `%s %s`: parsing JSON: %q stderr: %q error: %w", cmd.Path, strings.Join(cmd.Args, " "), buf.String(), bufErr.String(), err)
 		}
