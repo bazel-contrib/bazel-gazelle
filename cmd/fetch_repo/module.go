@@ -16,11 +16,8 @@ limitations under the License.
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
-
-	"golang.org/x/mod/sumdb/dirhash"
 )
 
 func fetchModule(dest, importpath, version, sum string) error {
@@ -47,9 +44,16 @@ func fetchModule(dest, importpath, version, sum string) error {
 		return fmt.Errorf("error closing temporary go.mod: %v", err)
 	}
 
+	// Write a temporary go.sum so "go mod download" verifies the download.
+	if err := os.WriteFile("go.sum", []byte(fmt.Sprintf("%s %s %s\n", importpath, version, sum)), 0o666); err != nil {
+		return fmt.Errorf("error creating temporary go.sum: %v", err)
+	}
+
 	dl := GoModDownloadResult{}
 	err = runGoModDownload(&dl, dest, importpath, version)
+	// Remove the temporary files before copying, so they don't leak into dest.
 	os.Remove("go.mod")
+	os.Remove("go.sum")
 	if err != nil {
 		return err
 	}
@@ -57,28 +61,6 @@ func fetchModule(dest, importpath, version, sum string) error {
 	// Copy the module to the destination.
 	if err := copyTree(dest, dl.Dir); err != nil {
 		return fmt.Errorf("failed copying repo: %w", err)
-	}
-
-	// Verify sum of the directory itself against the go.sum.
-	repoSum, err := dirhash.HashDir(dest, importpath+"@"+version, dirhash.Hash1)
-	if err != nil {
-		return fmt.Errorf("failed computing sum: %w", err)
-	}
-
-	if repoSum != sum {
-		errMsg := fmt.Sprintf("resulting module with sum %s; expected sum %s.", repoSum, sum)
-		// The module cache is corrupt. Remove the downloaded directory.
-		if err := os.RemoveAll(dl.Dir); err != nil {
-			errMsg += fmt.Sprintf(" Additionally, failed to remove corrupt module cache directory %q: %v. Please remove it manaully and retry.", dl.Dir, err)
-		} else {
-			errMsg += " Please retry."
-		}
-		if goModCache := os.Getenv("GOMODCACHE"); goModCache != "" {
-			errMsg += fmt.Sprintf(" If the problem persists, please try clearing your host module cache with `go clean -modcache`")
-		} else {
-			errMsg += fmt.Sprintf(" If the problem persists, please try clearing Bazel output directory with `bazel clean --expunge`")
-		}
-		return errors.New(errMsg)
 	}
 
 	return nil
