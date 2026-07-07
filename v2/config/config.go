@@ -151,6 +151,10 @@ func (c *Config) Clone() *Config {
 	for k, v := range c.KindMap {
 		cc.KindMap[k] = v
 	}
+	cc.AliasMap = make(map[string]string)
+	for k, v := range c.AliasMap {
+		cc.AliasMap[k] = v
+	}
 	return &cc
 }
 
