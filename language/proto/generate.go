@@ -263,7 +263,7 @@ func generateProto(pc *ProtoConfig, rel string, pkg *Package, shouldSetVisibilit
 	imports := make([]string, 0, len(pkg.Imports))
 	for i := range pkg.Imports {
 		// If the proto import is a self import (an import between the same package), skip it
-		if _, ok := pkg.Files[path.Base(i)]; ok && getPrefix(pc, path.Dir(i)) == getPrefix(pc, rel) {
+		if _, ok := pkg.Files[path.Base(i)]; ok && path.Dir(i) == getPrefix(pc, rel) {
 			delete(pkg.Imports, i)
 			continue
 		}

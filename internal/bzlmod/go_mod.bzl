@@ -259,7 +259,7 @@ def parse_go_mod(content, path):
         go = "1.16"
 
     # The go directive can contain patch and pre-release versions, but we omit them.
-    major, minor = go.split(".")[:2]
+    major, minor = go.split("rc")[0].split(".")[:2]
 
     return struct(
         module = module,
