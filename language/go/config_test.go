@@ -145,19 +145,22 @@ func TestDirectives(t *testing.T) {
 	}
 }
 
-func TestSplitCompilerFlags(t *testing.T) {
+func TestAppendCompilerFlags(t *testing.T) {
 	for _, tc := range []struct {
-		desc, value string
-		want        []string
+		desc  string
+		start []string
+		value string
+		want  []string
 	}{
 		{desc: "space separated", value: "-N -l", want: []string{"-N", "-l"}},
-		{desc: "comma separated", value: "-N,-l", want: []string{"-N", "-l"}},
-		{desc: "mixed with extra whitespace", value: "\t -N , -l  -m\t", want: []string{"-N", "-l", "-m"}},
 		{desc: "single flag", value: "-l", want: []string{"-l"}},
-		{desc: "empty resets to nil", value: "   ", want: nil},
+		{desc: "commas are not separators", value: "-Wl,-rpath,/libs", want: []string{"-Wl,-rpath,/libs"}},
+		{desc: "quoted flag with spaces", value: `"-extldflags all"`, want: []string{"-extldflags all"}},
+		{desc: "appends to existing", start: []string{"-N"}, value: "-l", want: []string{"-N", "-l"}},
+		{desc: "empty resets to nil", start: []string{"-N", "-l"}, value: "", want: nil},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			if diff := cmp.Diff(tc.want, splitCompilerFlags(tc.value)); diff != "" {
+			if diff := cmp.Diff(tc.want, appendCompilerFlags(tc.start, tc.value)); diff != "" {
 				t.Errorf("(-want, +got): %s", diff)
 			}
 		})
@@ -166,13 +169,16 @@ func TestSplitCompilerFlags(t *testing.T) {
 
 func TestCompilerFlagDirectives(t *testing.T) {
 	c, _, cexts := testConfig(t)
+	// Multiple directives with the same key accumulate; commas within a flag are
+	// preserved.
 	content := []byte(`
 # gazelle:go_gc_goopts -N -l
 # gazelle:go_gc_linkopts -s -w
-# gazelle:go_copts -DFOO,-DBAR
+# gazelle:go_copts -DFOO
+# gazelle:go_copts -DBAR
 # gazelle:go_cppopts -Iinclude
 # gazelle:go_cxxopts -std=c++17
-# gazelle:go_clinkopts -lm
+# gazelle:go_clinkopts -lm -Wl,--as-needed
 `)
 	f, err := rule.LoadData(filepath.FromSlash("test/BUILD.bazel"), "test", content)
 	if err != nil {
@@ -189,26 +195,26 @@ func TestCompilerFlagDirectives(t *testing.T) {
 	}{
 		{"gc_goopts", gc.gcGoopts, []string{"-N", "-l"}},
 		{"gc_linkopts", gc.gcLinkopts, []string{"-s", "-w"}},
-		{"copts", gc.copts, []string{"-DFOO", "-DBAR"}},
+		{"copts accumulates across directives", gc.copts, []string{"-DFOO", "-DBAR"}},
 		{"cppopts", gc.cppopts, []string{"-Iinclude"}},
 		{"cxxopts", gc.cxxopts, []string{"-std=c++17"}},
-		{"clinkopts", gc.clinkopts, []string{"-lm"}},
+		{"clinkopts keeps comma flag", gc.clinkopts, []string{"-lm", "-Wl,--as-needed"}},
 	} {
 		if diff := cmp.Diff(tc.want, tc.got); diff != "" {
-			t.Errorf("%s after set (-want, +got): %s", tc.name, diff)
+			t.Errorf("%s (-want, +got): %s", tc.name, diff)
 		}
 	}
 
-	// A child directory inherits the parent's values.
-	cf, err := rule.LoadData(filepath.FromSlash("test/child/BUILD.bazel"), "test/child", []byte(``))
+	// A child directory inherits the parent's values and appends to them.
+	cf, err := rule.LoadData(filepath.FromSlash("test/child/BUILD.bazel"), "test/child", []byte("\n# gazelle:go_gc_goopts -m\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, cext := range cexts {
 		cext.Configure(c, "test/child", cf)
 	}
-	if diff := cmp.Diff([]string{"-N", "-l"}, getGoConfig(c).gcGoopts); diff != "" {
-		t.Errorf("child inherit gc_goopts (-want, +got): %s", diff)
+	if diff := cmp.Diff([]string{"-N", "-l", "-m"}, getGoConfig(c).gcGoopts); diff != "" {
+		t.Errorf("child append gc_goopts (-want, +got): %s", diff)
 	}
 
 	// An empty value resets a directive without touching the others.

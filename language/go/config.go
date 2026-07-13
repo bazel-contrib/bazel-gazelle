@@ -27,7 +27,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"unicode"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	gzflag "github.com/bazelbuild/bazel-gazelle/flag"
@@ -624,22 +623,22 @@ Update io_bazel_rules_go to a newer version in your WORKSPACE file.`
 				}
 
 			case "go_gc_goopts":
-				gc.gcGoopts = splitCompilerFlags(d.Value)
+				gc.gcGoopts = appendCompilerFlags(gc.gcGoopts, d.Value)
 
 			case "go_gc_linkopts":
-				gc.gcLinkopts = splitCompilerFlags(d.Value)
+				gc.gcLinkopts = appendCompilerFlags(gc.gcLinkopts, d.Value)
 
 			case "go_copts":
-				gc.copts = splitCompilerFlags(d.Value)
+				gc.copts = appendCompilerFlags(gc.copts, d.Value)
 
 			case "go_cppopts":
-				gc.cppopts = splitCompilerFlags(d.Value)
+				gc.cppopts = appendCompilerFlags(gc.cppopts, d.Value)
 
 			case "go_cxxopts":
-				gc.cxxopts = splitCompilerFlags(d.Value)
+				gc.cxxopts = appendCompilerFlags(gc.cxxopts, d.Value)
 
 			case "go_clinkopts":
-				gc.clinkopts = splitCompilerFlags(d.Value)
+				gc.clinkopts = appendCompilerFlags(gc.clinkopts, d.Value)
 
 			case "go_generate_proto":
 				if goGenerateProto, err := strconv.ParseBool(d.Value); err == nil {
@@ -789,19 +788,23 @@ func splitValue(value string) []string {
 	return values
 }
 
-// splitCompilerFlags parses the value of a compiler/linker flag directive
-// (go_gc_goopts, go_copts, ...) into a list of flags. Flags may be separated by
-// commas and/or whitespace, so "# gazelle:go_gc_goopts -N -l" and
-// "# gazelle:go_gc_goopts -N,-l" both yield ["-N", "-l"]. An empty value resets
-// the directive, returning nil.
-func splitCompilerFlags(value string) []string {
-	fields := strings.FieldsFunc(value, func(r rune) bool {
-		return r == ',' || unicode.IsSpace(r)
-	})
-	if len(fields) == 0 {
+// appendCompilerFlags parses the value of a compiler/linker flag directive
+// (go_gc_goopts, go_copts, ...) and appends the flags to flags. Flags are
+// separated by whitespace, and may be quoted to include spaces, e.g.
+// '# gazelle:go_gc_goopts -N -l' yields ["-N", "-l"]. Commas are not
+// separators, so flags that contain commas such as "-Wl,-rpath,/libs" are
+// preserved. Multiple directives with the same key accumulate; an empty value
+// resets the list to nil. On a parse error the flags are left unchanged.
+func appendCompilerFlags(flags []string, value string) []string {
+	if value == "" {
 		return nil
 	}
-	return fields
+	fields, err := splitQuoted(value)
+	if err != nil {
+		log.Print(err)
+		return flags
+	}
+	return append(flags, fields...)
 }
 
 // findRulesGoVersion attempts to infer the version of io_bazel_rules_go.

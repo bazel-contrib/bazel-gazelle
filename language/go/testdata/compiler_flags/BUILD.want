@@ -6,6 +6,7 @@ go_library(
     _gazelle_imports = [],
     cgo = True,
     clinkopts = [
+        "-Wl,--as-needed",
         "-lfromsrc",
         "-lm",
     ],
