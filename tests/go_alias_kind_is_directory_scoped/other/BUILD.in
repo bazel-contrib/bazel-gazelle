@@ -1,0 +1,11 @@
+# gazelle:prefix example.com/other
+# gazelle:go_naming_convention go_default_library
+load("//custom:def.bzl", "my_custom_macro")
+
+my_custom_macro(
+    name = "go_default_library",
+    srcs = ["file.go"],
+    importpath = "example.com/other",
+    visibility = ["//visibility:public"],
+    deps = ["//should/not:be_touched"],
+)
