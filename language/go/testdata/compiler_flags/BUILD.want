@@ -1,0 +1,40 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "compiler_flags",
+    srcs = ["foo.go"],
+    _gazelle_imports = [],
+    cgo = True,
+    clinkopts = [
+        "-lfromsrc",
+        "-lm",
+    ],
+    copts = [
+        "-DBAR",
+        "-DFOO",
+        "-DFROM_SRC",
+    ],
+    cppopts = ["-DQUX"],
+    cxxopts = ["-std=c++17"],
+    gc_goopts = [
+        "-N",
+        "-l",
+    ],
+    importpath = "example.com/repo/compiler_flags",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "compiler_flags_test",
+    srcs = ["foo_test.go"],
+    _gazelle_imports = ["testing"],
+    embed = [":compiler_flags"],
+    gc_goopts = [
+        "-N",
+        "-l",
+    ],
+    gc_linkopts = [
+        "-s",
+        "-w",
+    ],
+)

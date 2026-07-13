@@ -145,6 +145,89 @@ func TestDirectives(t *testing.T) {
 	}
 }
 
+func TestSplitCompilerFlags(t *testing.T) {
+	for _, tc := range []struct {
+		desc, value string
+		want        []string
+	}{
+		{desc: "space separated", value: "-N -l", want: []string{"-N", "-l"}},
+		{desc: "comma separated", value: "-N,-l", want: []string{"-N", "-l"}},
+		{desc: "mixed with extra whitespace", value: "\t -N , -l  -m\t", want: []string{"-N", "-l", "-m"}},
+		{desc: "single flag", value: "-l", want: []string{"-l"}},
+		{desc: "empty resets to nil", value: "   ", want: nil},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			if diff := cmp.Diff(tc.want, splitCompilerFlags(tc.value)); diff != "" {
+				t.Errorf("(-want, +got): %s", diff)
+			}
+		})
+	}
+}
+
+func TestCompilerFlagDirectives(t *testing.T) {
+	c, _, cexts := testConfig(t)
+	content := []byte(`
+# gazelle:go_gc_goopts -N -l
+# gazelle:go_gc_linkopts -s -w
+# gazelle:go_copts -DFOO,-DBAR
+# gazelle:go_cppopts -Iinclude
+# gazelle:go_cxxopts -std=c++17
+# gazelle:go_clinkopts -lm
+`)
+	f, err := rule.LoadData(filepath.FromSlash("test/BUILD.bazel"), "test", content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cext := range cexts {
+		cext.Configure(c, "test", f)
+	}
+	gc := getGoConfig(c)
+	for _, tc := range []struct {
+		name string
+		got  []string
+		want []string
+	}{
+		{"gc_goopts", gc.gcGoopts, []string{"-N", "-l"}},
+		{"gc_linkopts", gc.gcLinkopts, []string{"-s", "-w"}},
+		{"copts", gc.copts, []string{"-DFOO", "-DBAR"}},
+		{"cppopts", gc.cppopts, []string{"-Iinclude"}},
+		{"cxxopts", gc.cxxopts, []string{"-std=c++17"}},
+		{"clinkopts", gc.clinkopts, []string{"-lm"}},
+	} {
+		if diff := cmp.Diff(tc.want, tc.got); diff != "" {
+			t.Errorf("%s after set (-want, +got): %s", tc.name, diff)
+		}
+	}
+
+	// A child directory inherits the parent's values.
+	cf, err := rule.LoadData(filepath.FromSlash("test/child/BUILD.bazel"), "test/child", []byte(``))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cext := range cexts {
+		cext.Configure(c, "test/child", cf)
+	}
+	if diff := cmp.Diff([]string{"-N", "-l"}, getGoConfig(c).gcGoopts); diff != "" {
+		t.Errorf("child inherit gc_goopts (-want, +got): %s", diff)
+	}
+
+	// An empty value resets a directive without touching the others.
+	sf, err := rule.LoadData(filepath.FromSlash("test/sub/BUILD.bazel"), "test/sub", []byte("\n# gazelle:go_gc_goopts\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cext := range cexts {
+		cext.Configure(c, "test/sub", sf)
+	}
+	gc = getGoConfig(c)
+	if diff := cmp.Diff([]string(nil), gc.gcGoopts); diff != "" {
+		t.Errorf("gc_goopts after reset (-want, +got): %s", diff)
+	}
+	if diff := cmp.Diff([]string{"-s", "-w"}, gc.gcLinkopts); diff != "" {
+		t.Errorf("gc_linkopts should survive gc_goopts reset (-want, +got): %s", diff)
+	}
+}
+
 func TestVendorConfig(t *testing.T) {
 	c, _, cexts := testConfig(t)
 	gc := getGoConfig(c)
