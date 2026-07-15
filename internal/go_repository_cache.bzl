@@ -57,7 +57,11 @@ def _go_repository_cache_impl(ctx):
             fail("GOCACHE must be set when GO_REPOSITORY_USE_HOST_CACHE is enabled.")
 
     cache_env = {
-        "GOROOT": go_root,
+        # Record the SDK repo's ROOT file as a label rather than an absolute
+        # path so that consumers are forced to add a dependency on the Go SDK.
+        # This avoids a class of staleness issues, both with and without repo
+        # content caches.
+        "GOROOT": str(go_sdk_label),
         "GOCACHE": go_cache,
 
         # Since Go v1.21.0, set GOTOOLCHAIN to "local" to use the current toolchain
@@ -118,6 +122,11 @@ def read_cache_env(ctx, path):
         if sep == "":
             fail("failed to parse cache environment")
         env[k] = v.strip("'")
+
+    # Resolve the GOROOT label (see _go_repository_cache_impl) to an absolute
+    # path and register a dependency by doing so.
+    if env.get("GOROOT"):
+        env["GOROOT"] = str(ctx.path(Label(env["GOROOT"])).dirname)
     return env
 
 # copied from rules_go. Keep in sync.
