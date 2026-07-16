@@ -1,0 +1,7 @@
+# gazelle:go_gc_goopts -N -l
+# gazelle:go_gc_linkopts -s -w
+# gazelle:go_copts -DFOO -DBAR
+# gazelle:go_cppopts -DQUX
+# gazelle:go_cxxopts -std=c++17
+# gazelle:go_clinkopts -lm
+# gazelle:go_clinkopts -Wl,--as-needed

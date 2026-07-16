@@ -797,6 +797,30 @@ func (g *generator) maybeGenerateExtraLib(lib *rule.Rule, pkg *goPackage) *rule.
 }
 
 func (g *generator) setCommonAttrs(r *rule.Rule, pkgRel string, visibility []string, target goTarget, embeds []string) {
+	gc := getGoConfig(g.c)
+	linksBinary := r.Kind() == "go_binary" || r.Kind() == "go_test"
+
+	// Merge directive-provided C compiler/linker flags into the flags Gazelle
+	// derived from #cgo comments. These attributes only apply to cgo targets,
+	// which in practice means go_library: cgo is not allowed in _test.go files,
+	// and a cgo main is generated as a cgo go_library plus a go_binary that
+	// embeds it. Injecting the flags as generic strings before build() lets the
+	// existing emission below deduplicate and platform-merge them uniformly.
+	if target.cgo {
+		for _, opt := range gc.copts {
+			target.copts.addGenericString(opt)
+		}
+		for _, opt := range gc.cppopts {
+			target.cppopts.addGenericString(opt)
+		}
+		for _, opt := range gc.cxxopts {
+			target.cxxopts.addGenericString(opt)
+		}
+		for _, opt := range gc.clinkopts {
+			target.clinkopts.addGenericString(opt)
+		}
+	}
+
 	if !target.sources.isEmpty() {
 		r.SetAttr("srcs", target.sources.buildFlat())
 	}
@@ -820,6 +844,17 @@ func (g *generator) setCommonAttrs(r *rule.Rule, pkgRel string, visibility []str
 	}
 	if !target.cxxopts.isEmpty() {
 		r.SetAttr("cxxopts", g.options(target.cxxopts.build(), pkgRel))
+	}
+	// Go compiler / linker flags. Unlike the C flags above these are not derived
+	// from source, so they are set directly from the directive. gc_goopts affects
+	// compilation, so it is only set on rules that carry sources (e.g. not on a
+	// go_binary that merely embeds a library). gc_linkopts affects linking, so it
+	// is only set on rules that link a binary (go_binary, go_test).
+	if len(gc.gcGoopts) > 0 && !target.sources.isEmpty() {
+		r.SetAttr("gc_goopts", gc.gcGoopts)
+	}
+	if linksBinary && len(gc.gcLinkopts) > 0 {
+		r.SetAttr("gc_linkopts", gc.gcLinkopts)
 	}
 	if g.shouldSetVisibility && len(visibility) > 0 {
 		r.SetAttr("visibility", visibility)
