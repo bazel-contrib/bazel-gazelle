@@ -156,8 +156,8 @@ includes the proto package name, as well as source names, imports, and options.
 [//language/go:go_default_library]: https://github.com/bazelbuild/bazel-gazelle/tree/master/language/go
 [//language/proto:go_default_library]: https://github.com/bazelbuild/bazel-gazelle/tree/master/language/proto
 [gazelle]: https://github.com/bazelbuild/bazel-gazelle#bazel-rule
-[go_binary]: https://github.com/bazelbuild/rules_go/blob/master/go/core.rst#go-binary
-[go_library]: https://github.com/bazelbuild/rules_go/blob/master/go/core.rst#go-library
+[go_binary]: https://github.com/bazel-contrib/rules_go/blob/master/go/core.rst#go-binary
+[go_library]: https://github.com/bazel-contrib/rules_go/blob/master/go/core.rst#go-library
 [proto godoc]: https://godoc.org/github.com/bazelbuild/bazel-gazelle/language/proto
 [proto.GetProtoConfig]: https://godoc.org/github.com/bazelbuild/bazel-gazelle/language/proto#GetProtoConfig
 [proto.Package]: https://godoc.org/github.com/bazelbuild/bazel-gazelle/language/proto#Package
