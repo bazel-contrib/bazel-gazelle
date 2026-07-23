@@ -7,8 +7,8 @@ set -o errexit -o nounset -o pipefail
 TAG=${GITHUB_REF_NAME}
 # The prefix is chosen to match what GitHub generates for source archives
 PREFIX="bazel-gazelle-${TAG:1}"
-ARCHIVE="bazel-gazelle-$TAG.tzst"
-git archive --format=tar "${TAG}" | zstd >"$ARCHIVE"
+ARCHIVE="bazel-gazelle-$TAG.tar.gz"
+git archive --format=tar "${TAG}" | gzip >"$ARCHIVE"
 SHA=$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')
 
 cat << EOF
