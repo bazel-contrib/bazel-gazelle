@@ -34,7 +34,7 @@ Tells Gazelle how to generate rules for _test.go files. Valid values are:
 
 **Directive:** `# gazelle:go_grpc_compilers compiler1,compiler2,...`<br>
 **Default:** `@io_bazel_rules_go//proto:go_proto,@io_bazel_rules_go//proto:go_grpc_v2`<br>
-The protocol buffers compiler(s) to use for building go bindings for gRPC. Multiple compilers, separated by commas, may be specified. Omit the directive value to reset `go_grpc_compilers` back to the default. See [Predefined plugins](https://github.com/bazelbuild/rules_go/blob/master/proto/core.rst#predefined-plugins) for available options; commonly used options include `@io_bazel_rules_go//proto:gofast_grpc` and `@io_bazel_rules_go//proto:gogofaster_grpc`.
+The protocol buffers compiler(s) to use for building go bindings for gRPC. Multiple compilers, separated by commas, may be specified. Omit the directive value to reset `go_grpc_compilers` back to the default. See [Predefined plugins](https://github.com/bazel-contrib/rules_go/blob/master/proto/core.rst#predefined-plugins) for available options; commonly used options include `@io_bazel_rules_go//proto:gofast_grpc` and `@io_bazel_rules_go//proto:gogofaster_grpc`.
 
 **Directive:** `# gazelle:go_gc_goopts flag1 flag2 ...`<br>
 **Default:** n/a<br>
@@ -69,7 +69,7 @@ Controls the default naming convention used when resolving libraries in external
 
 **Directive:** `# gazelle:go_proto_compilers`<br>
 **Default:** `@io_bazel_rules_go//proto:go_proto`<br>
-The protocol buffers compiler(s) to use for building go bindings. Multiple compilers, separated by commas, may be specified. Omit the directive value to reset `go_proto_compilers` back to the default. See [Predefined plugins](https://github.com/bazelbuild/rules_go/blob/master/proto/core.rst#predefined-plugins) for available options; commonly used options include `@io_bazel_rules_go//proto:gofast_proto` and `@io_bazel_rules_go//proto:gogofaster_proto`.
+The protocol buffers compiler(s) to use for building go bindings. Multiple compilers, separated by commas, may be specified. Omit the directive value to reset `go_proto_compilers` back to the default. See [Predefined plugins](https://github.com/bazel-contrib/rules_go/blob/master/proto/core.rst#predefined-plugins) for available options; commonly used options include `@io_bazel_rules_go//proto:gofast_proto` and `@io_bazel_rules_go//proto:gogofaster_proto`.
 
 **Directive:** `# gazelle:importpath_prefix`<br>
 **Default:** see below<br>
@@ -97,7 +97,7 @@ Determines how Gazelle resolves Go import paths that cannot be resolved in the c
 
 **Flag:** `-go_grpc_compiler=label`<br>
 **Default:** `@io_bazel_rules_go//proto:go_proto,@io_bazel_rules_go//proto:go_grpc_v2`<br>
-The protocol buffers compiler to use for building go bindings for gRPC. May be repeated. See [Predefined plugins](https://github.com/bazelbuild/rules_go/blob/master/proto/core.rst#predefined-plugins) for available options; commonly used options include `@io_bazel_rules_go//proto:gofast_grpc` and `@io_bazel_rules_go//proto:gogofaster_grpc`.
+The protocol buffers compiler to use for building go bindings for gRPC. May be repeated. See [Predefined plugins](https://github.com/bazel-contrib/rules_go/blob/master/proto/core.rst#predefined-plugins) for available options; commonly used options include `@io_bazel_rules_go//proto:gofast_grpc` and `@io_bazel_rules_go//proto:gogofaster_grpc`.
 
 **Flag:** `-go_naming_convention`<br>
 **Default:** inferred<br>
@@ -113,7 +113,7 @@ A prefix of import paths for Go libraries in the repository that corresponds to 
 
 **Flag:** `-go_proto_compiler=label`<br>
 **Default:** `@io_bazel_rules_go//proto:go_proto`<br>
-The protocol buffers compiler to use for building go bindings. May be repeated. See [Predefined plugins](https://github.com/bazelbuild/rules_go/blob/master/proto/core.rst#predefined-plugins) for available options; commonly used options include `@io_bazel_rules_go//proto:gofast_proto` and `@io_bazel_rules_go//proto:gogofaster_proto`.
+The protocol buffers compiler to use for building go bindings. May be repeated. See [Predefined plugins](https://github.com/bazel-contrib/rules_go/blob/master/proto/core.rst#predefined-plugins) for available options; commonly used options include `@io_bazel_rules_go//proto:gofast_proto` and `@io_bazel_rules_go//proto:gogofaster_proto`.
 
 **Flag:** `-known_import=example.com`<br>
 **Default:** n/a<br>
@@ -125,7 +125,7 @@ When Gazelle resolves an import path to an external dependency, it attempts to d
 
 The `update-repos` command updates repository rules.  It can write the rules to either the WORKSPACE (by default) or a .bzl file macro function.  It can be used to add new repository rules or update existing rules to the specified version. It can also import repository rules from a `go.mod` or a `go.work` file.
 
-WARNING: This command is mainly used for managing external Go dependencies in Bazel's WORKSPACE mode. For managing external Go dependencies in Bazel's BzlMod mode, please check: https://github.com/bazelbuild/rules_go/blob/master/docs/go/core/bzlmod.md#external-dependencies
+WARNING: This command is mainly used for managing external Go dependencies in Bazel's WORKSPACE mode. For managing external Go dependencies in Bazel's BzlMod mode, please check: https://github.com/bazel-contrib/rules_go/blob/master/docs/go/core/bzlmod.md#external-dependencies
 
 ```bash
 # Add or update a repository to latest version by import path
