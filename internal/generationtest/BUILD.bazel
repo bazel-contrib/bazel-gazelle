@@ -26,7 +26,7 @@ go_library(
     srcs = ["generation_test.go"],
     visibility = ["//visibility:public"],
     deps = [
-        "//testtools",
+        "//v2/testtools",
         "@io_bazel_rules_go//go/runfiles",
     ],
 )
