@@ -61,6 +61,9 @@ type fileInfo struct {
 	// name ends with "_test"
 	isExternalTest bool
 
+	// hasBenchmarkTests is true if the file contains benchmark tests.
+	hasBenchmarkTests bool
+
 	// imports is a list of packages imported by a file. It does not include
 	// "C" or anything from the standard library.
 	imports []string
@@ -235,6 +238,7 @@ func otherFileInfo(path string) fileInfo {
 func goFileInfo(path, srcdir string) fileInfo {
 	info := fileNameInfo(path)
 	fset := token.NewFileSet()
+	// parse the file for imports and comments (for CGO)
 	pf, err := parser.ParseFile(fset, info.path, nil, parser.ImportsOnly|parser.ParseComments)
 	if err != nil {
 		log.Printf("%s: error reading go file: %v", info.path, err)
@@ -295,8 +299,8 @@ func goFileInfo(path, srcdir string) fileInfo {
 	}
 	info.tags = tags
 
-	if importsEmbed || info.packageName == "main" {
-		pf, err = parser.ParseFile(fset, info.path, nil, parser.ParseComments)
+	if importsEmbed || info.packageName == "main" || info.isTest {
+		pf, err = parser.ParseFile(fset, info.path, nil, parser.ParseComments|parser.SkipObjectResolution)
 		if err != nil {
 			log.Printf("%s: error reading go file: %v", info.path, err)
 			return info
@@ -326,6 +330,27 @@ func goFileInfo(path, srcdir string) fileInfo {
 			if fdecl, ok := decl.(*ast.FuncDecl); ok {
 				if fdecl.Name.Name == "main" {
 					info.hasMainFunction = true
+					break
+				}
+			}
+		}
+		if info.isTest {
+			for _, decl := range pf.Decls {
+				fdecl, ok := decl.(*ast.FuncDecl)
+				if !ok || !strings.HasPrefix(fdecl.Name.Name, "Benchmark") || fdecl.Type.Params.NumFields() != 1 {
+					continue
+				}
+				// validate that the only param is of type *testing.B
+				starExpr, ok := fdecl.Type.Params.List[0].Type.(*ast.StarExpr)
+				if !ok {
+					continue
+				}
+				selector, ok := starExpr.X.(*ast.SelectorExpr)
+				if !ok || selector.Sel.String() != "B" {
+					continue
+				}
+				if pkgIdent, ok := selector.X.(*ast.Ident); ok && pkgIdent.Name == "testing" {
+					info.hasBenchmarkTests = true
 					break
 				}
 			}
