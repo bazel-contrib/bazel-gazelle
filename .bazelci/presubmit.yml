@@ -65,6 +65,14 @@ tasks:
     - "..."
     - "-//internal:bazel_test"
     - "-//cmd/gazelle:gazelle_test"
+  ubuntu2204_bzlmod_race:
+    name: Ubuntu 22.04 with Bzlmod and race detector
+    platform: ubuntu2204
+    build_flags:
+    - "--enable_bzlmod"
+    - "--@io_bazel_rules_go//go/config:race"
+    build_targets:
+    - "//language/go:std_package_list"
   bcr_tests:
     # Keep in sync with .bcr/presubmit.yml
     name: BCR test module
