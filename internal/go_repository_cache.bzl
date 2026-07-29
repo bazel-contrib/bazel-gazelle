@@ -36,8 +36,8 @@ def _go_repository_cache_impl(ctx):
     go_sdk_label = Label("@" + go_sdk_name + "//:ROOT")
 
     go_root = str(ctx.path(go_sdk_label).dirname)
-    go_path = str(ctx.path("."))
-    go_cache = str(ctx.path("gocache"))
+    go_path = ""  # default: the cache repo itself; recomputed by read_cache_env()
+    go_cache = ""  # default: <cache repo>/gocache; recomputed by read_cache_env()
     go_mod_cache = ""
     if getenv(ctx, "GO_REPOSITORY_USE_HOST_MODCACHE") == "1":
         extension = executable_extension(ctx)
@@ -62,7 +62,6 @@ def _go_repository_cache_impl(ctx):
         # This avoids a class of staleness issues, both with and without repo
         # content caches.
         "GOROOT": str(go_sdk_label),
-        "GOCACHE": go_cache,
 
         # Since Go v1.21.0, set GOTOOLCHAIN to "local" to use the current toolchain
         # of the Go SDK. This is required to avoid `go mod download` commands
@@ -76,6 +75,8 @@ def _go_repository_cache_impl(ctx):
     }
     if go_path:
         cache_env["GOPATH"] = go_path
+    if go_cache:
+        cache_env["GOCACHE"] = go_cache
     if go_mod_cache:
         cache_env["GOMODCACHE"] = go_mod_cache
 
@@ -83,7 +84,7 @@ def _go_repository_cache_impl(ctx):
         ctx,
         direct = ctx.attr.go_env,
         inherit = ctx.attr.go_env_inherit,
-        reserved = cache_env.keys(),
+        reserved = cache_env.keys() + ["GOCACHE", "GOPATH"],
     ))
     env_content = "\n".join(["{k}='{v}'\n".format(k = k, v = v) for k, v in cache_env.items()])
 
@@ -127,6 +128,9 @@ def read_cache_env(ctx, path):
     # path and register a dependency by doing so.
     if env.get("GOROOT"):
         env["GOROOT"] = str(ctx.path(Label(env["GOROOT"])).dirname)
+    cache_dir = str(ctx.path(path).dirname)
+    env.setdefault("GOPATH", cache_dir)
+    env.setdefault("GOCACHE", cache_dir + "/gocache")
     return env
 
 # copied from rules_go. Keep in sync.
