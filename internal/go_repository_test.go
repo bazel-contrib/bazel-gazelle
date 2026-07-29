@@ -262,6 +262,25 @@ func TestRepoCacheContainsGoEnv(t *testing.T) {
 		}
 	}
 
+	// The cache env must stay relocatable so that vendoring across users can use said go.env.
+	for _, line := range strings.Split(string(gotBytes), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, found := strings.Cut(line, "=")
+		if !found {
+			t.Fatalf("malformed go.env line %q", line)
+		}
+		value = strings.Trim(value, "'")
+		if filepath.IsAbs(value) {
+			t.Errorf("go.env: %s=%s is an absolute path; go.env must be relocatable", key, value)
+		}
+		if strings.Contains(value, outputBase) {
+			t.Errorf("go.env: %s=%s references the output base; go.env must be relocatable", key, value)
+		}
+	}
+
 	goEnvBzlPath := filepath.Join(outputBase, "external/bazel_gazelle_go_repository_config", "go_env.bzl")
 	goEnvBzl, err := os.ReadFile(goEnvBzlPath)
 	if err != nil {
