@@ -34,7 +34,7 @@ load(
 )
 load(
     "//internal:gazelle_binary.bzl",
-    _gazelle_binary = "gazelle_binary_wrapper",
+    _gazelle_binary = "gazelle_binary",
 )
 load(
     "//internal:go_repository.bzl",
