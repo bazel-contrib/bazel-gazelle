@@ -22,8 +22,10 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
 )
 
-var languages = []language.Language{
-	visibility.NewLanguage(),
-	proto.NewLanguage(),
-	golang.NewLanguage(),
+func init() {
+	languages = []language.Language{
+		visibility.NewLanguage(),
+		proto.NewLanguage(),
+		golang.NewLanguage(),
+	}
 }

@@ -34,15 +34,17 @@ import (
 	{lang_imports}
 )
 
-var languages = []language.Language{{
-	{lang_calls},
+func init() {{
+	languages = []language.Language{{
+		{lang_calls},
+	}}
 }}
 """
     lang_imports = [format_import(d[GoArchive].data.importpath) for d in ctx.attr.languages]
     lang_calls = [format_call(d[GoArchive].data.importpath) for d in ctx.attr.languages]
     langs_content = langs_content_tpl.format(
         lang_imports = "\n\t".join(lang_imports),
-        lang_calls = ",\n\t".join(lang_calls),
+        lang_calls = ",\n\t\t".join(lang_calls),
     )
     ctx.actions.write(langs_file, langs_content)
     return DefaultInfo(files = depset([langs_file]))

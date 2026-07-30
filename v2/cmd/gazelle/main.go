@@ -25,7 +25,10 @@ import (
 	"os/signal"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update"
+	"github.com/bazelbuild/bazel-gazelle/language"
 )
+
+var languages []language.Language
 
 func main() {
 	log.SetPrefix("gazelle: ")

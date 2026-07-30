@@ -31,16 +31,19 @@ gazelle(<a href="#gazelle-name">name</a>, <a href="#gazelle-testonly">testonly</
 <pre>
 load("@gazelle//:def.bzl", "gazelle_binary")
 
-gazelle_binary(<a href="#gazelle_binary-kwargs">**kwargs</a>)
+gazelle_binary(<a href="#gazelle_binary-name">name</a>, <a href="#gazelle_binary-languages">languages</a>, <a href="#gazelle_binary-version">version</a>, <a href="#gazelle_binary-kwargs">**kwargs</a>)
 </pre>
 
-
+Builds a Gazelle binary with the requested language extensions.
 
 **PARAMETERS**
 
 
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
+| name |  <p> - </p>   |  none |
+| languages |  <p> - </p>   |  none |
+| version |  <p> - </p>   |  `0` |
 | <a id="gazelle_binary-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
 
 
@@ -321,5 +324,4 @@ http_archive(
 | <a id="http_archive-strip_prefix"></a>strip_prefix |  A directory prefix to strip. See [http_archive.strip_prefix].   | String | optional |  `""`  |
 | <a id="http_archive-type"></a>type |  One of `"zip"`, `"tar.gz"`, `"tgz"`, `"tar.bz2"`, `"tar.xz"`.<br><br>The file format of the repository archive. This is normally inferred from the downloaded file name.   | String | optional |  `""`  |
 | <a id="http_archive-urls"></a>urls |  A list of HTTP(S) URLs where the project can be downloaded. Bazel will attempt to download the first URL; the others are mirrors.   | List of strings | optional |  `[]`  |
-
 

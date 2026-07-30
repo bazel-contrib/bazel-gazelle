@@ -30,6 +30,8 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/language"
 )
 
+var languages []language.Language
+
 type command int
 
 const (
