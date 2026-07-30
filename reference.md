@@ -31,16 +31,19 @@ gazelle(<a href="#gazelle-name">name</a>, <a href="#gazelle-testonly">testonly</
 <pre>
 load("@gazelle//:def.bzl", "gazelle_binary")
 
-gazelle_binary(<a href="#gazelle_binary-kwargs">**kwargs</a>)
+gazelle_binary(<a href="#gazelle_binary-name">name</a>, <a href="#gazelle_binary-languages">languages</a>, <a href="#gazelle_binary-version">version</a>, <a href="#gazelle_binary-kwargs">**kwargs</a>)
 </pre>
 
-
+Builds a Gazelle binary with the requested language extensions.
 
 **PARAMETERS**
 
 
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
+| <a id="gazelle_binary-name"></a>name |  <p align="center"> - </p>   |  none |
+| <a id="gazelle_binary-languages"></a>languages |  <p align="center"> - </p>   |  none |
+| <a id="gazelle_binary-version"></a>version |  <p align="center"> - </p>   |  `0` |
 | <a id="gazelle_binary-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
 
 
