@@ -41,9 +41,9 @@ Builds a Gazelle binary with the requested language extensions.
 
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
-| name |  <p> - </p>   |  none |
-| languages |  <p> - </p>   |  none |
-| version |  <p> - </p>   |  `0` |
+| <a id="gazelle_binary-name"></a>name |  <p align="center"> - </p>   |  none |
+| <a id="gazelle_binary-languages"></a>languages |  <p align="center"> - </p>   |  none |
+| <a id="gazelle_binary-version"></a>version |  <p align="center"> - </p>   |  `0` |
 | <a id="gazelle_binary-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
 
 
