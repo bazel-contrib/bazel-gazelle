@@ -325,3 +325,4 @@ http_archive(
 | <a id="http_archive-type"></a>type |  One of `"zip"`, `"tar.gz"`, `"tgz"`, `"tar.bz2"`, `"tar.xz"`.<br><br>The file format of the repository archive. This is normally inferred from the downloaded file name.   | String | optional |  `""`  |
 | <a id="http_archive-urls"></a>urls |  A list of HTTP(S) URLs where the project can be downloaded. Bazel will attempt to download the first URL; the others are mirrors.   | List of strings | optional |  `[]`  |
 
+
