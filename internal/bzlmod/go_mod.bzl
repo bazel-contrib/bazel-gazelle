@@ -464,6 +464,9 @@ def parse_go_sum(content):
     hashes = {}
     saw_git_conflict = False
     for line in content.splitlines():
+        if not line:
+            continue
+
         # Merge conflicts in go.sum files can be solved by taking the union of
         # the entries, so we simply ignore the conflict markers and keep
         # going. This ensures that the build doesn't fail due to missing
