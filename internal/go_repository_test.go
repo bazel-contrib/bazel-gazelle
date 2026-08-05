@@ -220,23 +220,18 @@ go_repository(
 	})
 }
 
-func TestModcacheRW(t *testing.T) {
+func TestEphemeralGoModCache(t *testing.T) {
 	if err := bazel_testing.RunBazel("query", "--enable_workspace", "@errors_go_mod//:go_default_library"); err != nil {
 		t.Fatal(err)
 	}
-	out, err := bazel_testing.BazelOutput("info", "output_base")
+	outputBase, err := getBazelOutputBase()
 	if err != nil {
 		t.Fatal(err)
 	}
-	outputBase := strings.TrimSpace(string(out))
-	dir := filepath.Join(outputBase, "external/bazel_gazelle_go_repository_cache/pkg/mod/github.com/pkg/errors@v0.8.1")
-	info, err := os.Stat(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Mode()&0o200 == 0 {
-		t.Fatal("module cache is read-only")
-	}
+	testtools.CheckFiles(t, outputBase, []testtools.FileSpec{
+		{Path: "external/bazel_gazelle_go_repository_cache/pkg/mod/github.com/pkg/errors@v0.8.1", NotExist: true},
+		{Path: "external/errors_go_mod/_gomodcache_tmp", NotExist: true},
+	})
 }
 
 func TestRepoCacheContainsGoEnv(t *testing.T) {

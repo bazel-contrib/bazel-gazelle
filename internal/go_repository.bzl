@@ -288,12 +288,25 @@ def _go_repository_impl(ctx):
     # Override external GO111MODULE, because it is needed by module mode, no-op in repository mode
     fetch_repo_env["GO111MODULE"] = "on"
 
+    # fetch_repo consumes GOMODCACHE immediately and nothing downstream reads it,
+    # so scope it to a per-invocation tempdir instead of the shared cache repo,
+    # which otherwise grows unbounded. Skip if the user opted into a host cache
+    # (surfaces as GOMODCACHE already set). See #2292.
+    ephemeral_modcache = None
+    if ctx.attr.version and "GOMODCACHE" not in env:
+        ephemeral_modcache = ctx.path("_gomodcache_tmp")
+        fetch_repo_env["GOMODCACHE"] = str(ephemeral_modcache)
+
     result = env_execute(
         ctx,
         [fetch_repo] + fetch_repo_args,
         environment = fetch_repo_env,
         timeout = _GO_REPOSITORY_TIMEOUT,
     )
+
+    if ephemeral_modcache != None:
+        ctx.delete(ephemeral_modcache)
+
     if result.return_code:
         fail("%s: %s" % (ctx.name, result.stderr))
 
