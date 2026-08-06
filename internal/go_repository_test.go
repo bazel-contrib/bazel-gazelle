@@ -220,18 +220,127 @@ go_repository(
 	})
 }
 
-func TestEphemeralGoModCache(t *testing.T) {
-	if err := bazel_testing.RunBazel("query", "--enable_workspace", "@errors_go_mod//:go_default_library"); err != nil {
-		t.Fatal(err)
-	}
+func TestGoModCacheModes(t *testing.T) {
+	const (
+		repo       = "errors_go_mod"
+		importpath = "github.com/pkg/errors"
+		version    = "v0.8.1"
+		target     = "@errors_go_mod//:go_default_library"
+	)
 	outputBase, err := getBazelOutputBase()
 	if err != nil {
 		t.Fatal(err)
 	}
-	testtools.CheckFiles(t, outputBase, []testtools.FileSpec{
-		{Path: "external/bazel_gazelle_go_repository_cache/pkg/mod/github.com/pkg/errors@v0.8.1", NotExist: true},
-		{Path: "external/errors_go_mod/_gomodcache_tmp", NotExist: true},
-	})
+	sharedModcache := filepath.Join(outputBase, "external/bazel_gazelle_go_repository_cache/pkg/mod")
+
+	cases := []struct {
+		name        string
+		extraArgs   []string
+		wantTree    bool
+		wantArchive bool
+	}{
+		{
+			name: "default",
+			// Explicit "0" (vs unset) invalidates Bazel's repo cache so the
+			// pre-clean's removal of shared-cache state gets repopulated.
+			extraArgs:   []string{"--repo_env=GO_REPOSITORY_EPHEMERAL_MODCACHE=0"},
+			wantTree:    false,
+			wantArchive: true,
+		},
+		{
+			name:        "ephemeral",
+			extraArgs:   []string{"--repo_env=GO_REPOSITORY_EPHEMERAL_MODCACHE=1"},
+			wantTree:    false,
+			wantArchive: false,
+		},
+		{
+			name: "host_modcache",
+			extraArgs: []string{
+				"--repo_env=GO_REPOSITORY_USE_HOST_MODCACHE=1",
+				"--repo_env=GOMODCACHE=" + t.TempDir(),
+			},
+			wantTree:    true,
+			wantArchive: true,
+		},
+		{
+			name: "host_cache",
+			extraArgs: []string{
+				"--repo_env=GO_REPOSITORY_USE_HOST_CACHE=1",
+				"--repo_env=GOMODCACHE=" + t.TempDir(),
+				"--repo_env=GOCACHE=" + t.TempDir(),
+			},
+			wantTree:    true,
+			wantArchive: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Clear any prior write to the shared cache from another subtest so
+			// each case observes only its own fetch.
+			for _, p := range []string{
+				filepath.Join(sharedModcache, importpath+"@"+version),
+				filepath.Join(sharedModcache, "cache/download", importpath),
+			} {
+				if err := os.RemoveAll(p); err != nil {
+					t.Fatalf("pre-clean %s: %v", p, err)
+				}
+			}
+
+			// If the case overrides GOMODCACHE via --repo_env, that's where the
+			// tree/archive should end up; otherwise the shared cache.
+			modcache := sharedModcache
+			for _, arg := range tc.extraArgs {
+				if v, ok := strings.CutPrefix(arg, "--repo_env=GOMODCACHE="); ok {
+					modcache = v
+					break
+				}
+			}
+
+			args := append([]string{"query", "--enable_workspace"}, tc.extraArgs...)
+			args = append(args, target)
+
+			if err := bazel_testing.RunBazel(args...); err != nil {
+				t.Fatal(err)
+			}
+
+			treePath := filepath.Join(modcache, importpath+"@"+version)
+			_, treeErr := os.Stat(treePath)
+			switch {
+			case tc.wantTree && treeErr != nil:
+				t.Errorf("expected extracted tree at %s: %v", treePath, treeErr)
+			case !tc.wantTree && treeErr == nil:
+				t.Errorf("extracted tree at %s should not exist", treePath)
+			}
+
+			zipPath := filepath.Join(modcache, "cache/download", importpath, "@v", version+".zip")
+			zipInfo, zipErr := os.Stat(zipPath)
+			switch {
+			case tc.wantArchive && zipErr != nil:
+				t.Errorf("expected module zip at %s: %v", zipPath, zipErr)
+			case tc.wantArchive && zipInfo.Mode()&0o200 == 0:
+				t.Errorf("module zip at %s is not writable (mode %v); -modcacherw missing?", zipPath, zipInfo.Mode())
+			case !tc.wantArchive && zipErr == nil:
+				t.Errorf("module zip at %s should not exist", zipPath)
+			}
+
+			// A leaked GOMODCACHE tempdir under the repo looks like a `cache/download` subtree.
+			repoRoot := filepath.Join(outputBase, "external", repo)
+			walkErr := filepath.Walk(repoRoot, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if info.IsDir() && filepath.Base(path) == "download" && filepath.Base(filepath.Dir(path)) == "cache" {
+					t.Errorf("leaked GOMODCACHE tree: %s", path)
+					return filepath.SkipDir
+				}
+				return nil
+			})
+			if walkErr != nil {
+				t.Fatalf("walking %s: %v", repoRoot, walkErr)
+			}
+		})
+	}
 }
 
 func TestRepoCacheContainsGoEnv(t *testing.T) {
