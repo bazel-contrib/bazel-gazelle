@@ -54,7 +54,8 @@ def _mock_module_ctx(case):
 
 def _mock_module_ctx_path(case, v):
     repo_name = case.modules[0].name
-    if type(v) == "path":
+    if type(v) == "struct" and hasattr(v, "_name"):
+        # mock path, created with _mock_path. Return as-is.
         return v
     elif type(v) == "Label":
         return _mock_path(case, _label_to_path(repo_name, v))
