@@ -39,7 +39,6 @@ filegroup(
         "gazelle_binary_test.bzl",
         "go_repository.bzl",
         "go_repository_cache.bzl",
-        "go_repository_config.bzl",
         "go_repository_tools.bzl",
         "go_repository_tools_srcs.bzl",
         "is_bazel_module.bzl",
@@ -52,6 +51,7 @@ filegroup(
         "//internal/language:all_files",
         "//internal/module:all_files",
         "//internal/version:all_files",
+        "//internal/workspace:all_files",
         "//internal/wspace:all_files",
     ],
     visibility = ["//visibility:public"],
@@ -80,16 +80,6 @@ bzl_library(
     srcs = ["go_repository_cache.bzl"],
     visibility = ["//:__subpackages__"],
     deps = [":common"],
-)
-
-bzl_library(
-    name = "go_repository_config",
-    srcs = ["go_repository_config.bzl"],
-    visibility = ["//:__subpackages__"],
-    deps = [
-        ":common",
-        "//internal:go_repository_cache",
-    ],
 )
 
 bzl_library(

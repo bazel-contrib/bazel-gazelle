@@ -9,6 +9,7 @@ filegroup(
         "go_deps.bzl",
         "go_deps_test_case.bzl",
         "go_mod.bzl",
+        "go_repository_config.bzl",
         "non_module_deps.bzl",
         "semver.bzl",
         "utils.bzl",
@@ -24,6 +25,7 @@ bzl_library(
     deps = [
         ":default_gazelle_overrides",
         ":go_mod",
+        ":go_repository_config",
         ":semver",
         ":utils",
         "//internal:go_repository",
@@ -45,7 +47,6 @@ bzl_library(
     visibility = ["//:__subpackages__"],
     deps = [
         "//internal:go_repository_cache",
-        "//internal:go_repository_config",
         "//internal:go_repository_tools",
     ],
 )
@@ -73,4 +74,14 @@ bzl_library(
     name = "go_deps_test_case",
     srcs = ["go_deps_test_case.bzl"],
     visibility = ["//:__subpackages__"],
+)
+
+bzl_library(
+    name = "go_repository_config",
+    srcs = ["go_repository_config.bzl"],
+    visibility = ["//:__subpackages__"],
+    deps = [
+        ":utils",
+        "//internal:common",
+    ],
 )
