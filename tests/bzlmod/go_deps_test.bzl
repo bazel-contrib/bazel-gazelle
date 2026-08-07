@@ -1,4 +1,5 @@
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
+load("@rules_testing//lib:truth.bzl", "subjects", "truth")
 load("//internal/bzlmod:go_deps.bzl", "get_repo_name", "go_deps_impl")
 load("//tests/bzlmod/go_deps:bcr_go_mod.bzl", BCR_GO_MOD_TEST = "TEST")
 load("//tests/bzlmod/go_deps:empty.bzl", EMPTY_TEST = "TEST")
@@ -12,30 +13,31 @@ _GO_DEPS_TEST_CASES = [
     MVS_TEST,
 ]
 
+def _struct_to_dict(s):
+    return {key: getattr(s, key) for key in dir(s)}
+
 def _go_deps_test_impl(ctx):
     env = unittest.begin(ctx)
-    errors = []
+    expect = truth.expect(env)
+
     for case in _GO_DEPS_TEST_CASES:
         module_ctx = _mock_module_ctx(case)
         go_deps_impl(module_ctx)
 
-        missing_repo = False
+        case_expect = expect.where(test_case = case.name)
+        case_expect.that_collection(
+            module_ctx._repos.keys(),
+            expr = "declared repos",
+        ).contains_at_least([repo.name for repo in case.want])
+
         for want_repo in case.want:
             if want_repo.name not in module_ctx._repos:
-                errors.append("in test {}, repo '{}' was not declared".format(case.name, want_repo.name))
-                missing_repo = True
                 continue
-            got_repo = module_ctx._repos[want_repo.name]
-            for key in dir(want_repo):
-                want_value = getattr(want_repo, key)
-                got_value = getattr(got_repo, key, None)
-                if want_value != got_value:
-                    errors.append("in test {}, repo '{}', attribute '{}': want '{}', got '{}'".format(case.name, want_repo.name, key, want_value, got_value))
-        if missing_repo:
-            errors.append("The following repos were declared:")
-            errors.extend(["  " + name for name in module_ctx._repos.keys()])
-    if len(errors) > 0:
-        fail("\n".join(errors))
+            case_expect.that_value(
+                _struct_to_dict(module_ctx._repos[want_repo.name]),
+                factory = subjects.dict,
+                expr = "repo({})".format(want_repo.name),
+            ).contains_at_least(_struct_to_dict(want_repo))
 
     return unittest.end(env)
 
