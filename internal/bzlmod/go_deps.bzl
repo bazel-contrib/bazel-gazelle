@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//internal:common.bzl", "resolve_env")
 load("//internal:go_repository.bzl", "go_repository")
 load(
     ":default_gazelle_overrides.bzl",
@@ -21,12 +20,12 @@ load(
     "DEFAULT_DIRECTIVES_BY_PATH",
 )
 load(":go_mod.bzl", "deps_from_go_mod", "go_work_from_label", "sums_from_go_mod", "sums_from_go_work")
+load(":go_repository_config.bzl", "go_repository_config")
 load(":semver.bzl", "COMPARES_HIGHEST_SENTINEL", "semver")
 load(
     ":utils.bzl",
     "drop_nones",
     "extension_metadata",
-    "format_rule_call",
     "get_directive_value",
     "with_replaced_or_new_fields",
 )
@@ -285,48 +284,6 @@ def _process_archive_override(archive_override_tag):
         patch_strip = archive_override_tag.patch_strip,
         patch_cmds = archive_override_tag.patch_cmds,
     )
-
-def _go_repository_config_impl(ctx):
-    go_env = resolve_env(
-        ctx,
-        direct = ctx.attr.go_env,
-        inherit = ctx.attr.go_env_inherit,
-    )
-    repos = []
-    for name, importpath in sorted(ctx.attr.importpaths.items()):
-        repos.append(format_rule_call(
-            "go_repository",
-            name = name,
-            importpath = importpath,
-            module_name = ctx.attr.module_names.get(name),
-            build_naming_convention = ctx.attr.build_naming_conventions.get(name),
-        ))
-
-    ctx.file("WORKSPACE", "\n".join(repos))
-    ctx.file("BUILD.bazel", "exports_files(['WORKSPACE', 'config.json', 'go_env.bzl', 'go_tools.bzl'])")
-    ctx.file("go_env.bzl", content = "GO_ENV = " + repr(go_env))
-    ctx.file("go_tools.bzl", content = "GO_TOOLS = {{k: Label(v) for k, v in {}.items()}}".format(
-        repr(ctx.attr.tool_targets),
-    ))
-
-    # For use by @rules_go//go.
-    ctx.file("config.json", content = json.encode_indent({
-        "go_env": go_env,
-        "dep_files": ctx.attr.dep_files,
-    }))
-
-_go_repository_config = repository_rule(
-    implementation = _go_repository_config_impl,
-    attrs = {
-        "importpaths": attr.string_dict(mandatory = True),
-        "module_names": attr.string_dict(mandatory = True),
-        "tool_targets": attr.string_dict(mandatory = True),
-        "build_naming_conventions": attr.string_dict(mandatory = True),
-        "go_env": attr.string_dict(mandatory = True),
-        "go_env_inherit": attr.string_list(),
-        "dep_files": attr.string_list(),
-    },
-)
 
 # Only forwards proto_library since that is the only symbol that older versions of Gazelle
 # emitted a load for from @rules_proto//proto:defs.bzl.
@@ -890,7 +847,7 @@ Mismatch between versions requested for Go module {module}:
     # run generate_repo_config. Only "importpath" and "build_naming_convention"
     # are relevant.
     module_ctx.declare_repo(
-        _go_repository_config,
+        go_repository_config,
         name = "bazel_gazelle_go_repository_config",
         importpaths = {
             module.repo_name: path

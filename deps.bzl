@@ -25,16 +25,16 @@ load(
     "go_repository_cache",
 )
 load(
-    "//internal:go_repository_config.bzl",
-    "go_repository_config",
-)
-load(
     "//internal:go_repository_tools.bzl",
     "go_repository_tools",
 )
 load(
     "//internal:is_bazel_module.bzl",
     "is_bazel_module",
+)
+load(
+    "//internal/workspace:go_repository_config.bzl",
+    "go_repository_config",
 )
 
 # Re-export go_repository . Users should get it from this file.
