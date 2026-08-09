@@ -13,7 +13,7 @@
 # limitations under the License.
 
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "patch", "read_user_netrc", "use_netrc")
-load("//internal:common.bzl", "env_execute", "executable_extension", "watch")
+load("//internal:common.bzl", "env_execute", "executable_extension", "getenv", "watch")
 load("//internal:go_repository_cache.bzl", "read_cache_env")
 
 _DOC = """
@@ -21,13 +21,15 @@ _DOC = """
 if they are not already present. This is the simplest way to depend on
 external Go projects.
 
-When `go_repository` is in module mode, it saves downloaded modules in a shared,
-internal cache within Bazel's cache. It may be cleared with `bazel clean --expunge`.
-By setting the environment variable `GO_REPOSITORY_USE_HOST_CACHE=1`, you can
-force `go_repository` to use the module cache on the host system in the location
-returned by `go env GOPATH`. Alternatively, by setting the environment variable
-`GO_REPOSITORY_USE_HOST_MODCACHE=1`, you can force `go_repository` to use only
-the module cache on the host system in the location returned by `go env GOMODCACHE`.
+In module mode, `go_repository` writes to a shared internal cache that can be
+cleared with `bazel clean --expunge`. The following environment variables
+redirect that cache:
+
+- `GO_REPOSITORY_USE_HOST_CACHE=1` — use the host cache at `go env GOPATH`.
+- `GO_REPOSITORY_USE_HOST_MODCACHE=1` — use the host cache at `go env GOMODCACHE`.
+- `GO_REPOSITORY_EPHEMERAL_MODCACHE=1` — use a per-invocation tempdir; reclaims
+  disk at the cost of re-fetching modules when the repo cache is invalidated
+  (e.g. on a Gazelle upgrade).
 
 **Example**
 
@@ -288,12 +290,25 @@ def _go_repository_impl(ctx):
     # Override external GO111MODULE, because it is needed by module mode, no-op in repository mode
     fetch_repo_env["GO111MODULE"] = "on"
 
+    ephemeral_modcache = None
+    if ctx.attr.version:
+        if "GOMODCACHE" in env:
+            # Don't touch the user's host cache.
+            fetch_repo_args.append("-prune=false")
+        elif getenv(ctx, "GO_REPOSITORY_EPHEMERAL_MODCACHE") == "1":
+            ephemeral_modcache = ctx.path("_gomodcache_tmp")
+            fetch_repo_env["GOMODCACHE"] = str(ephemeral_modcache)
+
     result = env_execute(
         ctx,
         [fetch_repo] + fetch_repo_args,
         environment = fetch_repo_env,
         timeout = _GO_REPOSITORY_TIMEOUT,
     )
+
+    if ephemeral_modcache != None:
+        ctx.delete(ephemeral_modcache)
+
     if result.return_code:
         fail("%s: %s" % (ctx.name, result.stderr))
 

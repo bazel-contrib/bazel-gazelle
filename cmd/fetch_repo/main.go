@@ -47,6 +47,7 @@ var (
 	// Module flags
 	version = flag.String("version", "", "module version. Must be semantic version or pseudo-version.")
 	sum     = flag.String("sum", "", "hash of module contents")
+	prune   = flag.Bool("prune", true, "remove the extracted module tree from GOMODCACHE (the downloaded archive is retained)")
 )
 
 // Override in tests to disable network calls.
@@ -109,7 +110,7 @@ func main() {
 		if *sum == "" {
 			log.Fatal("-sum must be set in module mode")
 		}
-		if err := fetchModule(*dest, *importpath, *version, *sum); err != nil {
+		if err := fetchModule(*dest, *importpath, *version, *sum, *prune); err != nil {
 			log.Fatal(err)
 		}
 	} else {
