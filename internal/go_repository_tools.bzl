@@ -15,7 +15,7 @@
 "Module providing the go_repository_tools internal rule."
 
 load("//internal:common.bzl", "env_execute", "executable_extension", "watch")
-load("//internal:go_repository_cache.bzl", "read_cache_env")
+load("//internal:env.bzl", "read_go_env_file")
 load("//internal:go_repository_tools_srcs.bzl", "GO_REPOSITORY_TOOLS_SRCS")
 
 _GO_REPOSITORY_TOOLS_BUILD_FILE = """
@@ -43,7 +43,7 @@ def _go_repository_tools_impl(ctx):
     for src in ctx.attr._go_repository_tools_srcs:
         watch(ctx, src)
 
-    env = read_cache_env(ctx, str(ctx.path(ctx.attr.go_cache)))
+    env = read_go_env_file(ctx, ctx.attr.go_cache)
     extension = executable_extension(ctx)
     go_tool = env["GOROOT"] + "/bin/go" + extension
     watch(ctx, go_tool)

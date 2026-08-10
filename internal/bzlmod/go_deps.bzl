@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@bazel_gazelle_go_host_compatible_sdk_label//:def.bzl", "HOST_COMPATIBLE_SDK")
+load("//internal:env.bzl", "compute_env")
 load("//internal:go_repository.bzl", "go_repository")
 load(
     ":default_gazelle_overrides.bzl",
@@ -397,8 +399,8 @@ def go_deps_impl(module_ctx):
         root_module_direct_deps["bazel_gazelle_go_repository_config"] = None
 
     outdated_direct_dep_printer = print
-    go_env = {}
-    go_env_inherit = []
+    config_go_env = {}
+    config_go_env_inherit = []
     dep_files = []
     modules_from_go_work = {}
     debug_mode = False
@@ -420,8 +422,8 @@ def go_deps_impl(module_ctx):
                 outdated_direct_dep_printer = print
             elif check_direct_deps == "error":
                 outdated_direct_dep_printer = fail
-            go_env = mod_config.go_env
-            go_env_inherit = mod_config.go_env_inherit
+            config_go_env = mod_config.go_env
+            config_go_env_inherit = mod_config.go_env_inherit
             debug_mode = mod_config.debug_mode
 
         _process_overrides(module_ctx, module, "gazelle_override", gazelle_overrides, _process_gazelle_override)
@@ -612,6 +614,15 @@ def go_deps_impl(module_ctx):
     _fail_on_unmatched_overrides(archive_overrides.keys(), module_resolutions, "archive_overrides")
     _fail_on_unmatched_overrides(gazelle_overrides.keys(), module_resolutions, "gazelle_overrides")
     _fail_on_unmatched_overrides(module_overrides.keys(), module_resolutions, "module_overrides")
+
+    # Compute the environment based on the config tag and available go_sdks.
+    go_env = compute_env(
+        module_ctx,
+        # Label.repo_name is always a canonical name, so use a canonical label.
+        go_sdk_name = "@" + HOST_COMPATIBLE_SDK.repo_name,
+        go_env = config_go_env,
+        go_env_inherit = config_go_env_inherit,
+    )
 
     # All `replace` directives are applied after version resolution.
     # We can simply do this by checking the replace paths' existence
@@ -868,7 +879,6 @@ Mismatch between versions requested for Go module {module}:
             for path, module in module_resolutions.items()
         }),
         go_env = go_env,
-        go_env_inherit = go_env_inherit,
         dep_files = dep_files,
     )
 
@@ -913,11 +923,7 @@ def _canonicalize_raw_version(raw_version):
     return raw_version
 
 _config_tag = tag_class(
-    doc = """
-    Configures the general behavior of the go_deps extension.
-
-    Only the root module's config tag is used.
-    """,
+    doc = "Configures the general behavior of the go_deps extension.",
     attrs = {
         "check_direct_dependencies": attr.string(
             doc = """

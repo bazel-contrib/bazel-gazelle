@@ -34,6 +34,7 @@ filegroup(
     srcs = [
         "BUILD.bazel",
         "common.bzl",
+        "env.bzl",
         "gazelle.bash.in",
         "gazelle_binary.bzl",
         "gazelle_binary_test.bzl",
@@ -79,7 +80,10 @@ bzl_library(
     name = "go_repository_cache",
     srcs = ["go_repository_cache.bzl"],
     visibility = ["//:__subpackages__"],
-    deps = [":common"],
+    deps = [
+        ":common",
+        ":env",
+    ],
 )
 
 bzl_library(
@@ -91,6 +95,13 @@ bzl_library(
         "//internal:go_repository_cache",
         "//internal:go_repository_tools_srcs",
     ],
+)
+
+bzl_library(
+    name = "env",
+    srcs = ["env.bzl"],
+    visibility = ["//:__subpackages__"],
+    deps = [":common"],
 )
 
 bzl_library(

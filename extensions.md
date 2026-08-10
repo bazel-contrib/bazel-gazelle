@@ -45,8 +45,6 @@ Override the default source location on a given Go module in this extension.
 
 Configures the general behavior of the go_deps extension.
 
-Only the root module's config tag is used.
-
 **Attributes**
 
 | Name  | Description | Type | Mandatory | Default |

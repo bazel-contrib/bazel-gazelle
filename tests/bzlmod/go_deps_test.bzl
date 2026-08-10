@@ -47,6 +47,11 @@ def _mock_module_ctx(case):
     repos = {}
     return struct(
         modules = case.modules,
+        os = struct(
+            arch = "arm64",
+            environ = {},
+            name = "linux",
+        ),
         path = lambda v: _mock_module_ctx_path(case, v),
         read = lambda filename: _mock_module_ctx_read(case, filename),
         is_dev_dependency = lambda tag: False,

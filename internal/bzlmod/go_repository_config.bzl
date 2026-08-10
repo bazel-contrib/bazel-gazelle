@@ -14,15 +14,10 @@
 
 """go_repository_config internal repo rule, used by go_deps"""
 
-load("//internal:common.bzl", "resolve_env")
+load("//internal:env.bzl", "write_go_env_file")
 load(":utils.bzl", "format_rule_call")
 
 def _go_repository_config_impl(ctx):
-    go_env = resolve_env(
-        ctx,
-        direct = ctx.attr.go_env,
-        inherit = ctx.attr.go_env_inherit,
-    )
     repos = []
     for name, importpath in sorted(ctx.attr.importpaths.items()):
         repos.append(format_rule_call(
@@ -34,15 +29,16 @@ def _go_repository_config_impl(ctx):
         ))
 
     ctx.file("WORKSPACE", "\n".join(repos))
-    ctx.file("BUILD.bazel", "exports_files(['WORKSPACE', 'config.json', 'go_env.bzl', 'go_tools.bzl'])")
-    ctx.file("go_env.bzl", content = "GO_ENV = " + repr(go_env))
+    write_go_env_file(ctx, ctx.attr.go_env)
+    ctx.file("BUILD.bazel", "exports_files(['WORKSPACE', 'config.json', 'go.env', 'go_env.bzl', 'go_tools.bzl'])")
+    ctx.file("go_env.bzl", content = "GO_ENV = " + repr(ctx.attr.go_env))
     ctx.file("go_tools.bzl", content = "GO_TOOLS = {{k: Label(v) for k, v in {}.items()}}".format(
         repr(ctx.attr.tool_targets),
     ))
 
     # For use by @rules_go//go.
     ctx.file("config.json", content = json.encode_indent({
-        "go_env": go_env,
+        "go_env": ctx.attr.go_env,
         "dep_files": ctx.attr.dep_files,
     }))
 
@@ -69,9 +65,6 @@ go_repository_config = repository_rule(
             mandatory = True,
             doc = "Explicit settings for Go environment variables, from go_deps.config",
         ),
-        "go_env_inherit": attr.string_list(
-            doc = "Go environment variables whose values should be taken from the host environment, from go_deps.config",
-        ),
         "dep_files": attr.string_list(
             doc = "List go.mod files in the main Bazel module (just one?). @rules_go//go may run 'bazel mod tidy' when these change.",
         ),
@@ -82,9 +75,9 @@ go_repository_config = repository_rule(
     - WORKSPACE: a configuration file loaded by gazelle within go_repository,
       used to map between Go module paths and repo names.
     - go_env.bzl: contains a GO_ENV dict variable with environment settings to
-      be used any time we run Go tools. We use this in go_repository_tools
-      to build gazelle, when running gazelle within go_repository, and when
-      running the go command via @rules_go//go.
+      be used any time we run Go tools. We use this when running the go command
+      via @rules_go//go.
+    - go.env: relocatable Go environment settings for go_repository.
     - go_tools.bzl: maps tool names to labels, based on "tool" directives in
       go.mod files declared with go_deps.from_file; used for
       'bazel run @rules_go//go -- tool customtool ...'.

@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//internal:common.bzl", "env_execute", "executable_extension", "resolve_env", "watch")
-load("//internal:go_repository_cache.bzl", "read_cache_env")
+load("//internal:common.bzl", "env_execute", "executable_extension", "watch")
+load("//internal:env.bzl", "read_go_env_file", "resolve_env")
 
 def _go_repository_config_impl(ctx):
     go_env = resolve_env(
@@ -32,7 +32,7 @@ def _go_repository_config_impl(ctx):
 
     if config_path:
         watch(ctx, config_path)
-        env = read_cache_env(ctx, ctx.path(Label("@bazel_gazelle_go_repository_cache//:go.env")))
+        env = read_go_env_file(ctx, ctx.path(Label("@bazel_gazelle_go_repository_cache//:go.env")))
         generate_repo_config = ctx.path(Label("@bazel_gazelle_go_repository_tools//:bin/generate_repo_config{}".format(executable_extension(ctx))))
         watch(ctx, generate_repo_config)
         list_repos_args = [
