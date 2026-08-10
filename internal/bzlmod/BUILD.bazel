@@ -8,7 +8,6 @@ filegroup(
         "default_gazelle_overrides.bzl",
         "go_deps.bzl",
         "go_deps_test_case.bzl",
-        "go_host_compatible_sdk_label.bzl",
         "go_mod.bzl",
         "go_repository_config.bzl",
         "non_module_deps.bzl",
@@ -31,7 +30,7 @@ bzl_library(
         ":utils",
         "//internal:env",
         "//internal:go_repository",
-        "@bazel_gazelle_go_host_compatible_sdk_label//:def",
+        "@bazel_gazelle_go_repository_cache//:defs",
     ],
 )
 
@@ -45,17 +44,10 @@ bzl_library(
 )
 
 bzl_library(
-    name = "go_host_compatible_sdk_label",
-    srcs = ["go_host_compatible_sdk_label.bzl"],
-    visibility = ["//:__subpackages__"],
-)
-
-bzl_library(
     name = "non_module_deps",
     srcs = ["non_module_deps.bzl"],
     visibility = ["//:__subpackages__"],
     deps = [
-        ":go_host_compatible_sdk_label",
         "//internal:go_repository_cache",
         "//internal:go_repository_tools",
         "//internal:is_bazel_module",

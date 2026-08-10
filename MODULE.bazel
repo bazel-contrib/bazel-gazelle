@@ -25,7 +25,6 @@ use_repo(
 non_module_deps = use_extension("//internal/bzlmod:non_module_deps.bzl", "non_module_deps")
 use_repo(
     non_module_deps,
-    "bazel_gazelle_go_host_compatible_sdk_label",
     "bazel_gazelle_go_repository_cache",
     "bazel_gazelle_go_repository_tools",
     "bazel_gazelle_is_bazel_module",

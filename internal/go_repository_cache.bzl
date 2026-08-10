@@ -25,7 +25,28 @@ def _go_repository_cache_impl(ctx):
         go_env_inherit = ctx.attr.go_env_inherit,
     )
     write_go_env_file(ctx, cache_env)
-    ctx.file("BUILD.bazel", 'exports_files(["go.env"])')
+
+    # HACK: copy HOST_COMPATIBLE_SDK here so that go_deps.bzl doesn't load it.
+    # Stardoc generates documentation from go_deps.bzl, and it fails if any
+    # symbol is loaded from a .bzl file not provided by a bzl_library. rules_go
+    # does not provide a bzl_library for this, so we work around Stardoc's
+    # limitations by copying the symbol here and declaring a bzl_library for it.
+    # GOROOT is the host Go SDK label, resolved from go_sdk_name or go_sdk_info.
+    ctx.file(
+        "defs.bzl",
+        "HOST_COMPATIBLE_SDK = Label({})\n".format(repr(cache_env["GOROOT"])),
+    )
+    ctx.file("BUILD.bazel", """\
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
+exports_files(["go.env"])
+
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
+    visibility = ["//visibility:public"],
+)
+""")
 
 go_repository_cache = repository_rule(
     _go_repository_cache_impl,

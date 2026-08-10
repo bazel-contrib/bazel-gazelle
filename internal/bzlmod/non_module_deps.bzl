@@ -32,10 +32,6 @@ load(
     "//internal/bzlmod:utils.bzl",
     "extension_metadata",
 )
-load(
-    ":go_host_compatible_sdk_label.bzl",
-    "go_host_compatible_sdk_label",
-)
 
 visibility("//")
 
@@ -45,12 +41,6 @@ def _non_module_deps_impl(module_ctx):
         if module.name == "gazelle":
             gazelle_version = module.version
             break
-
-    # Work around Stardoc limitation. See doc comment on repo rule.
-    go_host_compatible_sdk_label(
-        name = "bazel_gazelle_go_host_compatible_sdk_label",
-        toolchain = str(HOST_COMPATIBLE_SDK),
-    )
 
     # Shared location for GOCACHE and GOMODCACHE.
     go_repository_cache(
