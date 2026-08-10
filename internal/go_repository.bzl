@@ -14,7 +14,7 @@
 
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "patch", "read_user_netrc", "use_netrc")
 load("//internal:common.bzl", "env_execute", "executable_extension", "watch")
-load("//internal:env.bzl", "getenv", "read_go_env_file")
+load("//internal:env.bzl", "read_go_env_file")
 
 _DOC = """
 `go_repository` downloads a Go project and generates build files with Gazelle
@@ -318,7 +318,7 @@ def _go_repository_impl(ctx):
         if "GOMODCACHE" in env:
             # Don't touch the user's host cache.
             fetch_repo_args.append("-prune=false")
-        elif getenv(ctx, "GO_REPOSITORY_EPHEMERAL_MODCACHE") == "1":
+        elif ctx.getenv("GO_REPOSITORY_EPHEMERAL_MODCACHE") == "1":
             ephemeral_modcache = ctx.path("_gomodcache_tmp")
             fetch_repo_env["GOMODCACHE"] = str(ephemeral_modcache)
 

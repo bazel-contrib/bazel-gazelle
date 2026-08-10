@@ -33,6 +33,7 @@ def compute_env(
     Args:
         ctx: a repository_ctx or module_ctx, giving access to the host environment.
         go_sdk_name: a string or None, the name of the go_sdk repo to use, used in Bzlmod mode.
+            When set, must start with '@' or '@@' indicating whether it is canonical.
         go_sdk_info: map from repo name to "goos_goarch" platform or "host", used in WORKSPACE mode.
         go_env: map from environment variable names to values, explicit settings.
         go_env_inherit: list of environment variable names to inherit from the host environment.
@@ -42,7 +43,9 @@ def compute_env(
     """
 
     if go_sdk_name:
-        go_sdk_name = go_sdk_name
+        if not go_sdk_name.startswith("@"):
+            fail("go_sdk_name '{}' must start with '@' or '@@' indicating whether it is canonical".format(go_sdk_name))
+        go_sdk_label = Label(go_sdk_name + "//:ROOT")
     else:
         host_platform = _detect_host_platform(ctx)
         matches = [
@@ -54,22 +57,19 @@ def compute_env(
             fail('gazelle found more than one suitable Go SDK ({}). Specify which one to use with gazelle_dependencies(go_sdk = "go_sdk").'.format(", ".join(matches)))
         if len(matches) == 0:
             fail('gazelle could not find a Go SDK. Specify which one to use with gazelle_dependencies(go_sdk = "go_sdk").')
-        if len(matches) == 1:
-            go_sdk_name = matches[0]
-
-    go_sdk_label = Label("@" + go_sdk_name + "//:ROOT")
+        go_sdk_label = Label("@" + matches[0] + "//:ROOT")
 
     go_root = str(ctx.path(go_sdk_label).dirname)
     go_path = ""  # default: the cache repo itself; recomputed by read_go_env_file()
     go_cache = ""  # default: <cache repo>/gocache; recomputed by read_go_env_file()
     go_mod_cache = ""
-    if getenv(ctx, "GO_REPOSITORY_USE_HOST_MODCACHE") == "1":
+    if ctx.getenv("GO_REPOSITORY_USE_HOST_MODCACHE") == "1":
         extension = executable_extension(ctx)
         go_tool = go_root + "/bin/go" + extension
         go_mod_cache = read_go_env(ctx, go_tool, "GOMODCACHE")
         if not go_mod_cache:
             fail("GOMODCACHE must be set when GO_REPOSITORY_USE_HOST_MODCACHE is enabled.")
-    if getenv(ctx, "GO_REPOSITORY_USE_HOST_CACHE") == "1":
+    if ctx.getenv("GO_REPOSITORY_USE_HOST_CACHE") == "1":
         extension = executable_extension(ctx)
         go_tool = go_root + "/bin/go" + extension
         go_mod_cache = read_go_env(ctx, go_tool, "GOMODCACHE")
@@ -150,32 +150,12 @@ def resolve_env(ctx, direct = {}, inherit = [], reserved = []):
         if key in env:
             fail("{} cannot be set in both go_env and go_env_inherit".format(key))
 
-        # Use getenv when available so repository rules invalidate if the
-        # underlying host environment changes.
-        value = getenv(ctx, key, None)
+        # Repository rules invalidate if the underlying host environment changes.
+        value = ctx.getenv(key, None)
         if value != None:
             env[key] = value
 
     return env
-
-def getenv(ctx, name, default = ""):
-    """
-    Gets an environment variable.
-
-    Uses ctx.getenv if it exists (after Bazel 7.1.0) to also invalidate
-    the repository rule when the env var changes. We can remove this wrapper
-    after the minimal supported Bazel version is >= 7.1.0.
-    Args:
-        ctx: a module_ctx or repository_ctx.
-        name: the name of the environment variable to get.
-        default: the value to return, if the variable is not set.
-
-    Returns:
-        The value of the environment variable or default.
-    """
-    if hasattr(ctx, "getenv"):
-        return ctx.getenv(name, default)
-    return ctx.os.environ.get(name, default)
 
 def read_go_env(ctx, go_tool, var):
     """
@@ -192,7 +172,7 @@ def read_go_env(ctx, go_tool, var):
     watch(ctx, go_tool)
 
     # watch var too if possible.
-    getenv(ctx, var)
+    ctx.getenv(var)
     res = ctx.execute([go_tool, "env", var])
     if res.return_code:
         fail("failed to read go environment: " + res.stderr)

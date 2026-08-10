@@ -619,7 +619,7 @@ def go_deps_impl(module_ctx):
     go_env = compute_env(
         module_ctx,
         # Label.repo_name is always a canonical name, so use a canonical label.
-        go_sdk_name = "@" + HOST_COMPATIBLE_SDK.repo_name,
+        go_sdk_name = "@@" + HOST_COMPATIBLE_SDK.repo_name,
         go_env = config_go_env,
         go_env_inherit = config_go_env_inherit,
     )

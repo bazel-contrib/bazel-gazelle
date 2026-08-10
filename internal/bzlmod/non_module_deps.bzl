@@ -46,7 +46,7 @@ def _non_module_deps_impl(module_ctx):
     go_repository_cache(
         name = "bazel_gazelle_go_repository_cache",
         # Label.repo_name is always a canonical name, so use a canonical label.
-        go_sdk_name = "@" + HOST_COMPATIBLE_SDK.repo_name,
+        go_sdk_name = "@@" + HOST_COMPATIBLE_SDK.repo_name,
     )
 
     # Compile gazelle, fetch_repo, and anything else used within go_repository.
