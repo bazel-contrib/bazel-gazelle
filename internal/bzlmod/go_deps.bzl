@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@bazel_gazelle_go_repository_cache//:defs.bzl", "HOST_COMPATIBLE_SDK")
+load("@bazel_gazelle_go_repository_cache//:def.bzl", "HOST_COMPATIBLE_SDK")
 load("//internal:env.bzl", "compute_env")
 load("//internal:go_repository.bzl", "go_repository")
 load(

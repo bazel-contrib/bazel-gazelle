@@ -33,7 +33,7 @@ def _go_repository_cache_impl(ctx):
     # limitations by copying the symbol here and declaring a bzl_library for it.
     # GOROOT is the host Go SDK label, resolved from go_sdk_name or go_sdk_info.
     ctx.file(
-        "defs.bzl",
+        "def.bzl",
         "HOST_COMPATIBLE_SDK = Label({})\n".format(repr(cache_env["GOROOT"])),
     )
     ctx.file("BUILD.bazel", """\
@@ -42,8 +42,8 @@ load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 exports_files(["go.env"])
 
 bzl_library(
-    name = "defs",
-    srcs = ["defs.bzl"],
+    name = "def",
+    srcs = ["def.bzl"],
     visibility = ["//visibility:public"],
 )
 """)

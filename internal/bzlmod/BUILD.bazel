@@ -30,7 +30,7 @@ bzl_library(
         ":utils",
         "//internal:env",
         "//internal:go_repository",
-        "@bazel_gazelle_go_repository_cache//:defs",
+        "@bazel_gazelle_go_repository_cache//:def",
     ],
 )
 
