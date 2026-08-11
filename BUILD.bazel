@@ -121,9 +121,9 @@ bzl_library(
     deps = [
         "//internal:go_repository",
         "//internal:go_repository_cache",
-        "//internal:go_repository_config",
         "//internal:go_repository_tools",
         "//internal:is_bazel_module",
+        "//internal/workspace:go_repository_config",
         "@bazel_tools//tools/build_defs/repo:git.bzl",
     ],
 )
