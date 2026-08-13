@@ -13,10 +13,6 @@
 # limitations under the License.
 
 load(
-    "@bazel_gazelle_go_repository_config//:go_env.bzl",
-    "GO_ENV",
-)
-load(
     "@go_host_compatible_sdk_label//:defs.bzl",
     "HOST_COMPATIBLE_SDK",
 )
@@ -46,18 +42,22 @@ def _non_module_deps_impl(module_ctx):
             gazelle_version = module.version
             break
 
+    # Shared location for GOCACHE and GOMODCACHE.
     go_repository_cache(
         name = "bazel_gazelle_go_repository_cache",
         # Label.repo_name is always a canonical name, so use a canonical label.
-        go_sdk_name = "@" + HOST_COMPATIBLE_SDK.repo_name,
-        go_env = GO_ENV,
+        go_sdk_name = "@@" + HOST_COMPATIBLE_SDK.repo_name,
     )
+
+    # Compile gazelle, fetch_repo, and anything else used within go_repository.
     go_repository_tools(
         name = "bazel_gazelle_go_repository_tools",
         go_cache = Label("@bazel_gazelle_go_repository_cache//:go.env"),
         is_bazel_module = True,
         gazelle_version = gazelle_version,
     )
+
+    # Module metadata.
     is_bazel_module(
         name = "bazel_gazelle_is_bazel_module",
         is_bazel_module = True,

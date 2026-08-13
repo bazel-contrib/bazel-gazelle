@@ -43,38 +43,3 @@ def watch(ctx, path):
     # explicitly here, duplicate watches are no-ops.
     if hasattr(ctx, "watch"):
         ctx.watch(path)
-
-def getenv(repo_ctx, name, default = ""):
-    # Use repo_ctx.getenv if it exists (after Bazel 7.1.0) to also invalidate
-    # the repository rule when the env var changes.
-    # We can remove this wrapper after the minimal supported Bazel version is >= 7.1.0.
-    if hasattr(repo_ctx, "getenv"):
-        return repo_ctx.getenv(name, default)
-    return repo_ctx.os.environ.get(name, default)
-
-def resolve_env(ctx, direct = {}, inherit = [], reserved = []):
-    """Builds an environment map from explicit values and host env passthroughs."""
-    env = {}
-    reserved_keys = {key: True for key in reserved}
-    inherited_keys = {}
-    for key, value in direct.items():
-        if key in reserved_keys:
-            fail("{} cannot be set in go_env".format(key))
-        env[key] = value
-
-    for key in inherit:
-        if key in inherited_keys:
-            continue
-        inherited_keys[key] = True
-        if key in reserved_keys:
-            fail("{} cannot be set in go_env_inherit".format(key))
-        if key in env:
-            fail("{} cannot be set in both go_env and go_env_inherit".format(key))
-
-        # Use getenv when available so repository rules invalidate if the
-        # underlying host environment changes.
-        value = getenv(ctx, key, None)
-        if value != None:
-            env[key] = value
-
-    return env

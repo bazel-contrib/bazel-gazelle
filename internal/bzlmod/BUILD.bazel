@@ -28,7 +28,9 @@ bzl_library(
         ":go_repository_config",
         ":semver",
         ":utils",
+        "//internal:env",
         "//internal:go_repository",
+        "@bazel_gazelle_go_repository_cache//:def",
     ],
 )
 
@@ -48,6 +50,7 @@ bzl_library(
     deps = [
         "//internal:go_repository_cache",
         "//internal:go_repository_tools",
+        "//internal:is_bazel_module",
     ],
 )
 

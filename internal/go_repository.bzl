@@ -13,8 +13,8 @@
 # limitations under the License.
 
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "patch", "read_user_netrc", "use_netrc")
-load("//internal:common.bzl", "env_execute", "executable_extension", "getenv", "watch")
-load("//internal:go_repository_cache.bzl", "read_cache_env")
+load("//internal:common.bzl", "env_execute", "executable_extension", "watch")
+load("//internal:env.bzl", "read_go_env_file")
 
 _DOC = """
 `go_repository` downloads a Go project and generates build files with Gazelle
@@ -127,10 +127,26 @@ def _go_repository_impl(ctx):
 
     is_module_extension_repo = bool(ctx.attr.internal_only_do_not_use_apparent_name)
 
-    # Explicitly watch label dependencies as they are only used as execute arguments.
-    # https://bazel.build/extending/repo#when_is_the_implementation_function_executed
-    go_env_cache = str(ctx.path(Label("@bazel_gazelle_go_repository_cache//:go.env")))
+    # Load the environment.
+    if is_module_extension_repo:
+        # In module mode, load go.env from the instance of go_repository_config that is
+        # a sibling of this repository. There may be multiple isolated instances of
+        # go_deps, which each allow the environment to be configured with
+        # go_deps.config.go_env and go_env_inherit. We want go_repository instances
+        # to use the appropriate environment within each go_deps, and
+        # "@bazel_gazelle_go_repository_config" does not necessarily refer to the right
+        # one. So we use this ugly hack to compute the correct canonical repo name.
+        extension_repo_prefix = ctx.attr.name[:-len(ctx.attr.internal_only_do_not_use_apparent_name)]
+        go_env_label = Label("@@" + extension_repo_prefix + "bazel_gazelle_go_repository_config//:go.env")
+    else:
+        # In WORKSPACE mode, load from @bazel_gazelle_go_repository_cache//:go.env.
+        # This is configured via gazelle_dependencies go_env and go_env_inherit.
+        go_env_label = Label("@bazel_gazelle_go_repository_cache//:go.env")
+    go_env_cache = str(ctx.path(go_env_label))
     watch(ctx, go_env_cache)
+    go_repository_cache_go_env = Label("@bazel_gazelle_go_repository_cache//:go.env")
+    watch(ctx, str(ctx.path(go_repository_cache_go_env)))
+
     fetch_repo = str(ctx.path(Label("@bazel_gazelle_go_repository_tools//:bin/fetch_repo{}".format(executable_extension(ctx)))))
     watch(ctx, fetch_repo)
     generate = ctx.attr.build_file_generation in ["on", "clean"]
@@ -218,7 +234,14 @@ def _go_repository_impl(ctx):
     else:
         fail("one of urls, commit, tag, or version must be specified")
 
-    env = read_cache_env(ctx, go_env_cache)
+    if is_module_extension_repo:
+        env = read_go_env_file(
+            ctx,
+            go_env_cache,
+            cache_dir_file = go_repository_cache_go_env,
+        )
+    else:
+        env = read_go_env_file(ctx, go_env_cache)
     env_keys = [
         # keep sorted
 
@@ -295,7 +318,7 @@ def _go_repository_impl(ctx):
         if "GOMODCACHE" in env:
             # Don't touch the user's host cache.
             fetch_repo_args.append("-prune=false")
-        elif getenv(ctx, "GO_REPOSITORY_EPHEMERAL_MODCACHE") == "1":
+        elif ctx.getenv("GO_REPOSITORY_EPHEMERAL_MODCACHE") == "1":
             ephemeral_modcache = ctx.path("_gomodcache_tmp")
             fetch_repo_env["GOMODCACHE"] = str(ephemeral_modcache)
 
@@ -420,6 +443,8 @@ repo(
 
     if reproducible and hasattr(ctx, "repo_metadata"):
         return ctx.repo_metadata(reproducible = True)
+    else:
+        return None
 
 def _generate_package_info(*, importpath, version):
     package_name = importpath

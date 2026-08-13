@@ -92,7 +92,7 @@ def gazelle_dependencies(
     if go_sdk:
         go_repository_cache(
             name = "bazel_gazelle_go_repository_cache",
-            go_sdk_name = go_sdk,
+            go_sdk_name = "@" + go_sdk,
             go_env = go_env,
             go_env_inherit = go_env_inherit,
         )

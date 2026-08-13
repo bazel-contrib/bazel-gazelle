@@ -45,8 +45,15 @@ go_deps_test = unittest.make(_go_deps_test_impl)
 
 def _mock_module_ctx(case):
     repos = {}
+    environ = {}
     return struct(
         modules = case.modules,
+        os = struct(
+            arch = "arm64",
+            environ = environ,
+            name = "linux",
+        ),
+        getenv = environ.get,
         path = lambda v: _mock_module_ctx_path(case, v),
         read = lambda filename: _mock_module_ctx_read(case, filename),
         is_dev_dependency = lambda tag: False,
