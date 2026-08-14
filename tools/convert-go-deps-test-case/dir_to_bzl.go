@@ -261,7 +261,7 @@ func exprToValue(e build.Expr) (any, error) {
 		}
 	case *build.LiteralExpr:
 		if i, err := strconv.ParseInt(v.Token, 10, 64); err == nil {
-			return int(i), nil
+			return i, nil
 		}
 		if f, err := strconv.ParseFloat(v.Token, 64); err == nil {
 			return f, nil
@@ -271,7 +271,7 @@ func exprToValue(e build.Expr) (any, error) {
 		if v.Op == "-" {
 			if lit, ok := v.X.(*build.LiteralExpr); ok {
 				if i, err := strconv.ParseInt(lit.Token, 10, 64); err == nil {
-					return int(-i), nil
+					return -i, nil
 				}
 			}
 		}
