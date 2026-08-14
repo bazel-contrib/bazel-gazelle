@@ -14,12 +14,6 @@ import (
 )
 
 func main() {
-	if wd := os.Getenv("BUILD_WORKING_DIRECTORY"); wd != "" {
-		if err := os.Chdir(wd); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
-		}
-	}
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
@@ -27,11 +21,15 @@ func main() {
 }
 
 func run(args []string) error {
-	if wd := os.Getenv("BUILD_WORKING_DIRECTORY"); wd != "" {
+	wd := os.Getenv("BUILD_WORKING_DIRECTORY")
+	if wd == "" {
 		return fmt.Errorf("BUILD_WORKING_DIRECTORY not set; run with 'bazel run'")
 	}
+	if err := os.Chdir(wd); err != nil {
+		return err
+	}
 	repoRoot := os.Getenv("BUILD_WORKSPACE_DIRECTORY")
-	if repoRoot != "" {
+	if repoRoot == "" {
 		return fmt.Errorf("BUILD_WORKSPACE_DIRECTORY not set; run with 'bazel run'")
 	}
 

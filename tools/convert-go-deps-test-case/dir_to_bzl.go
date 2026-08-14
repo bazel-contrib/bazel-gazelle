@@ -507,7 +507,7 @@ func collectModuleFiles(dirPath string, moduleNames map[string]bool) (map[string
 			if err != nil {
 				return err
 			}
-			key := "./" + modName + "/" + rel
+			key := "./" + modName + "/" + filepath.ToSlash(rel)
 			files[key] = string(data)
 			return nil
 		})
