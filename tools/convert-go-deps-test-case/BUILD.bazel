@@ -24,7 +24,10 @@ go_test(
     srcs = ["convert_test.go"],
     data = ["//tests/bzlmod/go_deps:test_cases"],
     embed = [":convert-go-deps-test-case_lib"],
-    deps = ["@io_bazel_rules_go//go/runfiles"],
+    deps = [
+        "@com_github_google_go_cmp//cmp",
+        "@io_bazel_rules_go//go/runfiles",
+    ],
 )
 
 filegroup(

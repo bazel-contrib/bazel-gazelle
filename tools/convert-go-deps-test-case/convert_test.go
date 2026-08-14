@@ -1,14 +1,15 @@
 package main
 
 import (
-	"bytes"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/bazelbuild/rules_go/go/runfiles"
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestRoundTrip(t *testing.T) {
@@ -26,7 +27,8 @@ func TestRoundTrip(t *testing.T) {
 	sort.Strings(bzlPaths)
 
 	for _, rlocation := range bzlPaths {
-		t.Run(filepath.Base(rlocation), func(t *testing.T) {
+		name := strings.TrimSuffix(filepath.Base(rlocation), ".bzl")
+		t.Run(name, func(t *testing.T) {
 			bzlPath, err := runfiles.Rlocation(rlocation)
 			if err != nil {
 				t.Fatal(err)
@@ -50,8 +52,8 @@ func TestRoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !bytes.Equal(orig, got) {
-				t.Fatalf("round trip changed %s", filepath.Base(bzlPath))
+			if diff := cmp.Diff(orig, got); diff != "" {
+				t.Fatalf("round trip changed test (-want, +got): %s", diff)
 			}
 		})
 	}
