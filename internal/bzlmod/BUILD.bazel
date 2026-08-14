@@ -7,7 +7,6 @@ filegroup(
         "BUILD.bazel",
         "default_gazelle_overrides.bzl",
         "go_deps.bzl",
-        "go_mod.bzl",
         "go_repository_config.bzl",
         "non_module_deps.bzl",
         "semver.bzl",
@@ -23,22 +22,13 @@ bzl_library(
     visibility = ["//:__subpackages__"],
     deps = [
         ":default_gazelle_overrides",
-        ":go_mod",
         ":go_repository_config",
         ":semver",
         ":utils",
         "//internal:env",
         "//internal:go_repository",
         "@bazel_gazelle_go_repository_cache//:def",
-    ],
-)
-
-bzl_library(
-    name = "go_mod",
-    srcs = ["go_mod.bzl"],
-    visibility = ["//:__subpackages__"],
-    deps = [
-        ":semver",
+        "@bazel_skylib//lib:paths",
     ],
 )
 
