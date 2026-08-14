@@ -77,8 +77,17 @@ def _semver_test_impl(ctx):
 
 semver_test = unittest.make(_semver_test_impl)
 
+def _semver_max_test_impl(ctx):
+    env = unittest.begin(ctx)
+    asserts.equals(env, "v1.2.3", semver.max("v1.2.3", "v1.1.0"))
+    asserts.equals(env, "v1.2.3", semver.max("v1.0.0", "v1.2.3"))
+    return unittest.end(env)
+
+semver_max_test = unittest.make(_semver_max_test_impl)
+
 def semver_test_suite(name):
     unittest.suite(
         name,
         semver_test,
+        semver_max_test,
     )
