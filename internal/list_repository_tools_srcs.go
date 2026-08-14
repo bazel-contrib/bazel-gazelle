@@ -68,7 +68,7 @@ func main() {
 
 		base := filepath.Base(path)
 		switch base {
-		case "bcr_tests", "docs", "vendor", "third_party", "testdata", ".ijwb", ".bazelbsp", ".claude":
+		case "bcr_tests", "docs", "vendor", "third_party", "testdata", "tools", ".ijwb", ".bazelbsp", ".claude":
 			return filepath.SkipDir
 		}
 		if !info.IsDir() &&
