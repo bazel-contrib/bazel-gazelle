@@ -17,6 +17,7 @@
 load(
     ":common.bzl",
     "executable_extension",
+    "path_str",
     "watch",
 )
 
@@ -59,7 +60,7 @@ def compute_env(
             fail('gazelle could not find a Go SDK. Specify which one to use with gazelle_dependencies(go_sdk = "go_sdk").')
         go_sdk_label = Label("@" + matches[0] + "//:ROOT")
 
-    go_root = str(ctx.path(go_sdk_label).dirname)
+    go_root = path_str(ctx.path(go_sdk_label).dirname)
     go_path = ""  # default: the cache repo itself; recomputed by read_go_env_file()
     go_cache = ""  # default: <cache repo>/gocache; recomputed by read_go_env_file()
     go_mod_cache = ""
@@ -81,11 +82,13 @@ def compute_env(
             fail("GOCACHE must be set when GO_REPOSITORY_USE_HOST_CACHE is enabled.")
 
     cache_env = {
-        # Record the SDK repo's ROOT file as a label rather than an absolute
-        # path so that consumers are forced to add a dependency on the Go SDK.
+        # Store GOROOT as an absolute path and GOROOT_LABEL as a label to the
+        # SDK repo's ROOT file. When we write a go.env file, GOROOT is omitted;
+        # when we read a go.env file, GOROOT is computed from GOROOT_LABEL.
         # This avoids a class of staleness issues, both with and without repo
         # content caches.
-        "GOROOT": str(go_sdk_label),
+        "GOROOT": path_str(ctx.path(go_sdk_label).dirname),
+        "GOROOT_LABEL": str(go_sdk_label),
 
         # Since Go v1.21.0, set GOTOOLCHAIN to "local" to use the current toolchain
         # of the Go SDK. This is required to avoid `go mod download` commands
@@ -115,7 +118,11 @@ def compute_env(
 
 def write_go_env_file(ctx, env_dict):
     """Writes a go.env file that can be read by Go or read_go_env_file"""
-    env_content = "\n".join(["{k}='{v}'\n".format(k = k, v = v) for k, v in env_dict.items()])
+    env_content = "\n".join([
+        "{k}='{v}'\n".format(k = k, v = v)
+        for k, v in env_dict.items()
+        if k != "GOROOT"  # avoid writing absolute path; see compute_env
+    ])
     ctx.file("go.env", env_content)
 
 def resolve_env(ctx, direct = {}, inherit = [], reserved = []):
@@ -215,11 +222,11 @@ def read_go_env_file(ctx, env_path, cache_dir_file = None):
 
     # Resolve the GOROOT label (see _go_repository_cache_impl) to an absolute
     # path and register a dependency by doing so.
-    if env.get("GOROOT"):
-        env["GOROOT"] = str(ctx.path(Label(env["GOROOT"])).dirname)
+    if env.get("GOROOT_LABEL"):
+        env["GOROOT"] = path_str(ctx.path(Label(env["GOROOT_LABEL"])).dirname)
     if cache_dir_file == None:
         cache_dir_file = env_path
-    cache_dir = str(ctx.path(cache_dir_file).dirname)
+    cache_dir = path_str(ctx.path(cache_dir_file).dirname)
     env.setdefault("GOPATH", cache_dir)
     env.setdefault("GOCACHE", cache_dir + "/gocache")
     return env

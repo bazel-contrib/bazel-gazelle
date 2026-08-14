@@ -37,6 +37,10 @@ def executable_extension(ctx):
         extension = ".exe"
     return extension
 
+def path_str(path):
+    """Converts a path to a string, compatible with unit testing"""
+    return path._name if hasattr(path, "_name") else str(path)
+
 def watch(ctx, path):
     # Versions of Bazel that have ctx.watch may no longer explicitly watch
     # labels on which ctx.path is called and/or labels in attributes. Do so

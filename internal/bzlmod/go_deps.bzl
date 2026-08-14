@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@bazel_gazelle_go_repository_cache//:def.bzl", "HOST_COMPATIBLE_SDK")
-load("//internal:env.bzl", "compute_env")
+load("@bazel_skylib//lib:paths.bzl", "paths")
+load("//internal:common.bzl", "env_execute", "executable_extension", "path_str", "watch")
+load("//internal:env.bzl", "read_go_env_file", "resolve_env")
 load("//internal:go_repository.bzl", "go_repository")
 load(
     ":default_gazelle_overrides.bzl",
@@ -21,25 +22,516 @@ load(
     "DEFAULT_BUILD_FILE_GENERATION_BY_PATH",
     "DEFAULT_DIRECTIVES_BY_PATH",
 )
-load(":go_mod.bzl", "deps_from_go_mod", "go_work_from_label", "sums_from_go_mod", "sums_from_go_work")
 load(":go_repository_config.bzl", "go_repository_config")
-load(":semver.bzl", "COMPARES_HIGHEST_SENTINEL", "semver")
-load(
-    ":utils.bzl",
-    "drop_nones",
-    "extension_metadata",
-    "get_directive_value",
-    "with_replaced_or_new_fields",
-)
+load(":semver.bzl", "semver")
+load(":utils.bzl", "drop_nones", "extension_metadata", "get_directive_value")
 
 visibility([
     "//",
     "//tests/bzlmod/...",
 ])
 
-_HIGHEST_VERSION_SENTINEL = semver.to_comparable("999999.999999.999999")
+_SHARED_REPOS = [
+    "github.com/golang/protobuf",
+    "google.golang.org/protobuf",
+]
 
-_FORBIDDEN_OVERRIDE_TAG = """\
+def go_deps_impl(module_ctx):
+    module_ctx = _wrap_module_ctx_for_testability(module_ctx)
+
+    # Identify the root module and process config and overrides.
+    # If this is an isolated go_deps instance, there will be only one module,
+    # and we treat it as the root, even if it's not.
+    module_ctx.report_progress("gathering version requirements")
+    root_module = None
+    config_tag = None
+    archive_overrides = {}  # Go module path => archive_override tag
+    module_overrides = {}  # Go module path => module_override tag
+    gazelle_overrides = {}  # Go module path => gazelle_override tag
+    gazelle_default_attributes = None
+    for module in module_ctx.modules:
+        if _module_acts_as_root(module_ctx, module):
+            root_module = module
+            if len(module.tags.config) > 1:
+                module_ctx.fail("Multiple go_deps.config tags defined in module {}".format(module.name))
+                return None
+            if len(module.tags.config) == 1:
+                config_tag = module.tags.config[0]
+            if len(module.tags.gazelle_default_attributes) > 1:
+                module_ctx.fail("Multiple go_deps.gazelle_default_attributes tags defined in module {}".format(module.name))
+                return None
+            if len(module.tags.gazelle_default_attributes) == 1:
+                gazelle_default_attributes = module.tags.gazelle_default_attributes[0]
+
+        _process_overrides(module_ctx, module, "archive_override", archive_overrides)
+        _process_overrides(module_ctx, module, "module_override", module_overrides, archive_overrides)
+        _process_overrides(module_ctx, module, "gazelle_override", gazelle_overrides)
+    if module_ctx.failed():
+        return None
+    if not root_module:
+        module_ctx.fail("root module not found")
+        return None
+
+    # Compute the environment based on the config tag and available go_sdks.
+    # Use this to locate the go tool.
+    go_env = read_go_env_file(
+        module_ctx,
+        env_path = Label("@bazel_gazelle_go_repository_cache//:go.env"),
+    )
+    if config_tag:
+        go_env |= resolve_env(
+            module_ctx,
+            direct = config_tag.go_env,
+            inherit = config_tag.go_env_inherit,
+            reserved = [
+                "GOCACHE",
+                "GOMODCACHE",
+                "GOPATH",
+                "GOROOT",
+                "GOROOT_LABEL",
+            ],
+        )
+    go_tool = go_env["GOROOT"] + "/bin/go" + executable_extension(module_ctx)
+    watch(module_ctx, go_tool)
+
+    # Create a scratch Go workspace (with a synthetic go.work and go.mod file)
+    # expressing constraints from go_deps tags, linking with go.mod files
+    # provided by go_deps.from_file.
+    workspace = _create_workspace_from_tags(module_ctx, go_tool, go_env)
+    if module_ctx.failed() or workspace == None:
+        return None
+    bazel_go_modules, root_required_mods = workspace
+
+    # Run 'go list -m' in the scratch workspace to select versions of Go modules.
+    module_ctx.report_progress("selecting versions with 'go list -m'")
+    go_modules = _select_module_versions(
+        module_ctx,
+        go_tool,
+        go_env,
+        bazel_go_modules,
+        root_required_mods,
+        module_overrides,
+    )
+    if module_ctx.failed():
+        return None
+
+    module_ctx.report_progress("declaring repositories")
+    reserved_repo_names = _collect_reserved_repo_names(module_ctx, bazel_go_modules)
+    _check_for_version_conflict(
+        module_ctx,
+        go_modules,
+        bazel_go_modules,
+        root_module.tags.module,
+        root_required_mods,
+        _get_checks_reporter(module_ctx, root_module),
+        reserved_repo_names,
+    )
+    if module_ctx.failed():
+        return None
+
+    _fail_on_unmatched_overrides(module_ctx, archive_overrides.keys(), go_modules, "archive_override")
+    _fail_on_unmatched_overrides(module_ctx, module_overrides.keys(), go_modules, "module_override")
+    _fail_on_unmatched_overrides(module_ctx, gazelle_overrides.keys(), go_modules, "gazelle_override")
+    if module_ctx.failed():
+        return None
+
+    # Build a map of tool targets, and track which modules are direct dependencies
+    # of the main Bazel module.
+    tool_targets, direct_deps, direct_dev_deps = _index_tool_targets(
+        module_ctx,
+        bazel_go_modules,
+        root_required_mods,
+        module_overrides,
+    )
+    if module_ctx.failed():
+        return None
+
+    # Declare a go_repository for each selected Go module that is not provided
+    # by a Bazel module. Repo name collisions were checked in
+    # _check_for_version_conflict.
+    for go_module in go_modules.values():
+        if not _should_declare_go_repository(module_ctx, go_module):
+            continue
+        go_repository_args = {
+            "name": go_module.repo_name,
+            "importpath": go_module.importpath,
+            "debug_mode": config_tag != None and config_tag.debug_mode,
+            "internal_only_do_not_use_apparent_name": go_module.repo_name,
+        }
+        archive_override = archive_overrides.get(go_module.importpath)
+        if archive_override:
+            go_repository_args.update({
+                "urls": archive_override.urls,
+                "strip_prefix": archive_override.strip_prefix,
+                "sha256": archive_override.sha256,
+                "patches": archive_override.patches,
+                "patch_args": _get_patch_args(archive_override),
+                "patch_cmds": archive_override.patch_cmds,
+            })
+        else:
+            go_repository_args.update({
+                "version": go_module.version,
+                "sum": go_module.sum,
+                "replace": go_module.replace_path,
+                "local_path": go_module.local_path,
+            })
+        module_override = module_overrides.get(go_module.importpath)
+        if module_override:
+            go_repository_args.update({
+                "patches": module_override.patches,
+                "patch_args": _get_patch_args(module_override),
+                "patch_cmds": module_override.patch_cmds,
+            })
+        gazelle_attrs = _gazelle_attributes_for_module(
+            go_module.importpath,
+            gazelle_overrides,
+            gazelle_default_attributes,
+        )
+        go_repository_args.update({
+            "build_directives": gazelle_attrs.directives,
+            "build_file_generation": gazelle_attrs.build_file_generation,
+            "build_extra_args": gazelle_attrs.build_extra_args,
+        })
+        module_ctx.declare_repo(go_repository, **go_repository_args)
+
+    if "rules_proto" not in reserved_repo_names:
+        # The BUILD files of Go modules may still load proto rules from
+        # @rules_proto, which Gazelle no longer depends on. Generate a
+        # compatibility shim with that name that forwards the loads to
+        # @com_google_protobuf. Since this repo is generated by the go_deps
+        # extension, it is visible to the Go module repos generated by the same
+        # extension under exactly this name. See
+        # https://github.com/bazel-contrib/bazel-gazelle/issues/2358.
+        module_ctx.declare_repo(_rules_proto_compat, name = "rules_proto")
+
+    # Declare a repo with configuration files for Gazelle and rules_go.
+    # Gazelle especially needs instructions for resolving cross-repo imports
+    # from within each go_repository.
+    # TODO(#2413): refactor go_repository_config. For now, repo names of Go
+    # modules provided by Bazel modules must be canonical and start with "@".
+    # Also, include entries for modules not in root directories.
+    def _repo_name_for_config(info):
+        return "@" + info.repo_name if info.go_mod_label else info.repo_name
+
+    module_ctx.declare_repo(
+        go_repository_config,
+        name = "bazel_gazelle_go_repository_config",
+        importpaths = {
+            _repo_name_for_config(m): m.importpath
+            for m in go_modules.values()
+            if not (m.go_mod_label and m.go_mod_label.package)
+        },
+        module_names = {
+            _repo_name_for_config(info): info.bazel_dep_name
+            for info in bazel_go_modules.values()
+            if not info.go_mod_label.package
+        },
+        tool_targets = tool_targets,
+        build_naming_conventions = drop_nones({
+            go_modules[path].repo_name: get_directive_value(
+                _gazelle_attributes_for_module(
+                    path,
+                    gazelle_overrides,
+                    gazelle_default_attributes,
+                ).directives,
+                "go_naming_convention",
+            )
+            for path in go_modules
+        }),
+        go_env = go_env,
+        dep_files = sorted([
+            info.go_mod_label.package + "/" + info.go_mod_label.name if info.go_mod_label.package else info.go_mod_label.name
+            for info in bazel_go_modules.values()
+            if info.is_root
+        ]),
+    )
+
+    # Return metadata indicating this extension is reproducible so that no
+    # MODULE.bazel.lock is needed, and list the direct dependencies so that
+    # 'bazel mod tidy' can update use_repo.
+    # Only include bazel_gazelle_go_repository_config in direct dependencies for
+    # gazelle and rules_go; it shouldn't be generally available.
+    # Don't include common repo names if this is an isolated go_deps instance.
+    if (root_module.name in ("gazelle", "rules_go", "gazelle_bcr_go_mod_tests", "gazelle_bcr_go_work_tests") and
+        not getattr(module_ctx, "is_isolated", False)):
+        direct_deps.append("bazel_gazelle_go_repository_config")
+    if getattr(module_ctx, "is_isolated", False):
+        shared_repo_names = [
+            _get_repo_name(path, bazel_go_modules, module_overrides)
+            for path in _SHARED_REPOS
+        ]
+        direct_deps = [dep for dep in direct_deps if dep not in shared_repo_names]
+        direct_dev_deps = [dep for dep in direct_dev_deps if dep not in shared_repo_names]
+
+    return extension_metadata(
+        module_ctx,
+        root_module_direct_deps = direct_deps,
+        root_module_direct_dev_deps = direct_dev_deps,
+        reproducible = True,
+    )
+
+def _go_module_info(
+        *,
+        importpath,
+        repo_name,
+        version = None,
+        sum = None,
+        replace_path = None,
+        local_path = None,
+        go_mod_label = None):
+    """
+    Tracks information about a resolved Go module
+
+    Args:
+        importpath: the Go module path
+        repo_name: name to use when generating go_repository declarations or
+            labels that point to a repo containing Go code. If the Go module is
+            provided by a Bazel module, this comes from
+            _bazel_go_mod_info.repo_name.
+        version: the selected version, including the 'v' prefix. For replaced
+            modules, this is the replacement version. May be omitted
+            for replaced modules with directory replacements or path overrides.
+        sum: the cryptographic sum from go.sum. For replaced modules, this is
+            the sum of the replacement. May be omitted for replaced modules
+            with directory replacements or various overrides. Also omitted
+            for modules that are in the build list but are not needed to build
+            packages in the root modules (no sum in any go.sum).
+        replace_path: Go module path of a versioned replacement. For example,
+            in 'replace example.com/a => example.com/b v1.0.0', this is
+            'example.com/b'.
+        local_path: directory path of a directory replacement. Can come from
+            a replace directive or module tag.
+        go_mod_label: Label for the go.mod file, if provided by a Bazel module.
+
+    Returns:
+        A _go_module_info struct containing the arguments as fields.
+    """
+    return struct(
+        importpath = importpath,
+        repo_name = repo_name,
+        version = version,
+        sum = sum,
+        replace_path = replace_path,
+        local_path = local_path,
+        go_mod_label = go_mod_label,
+    )
+
+def _bazel_go_mod_info(
+        *,
+        importpath,
+        go_mod_label,
+        repo_name,
+        bazel_dep_name,
+        bazel_dep_version,
+        is_root,
+        tool_importpaths):
+    """
+    Tracks information about a Go module provided by a Bazel module
+
+    Args:
+        importpath: the Go module path from the go.mod file
+        go_mod_label: label for the module's go.mod file
+        repo_name: name used to generate labels pointing to this module's repo.
+            For the root module, this is the module name. For other modules,
+            this is the canonical name (like "gazelle+").
+        bazel_dep_name: the name of the Bazel module (not the apparent name).
+        bazel_dep_version: the version of the Bazel module (lacking a 'v'
+            prefix, like Go modules have).
+        is_root: True for the root module OR for a module loading an isolated
+            instance of go_deps.
+        tool_importpaths: list of package paths from 'tool' directives in
+            a go.mod file in the root Bazel module or isolate. Empty for
+            modules where is_root is False.
+
+    Returns:
+        a _bazel_go_mod_struct containing the arguments as fields
+    """
+    return struct(
+        importpath = importpath,
+        go_mod_label = go_mod_label,
+        repo_name = repo_name,
+        bazel_dep_name = bazel_dep_name,
+        bazel_dep_version = bazel_dep_version,
+        is_root = is_root,
+        tool_importpaths = tool_importpaths,
+    )
+
+def _go_require_info(
+        *,
+        importpath,
+        version,
+        sum = None,
+        local_path = None,
+        indirect = False,
+        is_dev_dependency = False):
+    """Tracks a version constraint, from a go.mod require directive or go_deps.module tag"""
+    return struct(
+        importpath = importpath,
+        version = version,
+        sum = sum,
+        local_path = local_path,
+        indirect = indirect,
+        is_dev_dependency = is_dev_dependency,
+    )
+
+def _repo_name(importpath):
+    path_segments = importpath.split("/")
+    segments = reversed(path_segments[0].split(".")) + path_segments[1:]
+    candidate_name = "_".join(segments).replace("-", "_")
+    return "".join([c.lower() if c.isalnum() else "_" for c in candidate_name.elems()])
+
+def _bazel_module_repo_name(module, go_mod_label):
+    return go_mod_label.repo_name if go_mod_label.repo_name else module.name
+
+def _get_repo_name(importpath, bazel_go_modules, module_overrides):
+    """Returns the Bazel repo name for a Go module path.
+
+    If a Go module is provided by a Bazel module (with go_deps.from_file),
+    the repo name is taken from the go_mod label on that tag (best effort).
+    Gazelle resolves the apparent name from module_name when loading repo config.
+
+    If a module_override for the path specifies a non-empty repo_name, that
+    value is used verbatim. Otherwise the name is derived from the import path
+    via _repo_name. This allows the root module to break collisions between two
+    modules whose import paths mangle to the same default repo name.
+
+    Args:
+        importpath: the Go module path
+        bazel_go_modules: a dict mapping Go module path to _bazel_go_mod_info
+            struct.
+        module_overrides: map from Go module paths to go_deps.module_override tag.
+
+    Returns:
+        The repo name to use.
+    """
+    bazel_go_mod = bazel_go_modules.get(importpath)
+    if bazel_go_mod:
+        return bazel_go_mod.repo_name
+    override = module_overrides.get(importpath)
+    if override and getattr(override, "repo_name", ""):
+        return override.repo_name
+    return _repo_name(importpath)
+
+def _module_acts_as_root(module_ctx, module):
+    """
+    Returns whether this is the Bazel root module or an isolated load of go_deps.
+
+    Some functionality, like go.mod replace directives, is only available in
+    a root or isolated module.
+    """
+    return module.is_root or getattr(module_ctx, "is_isolated", False)
+
+def _should_declare_go_repository(module_ctx, go_module):
+    """
+    Controls whether we declare go_repository
+
+    In particular, we skip declarations for Go modules provided by Bazel modules.
+    Isolated go_deps instances also skip shared repos declared by the non-isolated
+    instance.
+    """
+    if getattr(module_ctx, "is_isolated", False) and go_module.importpath in _SHARED_REPOS:
+        return False
+    return go_module.go_mod_label == None and (
+        go_module.version != None or
+        go_module.local_path != None
+    )
+
+def _get_checks_reporter(module_ctx, root_module):
+    """Returns a function for reporting problems, depending on the error level"""
+    OFF, WARNING, ERROR = 0, 1, 2
+    LEVEL = {
+        "off": OFF,
+        "warning": WARNING,
+        "error": ERROR,
+    }
+    check_direct_dependencies_level = OFF
+    if len(root_module.tags.config) > 0:
+        config_tag = root_module.tags.config[0]
+        checks_level = LEVEL[config_tag.checks]
+        check_direct_dependencies_level = LEVEL[config_tag.check_direct_dependencies]
+    else:
+        checks_level = WARNING
+        check_direct_dependencies_level = OFF
+    from_file_level = OFF
+    for tag in root_module.tags.from_file:
+        if tag.fail_on_version_conflict:
+            from_file_level = ERROR
+    level = max(checks_level, check_direct_dependencies_level, from_file_level)
+    if level == OFF:
+        return lambda *args: None
+    elif level == WARNING:
+        return module_ctx.print
+    else:
+        return module_ctx.fail
+
+def _process_overrides(module_ctx, module, override_type, overrides, additional_overrides = None):
+    """
+    Processes a given override type for a given module
+
+    Checks for duplicates and conflicts, then inserts the override into the given map.
+
+    Args:
+        module_ctx: the module context
+        module: the module containing overrides
+        override_type: the tag name, for error messages
+        overrides: a dict mapping Go module paths to tags
+        additional_overrides: another dict of override tags that may conflict
+    """
+    _fail_on_non_root_overrides(module_ctx, module, override_type)
+    for override_tag in getattr(module.tags, override_type):
+        _fail_on_duplicate_overrides(module_ctx, override_tag.path, module.name, overrides)
+
+        # Some overrides conflict with other overrides. These can be specified in the
+        # additional_overrides dict. If the override is in the additional_overrides dict, then fail.
+        if additional_overrides:
+            _fail_on_duplicate_overrides(module_ctx, override_tag.path, module.name, additional_overrides)
+
+        overrides[override_tag.path] = override_tag
+
+def _gazelle_attributes_for_module(importpath, gazelle_overrides, gazelle_default_attributes):
+    """Returns Gazelle settings for a Go module path.
+
+    Priority, lowest to highest:
+    1. go_repository defaults (build_file_generation = "auto", empty lists)
+    2. default_gazelle_overrides.bzl path entries
+    3. go_deps.gazelle_default_attributes tag
+    4. go_deps.gazelle_override tag for this path
+
+    A gazelle_override tag always sets build_file_generation, even when left at
+    its tag default of "on".
+    """
+    directives = DEFAULT_DIRECTIVES_BY_PATH.get(importpath, [])
+    build_file_generation = DEFAULT_BUILD_FILE_GENERATION_BY_PATH.get(importpath, "auto")
+    build_extra_args = DEFAULT_BUILD_EXTRA_ARGS_BY_PATH.get(importpath, [])
+
+    if gazelle_default_attributes:
+        if gazelle_default_attributes.directives:
+            directives = gazelle_default_attributes.directives
+        if gazelle_default_attributes.build_extra_args:
+            build_extra_args = gazelle_default_attributes.build_extra_args
+        if gazelle_default_attributes.build_file_generation:
+            build_file_generation = gazelle_default_attributes.build_file_generation
+
+    per_module = gazelle_overrides.get(importpath)
+    if per_module:
+        if per_module.directives != _GAZELLE_DEFAULT_ATTRIBUTES.directives:
+            directives = per_module.directives
+        if per_module.build_extra_args != _GAZELLE_DEFAULT_ATTRIBUTES.build_extra_args:
+            build_extra_args = per_module.build_extra_args
+        build_file_generation = per_module.build_file_generation
+
+    return struct(
+        directives = directives,
+        build_file_generation = build_file_generation,
+        build_extra_args = build_extra_args,
+    )
+
+def _fail_on_non_root_overrides(module_ctx, module, tag_class):
+    if _module_acts_as_root(module_ctx, module):
+        return
+
+    if getattr(module.tags, tag_class):
+        module_ctx.fail("""\
 Using the "go_deps.{tag_class}" tag in a non-root Bazel module is forbidden, \
 but module "{module_name}" requests it.
 
@@ -48,11 +540,790 @@ registry (such as the Bazel Central Registry), please file an issue at \
 https://github.com/bazelbuild/bazel-gazelle/issues/new or submit a PR adding \
 the required directives to the "default_gazelle_overrides.bzl" file at \
 https://github.com/bazelbuild/bazel-gazelle/tree/master/internal/bzlmod/default_gazelle_overrides.bzl.
-"""
+""".format(
+            tag_class = tag_class,
+            module_name = module.name,
+        ))
+
+def _fail_on_duplicate_overrides(module_ctx, path, module_name, overrides):
+    if path in overrides:
+        module_ctx.fail("Multiple overrides defined for Go module path \"{}\" in module \"{}\".".format(path, module_name))
+
+def _fail_on_unmatched_overrides(module_ctx, override_keys, resolutions, override_name):
+    unmatched_overrides = [path for path in override_keys if path not in resolutions]
+    if unmatched_overrides:
+        module_ctx.fail("Some {} did not target a Go module with a matching path: {}".format(
+            override_name,
+            ", ".join(unmatched_overrides),
+        ))
+
+def _get_patch_args(archive_override):
+    return ["-p{}".format(archive_override.patch_strip)] if archive_override.patch_strip else []
+
+def _local_replace_path(dir_path):
+    """Formats a workspace directory path for a go.mod replace directive."""
+    if dir_path.startswith("./") or dir_path.startswith("../") or dir_path.startswith("/"):
+        return dir_path
+    return "./" + dir_path
+
+def _create_workspace_from_tags(module_ctx, go_tool, go_env):
+    """
+    Create a scratch go.work workspace based on go_deps tags.
+
+    This expresses constraints so that we can use 'go list -m' for version
+    selection. This is for version selection only; we apply archive_override
+    and other tags later.
+
+    - For each 'from_file(go_mod = ...)' tag, we reference the module with a
+      'use' directive. If the tag is outside the root Bazel module, we make
+      a copy of the go.mod file first, dropping 'replace' and 'exclude'
+      directives.
+    - For each 'from_file(go_work = ...)' tag, we parse the file and copy
+      its 'use' directives, normalizing paths as needed. We only copy 'replace'
+      directives if the tag is from the root Bazel module.
+    - For each 'module' tag, we add a 'require' directive to a dummy go.mod
+      file, referenced from our go.work file with 'use .'. If the required
+      module is also provided by a Bazel module (via from_file), we add a
+      matching 'replace' directive pointing at that module's workspace
+      directory so 'go list -m' can resolve the version.
+
+    Args:
+        module_ctx: the module context.
+        go_tool: path to the go tool, needed for 'go mod edit -json',
+            'go work edit -json'.
+        go_env: environment to run the go tool with.
+
+    Returns:
+        - bazel_go_modules: a dict mapping Go module path to _bazel_go_mod_info
+          struct.
+        - root_required_mods: a dict mapping Go module path to _go_require_info
+          struct for Go modules required by the root Bazel module, either via
+          go_deps.module or go_deps.from_file with go.mod.
+    """
+
+    result = env_execute(module_ctx, [go_tool, "version"], go_env)
+    if result.return_code != 0:
+        module_ctx.fail("determining go version: {}".format(result.stderr))
+        return None
+
+    # example output: go version go1.27rc3 darwin/arm64
+    go_version_str = result.stdout.split(" ")[2][len("go"):]
+    go_version = _parse_go_version(go_version_str)
+
+    go_work_lines = [
+        "go {}".format(go_version_str),
+        "use .",
+    ]
+    go_mod_lines = [
+        "module go_deps_module_tags",
+        "go {}".format(go_version_str),
+    ]
+    go_sum_lines = []
+    go_work_sum_lines = []
+
+    bazel_go_modules = {}
+    bazel_go_module_dirs = {}  # Go module path => directory in synthetic workspace
+    root_required_mods = {}
+    module_tag_requires = {}  # Go module path => go_deps.module tag with highest version
+    for module in module_ctx.modules:
+        module_tag_paths = {}
+        for tag in module.tags.module:
+            if tag.path in module_tag_paths:
+                module_ctx.fail("Multiple go_deps.module tags defined for Go module path \"{}\" in module \"{}\".".format(tag.path, module.name))
+                return None
+            module_tag_paths[tag.path] = True
+            if not _module_acts_as_root(module_ctx, module) and tag.local_path:
+                module_ctx.fail("{}: go_deps.module.local_path is only allowed in the root Bazel module".format(tag.path))
+                return None
+            if not tag.sum and not tag.local_path:
+                module_ctx.fail("{}: go_deps.module.sum must be set unless local_path is set".format(tag.path))
+                return None
+            existing = module_tag_requires.get(tag.path)
+            if existing == None or semver.to_comparable(_normalize_version(tag.version)) > semver.to_comparable(_normalize_version(existing.version)):
+                module_tag_requires[tag.path] = tag
+            if _module_acts_as_root(module_ctx, module):
+                root_required_mods[tag.path] = _go_require_info(
+                    importpath = tag.path,
+                    version = tag.version,
+                    sum = tag.sum,
+                    local_path = tag.local_path,
+                    indirect = tag.indirect,
+                    is_dev_dependency = module_ctx.is_dev_dependency(tag),
+                )
+
+        def visit_go_mod(go_mod_label):
+            go_mod_path = module_ctx.path(go_mod_label)
+            watch(module_ctx, go_mod_path)
+            go_sum_path = go_mod_path.dirname.get_child("go.sum")
+            if go_sum_path.exists:
+                watch(module_ctx, go_sum_path)
+            go_mod_json = _parse_go_mod_json(module_ctx, go_tool, go_env, go_mod_path)
+            if module_ctx.failed():
+                return
+            go_mod_version = _parse_go_version(go_mod_json["Go"])
+            if go_mod_version > go_version:
+                module_ctx.fail("""\
+In {go_mod_label}, go version is {go_mod_version}, but Bazel is using {go_version}.
+To correct this:
+    1. Upgrade the Bazel Go version in MODULE.bazel:
+
+        go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
+        go_sdk.download("{go_mod_version}")
+
+    2. Or downgrade the Go module version to {go_version}.
+""".format(
+                    go_version = go_version_str,
+                    go_mod_label = go_mod_label,
+                    go_mod_version = go_mod_json["Go"],
+                ))
+                return
+            if _module_acts_as_root(module_ctx, module):
+                tool_importpaths = [tool["Path"] for tool in go_mod_json.get("Tool") or []]
+            else:
+                tool_importpaths = []
+            acts_as_root = _module_acts_as_root(module_ctx, module)
+            info = _bazel_go_mod_info(
+                importpath = go_mod_json["Module"]["Path"],
+                go_mod_label = go_mod_label,
+                repo_name = _bazel_module_repo_name(module, go_mod_label),
+                bazel_dep_name = module.name,
+                bazel_dep_version = module.version,
+                is_root = acts_as_root,
+                tool_importpaths = tool_importpaths,
+            )
+            bazel_go_modules[info.importpath] = info
+
+            if acts_as_root:
+                # We can use 'replace' and 'exclude' directives in go.mod files from
+                # the Bazel root module without modification.
+                bazel_go_module_dirs[info.importpath] = path_str(go_mod_path.dirname)
+                go_work_lines.append("use {}".format(path_str(go_mod_path.dirname)))
+                for r in go_mod_json.get("Require") or []:
+                    # A module may be required multiple times from different go.mod
+                    # files within a go.work workspace, so update the existing entry
+                    # if needed.
+                    if r["Path"] in root_required_mods:
+                        prev = root_required_mods[r["Path"]]
+                        root_required_mods[r["Path"]] = _go_require_info(
+                            importpath = r["Path"],
+                            version = semver.max(prev.version, r["Version"]),
+                            indirect = prev.indirect and bool(r.get("Indirect")),
+                        )
+                    else:
+                        root_required_mods[r["Path"]] = _go_require_info(
+                            importpath = r["Path"],
+                            version = r["Version"],
+                            indirect = bool(r.get("Indirect")),
+                        )
+            else:
+                # We want to ignore 'replace' and 'exclude' directives from go.mod
+                # files outside the root module. We need to parse, modify, and copy
+                # the file.
+                go_mod_json["Replace"] = None
+                go_mod_json["Exclude"] = None
+                copied_go_mod_path = module_ctx.path(paths.join("mod", module.name, _label_to_rel(go_mod_label)))
+                module_ctx.file(copied_go_mod_path, _format_go_mod_json(go_mod_json))
+                if go_sum_path.exists:
+                    go_sum_content = module_ctx.read(go_sum_path)
+                    copied_go_sum_path = copied_go_mod_path.dirname.get_child("go.sum")
+                    module_ctx.file(copied_go_sum_path, go_sum_content)
+                bazel_go_module_dirs[info.importpath] = path_str(copied_go_mod_path.dirname)
+                go_work_lines.append("use {}".format(path_str(copied_go_mod_path.dirname)))
+
+        if len(module.tags.from_file) > 1:
+            module_ctx.fail("in {}, multiple go_deps.from_file tags were declared. Use a single go.work file if you need multiple modules.".format(module.name))
+            return None
+        for tag in module.tags.from_file:
+            if bool(tag.go_work) == bool(tag.go_mod):
+                module_ctx.fail("in {}, go_deps.from_file tag must have either go_work or go_mod attribute, but not both.".format(module.name))
+                return None
+            if tag.go_mod:
+                visit_go_mod(tag.go_mod)
+            else:
+                # go.work
+                go_work_path = module_ctx.path(tag.go_work)
+                go_work_json = _parse_go_work_json(module_ctx, go_tool, go_env, go_work_path)
+                if module_ctx.failed():
+                    return None
+                for u in go_work_json.get("Use"):
+                    if u["DiskPath"] == "." or u["DiskPath"].startswith("./") or u["DiskPath"].startswith("../"):
+                        go_mod_package = paths.normalize(paths.join(tag.go_work.package, u["DiskPath"]))
+                        if go_mod_package == ".":
+                            go_mod_package = ""
+                        go_mod_label = Label("@@{}//{}:go.mod".format(tag.go_work.repo_name, go_mod_package))
+                        visit_go_mod(go_mod_label)
+                    else:
+                        go_work_lines.append("use {}".format(u["DiskPath"]))
+
+                if _module_acts_as_root(module_ctx, module):
+                    _fix_replace_paths(go_work_path, go_work_json)
+                    go_work_lines.extend([
+                        "replace {}{} => {}{}".format(
+                            r["Old"]["Path"],
+                            " " + r["Old"]["Version"] if "Version" in r["Old"] else "",
+                            r["New"]["Path"],
+                            " " + r["New"]["Version"] if "Version" in r["New"] else "",
+                        )
+                        for r in go_work_json.get("Replace") or []
+                    ])
+
+                go_work_stem = go_work_path.basename[:-len(".work")] if go_work_path.basename.endswith(".work") else go_work_path.basename
+                orig_go_sum_path = go_work_path.dirname.get_child(go_work_stem + ".sum")
+                watch(module_ctx, orig_go_sum_path)
+                if orig_go_sum_path.exists:
+                    go_work_sum_content = module_ctx.read(orig_go_sum_path)
+                    go_work_sum_lines.append(go_work_sum_content.strip())
+
+    for tag in module_tag_requires.values():
+        go_mod_lines.append("require {} {}".format(tag.path, tag.version))
+        if tag.sum:
+            go_sum_lines.append("{} {} {}".format(tag.path, tag.version, tag.sum))
+        if tag.path in bazel_go_module_dirs and not tag.local_path:
+            go_mod_lines.append("replace {} {} => {}".format(tag.path, tag.version, _local_replace_path(bazel_go_module_dirs[tag.path])))
+
+    module_ctx.file("go.work", "\n".join(go_work_lines))
+    module_ctx.file("go.mod", "\n".join(go_mod_lines))
+    module_ctx.file("go.sum", "\n".join(go_sum_lines))
+    if go_work_sum_lines:
+        module_ctx.file("go.work.sum", "\n".join(go_work_sum_lines))
+
+    return bazel_go_modules, root_required_mods
+
+def _parse_go_mod_json(module_ctx, go_tool, go_env, go_mod_path):
+    watch(module_ctx, go_mod_path)
+    result = env_execute(module_ctx, [go_tool, "mod", "edit", "-json", "--", path_str(go_mod_path)], go_env)
+    if result.return_code != 0:
+        module_ctx.fail("parsing {}: {}".format(go_mod_path, result.stderr))
+        return None
+    return json.decode(result.stdout)
+
+def _parse_go_work_json(module_ctx, go_tool, go_env, go_work_path):
+    watch(module_ctx, go_work_path)
+    result = env_execute(module_ctx, [go_tool, "work", "edit", "-json", "--", path_str(go_work_path)], go_env)
+    if result.return_code != 0:
+        module_ctx.fail("parsing {}: {}".format(go_work_path, result.stderr))
+        return None
+    return json.decode(result.stdout)
+
+def _fix_replace_paths(go_mod_path, go_mod_json):
+    """
+    Edits go_mod_json so that relative replacement paths can be used in another directory
+
+    This function should work with either go.mod or go.work, but we only use it
+    with go.work. If a go.mod file is allowed to have replace directives, we
+    use it in place. Other go.mod files are copied to the synthetic workspace
+    without their replace directives.
+
+    Args:
+        go_mod_path: path to the go.mod or go.work file containing the replace.
+        go_mod_json: mutable parsed JSON for that file. This is modified.
+    """
+    for replace in go_mod_json.get("Replace") or []:
+        if not replace["New"].get("Version") and (
+            replace["New"]["Path"] == "." or
+            replace["New"]["Path"].startswith("./") or
+            replace["New"]["Path"].startswith("../")
+        ):
+            replace["New"]["Path"] = paths.join(path_str(go_mod_path.dirname), replace["New"]["Path"])
+
+def _format_go_mod_json(go_mod_json):
+    lines = [
+        "module {}".format(go_mod_json["Module"]["Path"]),
+        "go {}".format(go_mod_json["Go"]),
+    ]
+    lines.extend([
+        "require {} {}{}".format(
+            r["Path"],
+            r["Version"],
+            " //indirect" if r.get("Indirect", False) else "",
+        )
+        for r in go_mod_json.get("Require") or []
+    ])
+    lines.extend([
+        "replace {}{} => {}{}".format(
+            r["Old"]["Path"],
+            " " + r["Old"]["Version"] if "Version" in r["Old"] else "",
+            r["New"]["Path"],
+            " " + r["New"]["Version"] if "Version" in r["New"] else "",
+        )
+        for r in go_mod_json.get("Replace") or []
+    ])
+    lines.extend([
+        "exclude {} {}".format(e["Path"], e["Version"])
+        for e in go_mod_json.get("Exclude") or []
+    ])
+    return "\n".join(lines)
+
+def _label_to_rel(label):
+    return label.package + "/" + label.name if label.package else label.name
+
+def _index_tool_targets(module_ctx, bazel_go_modules, root_required_mods, module_overrides):
+    """
+    Builds a map of tool targets and lists of directly required modules
+
+    A tool target is declared with a 'tool' directive in a go.mod file
+    from the root Bazel module. These targets may be run with
+    'bazel run @rules_go//go -- tool <name>' where <name> is the last
+    component of the tool's import path, ignoring major version suffixes.
+    We build a map to write to @bazel_gazelle_go_repository_config so that
+    @rules_go//go knows which target to run.
+
+    A Go module is directly required by the root Bazel module if any of
+    these conditions are true:
+
+    - It was declared with go_deps.module in the root Bazel module.
+    - Its 'require' directive in a go.mod file in the root Bazel module
+      lacks an '// indirect' comment.
+    - It provides a package named by a 'tool' directive. (We assume the longest
+      matching module path provides this, but we don't know for sure.)
+
+    We track direct requirements so that 'bazel mod tidy' can update
+    'use_repo(go_deps, ...)' automatically.
+
+    Args:
+        module_ctx: the module context.
+        bazel_go_modules: dict mapping Go module paths to _bazel_go_mod_info
+            structs, returned by _create_workspace_from_tags.
+        root_required_mods: dict mapping Go module paths to _go_require_info
+            structs, returned by _create_workspace_from_tags.
+        module_overrides: list of module_override tags from the root Bazel
+            module, used to infer repo names for modules providing tools.
+
+    Returns:
+        - tool_targets: a dict mapping Go package paths to Bazel label strings.
+        - direct_deps: a list of go_repository repo names of direct non-dev
+             dependencies.
+        - direct_dev_deps: a list of go_repository repo names of direct dev
+             dependencies (declared when go_deps was loaded with
+             'is_dev_dependency = True').
+    """
+    module_label_prefixes = {
+        path: struct(
+            repo_name = _get_repo_name(path, bazel_go_modules, module_overrides),
+            package = mod.go_mod_label.package,
+        )
+        for path, mod in bazel_go_modules.items()
+    } | {
+        path: struct(repo_name = _get_repo_name(path, bazel_go_modules, module_overrides), package = "")
+        for path in root_required_mods.keys()
+    }
+
+    tool_targets = {}  # tool import path => Bazel label string
+    is_direct = {}  # module path => True
+    for mod in bazel_go_modules.values():
+        if not mod.is_root:
+            continue
+        for tool in mod.tool_importpaths:
+            tool_target = None
+            for tool_prefix in _path_prefixes(tool):
+                label_prefix = module_label_prefixes.get(tool_prefix)
+                if not label_prefix:
+                    continue
+                if tool == tool_prefix:
+                    # package at Go module root
+                    tool_target = "@{}//{}:{}".format(
+                        label_prefix.repo_name,
+                        label_prefix.package,
+                        _tool_name(tool),
+                    )
+                else:
+                    # package in subdirectory within Go module
+                    tool_suffix = tool[len(tool_prefix) + 1:]
+                    if label_prefix.package == "":
+                        # Go module in repo root
+                        tool_target = "@{}//{}:{}".format(
+                            label_prefix.repo_name,
+                            tool_suffix,
+                            _tool_name(tool),
+                        )
+                    else:
+                        # Go module in repo subdirectory
+                        tool_target = "@{}//{}/{}:{}".format(
+                            label_prefix.repo_name,
+                            label_prefix.package,
+                            tool_suffix,
+                            _tool_name(tool),
+                        )
+                if tool_prefix not in bazel_go_modules:
+                    is_direct[tool_prefix] = True
+                break
+            if not tool_target:
+                module_ctx.fail("Go tool {} declared in {} is not provided by any known module".format(tool, str(mod.go_mod_label)))
+                return None
+            tool_targets[_tool_name(tool)] = tool_target
+
+    for mod in root_required_mods.values():
+        if mod.importpath not in bazel_go_modules and not mod.indirect:
+            is_direct[mod.importpath] = True
+
+    direct_deps = [
+        module_label_prefixes[path].repo_name
+        for path in is_direct
+        if not root_required_mods[path].is_dev_dependency
+    ]
+    direct_dev_deps = [
+        module_label_prefixes[path].repo_name
+        for path in is_direct
+        if root_required_mods[path].is_dev_dependency
+    ]
+
+    return tool_targets, direct_deps, direct_dev_deps
+
+def _path_prefixes(path):
+    """
+    Returns a list of element prefixes of path, longest first
+
+    For example, if given "example.com/a/b", returns
+    ["example.com/a/b", "example.com/a", "example.com"],
+    """
+    elems = path.split("/")
+    prefixes = [path]
+    for elem in reversed(elems)[:-1]:
+        path = path[:-len(elem) - 1]
+        prefixes.append(path)
+    return prefixes
+
+def _tool_name(path):
+    """
+    Returns the name by which a tool can be invoked
+
+    Args:
+        path: an import path from a go.mod tool directive, like "example.com/cmd/foo"
+
+    Returns:
+        The name to pass to 'bazel run @rules_go//go -- tool <name>', like foo.
+    """
+    name = paths.basename(path)
+    if name != path and name.startswith("v") and name[1:].isdigit():
+        # major version suffix
+        return paths.basename(paths.dirname(path))
+    else:
+        return name
+
+def _select_module_versions(
+        module_ctx,
+        go_tool,
+        go_env,
+        bazel_go_modules,
+        root_required_mods,
+        module_overrides):
+    """
+    Runs 'go list -m' to decide what versions of Go modules to use.
+
+    We run the actual 'go list -m' command because simulating Go's module logic
+    in Starlark is surprisingly difficult. This may download .mod files into
+    go_repository_cache and verify sums, but it won't download module .zip
+    files. Respects configuration set by go_deps.config.
+
+    Runs in the synthetic workspace created by _create_workspace_from_tags.
+
+    Args:
+        module_ctx: the module context.
+        go_tool: path to the go tool, needed for 'go list -m -json all'.
+        go_env: the environment to run the go tool with.
+        bazel_go_modules: a dict mapping Go module path to _bazel_go_mod_info
+            struct.
+        root_required_mods: dict mapping Go module paths to _go_require_info
+            structs, returned by _create_workspace_from_tags.
+        module_overrides: list of module_override tags from the root Bazel
+            module, used to infer repo names for modules providing tools.
+
+    Returns:
+        A dict mapping Go module paths to _go_module_info structs.
+    """
+
+    list_result = env_execute(module_ctx, [go_tool, "list", "-m", "-json", "all"], go_env)
+    if list_result.return_code:
+        module_ctx.fail("selecting Go module versions:\n{}".format(list_result.stderr))
+        return None
+
+    # json.decode parses a single JSON value, but `go list -m -json all` prints
+    # one JSON object per module, separated by newlines. Split stdout on the
+    # boundary between objects before decoding each value.
+    sep = "\n}\n"
+    parsed_list_results = [
+        json.decode(part.strip() + sep)
+        for part in list_result.stdout.split(sep)
+        if part.strip() != ""
+    ]
+    go_modules = {}
+    for m in parsed_list_results:
+        importpath = m["Path"]
+        if "Replace" in m:
+            if "Version" in m["Replace"]:
+                replace_path = m["Replace"]["Path"]
+                version = m["Replace"]["Version"]
+                if "Sum" not in m["Replace"]:
+                    module_ctx.fail("""\
+{importpath}: sum missing for replacement {repl_importpath}@{repl_version}
+Add to go.sum with:
+    go mod download {repl_importpath}@{repl_version}""".format(
+                        importpath = importpath,
+                        repl_importpath = m["Replace"]["Path"],
+                        repl_version = m["Replace"]["Version"],
+                    ))
+                    return None
+                sum = m["Replace"]["Sum"]
+                local_path = None
+            else:
+                replace_path = None
+                version = None
+                sum = None
+                local_path = m["Replace"]["Dir"]
+        else:
+            version = m.get("Version")
+            sum = m.get("Sum")
+            replace_path = None
+            local_path = None
+        if (importpath in root_required_mods and
+            root_required_mods[importpath].local_path != None):
+            if local_path != None:
+                module_ctx.fail("{}: Go module has a local path set by both go_deps.module.local_path and a Go replace directive".format(importpath))
+                return None
+            local_path = root_required_mods[importpath].local_path
+
+        go_modules[importpath] = _go_module_info(
+            importpath = importpath,
+            version = version,
+            sum = sum,
+            replace_path = replace_path,
+            local_path = local_path,
+            repo_name = _get_repo_name(importpath, bazel_go_modules, module_overrides),
+            go_mod_label = bazel_go_modules[importpath].go_mod_label if importpath in bazel_go_modules else None,
+        )
+    return go_modules
+
+def _parse_go_version(v):
+    """
+    Parses a go version like "go1.23" or "go1.27.8" or "go1.18beta2"
+
+    Drops the "go" prefix if present and any suffix after the version numbers
+    like "rc3" or "beta2".
+
+    Returns:
+        an array of integers that can be compared to other versions
+    """
+    if v.startswith("go"):
+        v = v[2:]
+    for i, c in enumerate(v.elems()):
+        if c != "." and c < "0" or "9" < c:
+            v = v[:i]
+            break
+    return [int(part) for part in v.split(".")]
+
+def _normalize_version(version):
+    """Strips a leading 'v' from a Go module version for comparison."""
+    if version.startswith("v"):
+        return version[1:]
+    return version
+
+def _collect_reserved_repo_names(module_ctx, bazel_go_modules):
+    """Returns repo names already taken by Bazel modules before declaring go_repository rules.
+
+    Maps repo name to a struct describing what owns the name. Used to detect
+    collisions between go_repository rules, Bazel module names, and Go modules
+    provided via go_deps.from_file.
+    """
+    reserved = {}
+    for module in module_ctx.modules:
+        reserved[module.name] = struct(
+            kind = "bazel_module",
+            bazel_module_name = module.name,
+        )
+    for info in bazel_go_modules.values():
+        if info.repo_name in reserved:
+            continue
+        reserved[info.repo_name] = struct(
+            kind = "bazel_go_module",
+            importpath = info.importpath,
+            bazel_module_name = info.bazel_dep_name,
+        )
+    return reserved
+
+def _check_for_version_conflict(
+        module_ctx,
+        go_modules,
+        bazel_go_modules,
+        root_module_tags,
+        root_required_mods,
+        report_error,
+        reserved_repo_names):
+    """
+    Reports problems with module selections and repository names.
+
+    Bazel's module system selects Bazel module versions before go_deps runs,
+    and there's no way to override it. We report errors when the user attempts
+    to select a different version through Go.
+
+    Args:
+        module_ctx: the module context, used for hard failures.
+        go_modules: a dict mapping Go module path to
+            _go_module_info structs.
+        bazel_go_modules: a dict mapping Go module path to _bazel_go_mod_info
+            structs.
+        root_module_tags: a list of go_deps.module tags from the root Bazel
+            mdoule. We don't report problems with other tags because the user
+            can't do anything about them.
+        root_required_mods: a dict mapping Go module paths to _go_require_info
+            structs for modules required from the root Bazel module.
+        report_error: module_ctx.print, module_ctx.fail, or a no-op function,
+            depending on go_deps.config(checks).
+        reserved_repo_names: mutable dict of repo names already in use, updated
+            with each go_repository that will be declared. Used to detect name
+            collisions and decide whether to declare the rules_proto shim.
+    """
+    for path, require in root_required_mods.items():
+        bazel_dep = bazel_go_modules.get(path)
+        if not bazel_dep or bazel_dep.go_mod_label.package != "":
+            # Skip check if the module is not in the root directory, for example,
+            # Gazelle's v2/go.mod. When a Bazel module provides multiple Go
+            # modules, there's not a good correspondence between Bazel module
+            # version and Go module version.
+            continue
+        normalized_require_version = _normalize_version(require.version)
+        if (path in bazel_go_modules and
+            not bazel_dep.is_root and
+            _normalize_version(bazel_dep.bazel_dep_version) != normalized_require_version):
+            report_error("""\
+Version conflict found for Go module {importpath}:
+    provided by Bazel module:       {bazel_dep_version}
+    requested by go_deps.from_file: {normalized_require_version}
+To correct this:
+    1. Update the bazel_dep for {bazel_dep_name} in MODULE.bazel.
+    2. Or update go.mod with 'go get {importpath}@v{bazel_dep_version}'.
+""".format(
+                importpath = path,
+                bazel_dep_name = bazel_dep.bazel_dep_name,
+                bazel_dep_version = bazel_dep.bazel_dep_version,
+                normalized_require_version = normalized_require_version,
+            ))
+
+    for tag in root_module_tags:
+        if tag.path in bazel_go_modules:
+            if tag.local_path != "":
+                report_error("""\
+Version conflict found for Go module {importpath}:
+    provided by Bazel module:    {bazel_dep_version}
+    requested by go_deps.module: local_path {local_path}
+To replace the content of a Bazel module, use local_path_override.
+""".format(
+                    importpath = tag.path,
+                    bazel_dep_version = bazel_go_modules[tag.path].bazel_dep_version,
+                    local_path = tag.local_path,
+                ))
+                continue
+            if _normalize_version(tag.version) != _normalize_version(bazel_go_modules[tag.path].bazel_dep_version):
+                report_error("""\
+Version conflict found for Go module {importpath}:
+    provided by Bazel module:    {bazel_dep_version}
+    requested by go_deps.module: {tag_version}
+To correct this:
+    1. Drop the go_deps.module tag for {importpath} in MODULE.bazel.
+    2. Or drop the bazel_dep for {bazel_dep_name} in MODULE.bazel.
+""".format(
+                    importpath = tag.path,
+                    bazel_dep_name = bazel_go_modules[tag.path].bazel_dep_name,
+                    bazel_dep_version = bazel_go_modules[tag.path].bazel_dep_version,
+                    tag_version = tag.version,
+                ))
+                continue
+            continue
+
+        go_module = go_modules[tag.path]
+        if tag.version != go_module.version:
+            report_error("""\
+Version conflict found for Go module {importpath}:
+    requested with go_deps.module: {tag_version}
+    selected by Go:                {go_version}
+To correct this:
+    1. Set the go_deps.module version to {go_version}.
+    2. Ensure that no higher version is requested in any MODULE.bazel, go.mod,
+       or go.work file. When using go_deps.from_file, you can use 'go get'
+       to downgrade indirect dependencies if needed.
+""".format(
+                importpath = go_module.importpath,
+                tag_version = tag.version,
+                go_version = go_module.version,
+            ))
+
+    root_module_tag_paths = {tag.path: True for tag in root_module_tags}
+    for path, require in root_required_mods.items():
+        if (require.indirect or
+            path in bazel_go_modules or
+            path in root_module_tag_paths):
+            continue
+        go_module = go_modules[path]
+        if go_module.version != None and require.version != go_module.version:
+            report_error("""\
+Version conflict found for Go module {importpath}:
+    requested in root module: {require_version}
+    selected by Go:           {go_version}
+To correct this:
+    1. Set the requested version to {go_version}.
+    2. Ensure that no higher version is requested in any MODULE.bazel, go.mod,
+       or go.work file. When using go_deps.from_file, you can use 'go get'
+       to downgrade indirect dependencies if needed.
+""".format(
+                importpath = path,
+                require_version = require.version,
+                go_version = go_module.version,
+            ))
+
+    for path, go_module in go_modules.items():
+        if path not in root_required_mods or go_module.version == None:
+            continue
+        if (go_module.go_mod_label == None and
+            go_module.sum == None and
+            go_module.local_path == None):
+            report_error("""\
+Missing go.sum entry for Go module {importpath}:
+    selected by Go: {go_version}
+To correct this:
+    Run 'go get {importpath}@{go_version}' to update go.mod and go.sum.
+""".format(
+                importpath = path,
+                go_version = go_module.version,
+            ))
+
+    for go_module in go_modules.values():
+        if not _should_declare_go_repository(module_ctx, go_module):
+            continue
+        existing = reserved_repo_names.get(go_module.repo_name)
+        if existing:
+            if existing.kind == "go_repository":
+                module_ctx.fail("Go module {prev_path} and {path} will resolve to the same Bazel repo name: {name}. While Go allows modules to only differ in case, this isn't supported in Gazelle. Please ensure you only use one of these modules in your go.mod(s), or assign a distinct repo name to one of them via the \"repo_name\" attribute of a \"module_override\" tag.".format(
+                    prev_path = existing.importpath,
+                    path = go_module.importpath,
+                    name = go_module.repo_name,
+                ))
+            elif existing.kind == "bazel_module":
+                module_ctx.fail("Go module {path} will resolve to Bazel repo name \"{name}\", which is already used by Bazel module \"{bazel_module_name}\".".format(
+                    path = go_module.importpath,
+                    name = go_module.repo_name,
+                    bazel_module_name = existing.bazel_module_name,
+                ))
+            else:
+                module_ctx.fail("Go module {path} will resolve to Bazel repo name \"{name}\", which is already used by Go module \"{importpath}\" from Bazel module \"{bazel_module_name}\".".format(
+                    path = go_module.importpath,
+                    name = go_module.repo_name,
+                    importpath = existing.importpath,
+                    bazel_module_name = existing.bazel_module_name,
+                ))
+            return
+        reserved_repo_names[go_module.repo_name] = struct(
+            kind = "go_repository",
+            importpath = go_module.importpath,
+        )
+
+_GAZELLE_DEFAULT_ATTRIBUTES = struct(
+    build_file_generation = "on",
+    build_extra_args = [],
+    directives = [],
+)
 
 _GAZELLE_ATTRS = {
     "build_file_generation": attr.string(
-        default = "on",
+        default = _GAZELLE_DEFAULT_ATTRIBUTES.build_file_generation,
         doc = """One of `"auto"`, `"on"` (default), `"off"`, `"clean"`.
 
         Whether Gazelle should generate build files for the Go module.
@@ -76,12 +1347,13 @@ _GAZELLE_ATTRS = {
         ],
     ),
     "build_extra_args": attr.string_list(
-        default = [],
+        default = _GAZELLE_DEFAULT_ATTRIBUTES.build_extra_args,
         doc = """
         A list of additional command line arguments to pass to Gazelle when generating build files.
         """,
     ),
     "directives": attr.string_list(
+        default = _GAZELLE_DEFAULT_ATTRIBUTES.directives,
         doc = """Gazelle configuration directives to use for this Go module's external repository.
 
         Each directive uses the same format as those that Gazelle
@@ -104,833 +1376,29 @@ def _wrap_module_ctx_for_testability(module_ctx):
         return module_ctx
     return struct(
         declare_repo = lambda rule, **kwargs: rule(**kwargs),
+        print = print,
+        fail = fail,
+        failed = lambda: False,
         **{k: getattr(module_ctx, k) for k in dir(module_ctx)}
     )
-
-def _fail_on_non_root_overrides(module_ctx, module, tag_class):
-    if module.is_root:
-        return
-
-    # Isolated module extension usages only contain tags from a single module, so we can allow
-    # overrides. This is a new feature in Bazel 6.3.0, earlier versions do not allow module usages
-    # to be isolated.
-    if getattr(module_ctx, "is_isolated", False):
-        return
-
-    if getattr(module.tags, tag_class):
-        fail(_FORBIDDEN_OVERRIDE_TAG.format(
-            tag_class = tag_class,
-            module_name = module.name,
-        ))
-
-def _fail_on_duplicate_overrides(path, module_name, overrides):
-    if path in overrides:
-        fail("Multiple overrides defined for Go module path \"{}\" in module \"{}\".".format(path, module_name))
-
-def _fail_on_unmatched_overrides(override_keys, resolutions, override_name):
-    unmatched_overrides = [path for path in override_keys if path not in resolutions]
-    if unmatched_overrides:
-        fail("Some {} did not target a Go module with a matching path: {}".format(
-            override_name,
-            ", ".join(unmatched_overrides),
-        ))
-
-def _check_directive(directive):
-    if directive.startswith("gazelle:") and " " in directive and not directive[len("gazelle:"):][0].isspace():
-        return
-    fail("Invalid Gazelle directive: \"{}\". Gazelle directives must be of the form \"gazelle:key value\".".format(directive))
-
-def _get_override_or_default(specific_overrides, gazelle_default_attributes, default_path_overrides, path, default_value, attribute_name):
-    # 1st: Check for user-provided specific overrides. If a specific override is found,
-    # all of its attributes will be applied (even if left to the tag's default). This is to allow
-    # users to override the gazelle_default_attributes tag back to the tag's default.
-    #
-    # This will also cause "build_file_generation" to default to "on" if a specific override is found.
-    specific_override = specific_overrides.get(path)
-    if specific_override and hasattr(specific_override, attribute_name):
-        return getattr(specific_override, attribute_name)
-
-    # 2nd. Check for default attributes provided by the user. This must be done before checking for
-    # gazelle's defaults path overrides to prevent Gazelle from overriding a user-specified flag.
-    #
-    # This will also cause "build_file_generation" to default to "on" if default attributes are found.
-    global_override_value = getattr(gazelle_default_attributes, attribute_name, None)
-    if global_override_value:
-        return global_override_value
-
-    # 3rd: Check for default overrides for specific path.
-    default_path_override = default_path_overrides.get(path)
-    if default_path_override:
-        return default_path_override
-
-    # 4th. Return the default value if no override was found.
-    # This will cause "build_file_generation" to default to "auto".
-    return default_value
-
-def _get_directives(path, gazelle_overrides, gazelle_default_attributes):
-    return _get_override_or_default(gazelle_overrides, gazelle_default_attributes, DEFAULT_DIRECTIVES_BY_PATH, path, [], "directives")
-
-def _get_build_file_generation(path, gazelle_overrides, gazelle_default_attributes):
-    # The default value for build_file_generation is "auto" if no override is found, but will default to "on" if an override is found.
-    return _get_override_or_default(gazelle_overrides, gazelle_default_attributes, DEFAULT_BUILD_FILE_GENERATION_BY_PATH, path, "auto", "build_file_generation")
-
-def _get_build_extra_args(path, gazelle_overrides, gazelle_default_attributes):
-    return _get_override_or_default(gazelle_overrides, gazelle_default_attributes, DEFAULT_BUILD_EXTRA_ARGS_BY_PATH, path, [], "build_extra_args")
-
-def _get_patches(path, module_overrides):
-    return _get_override_or_default(module_overrides, struct(), {}, path, [], "patches")
-
-def _get_patch_args(path, module_overrides):
-    override = _get_override_or_default(module_overrides, struct(), {}, path, None, "patch_strip")
-    return ["-p{}".format(override)] if override else []
-
-def _get_patch_cmds(path, module_overrides):
-    return _get_override_or_default(module_overrides, struct(), {}, path, [], "patch_cmds")
-
-def _repo_name(importpath):
-    path_segments = importpath.split("/")
-    segments = reversed(path_segments[0].split(".")) + path_segments[1:]
-    candidate_name = "_".join(segments).replace("-", "_")
-    return "".join([c.lower() if c.isalnum() else "_" for c in candidate_name.elems()])
-
-def get_repo_name(importpath, module_overrides):
-    """Returns the Bazel repo name for a Go module path.
-
-    If a module_override for the path specifies a non-empty repo_name, that
-    value is used verbatim. Otherwise the name is derived from the import path
-    via _repo_name. This allows the root module to break collisions between two
-    modules whose import paths mangle to the same default repo name.
-    """
-    override = module_overrides.get(importpath)
-    if override and getattr(override, "repo_name", ""):
-        return override.repo_name
-    return _repo_name(importpath)
-
-def _is_dev_dependency(module_ctx, tag):
-    if hasattr(tag, "_is_dev_dependency"):
-        # Synthetic tags generated from go_deps.from_file have this "hidden" attribute.
-        return tag._is_dev_dependency
-
-    # This function is available in Bazel 6.2.0 and later. This is the same version that has
-    # module_ctx.extension_metadata, so the return value of this function is not used if it is
-    # not available.
-    return module_ctx.is_dev_dependency(tag) if hasattr(module_ctx, "is_dev_dependency") else False
-
-def _intersperse_newlines(tags):
-    return [tag for p in zip(tags, len(tags) * ["\n"]) for tag in p]
-
-# This function processes the gazelle_default_attributes tag for a given module and returns a struct
-# containing the attributes from _GAZELLE_ATTRS that are defined in the tag.
-def _process_gazelle_default_attributes(module_ctx):
-    for module in module_ctx.modules:
-        _fail_on_non_root_overrides(module_ctx, module, "gazelle_default_attributes")
-
-    for module in module_ctx.modules:
-        tags = module.tags.gazelle_default_attributes
-        if not tags:
-            continue
-
-        if len(tags) > 1:
-            fail(
-                "go_deps.gazelle_default_attributes: only one tag can be specified per module, got:\n",
-                *[t for p in zip(module.tags.gazelle_default_attributes, len(module.tags.gazelle_default_attributes) * ["\n"]) for t in p]
-            )
-
-        tag = tags[0]
-        return struct(**{
-            attr: getattr(tag, attr)
-            for attr in _GAZELLE_ATTRS.keys()
-            if hasattr(tag, attr)
-        })
-
-    return None
-
-# This function processes a given override type for a given module, checks for duplicate overrides
-# and inserts the override returned from the process_override_func into the overrides dict.
-def _process_overrides(module_ctx, module, override_type, overrides, process_override_func, additional_overrides = None):
-    _fail_on_non_root_overrides(module_ctx, module, override_type)
-    for override_tag in getattr(module.tags, override_type):
-        _fail_on_duplicate_overrides(override_tag.path, module.name, overrides)
-
-        # Some overrides conflict with other overrides. These can be specified in the
-        # additional_overrides dict. If the override is in the additional_overrides dict, then fail.
-        if additional_overrides:
-            _fail_on_duplicate_overrides(override_tag.path, module.name, additional_overrides)
-
-        overrides[override_tag.path] = process_override_func(override_tag)
-
-def _process_gazelle_override(gazelle_override_tag):
-    for directive in gazelle_override_tag.directives:
-        _check_directive(directive)
-
-    return struct(**{
-        attr: getattr(gazelle_override_tag, attr)
-        for attr in _GAZELLE_ATTRS.keys()
-        if hasattr(gazelle_override_tag, attr)
-    })
-
-def _process_module_override(module_override_tag):
-    return struct(
-        patches = module_override_tag.patches,
-        patch_strip = module_override_tag.patch_strip,
-        patch_cmds = module_override_tag.patch_cmds,
-        repo_name = module_override_tag.repo_name,
-    )
-
-def _process_archive_override(archive_override_tag):
-    return struct(
-        urls = archive_override_tag.urls,
-        sha256 = archive_override_tag.sha256,
-        strip_prefix = archive_override_tag.strip_prefix,
-        patches = archive_override_tag.patches,
-        patch_strip = archive_override_tag.patch_strip,
-        patch_cmds = archive_override_tag.patch_cmds,
-    )
-
-# Only forwards proto_library since that is the only symbol that older versions of Gazelle
-# emitted a load for from @rules_proto//proto:defs.bzl.
-_RULES_PROTO_COMPAT_DEFS_BZL = '''\
-"""Forwards proto_library from its new home in Protobuf, as previously provided by @rules_proto//proto:defs.bzl.
-
-This repository is generated by the go_deps module extension of Gazelle, which no longer depends
-on rules_proto. It keeps the BUILD files of Go modules working that were generated by older
-versions of Gazelle and thus still load proto_library from @rules_proto
-(https://github.com/bazel-contrib/bazel-gazelle/issues/2358).
-
-BUILD files that load other symbols from @rules_proto can be regenerated by adding a
-go_deps.gazelle_override tag with build_file_generation = "clean" for the Go module to the
-relevant MODULE.bazel file.
-"""
-
-load("@com_google_protobuf//bazel:proto_library.bzl", _proto_library = "proto_library")
-
-proto_library = _proto_library
-'''
-
-def _rules_proto_compat_impl(ctx):
-    ctx.file("WORKSPACE")
-    ctx.file("proto/BUILD.bazel")
-    ctx.file("proto/defs.bzl", _RULES_PROTO_COMPAT_DEFS_BZL)
-
-_rules_proto_compat = repository_rule(
-    implementation = _rules_proto_compat_impl,
-    doc = """Compatibility shim for @rules_proto, which Gazelle no longer depends on, that keeps
-    the BUILD files of Go modules working that still load proto rules from it.""",
-)
-
-def check_for_version_conflict(version, previous, module_tag, module_name_to_go_dot_mod_label, conflict_printer):
-    """
-    Check if duplicate modules have different versions, and fail with a useful error message if they do.
-
-    Args:
-        version: The version of the module.
-        previous: The previous module object.
-        module_tag: The module tag.
-        module_name_to_go_dot_mod_label: A dictionary mapping module paths to go.mod labels.
-        conflict_printer: a printer function to use for printing the error message, generally either print or fail.
-    """
-
-    if not previous or version == previous.version:
-        # no previous module, so no possible error OR
-        # version is the same, skip because we won't error
-        return
-
-    if hasattr(module_tag, "local_path"):
-        # overrides are not considered for version conflicts
-        return
-
-    # When using go.work, duplicate dependency versions are possible.
-    # This can cause issues, so we fail with a hopefully actionable error.
-    current_label = module_tag._parent_label
-
-    previous_label = previous.module_tag._parent_label
-
-    corrective_measure = """To correct this:
-    1. ensure that '{}' in all go.mod files is the same version.
-    2. in the folders where you made changes run: bazel run @rules_go//go -- mod tidy
-    3. at the workspace root run: bazel run @rules_go//go -- work sync.""".format(module_tag.path)
-
-    message = """Multiple versions of {} found:
-    - {} contains: {}
-    - {} contains: {}
-{}""".format(module_tag.path, current_label, module_tag.version, previous_label, previous.module_tag.version, corrective_measure)
-
-    conflict_printer(message)
-
-def _noop(*_):
-    pass
-
-# These repos are shared between the isolated and non-isolated instances of go_deps as they are
-# referenced directly by rules (go_proto_library) and would result in linker errors due to duplicate
-# packages if they were resolved separately.
-# When adding a new Go module to this list, make sure that:
-# 1. The corresponding repository is visible to the gazelle module via a use_repo directive.
-# 2. All transitive dependencies of the module are also in this list. Avoid adding module that have
-#    a large number of transitive dependencies.
-_SHARED_REPOS = [
-    "github.com/golang/protobuf",
-    "google.golang.org/protobuf",
-]
-
-def go_deps_impl(module_ctx):
-    module_ctx = _wrap_module_ctx_for_testability(module_ctx)
-    module_resolutions = {}
-    sums = {}
-    replace_map = {}
-    bazel_go_modules = {}
-    all_tools = []
-
-    gazelle_default_attributes = _process_gazelle_default_attributes(module_ctx)
-    archive_overrides = {}
-    gazelle_overrides = {}
-    module_overrides = {}
-
-    root_versions = {}
-    root_module_direct_deps = {}
-    root_module_direct_dev_deps = {}
-
-    first_module = module_ctx.modules[0]
-    if first_module.is_root and first_module.name in [
-        "gazelle",
-        "rules_go",
-        "gazelle_bcr_go_mod_tests",
-        "gazelle_bcr_go_work_tests",
-    ]:
-        root_module_direct_deps["bazel_gazelle_go_repository_config"] = None
-
-    outdated_direct_dep_printer = print
-    config_go_env = {}
-    config_go_env_inherit = []
-    dep_files = []
-    modules_from_go_work = {}
-    debug_mode = False
-    for module in module_ctx.modules:
-        if len(module.tags.config) > 1:
-            fail(
-                "Multiple \"go_deps.config\" tags defined in module \"{}\":\n".format(module.name),
-                *_intersperse_newlines(module.tags.config)
-            )
-
-        # Parse the go_deps.config tag of the root module only.
-        for mod_config in module.tags.config:
-            if not module.is_root:
-                continue
-            check_direct_deps = mod_config.check_direct_dependencies
-            if check_direct_deps == "off":
-                outdated_direct_dep_printer = _noop
-            elif check_direct_deps == "warning":
-                outdated_direct_dep_printer = print
-            elif check_direct_deps == "error":
-                outdated_direct_dep_printer = fail
-            config_go_env = mod_config.go_env
-            config_go_env_inherit = mod_config.go_env_inherit
-            debug_mode = mod_config.debug_mode
-
-        _process_overrides(module_ctx, module, "gazelle_override", gazelle_overrides, _process_gazelle_override)
-        _process_overrides(module_ctx, module, "module_override", module_overrides, _process_module_override, archive_overrides)
-        _process_overrides(module_ctx, module, "archive_override", archive_overrides, _process_archive_override, module_overrides)
-
-        if len(module.tags.from_file) > 1:
-            fail(
-                "Multiple \"go_deps.from_file\" tags defined in module \"{}\": {}".format(
-                    module.name,
-                    ", ".join([str(tag.go_mod) for tag in module.tags.from_file]),
-                ),
-            )
-
-        additional_module_tags = []
-        from_file_tags = []
-        module_name_to_go_dot_mod_label = {}
-
-        for from_file_tag in module.tags.from_file:
-            if bool(from_file_tag.go_work) == bool(from_file_tag.go_mod):
-                fail("go_deps.from_file tag must have either go_work or go_mod attribute, but not both.")
-
-            if from_file_tag.go_mod:
-                from_file_tags.append(from_file_tag)
-            elif from_file_tag.go_work:
-                go_work = go_work_from_label(module_ctx, from_file_tag.go_work)
-
-                # this ensures go.work replacements are considered
-                additional_module_tags += [
-                    with_replaced_or_new_fields(tag, _is_dev_dependency = False)
-                    for tag in go_work.module_tags
-                ]
-
-                for entry, new_sum in sums_from_go_work(module_ctx, from_file_tag.go_work).items():
-                    _safe_insert_sum(sums, entry, new_sum)
-
-                replace_map.update(go_work.replace_map)
-                from_file_tags = from_file_tags + go_work.from_file_tags
-            else:
-                fail("Either \"go_mod\" or \"go_work\" must be specified in \"go_deps.from_file\" tags.")
-
-        # Collect all prefixes of packages listed under "tool" directives - they
-        # may be modules for which we have to ignore the "indirect" comment.
-        possible_tool_modules = {}
-        for from_file_tag in from_file_tags:
-            module_path, module_tags_from_go_mod, go_mod_replace_map, tools = deps_from_go_mod(module_ctx, from_file_tag.go_mod)
-            all_tools.extend(tools)
-            for tool in tools:
-                # The tool's package may be the module itself.
-                possible_tool_modules[tool] = None
-
-                # Add all path prefixes of tool to the map
-                # to allow for partial matches.
-                for i in range(len(tool)):
-                    if tool[i] == "/":
-                        possible_tool_modules[tool[:i]] = None
-            module_name_to_go_dot_mod_label[module_path] = from_file_tag.go_mod
-            if getattr(from_file_tag, "_from_go_work", False):
-                modules_from_go_work[module_path] = True
-
-            # Collect the relative path of the root module's go.mod file if it lives in the main
-            # repository.
-            if module.is_root and not from_file_tag.go_mod.repo_name:
-                go_mod = "go.mod"
-                if from_file_tag.go_mod.package:
-                    go_mod = from_file_tag.go_mod.package + "/" + go_mod
-                dep_files.append(go_mod)
-
-            is_dev_dependency = _is_dev_dependency(module_ctx, from_file_tag)
-            additional_module_tags += [
-                with_replaced_or_new_fields(tag, _is_dev_dependency = is_dev_dependency)
-                for tag in module_tags_from_go_mod
-            ]
-
-            if module.is_root or getattr(module_ctx, "is_isolated", False):
-                # for the replace_map, first in wins
-                for mod_path, mod in go_mod_replace_map.items():
-                    if not mod_path in replace_map:
-                        replace_map[mod_path] = mod
-
-                # Register this Go module as being provided by the main Bazel
-                # module. It does not have a version, and it overrides any
-                # non-Bazel Go module with the same path. Note that a single
-                # Bazel module may contain multiple Go modules via go.work.
-                bazel_go_modules[module_path] = struct(
-                    module_name = module.name,
-                    repo_name = "@" + module.name,
-                    version = _HIGHEST_VERSION_SENTINEL,
-                    raw_version = "",
-                    is_root = True,
-                    go_mod_dir = from_file_tag.go_mod.package,
-                )
-            else:
-                # Register this Go module as being provided by the specific
-                # Bazel module. It participates in version resolution using its
-                # registry version, which uses a relaxed variant of semver that
-                # can however still be compared to strict semvers. An empty
-                # version string signals an override, which is assumed to be
-                # newer than any other version.
-                raw_version = _canonicalize_raw_version(module.version)
-                version = semver.to_comparable(raw_version, relaxed = True) if raw_version else _HIGHEST_VERSION_SENTINEL
-                if module_path not in bazel_go_modules or version > bazel_go_modules[module_path].version:
-                    bazel_go_modules[module_path] = struct(
-                        module_name = module.name,
-                        repo_name = "@" + from_file_tag.go_mod.repo_name,
-                        version = version,
-                        raw_version = raw_version,
-                        is_root = False,
-                        go_mod_dir = from_file_tag.go_mod.package,
-                    )
-
-            # Load all sums from transitively resolved `go.sum` files that have modules.
-            if len(module_tags_from_go_mod) > 0:
-                for entry, new_sum in sums_from_go_mod(module_ctx, from_file_tag.go_mod).items():
-                    _safe_insert_sum(sums, entry, new_sum)
-
-        # Load sums from manually specified modules separately.
-        for module_tag in module.tags.module:
-            if module_tag.build_naming_convention:
-                fail("""The "build_naming_convention" attribute is no longer supported for "go_deps.module" tags. Use a "gazelle:go_naming_convention" directive via the "gazelle_override" tag's "directives" attribute instead.""")
-            if module_tag.build_file_proto_mode:
-                fail("""The "build_file_proto_mode" attribute is no longer supported for "go_deps.module" tags. Use a "gazelle:proto" directive via the "gazelle_override" tag's "directives" attribute instead.""")
-            sum_version = _canonicalize_raw_version(module_tag.version)
-            _safe_insert_sum(sums, (module_tag.path, sum_version), module_tag.sum)
-
-        # Parse the go_dep.module tags of all transitive dependencies and apply
-        # Minimum Version Selection to resolve importpaths to Go module versions
-        # and sums.
-        #
-        # Note: This applies Minimum Version Selection on the resolved
-        # dependency graphs of all transitive Bazel module dependencies, which
-        # is not what `go mod` does. But since this algorithm ends up using only
-        # Go module versions that have been explicitly declared somewhere in the
-        # full graph, we can assume that at that place all its required
-        # transitive dependencies have also been declared - we may end up
-        # resolving them to higher versions, but only compatible ones.
-        paths = {}
-
-        for module_tag in module.tags.module + additional_module_tags:
-            raw_version = _canonicalize_raw_version(module_tag.version)
-
-            # For modules imported from a go.sum, we know which ones are direct
-            # dependencies and can thus only report implicit version upgrades
-            # for direct dependencies. For manually specified go_deps.module
-            # tags, we always report version upgrades unless users override with
-            # the "indirect" attribute.
-            # We also need to disregard the "indirect" attribute for modules
-            # that provide any tools listed with a "tool" directive, otherwise
-            # tools can't be built after a `bazel mod tidy`.
-            # We ignore non-root modules from go.work files, since these can't
-            # be referenced by repo name.
-            if (module.is_root and
-                (not module_tag.indirect or module_tag.path in possible_tool_modules) and
-                module_tag.path not in modules_from_go_work):
-                root_versions[module_tag.path] = raw_version
-                if _is_dev_dependency(module_ctx, module_tag):
-                    root_module_direct_dev_deps[get_repo_name(module_tag.path, module_overrides)] = None
-                else:
-                    root_module_direct_deps[get_repo_name(module_tag.path, module_overrides)] = None
-
-            version = semver.to_comparable(raw_version)
-            previous = paths.get(module_tag.path)
-
-            fail_on_version_conflict = any([x.fail_on_version_conflict for x in module.tags.from_file])
-
-            conflict_printer = fail if fail_on_version_conflict else print
-            check_for_version_conflict(version, previous, module_tag, module_name_to_go_dot_mod_label, conflict_printer)
-            paths[module_tag.path] = struct(version = version, module_tag = module_tag)
-
-            if module_tag.path not in module_resolutions or version > module_resolutions[module_tag.path].version:
-                to_path = None
-                local_path = None
-
-                if module_tag.path in replace_map:
-                    replacement = replace_map[module_tag.path]
-
-                    to_path = replacement.to_path
-                    local_path = replacement.local_path
-
-                module_resolutions[module_tag.path] = struct(
-                    repo_name = get_repo_name(module_tag.path, module_overrides),
-                    version = version,
-                    raw_version = raw_version,
-                    to_path = to_path,
-                    local_path = local_path,
-                )
-
-    _fail_on_unmatched_overrides(archive_overrides.keys(), module_resolutions, "archive_overrides")
-    _fail_on_unmatched_overrides(gazelle_overrides.keys(), module_resolutions, "gazelle_overrides")
-    _fail_on_unmatched_overrides(module_overrides.keys(), module_resolutions, "module_overrides")
-
-    # Compute the environment based on the config tag and available go_sdks.
-    go_env = compute_env(
-        module_ctx,
-        # Label.repo_name is always a canonical name, so use a canonical label.
-        go_sdk_name = "@@" + HOST_COMPATIBLE_SDK.repo_name,
-        go_env = config_go_env,
-        go_env_inherit = config_go_env_inherit,
-    )
-
-    # All `replace` directives are applied after version resolution.
-    # We can simply do this by checking the replace paths' existence
-    # in the module resolutions and swapping out the entry.
-    for path, replace in replace_map.items():
-        if path in module_resolutions:
-            # If the replace directive specified a version then we only
-            # apply it if the versions match.
-            if replace.from_version:
-                comparable_from_version = semver.to_comparable(replace.from_version)
-                if module_resolutions[path].version != comparable_from_version:
-                    continue
-
-            new_version = semver.to_comparable(replace.version)
-            module_resolutions[path] = with_replaced_or_new_fields(
-                module_resolutions[path],
-                replace = replace.to_path,
-                version = new_version,
-                raw_version = replace.version,
-            )
-            if path in root_versions:
-                if replace != replace.to_path:
-                    # If the root module replaces a Go module with a completely different one, do
-                    # not ever report an implicit version upgrade.
-                    root_versions.pop(path)
-                else:
-                    root_versions[path] = replace.version
-
-    for path, bazel_go_module in bazel_go_modules.items():
-        # We can't apply overrides to Bazel dependencies and thus fall back to using the Go module.
-        if path in archive_overrides or path in gazelle_overrides or path in module_overrides or path in replace_map:
-            # TODO: Consider adding a warning here. Users should patch the bazel_dep instead.
-            continue
-
-        # Don't print a message when the go.mod file is not defined in the Bazel module root directory.
-        # This is unusual, indicating there may not be a one-to-one correspondence between Bazel and Go
-        # modules, especially when a go.work file is involved. Gazelle itself follows this pattern.
-        if path in modules_from_go_work:
-            module_resolutions[path] = bazel_go_module
-            continue
-
-        bazel_dep_is_older = path in module_resolutions and bazel_go_module.version < module_resolutions[path].version
-
-        # Version mismatches between the Go module and the bazel_dep are problematic. For consistency always
-        # prefer the bazel_dep version and report any mismatch to the user.
-        #
-        # The bazel_dep version can be relaxed semver (e.g. 1.2.3.bcr.1), which would always differ from valid Go
-        # versions. We assume that the extra segments don't affect Go compatibility and thus ignore them.
-        if (path in module_resolutions and
-            not bazel_go_module.is_root and
-            semver.make_strict(bazel_go_module.version) != module_resolutions[path].version and
-            bazel_go_module.version != _HIGHEST_VERSION_SENTINEL and
-            (bazel_dep_is_older or path in root_versions)):
-            bazel_dep_name = bazel_go_module.module_name
-            bazel_dep_version = bazel_go_module.raw_version
-            go_module_version = module_resolutions[path].raw_version
-            if bazel_dep_is_older:
-                remediation = [
-                    """
-Either ensure that you have
-
-  bazel_dep(name = "{bazel_dep_name}", version = "{go_module_version}")
-
-in your MODULE.bazel file or downgrade the Go module version via
-
-  bazel run""".format(
-                        bazel_dep_name = bazel_dep_name,
-                        go_module_version = go_module_version,
-                    ),
-                    Label("@io_bazel_rules_go//go"),
-                    "-- get {path}@v{bazel_dep_version}\n\n".format(
-                        path = path,
-                        bazel_dep_version = bazel_dep_version,
-                    ),
-                ]
-            else:
-                remediation = [
-                    """
-Update the Go module version via
-
-  bazel run""",
-                    Label("@io_bazel_rules_go//go"),
-                    "-- get {path}@v{bazel_dep_version}\n\n".format(
-                        path = path,
-                        bazel_dep_version = bazel_dep_version,
-                    ),
-                ]
-
-            outdated_direct_dep_printer("""
-Mismatch between versions requested for Go module {module}:
-
-  bazel_dep version (MODULE.bazel): {bazel_dep_version} (as "{bazel_dep_name}")
-  Go module version (go.mod):       {go_module_version}
-""".format(
-                module = path,
-                bazel_dep_name = bazel_dep_name,
-                bazel_dep_version = bazel_dep_version,
-                go_module_version = go_module_version,
-            ), *remediation)
-
-        # TODO: We should update root_versions if the bazel_go_module is a direct dependency of the root
-        #   module. However, we currently don't have a way to determine that.
-        module_resolutions[path] = bazel_go_module
-
-    recommended_updates = []
-    for path, root_version in root_versions.items():
-        resolved_version = module_resolutions[path].version
-
-        # Do not report version mismatches for overridden Bazel modules.
-        if resolved_version != _HIGHEST_VERSION_SENTINEL and semver.to_comparable(root_version) < resolved_version:
-            recommended_updates.append((path, root_version, module_resolutions[path].raw_version))
-    if recommended_updates:
-        outdated_direct_dep_printer(
-            "The following Go modules were required by the root module at the given versions, but were implicitly updated to higher versions due to transitive dependencies:\n",
-            *(
-                [
-                    "\n  {path}: v{root_version} -> v{resolved_version}".format(
-                        path = path,
-                        root_version = root_version,
-                        resolved_version = resolved_version,
-                    )
-                    for path, root_version, resolved_version in recommended_updates
-                ] + ["\n\nUpdate the root module's dependencies to match the resolved versions via:\n\n  bazel run", Label("@io_bazel_rules_go//go"), "-- get " + " ".join([
-                    "{path}@v{resolved_version}".format(path = path, resolved_version = resolved_version)
-                    for path, _, resolved_version in recommended_updates
-                ] + ["\n\n"])]
-            )
-        )
-
-    repos_processed = {}
-    for path, module in module_resolutions.items():
-        if hasattr(module, "module_name") or (getattr(module_ctx, "is_isolated", False) and path in _SHARED_REPOS):
-            # Do not create a go_repository for a Go module provided by a bazel_go_module or one shared with the non-isolated
-            # instance of go_deps.
-            root_module_direct_deps.pop(get_repo_name(path, module_overrides), None)
-            root_module_direct_dev_deps.pop(get_repo_name(path, module_overrides), None)
-            continue
-        if module.repo_name in repos_processed:
-            fail("Go module {prev_path} and {path} will resolve to the same Bazel repo name: {name}. While Go allows modules to only differ in case, this isn't supported in Gazelle. Please ensure you only use one of these modules in your go.mod(s), or assign a distinct repo name to one of them via the \"repo_name\" attribute of a \"module_override\" tag.".format(
-                prev_path = repos_processed[module.repo_name],
-                path = path,
-                name = module.repo_name,
-            ))
-
-        repos_processed[module.repo_name] = path
-        go_repository_args = {
-            "name": module.repo_name,
-            # Compared to the name attribute, the content of this attribute does not go through repo
-            # mapping.
-            "internal_only_do_not_use_apparent_name": module.repo_name,
-            "importpath": path,
-            "build_directives": _get_directives(path, gazelle_overrides, gazelle_default_attributes),
-            "build_file_generation": _get_build_file_generation(path, gazelle_overrides, gazelle_default_attributes),
-            "build_extra_args": _get_build_extra_args(path, gazelle_overrides, gazelle_default_attributes),
-            "patches": _get_patches(path, module_overrides),
-            "patch_args": _get_patch_args(path, module_overrides),
-            "patch_cmds": _get_patch_cmds(path, module_overrides),
-            "debug_mode": debug_mode,
-        }
-
-        archive_override = archive_overrides.get(path)
-        if archive_override:
-            go_repository_args.update({
-                "urls": archive_override.urls,
-                "strip_prefix": archive_override.strip_prefix,
-                "sha256": archive_override.sha256,
-                "patches": _get_patches(path, archive_overrides),
-                "patch_args": _get_patch_args(path, archive_overrides),
-                "patch_cmds": _get_patch_cmds(path, archive_overrides),
-            })
-        elif module.local_path:
-            go_repository_args.update({
-                # the version is now meaningless
-                "version": None,
-                "local_path": module.local_path,
-            })
-        else:
-            repo_args = {
-                "replace": getattr(module, "replace", None),
-                "version": "v" + module.raw_version,
-            }
-
-            sum = _get_sum_from_module(path, module, sums)
-            if sum:
-                repo_args["sum"] = sum
-
-            go_repository_args.update(repo_args)
-
-        module_ctx.declare_repo(go_repository, **go_repository_args)
-
-    if "rules_proto" not in repos_processed:
-        # The BUILD files of Go modules may still load proto rules from @rules_proto, which
-        # Gazelle no longer depends on. Generate a compatibility shim with that name that forwards
-        # the loads to @com_google_protobuf. Since this repo is generated by the go_deps
-        # extension, it is visible to the Go module repos generated by the same extension under
-        # exactly this name. See https://github.com/bazel-contrib/bazel-gazelle/issues/2358.
-        module_ctx.declare_repo(_rules_proto_compat, name = "rules_proto")
-
-    # Build lookup table for tool_targets
-    importpath_to_repo = {
-        path: module.repo_name
-        for path, module in module_resolutions.items()
-    }
-
-    tool_targets = {}
-    for tool_path in all_tools:
-        segments = tool_path.split("/")
-        module_path = None
-
-        # Start from the longest possible prefix and work down
-        for i in range(len(segments), 0, -1):
-            candidate = "/".join(segments[:i])
-            if candidate in importpath_to_repo:
-                module_path = candidate
-                break
-
-        if module_path:
-            tool_name = segments[-1]
-            target_name = tool_name
-            if len(segments) >= 2 and len(tool_name) >= 2 and tool_name[0] == "v" and tool_name[1:].isdigit():
-                # Skip major version
-                tool_name = segments[-2]
-            pkg_path = tool_path[len(module_path):].lstrip("/")
-            tool_targets[tool_name] = "@{repo}//{pkg}:{target}".format(
-                repo = importpath_to_repo[module_path],
-                pkg = pkg_path,
-                target = target_name,
-            )
-
-    # Create a synthetic WORKSPACE file that lists all Go repositories created
-    # above and contains all the information required by Gazelle's -repo_config
-    # to generate BUILD files for external Go modules. This skips the need to
-    # run generate_repo_config. Only "importpath" and "build_naming_convention"
-    # are relevant.
-    module_ctx.declare_repo(
-        go_repository_config,
-        name = "bazel_gazelle_go_repository_config",
-        importpaths = {
-            module.repo_name: path
-            for path, module in module_resolutions.items()
-            if not getattr(module, "go_mod_dir", None)
-        },
-        tool_targets = tool_targets,
-        module_names = {
-            info.repo_name: info.module_name
-            for path, info in bazel_go_modules.items()
-            if not getattr(info, "go_mod_dir", None)
-        },
-        build_naming_conventions = drop_nones({
-            module.repo_name: get_directive_value(
-                _get_directives(path, gazelle_overrides, gazelle_default_attributes),
-                "go_naming_convention",
-            )
-            for path, module in module_resolutions.items()
-        }),
-        go_env = go_env,
-        dep_files = dep_files,
-    )
-
-    return extension_metadata(
-        module_ctx,
-        root_module_direct_deps = root_module_direct_deps.keys(),
-        # If a Go module appears as both a dev and a non-dev dependency, it has to be imported as a
-        # non-dev dependency.
-        root_module_direct_dev_deps = {
-            repo_name: None
-            for repo_name in root_module_direct_dev_deps.keys()
-            if repo_name not in root_module_direct_deps
-        }.keys(),
-        reproducible = True,
-    )
-
-def _get_sum_from_module(path, module, sums):
-    entry = (path, module.raw_version)
-    if hasattr(module, "replace"):
-        entry = (module.replace, module.raw_version)
-
-    if entry not in sums:
-        if module.raw_version == COMPARES_HIGHEST_SENTINEL:
-            # replacement have no sums, so we can skip this
-            return None
-        elif module.local_path == None:
-            # When updating a dependency, its sum may not be in go.sum and we can't hard fail here
-            # since we need Bazel to tidy the module
-            print("No sum for {}@{} found, run bazel run".format(path, module.raw_version), Label("@io_bazel_rules_go//go"), "-- mod tidy to generate it")
-            return None
-
-    return sums[entry]
-
-def _safe_insert_sum(sums, entry, new_sum):
-    if entry in sums and new_sum != sums[entry]:
-        fail("Multiple mismatching sums for {}@{} found: {} vs {}".format(entry[0], entry[1], new_sum, sums[entry]))
-    sums[entry] = new_sum
-
-def _canonicalize_raw_version(raw_version):
-    if raw_version.startswith("v"):
-        return raw_version[1:]
-    return raw_version
 
 _config_tag = tag_class(
     doc = "Configures the general behavior of the go_deps extension.",
     attrs = {
-        "check_direct_dependencies": attr.string(
-            doc = """
-            The way in which warnings about version mismatches for direct dependencies and Go modules that are
-            also Bazel modules are reported.
+        "checks": attr.string(
+            doc = """\
+            How to handle problems with inconsistent versions, like a Go module being
+            requested at different versions with go_deps.module and go.mod.
+            "error" fails the build when an inconsistency is detected.
+            "warning" prints a message. "off" suppresses these messages.
             """,
             values = ["off", "warning", "error"],
+            default = "warning",
+        ),
+        "check_direct_dependencies": attr.string(
+            doc = "DEPRECATED: Use `checks` instead.",
+            values = ["off", "warning", "error"],
+            default = "off",
         ),
         "go_env": attr.string_dict(
             doc = "The environment variables to use when fetching Go dependencies or running the `@rules_go//go` tool.",
@@ -954,8 +1422,8 @@ _from_file_tag = tag_class(
         "go_mod": attr.label(mandatory = False),
         "go_work": attr.label(mandatory = False),
         "fail_on_version_conflict": attr.bool(
-            default = True,
-            doc = "Fail if duplicate modules have different versions",
+            default = False,
+            doc = 'DEPRECATED: Use `go_deps.config(checks = "error")` instead.',
         ),
     },
 )
@@ -973,8 +1441,6 @@ _module_tag = tag_class(
             doc = """Whether this Go module is an indirect dependency.""",
             default = False,
         ),
-        "build_naming_convention": attr.string(doc = """Removed, do not use""", default = ""),
-        "build_file_proto_mode": attr.string(doc = """Removed, do not use""", default = ""),
         "local_path": attr.string(
             doc = """For when a module is replaced by one residing in a local directory path """,
             mandatory = False,
@@ -1070,6 +1536,37 @@ _module_override_tag = tag_class(
         ),
     },
     doc = "Override the definition of a Go module defined by other tags in this extension, e.g. to apply patches or change its Bazel repository name.",
+)
+
+# Older Gazelle versions generated BUILD files that load proto_library from
+# @rules_proto//proto:defs.bzl.
+_RULES_PROTO_COMPAT_DEFS_BZL = '''\
+"""Forwards proto_library from its new home in Protobuf, as previously provided by @rules_proto//proto:defs.bzl.
+
+This repository is generated by the go_deps module extension of Gazelle, which no longer depends
+on rules_proto. It keeps the BUILD files of Go modules working that were generated by older
+versions of Gazelle and thus still load proto_library from @rules_proto
+(https://github.com/bazel-contrib/bazel-gazelle/issues/2358).
+
+BUILD files that load other symbols from @rules_proto can be regenerated by adding a
+go_deps.gazelle_override tag with build_file_generation = "clean" for the Go module to the
+relevant MODULE.bazel file.
+"""
+
+load("@com_google_protobuf//bazel:proto_library.bzl", _proto_library = "proto_library")
+
+proto_library = _proto_library
+'''
+
+def _rules_proto_compat_impl(ctx):
+    ctx.file("WORKSPACE")
+    ctx.file("proto/BUILD.bazel")
+    ctx.file("proto/defs.bzl", _RULES_PROTO_COMPAT_DEFS_BZL)
+
+_rules_proto_compat = repository_rule(
+    implementation = _rules_proto_compat_impl,
+    doc = """Compatibility shim for @rules_proto, which Gazelle no longer depends on, that keeps
+    the BUILD files of Go modules working that still load proto rules from it.""",
 )
 
 go_deps = module_extension(

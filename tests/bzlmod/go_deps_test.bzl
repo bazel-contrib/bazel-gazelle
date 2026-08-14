@@ -31,33 +31,24 @@ load("//tests/bzlmod/go_deps:repo_name_collision.bzl", REPO_NAME_COLLISION_TEST 
 load("//tests/bzlmod/go_deps:rules_proto_compat.bzl", RULES_PROTO_COMPAT_TEST = "TEST")
 load("//tests/bzlmod/go_deps:tool.bzl", TOOL_TEST = "TEST")
 load("//tests/bzlmod/go_deps:version_conflict_checks.bzl", VERSION_CONFLICT_CHECKS_TEST = "TEST")
+load("//tests/bzlmod/go_deps:work_mixed_direct.bzl", WORK_MIXED_DIRECT_TEST = "TEST")
 load("//tests/bzlmod/go_deps:workspace_mvs_pruning.bzl", WORKSPACE_MVS_PRUNING_TEST = "TEST")
-
-# TODO(#2344): enable skipped tests for new go_deps implementation
-#
-# Blockers with the old implementation
-# - go_deps_impl calls fail directly, so tests can't check failures
-# - gazelle_override overrides settings on attributes not explicitly set
-# - dep_files not set correctly
-# - root_module_direct_deps not set in isolated go_deps
-# - root_module_direct_deps includes indirect requirements
-# - go_deps may select higher versions than before (bug fix)
 
 # Keep sorted
 _GO_DEPS_TEST_CASES = [
     ARCHIVE_OVERRIDE_TEST,
-    # ARCHIVE_OVERRIDE_UNMATCHED_TEST,
+    ARCHIVE_OVERRIDE_UNMATCHED_TEST,
     BUILD_NAMING_CONVENTIONS_TEST,
     BCR_GO_MOD_TEST,
     DEBUG_MODE_TEST,
     DEFAULT_GAZELLE_OVERRIDES_TEST,
-    # DEP_FILES_TEST,
-    # DUPLICATE_MODULE_TAG_TEST,
+    DEP_FILES_TEST,
+    DUPLICATE_MODULE_TAG_TEST,
     EMPTY_TEST,
-    # GAZELLE_DEFAULT_ATTRIBUTES_TEST,
+    GAZELLE_DEFAULT_ATTRIBUTES_TEST,
     GAZELLE_OVERRIDE_TEST,
-    # GO_VERSION_LOW_TEST,
-    # ISOLATE_TEST,
+    GO_VERSION_LOW_TEST,
+    ISOLATE_TEST,
     MODULE_DEV_DEPS_TEST,
     MODULE_LOCAL_PATH_TEST,
     MODULE_OVERRIDE_TEST,
@@ -66,15 +57,16 @@ _GO_DEPS_TEST_CASES = [
     MISSING_SUM_TEST,
     MVS_TEST,
     REPLACE_DIR_MOD_TEST,
-    # REPLACE_DIR_WORK_TEST,
+    REPLACE_DIR_WORK_TEST,
     REPLACE_IGNORE_NOT_ROOT_TEST,
     REPLACE_VERSION_MOD_TEST,
-    # REPLACE_VERSION_WORK_TEST,
-    # REPO_NAME_COLLISION_TEST,
+    REPLACE_VERSION_WORK_TEST,
+    REPO_NAME_COLLISION_TEST,
     RULES_PROTO_COMPAT_TEST,
     TOOL_TEST,
-    # VERSION_CONFLICT_CHECKS_TEST,
-    # WORKSPACE_MVS_PRUNING_TEST,
+    VERSION_CONFLICT_CHECKS_TEST,
+    WORK_MIXED_DIRECT_TEST,
+    WORKSPACE_MVS_PRUNING_TEST,
 ]
 
 def _go_deps_test_impl(ctx):

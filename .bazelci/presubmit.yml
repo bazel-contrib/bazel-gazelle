@@ -75,7 +75,7 @@ tasks:
     - "//language/go:std_package_list"
   bcr_tests:
     # Keep in sync with .bcr/presubmit.yml
-    name: BCR test module
+    name: BCR ${{ bcr_variant }} with Bazel ${{ bazel }}
     platform: ${{ platform }}
     bazel: ${{ bazel }}
     working_directory: ${{ bcr_variant }}
