@@ -16,6 +16,9 @@ limitations under the License.
 package golang
 
 import (
+	"bufio"
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -378,6 +381,27 @@ package main`,
 			},
 		},
 		{
+			"comment without space",
+			"//+build foo\n\n",
+			&buildTags{
+				expr:    mustParseBuildTag(t, "foo"),
+				rawTags: []string{"foo"},
+			},
+		},
+		{
+			"CRLF",
+			"// +build foo\r\n\r\npackage main\r\n",
+			&buildTags{
+				expr:    mustParseBuildTag(t, "foo"),
+				rawTags: []string{"foo"},
+			},
+		},
+		{
+			"similar non-constraint",
+			"// +buildsomething foo\n\n",
+			nil,
+		},
+		{
 			"slash star comment",
 			"/* +build foo */\n\n",
 			nil,
@@ -399,6 +423,41 @@ package main`,
 				t.Fatal(err)
 			} else if diff := cmp.Diff(tc.want, got, fileInfoCmpOption); diff != "" {
 				t.Errorf("(-want, +got): %s", diff)
+			}
+		})
+	}
+}
+
+func TestReadTagsLongLine(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		lineLength int
+		lineEnding string
+		wantErr    bool
+	}{
+		{"LF below limit", bufio.MaxScanTokenSize - 1, "\n\n", false},
+		{"LF at limit", bufio.MaxScanTokenSize, "\n\n", true},
+		{"CRLF below limit", bufio.MaxScanTokenSize - 1, "\r\n\r\n", false},
+		{"CRLF at limit", bufio.MaxScanTokenSize, "\r\n\r\n", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "foo.go")
+			lineLength := tc.lineLength
+			if tc.lineEnding[0] == '\r' {
+				lineLength--
+			}
+			source := append([]byte("//"), bytes.Repeat([]byte{'x'}, lineLength-2)...)
+			source = append(source, tc.lineEnding...)
+			if err := os.WriteFile(path, source, 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			_, err := readTags(path)
+			if tc.wantErr && !errors.Is(err, bufio.ErrTooLong) {
+				t.Fatalf("readTags error: %v; want %v", err, bufio.ErrTooLong)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("readTags error: %v", err)
 			}
 		})
 	}
