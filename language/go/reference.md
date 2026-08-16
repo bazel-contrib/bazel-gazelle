@@ -91,6 +91,10 @@ By default, internal packages are only visible to its siblings. This directive a
 
 ## Flags
 
+**Flag:** `-go_generate_embedsrcs=true|false`<br>
+**Default:** `true`<br>
+Controls whether Gazelle discovers embedded files and manages `embedsrcs` attributes. When false, Gazelle leaves existing `embedsrcs` attributes unchanged and does not add them to new rules.
+
 **Flag:** `-external=external|static|vendored`<br>
 **Default:** `external`<br>
 Determines how Gazelle resolves Go import paths that cannot be resolved in the current repository. May be :value:`external`, :value:`static` or :value:`vendored`. See [Dependency resolution](#dependency-resolution).

@@ -82,6 +82,10 @@ type goConfig struct {
 	// goGenerateProto indicates whether to generate go_proto_library
 	goGenerateProto bool
 
+	// goGenerateEmbedsrcs indicates whether to discover embedded files and
+	// manage embedsrcs attributes.
+	goGenerateEmbedsrcs bool
+
 	// goNamingConvention controls the name of generated targets
 	goNamingConvention namingConvention
 
@@ -193,8 +197,9 @@ func testModeFromString(s string) (testMode, error) {
 
 func newGoConfig() *goConfig {
 	gc := &goConfig{
-		rulesGoRepoName: "io_bazel_rules_go", // the legacy name used in WORKSPACE
-		goGenerateProto: true,
+		rulesGoRepoName:     "io_bazel_rules_go", // the legacy name used in WORKSPACE
+		goGenerateProto:     true,
+		goGenerateEmbedsrcs: true,
 	}
 	if gc.genericTags == nil {
 		gc.genericTags = make(map[string]bool)
@@ -433,6 +438,11 @@ func (*goLang) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
 	gc := newGoConfig()
 	switch cmd {
 	case "fix", "update":
+		fs.BoolVar(
+			&gc.goGenerateEmbedsrcs,
+			"go_generate_embedsrcs",
+			true,
+			"whether to discover and manage embedsrcs attributes")
 		fs.Var(
 			tagsFlag(gc.setBuildTags),
 			"build_tags",

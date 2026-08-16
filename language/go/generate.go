@@ -28,9 +28,11 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
+	"github.com/bazelbuild/bazel-gazelle/merger"
 	"github.com/bazelbuild/bazel-gazelle/pathtools"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 	"github.com/bazelbuild/bazel-gazelle/walk"
+	bzl "github.com/bazelbuild/buildtools/build"
 )
 
 func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
@@ -148,7 +150,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	for i, name := range goFiles {
 		path := filepath.Join(args.Dir, name)
 		goFileInfos[i] = goFileInfo(path, srcdir)
-		if len(goFileInfos[i].embeds) > 0 && er == nil {
+		if gc.goGenerateEmbedsrcs && len(goFileInfos[i].embeds) > 0 && er == nil {
 			er = newEmbedResolver(args.Dir, args.Rel, c.ValidBuildFileNames, gl.goPkgRels, args.Subdirs, args.RegularFiles, args.GenFiles)
 		}
 	}
@@ -383,6 +385,10 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		rules = append(rules, g.generateTests(pkg, libName)...)
 	}
 
+	if !gc.goGenerateEmbedsrcs {
+		preserveEmbedsrcs(c, args.File, rules)
+	}
+
 	for _, r := range rules {
 		if r.IsEmpty(goKinds[r.Kind()]) {
 			res.Empty = append(res.Empty, r)
@@ -413,6 +419,39 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	}
 
 	return res
+}
+
+// preservedAttrValue keeps an existing attribute unchanged when merged. The
+// expression is used only to represent the generated value before the merge.
+type preservedAttrValue struct {
+	expr bzl.Expr
+}
+
+func (v preservedAttrValue) BzlExpr() bzl.Expr { return v.expr }
+
+func (preservedAttrValue) Merge(existing bzl.Expr) bzl.Expr { return existing }
+
+// preserveEmbedsrcs copies an existing embedsrcs expression onto the generated
+// rule with merge behavior that retains the existing expression. Match is used
+// here so custom rule names and aliases behave exactly as they do in the main
+// merge pass.
+func preserveEmbedsrcs(c *config.Config, f *rule.File, generatedRules []*rule.Rule) {
+	if f == nil {
+		return
+	}
+	for _, generatedRule := range generatedRules {
+		kindInfo, ok := goKinds[generatedRule.Kind()]
+		if !ok || !kindInfo.MergeableAttrs["embedsrcs"] {
+			continue
+		}
+		existingRule, err := merger.Match(f.Rules, generatedRule, kindInfo, c.AliasMap)
+		if err != nil || existingRule == nil {
+			continue
+		}
+		if expr := existingRule.Attr("embedsrcs"); expr != nil {
+			generatedRule.SetAttr("embedsrcs", preservedAttrValue{expr: expr})
+		}
+	}
 }
 
 func filterFiles(files *[]string, pred func(string) bool) {

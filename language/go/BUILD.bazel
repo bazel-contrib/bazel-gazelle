@@ -60,6 +60,7 @@ go_library(
         "//label",
         "//language",
         "//language/proto",
+        "//merger",
         "//pathtools",
         "//repo",
         "//resolve",

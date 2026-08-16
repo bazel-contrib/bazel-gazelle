@@ -1650,6 +1650,93 @@ go_library(
 	}})
 }
 
+func TestGenerateEmbedsrcsDisabled(t *testing.T) {
+	files := []testtools.FileSpec{
+		{Path: "WORKSPACE"},
+		{
+			Path: "BUILD.bazel",
+			Content: `
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+# gazelle:prefix example.com/foo
+
+go_library(
+    name = "custom_foo",
+    srcs = ["foo.go"],
+    embedsrcs = select({
+        "//conditions:default": ["legacy.txt"],
+    }),  # preserved comment
+    importpath = "example.com/foo",
+    visibility = ["//visibility:public"],
+)
+`,
+		},
+		{
+			Path: "foo.go",
+			Content: `package foo
+
+import _ "embed"
+
+//go:embed current.txt
+var current string
+`,
+		},
+		{Path: "current.txt"},
+		{Path: "legacy.txt"},
+		{
+			Path: "sub/sub.go",
+			Content: `package sub
+
+import _ "embed"
+
+//go:embed asset.txt
+var asset string
+`,
+		},
+		{Path: "sub/asset.txt"},
+	}
+	dir, cleanup := testtools.CreateFiles(t, files)
+	defer cleanup()
+
+	if err := runGazelle(dir, []string{"update", "-go_generate_embedsrcs=false"}); err != nil {
+		t.Fatal(err)
+	}
+
+	testtools.CheckFiles(t, dir, []testtools.FileSpec{
+		{
+			Path: "BUILD.bazel",
+			Content: `
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+# gazelle:prefix example.com/foo
+
+go_library(
+    name = "custom_foo",
+    srcs = ["foo.go"],
+    embedsrcs = select({
+        "//conditions:default": ["legacy.txt"],
+    }),  # preserved comment
+    importpath = "example.com/foo",
+    visibility = ["//visibility:public"],
+)
+`,
+		},
+		{
+			Path: "sub/BUILD.bazel",
+			Content: `
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sub",
+    srcs = ["sub.go"],
+    importpath = "example.com/foo/sub",
+    visibility = ["//visibility:public"],
+)
+`,
+		},
+	})
+}
+
 // TestUpdateReposDoesNotModifyGoSum verifies that commands executed by
 // update-repos do not modify go.sum, particularly 'go mod download' when
 // a sum is missing. Verifies #990.
