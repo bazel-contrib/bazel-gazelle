@@ -66,6 +66,66 @@ func TestGoFileInfo(t *testing.T) {
 			},
 		},
 		{
+			"hash bench test",
+			"foo_test.go",
+			`package foo_test
+
+func BenchmarkFoo(b *testing.B) {}`,
+			fileInfo{
+				packageName:       "foo",
+				isTest:            true,
+				hasBenchmarkTests: true,
+			},
+		},
+		{
+			"invalid bench test 1",
+			"foo_test.go",
+			`package foo_test
+
+func BenchmarkFoo(b *testing.B, a string) {}`,
+			fileInfo{
+				packageName:       "foo",
+				isTest:            true,
+				hasBenchmarkTests: false,
+			},
+		},
+		{
+			"invalid bench test 2",
+			"foo_test.go",
+			`package foo_test
+
+func CenchmarkFoo(b *testing.B) {}`,
+			fileInfo{
+				packageName:       "foo",
+				isTest:            true,
+				hasBenchmarkTests: false,
+			},
+		},
+		{
+			"invalid bench test 3",
+			"foo_test.go",
+			`package foo_test
+
+func BenchmarkFoo(b testing.B) {}`,
+			fileInfo{
+				packageName:       "foo",
+				isTest:            true,
+				hasBenchmarkTests: false,
+			},
+		},
+		{
+			"invalid bench test 4",
+			"foo_test.go",
+			`package foo_test
+
+func BenchmarkFoo(c *testing.C) {}`,
+			fileInfo{
+				packageName:       "foo",
+				isTest:            true,
+				hasBenchmarkTests: false,
+			},
+		},
+		{
 			"single import",
 			"foo.go",
 			`package foo
@@ -183,12 +243,13 @@ var src string
 			got := goFileInfo(path, "")
 			// Clear fields we don't care about for testing.
 			got = fileInfo{
-				packageName: got.packageName,
-				isTest:      got.isTest,
-				imports:     got.imports,
-				embeds:      got.embeds,
-				isCgo:       got.isCgo,
-				tags:        got.tags,
+				packageName:       got.packageName,
+				isTest:            got.isTest,
+				imports:           got.imports,
+				embeds:            got.embeds,
+				isCgo:             got.isCgo,
+				tags:              got.tags,
+				hasBenchmarkTests: got.hasBenchmarkTests,
 			}
 			for i := range got.embeds {
 				got.embeds[i] = fileEmbed{path: got.embeds[i].path}
