@@ -65,7 +65,6 @@ func TestFixLoads(t *testing.T) {
 		input string
 		want  string
 	}
-
 	for name, tc := range map[string]testCase{
 		"correct": {
 			input: `load("@foo", "foo_binary", "foo_library")
@@ -285,6 +284,58 @@ foo_binary(
 			got := strings.TrimSpace(string(bzl.FormatWithoutRewriting(f.File)))
 			if diff := cmp.Diff(want, got); diff != "" {
 				t.Errorf("FixLoads() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestLoadFixer(t *testing.T) {
+	knownLoads := []rule.LoadInfo{{
+		Name:    "@foo",
+		Symbols: []string{"foo_rule"},
+		After:   []string{"package"},
+	}}
+	fixer := merger.NewLoadFixer(knownLoads)
+
+	// Mutating the input after construction should not affect the fixer.
+	knownLoads[0].Name = "@bar"
+	knownLoads[0].Symbols[0] = "bar_rule"
+	knownLoads[0].After[0] = "exports_files"
+
+	for name, tc := range map[string]struct {
+		input string
+		want  string
+	}{
+		"inserts in configured order": {
+			input: `package(default_visibility = ["//visibility:public"])
+
+foo_rule(name = "foo")
+`,
+			want: `package(default_visibility = ["//visibility:public"])
+
+load("@foo", "foo_rule")
+
+foo_rule(name = "foo")`,
+		},
+		"reuses index": {
+			input: `foo_rule(name = "bar")`,
+			want: `load("@foo", "foo_rule")
+
+foo_rule(name = "bar")`,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f, err := rule.LoadData("", "", []byte(tc.input))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			fixer.Fix(f)
+			f.Sync()
+
+			got := strings.TrimSpace(string(bzl.FormatWithoutRewriting(f.File)))
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("LoadFixer.Fix() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
