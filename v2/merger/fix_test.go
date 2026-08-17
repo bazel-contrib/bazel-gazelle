@@ -25,7 +25,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestFixLoads(t *testing.T) {
+func TestLoadFixerFix(t *testing.T) {
 	knownLoads := []rule.LoadInfo{
 		{
 			Name: "@bar",
@@ -65,6 +65,7 @@ func TestFixLoads(t *testing.T) {
 		input string
 		want  string
 	}
+	fixer := merger.NewLoadFixer(knownLoads)
 	for name, tc := range map[string]testCase{
 		"correct": {
 			input: `load("@foo", "foo_binary", "foo_library")
@@ -277,19 +278,19 @@ foo_binary(
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			merger.FixLoads(f, knownLoads)
+			fixer.Fix(f)
 			f.Sync()
 
 			want := strings.TrimSpace(tc.want)
 			got := strings.TrimSpace(string(bzl.FormatWithoutRewriting(f.File)))
 			if diff := cmp.Diff(want, got); diff != "" {
-				t.Errorf("FixLoads() mismatch (-want +got):\n%s", diff)
+				t.Errorf("LoadFixer.Fix() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
 }
 
-func TestLoadFixer(t *testing.T) {
+func TestLoadFixerReuse(t *testing.T) {
 	knownLoads := []rule.LoadInfo{{
 		Name:    "@foo",
 		Symbols: []string{"foo_rule"},

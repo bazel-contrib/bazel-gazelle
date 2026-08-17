@@ -62,16 +62,9 @@ func NewLoadFixer(knownLoads []rule.LoadInfo) *LoadFixer {
 	return fixer
 }
 
-// FixLoads removes loads of unused go rules and adds loads of newly used rules.
-// This should be called after FixFile and MergeFile, since symbols
-// may be introduced that aren't loaded.
-//
-// This function calls File.Sync before processing loads.
-func FixLoads(f *rule.File, knownLoads []rule.LoadInfo) {
-	NewLoadFixer(knownLoads).Fix(f)
-}
-
 // Fix removes unused loads from f and adds loads required by its rules.
+// It should be called after FixFile and MergeFile, since those may introduce
+// symbols that are not loaded. Fix calls File.Sync before processing loads.
 func (fixer *LoadFixer) Fix(f *rule.File) {
 	// Sync the file. We need File.Loads and File.Rules to contain inserted
 	// statements and not deleted statements.

@@ -576,7 +576,7 @@ func Run(
 		if len(v.mappedKinds) == 0 {
 			loadFixer.Fix(v.file)
 		} else {
-			merger.FixLoads(v.file, applyKindMappings(v.mappedKinds, loads))
+			merger.NewLoadFixer(applyKindMappings(v.mappedKinds, loads)).Fix(v.file)
 		}
 		if err := uc.emit(v.c, v.file); err != nil {
 			if err == ErrDiff {
@@ -718,8 +718,9 @@ func fixRepoFiles(c *config.Config, loads []rule.LoadInfo) error {
 		return nil
 	}
 
+	loadFixer := merger.NewLoadFixer(loads)
 	for _, f := range uc.workspaceFiles {
-		merger.FixLoads(f, loads)
+		loadFixer.Fix(f)
 		workspaceFile := wspace.FindWORKSPACEFile(c.RepoRoot)
 
 		if f.Path == workspaceFile {
