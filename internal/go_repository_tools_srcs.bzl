@@ -152,6 +152,7 @@ GO_REPOSITORY_TOOLS_SRCS = [
     Label("//v2/flag:BUILD.bazel"),
     Label("//v2/flag:flag.go"),
     Label("//v2:go.mod"),
+    Label("//v2:go.sum"),
     Label("//v2/internal:BUILD.bazel"),
     Label("//v2/internal/module:BUILD.bazel"),
     Label("//v2/internal/module:module.go"),
