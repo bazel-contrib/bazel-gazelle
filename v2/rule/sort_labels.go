@@ -16,7 +16,7 @@ limitations under the License.
 package rule
 
 import (
-	"sort"
+	"slices"
 	"strings"
 
 	bzl "github.com/bazelbuild/buildtools/build"
@@ -27,88 +27,88 @@ import (
 // expressions. This function is intended to be used with bzl.Walk.
 func sortExprLabels(e bzl.Expr, _ []bzl.Expr) {
 	list, ok := e.(*bzl.ListExpr)
-	if !ok || len(list.List) == 0 {
+	if !ok || len(list.List) < 2 {
 		return
 	}
 
-	keys := make([]stringSortKey, len(list.List))
-	for i, elem := range list.List {
-		s, ok := elem.(*bzl.StringExpr)
-		if !ok {
+	// Check that all elements are strings
+	for _, elem := range list.List {
+		if _, ok := elem.(*bzl.StringExpr); !ok {
 			return // don't sort lists unless all elements are strings
 		}
-		keys[i] = makeSortKey(i, s)
 	}
 
-	before := keys[0].x.Comment().Before
-	keys[0].x.Comment().Before = nil
-	sort.Sort(byStringExpr(keys))
-	keys[0].x.Comment().Before = append(before, keys[0].x.Comment().Before...)
-	for i, k := range keys {
-		list.List[i] = k.x
-	}
+	// A comment block above the first element is pinned to the top of the
+	// list, matching buildifier.
+	before := list.List[0].Comment().Before
+	list.List[0].Comment().Before = nil
+
+	slices.SortStableFunc(list.List, compareStringExpr)
+
+	list.List[0].Comment().Before = append(before, list.List[0].Comment().Before...)
 }
 
-// Code below this point is adapted from
+// Code below this point matches the sort order of
 // github.com/bazelbuild/buildtools/build/rewrite.go
 
-// A stringSortKey records information about a single string literal to be
-// sorted. The strings are first grouped into four phases: most strings,
-// strings beginning with ":", strings beginning with "//", and strings
-// beginning with "@". The next significant part of the comparison is the list
-// of elements in the value, where elements are split at `.' and `:'. Finally
-// we compare by value and break ties by original index.
-type stringSortKey struct {
-	phase    int
-	split    []string
-	value    string
-	original int
-	x        bzl.Expr
-}
+// compareStringExpr compares two string literals to be sorted. The strings
+// are first grouped into four phases: most strings, strings beginning with
+// ":", strings beginning with "//", and strings beginning with "@". The next
+// significant part of the comparison is the list of elements in the value,
+// where elements are split at `.' and `:'. Finally we compare by value,
+// leaving equal values in their original order.
+func compareStringExpr(a, b bzl.Expr) int {
+	sa := a.(*bzl.StringExpr).Value
+	sb := b.(*bzl.StringExpr).Value
 
-func makeSortKey(index int, x *bzl.StringExpr) stringSortKey {
-	key := stringSortKey{
-		value:    x.Value,
-		original: index,
-		x:        x,
+	if phaseA, phaseB := labelPhase(sa), labelPhase(sb); phaseA != phaseB {
+		return phaseA - phaseB
 	}
 
+	return compareStringExpValue(sa, sb)
+}
+
+func labelPhase(s string) int {
 	switch {
-	case strings.HasPrefix(x.Value, ":"):
-		key.phase = 1
-	case strings.HasPrefix(x.Value, "//"):
-		key.phase = 2
-	case strings.HasPrefix(x.Value, "@"):
-		key.phase = 3
+	case strings.HasPrefix(s, ":"):
+		return 1
+	case strings.HasPrefix(s, "//"):
+		return 2
+	case strings.HasPrefix(s, "@"):
+		return 3
 	}
-
-	key.split = strings.Split(strings.Replace(x.Value, ":", ".", -1), ".")
-	return key
+	return 0
 }
 
-// byStringExpr implements sort.Interface for a list of stringSortKey.
-type byStringExpr []stringSortKey
-
-func (x byStringExpr) Len() int      { return len(x) }
-func (x byStringExpr) Swap(i, j int) { x[i], x[j] = x[j], x[i] }
-
-func (x byStringExpr) Less(i, j int) bool {
-	xi := x[i]
-	xj := x[j]
-
-	if xi.phase != xj.phase {
-		return xi.phase < xj.phase
-	}
-	for k := 0; k < len(xi.split) && k < len(xj.split); k++ {
-		if xi.split[k] != xj.split[k] {
-			return xi.split[k] < xj.split[k]
+// compareStringExpValue compares the `.'/`:' separated segments of two
+// values without splitting them: a separator ends a segment, so it sorts
+// before any other character, and `.' and `:' compare as equal. Values with
+// equal segments are ordered by raw value.
+func compareStringExpValue(a, b string) int {
+	for i := 0; i < len(a) && i < len(b); i++ {
+		if a[i] != b[i] {
+			sepA := a[i] == '.' || a[i] == ':'
+			sepB := b[i] == '.' || b[i] == ':'
+			if sepA != sepB {
+				if sepA {
+					return -1
+				}
+				return 1
+			}
+			if !sepA {
+				if a[i] < b[i] {
+					return -1
+				}
+				return 1
+			}
+			// Both are separators, which compare as equal.
 		}
 	}
-	if len(xi.split) != len(xj.split) {
-		return len(xi.split) < len(xj.split)
+
+	if len(a) != len(b) {
+		return len(a) - len(b)
 	}
-	if xi.value != xj.value {
-		return xi.value < xj.value
-	}
-	return xi.original < xj.original
+
+	// The values differ only by separators.
+	return strings.Compare(a, b)
 }

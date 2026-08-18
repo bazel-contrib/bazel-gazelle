@@ -1056,7 +1056,7 @@ func TestMergeFile(t *testing.T) {
 				t.Fatalf("%s: %v", tc.desc, err)
 			}
 			merger.MergeFile(f, emptyFile.Rules, genFile.Rules, merger.PreResolve, testKinds, tc.aliasedKinds)
-			merger.FixLoads(f, testLoads)
+			merger.NewLoadFixer(testLoads).Fix(f)
 
 			want := tc.expected
 			if len(want) > 0 && want[0] == '\n' {

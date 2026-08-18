@@ -571,8 +571,13 @@ func Run(
 
 	// Emit merged files.
 	var exit error
+	loadFixer := merger.NewLoadFixer(loads)
 	for _, v := range visits {
-		merger.FixLoads(v.file, applyKindMappings(v.mappedKinds, loads))
+		if len(v.mappedKinds) == 0 {
+			loadFixer.Fix(v.file)
+		} else {
+			merger.NewLoadFixer(applyKindMappings(v.mappedKinds, loads)).Fix(v.file)
+		}
 		if err := uc.emit(v.c, v.file); err != nil {
 			if err == ErrDiff {
 				exit = err
@@ -713,8 +718,9 @@ func fixRepoFiles(c *config.Config, loads []rule.LoadInfo) error {
 		return nil
 	}
 
+	loadFixer := merger.NewLoadFixer(loads)
 	for _, f := range uc.workspaceFiles {
-		merger.FixLoads(f, loads)
+		loadFixer.Fix(f)
 		workspaceFile := wspace.FindWORKSPACEFile(c.RepoRoot)
 
 		if f.Path == workspaceFile {

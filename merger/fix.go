@@ -26,10 +26,10 @@ import (
 //
 // This function calls File.Sync before processing loads.
 //
-// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/merger.FixLoads instead.
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/merger.LoadFixer instead.
 //go:fix inline
 func FixLoads(f *rule.File, knownLoads []rule.LoadInfo) {
-	v2.FixLoads(f, knownLoads)
+	v2.NewLoadFixer(knownLoads).Fix(f)
 }
 
 // CheckGazelleLoaded searches the given WORKSPACE file for a repository named
