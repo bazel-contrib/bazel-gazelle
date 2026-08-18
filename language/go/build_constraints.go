@@ -40,7 +40,12 @@ func readTags(path string) (*buildTags, error) {
 	if err != nil {
 		return nil, err
 	}
+	return readTagsFromContent(content)
+}
 
+// readTagsFromContent extracts build tags from content already read from a
+// file.
+func readTagsFromContent(content []byte) (*buildTags, error) {
 	content, goBuild, _, err := parseFileHeader(content)
 	if err != nil {
 		return nil, err

@@ -75,6 +75,7 @@ go_library(
 go_test(
     name = "go_test",
     srcs = [
+        "build_constraints_benchmark_test.go",
         "build_constraints_test.go",
         "config_test.go",
         "fileinfo_go_test.go",
