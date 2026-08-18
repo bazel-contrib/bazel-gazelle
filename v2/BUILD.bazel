@@ -7,6 +7,7 @@ filegroup(
     srcs = [
         "BUILD.bazel",
         "go.mod",
+        "go.sum",
         "//v2/cmd:all_files",
         "//v2/compat:all_files",
         "//v2/config:all_files",
