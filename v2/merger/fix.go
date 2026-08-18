@@ -23,21 +23,49 @@ import (
 	bzl "github.com/bazelbuild/buildtools/build"
 )
 
-// FixLoads removes loads of unused go rules and adds loads of newly used rules.
-// This should be called after FixFile and MergeFile, since symbols
-// may be introduced that aren't loaded.
-//
-// This function calls File.Sync before processing loads.
-func FixLoads(f *rule.File, knownLoads []rule.LoadInfo) {
-	knownFiles := make(map[string]bool)
-	knownSymbols := make(map[string]string)
+// LoadFixer updates load statements using a fixed set of known loads.
+// A LoadFixer may be reused for multiple files.
+type LoadFixer struct {
+	knownLoads   []knownLoad
+	knownFiles   map[string]struct{}
+	knownSymbols map[string]string
+}
+
+type knownLoad struct {
+	name  string
+	after []string
+}
+
+// NewLoadFixer returns a LoadFixer for knownLoads. Changes to knownLoads after
+// this function returns do not affect the fixer.
+func NewLoadFixer(knownLoads []rule.LoadInfo) *LoadFixer {
+	symbolCount := 0
 	for _, l := range knownLoads {
-		knownFiles[l.Name] = true
-		for _, k := range l.Symbols {
-			knownSymbols[k] = l.Name
-		}
+		symbolCount += len(l.Symbols)
 	}
 
+	fixer := &LoadFixer{
+		knownLoads:   make([]knownLoad, len(knownLoads)),
+		knownFiles:   make(map[string]struct{}, len(knownLoads)),
+		knownSymbols: make(map[string]string, symbolCount),
+	}
+	for i, l := range knownLoads {
+		fixer.knownLoads[i] = knownLoad{
+			name:  l.Name,
+			after: append([]string(nil), l.After...),
+		}
+		fixer.knownFiles[l.Name] = struct{}{}
+		for _, k := range l.Symbols {
+			fixer.knownSymbols[k] = l.Name
+		}
+	}
+	return fixer
+}
+
+// Fix removes unused loads from f and adds loads required by its rules.
+// It should be called after FixFile and MergeFile, since those may introduce
+// symbols that are not loaded. Fix calls File.Sync before processing loads.
+func (fixer *LoadFixer) Fix(f *rule.File) {
 	// Sync the file. We need File.Loads and File.Rules to contain inserted
 	// statements and not deleted statements.
 	f.Sync()
@@ -49,7 +77,7 @@ func FixLoads(f *rule.File, knownLoads []rule.LoadInfo) {
 	assignedSymbols := make(map[string]bool)
 	otherLoadedKinds := make(map[string]bool)
 	for _, l := range f.Loads {
-		if knownFiles[l.Name()] {
+		if _, ok := fixer.knownFiles[l.Name()]; ok {
 			loads = append(loads, l)
 			continue
 		}
@@ -108,7 +136,7 @@ func FixLoads(f *rule.File, knownLoads []rule.LoadInfo) {
 		}
 
 		for _, id := range idents {
-			file, ok := knownSymbols[id.Name]
+			file, ok := fixer.knownSymbols[id.Name]
 			if !ok || otherLoadedKinds[id.Name] {
 				continue
 			}
@@ -121,28 +149,28 @@ func FixLoads(f *rule.File, knownLoads []rule.LoadInfo) {
 	})
 
 	// Fix the load statements. The order is important, so we iterate over
-	// knownLoads instead of knownFiles.
-	for _, known := range knownLoads {
-		file := known.Name
+	// the configured load order instead of knownFiles.
+	for _, known := range fixer.knownLoads {
+		file := known.name
 		first := true
 		for _, l := range loads {
 			if l.Name() != file {
 				continue
 			}
 			if first {
-				fixLoad(l, file, usedSymbols[file], knownSymbols)
+				fixLoad(l, file, usedSymbols[file], fixer.knownSymbols)
 				first = false
 			} else {
-				fixLoad(l, file, nil, knownSymbols)
+				fixLoad(l, file, nil, fixer.knownSymbols)
 			}
 			if l.IsEmpty() {
 				l.Delete()
 			}
 		}
 		if first {
-			load := fixLoad(nil, file, usedSymbols[file], knownSymbols)
+			load := fixLoad(nil, file, usedSymbols[file], fixer.knownSymbols)
 			if load != nil {
-				index := newLoadIndex(f, known.After)
+				index := newLoadIndex(f, known.after)
 				load.Insert(f, index)
 				loads = append(loads, load)
 			}
