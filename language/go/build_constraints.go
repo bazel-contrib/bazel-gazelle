@@ -62,15 +62,28 @@ func readTagsFromContent(content []byte) (*buildTags, error) {
 
 	var fullConstraint constraint.Expr
 	// Search and parse +build tags
-	scanner := bufio.NewScanner(bytes.NewReader(content))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+	for len(content) > 0 {
+		line := content
+		if i := bytes.IndexByte(line, '\n'); i >= 0 {
+			line, content = line[:i], line[i+1:]
+		} else {
+			content = content[len(content):]
+		}
+		// Preserve the maximum token size and error returned by Scanner.
+		if len(line) >= bufio.MaxScanTokenSize {
+			return nil, bufio.ErrTooLong
+		}
+		line = bytes.TrimSpace(line)
 
-		if !constraint.IsPlusBuild(line) {
+		if !bytes.HasPrefix(line, []byte("//")) || !bytes.Contains(line, []byte("+build")) {
+			continue
+		}
+		text := string(line)
+		if !constraint.IsPlusBuild(text) {
 			continue
 		}
 
-		x, err := constraint.Parse(line)
+		x, err := constraint.Parse(text)
 		if err != nil {
 			return nil, err
 		}
@@ -83,10 +96,6 @@ func readTagsFromContent(content []byte) (*buildTags, error) {
 		} else {
 			fullConstraint = x
 		}
-	}
-
-	if scanner.Err() != nil {
-		return nil, scanner.Err()
 	}
 
 	if fullConstraint == nil {
