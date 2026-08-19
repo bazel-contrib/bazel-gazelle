@@ -30,6 +30,7 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/rule"
 	"github.com/bazelbuild/bazel-gazelle/testtools"
 	"github.com/bazelbuild/bazel-gazelle/walk"
+	"github.com/google/go-cmp/cmp"
 
 	bzl "github.com/bazelbuild/buildtools/build"
 )
@@ -85,8 +86,8 @@ func TestGenerateRules(t *testing.T) {
 			}
 			want := string(wantBytes)
 
-			if got != want {
-				t.Errorf("GenerateRules %q: got:\n%s\nwant:\n%s", rel, got, want)
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("GenerateRules() %q mismatch (-want +got):\n%s", rel, diff)
 			}
 		})
 	})

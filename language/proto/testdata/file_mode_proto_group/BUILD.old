@@ -1,0 +1,2 @@
+# gazelle:proto file
+# gazelle:proto_file_include package.proto
