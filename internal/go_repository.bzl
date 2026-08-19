@@ -340,7 +340,10 @@ def _go_repository_impl(ctx):
     existing_build_file = ""
     for name in build_file_names:
         path = ctx.path(name)
-        if path.exists and not env_execute(ctx, ["test", "-f", path]).return_code:
+
+        # The is_dir check matters on case-insensitive file systems, where e.g.
+        # a `build` directory is found when looking up `BUILD`.
+        if path.exists and not path.is_dir:
             existing_build_file = name
             break
 
