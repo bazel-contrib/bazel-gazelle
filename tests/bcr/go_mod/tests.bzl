@@ -5,10 +5,10 @@ load("@rules_license//rules:providers.bzl", "PackageInfo")
 load("@rules_testing//lib:analysis_test.bzl", "analysis_test", "test_suite")
 load("@rules_testing//lib:truth.bzl", "subjects")
 
-def _test_package_info(name):
+def _test_package_info_for_gazelle_generated_build(name):
     analysis_test(
         name = name,
-        impl = _test_package_info_impl,
+        impl = _test_package_info_for_gazelle_generated_build_impl,
         target = "@com_github_fmeum_dep_on_gazelle//:go_default_library",
         extra_target_under_test_aspects = [
             _package_info_aspect,
@@ -16,7 +16,7 @@ def _test_package_info(name):
         provider_subject_factories = [_PackageInfoSubjectFactory],
     )
 
-def _test_package_info_impl(env, target):
+def _test_package_info_for_gazelle_generated_build_impl(env, target):
     # The package_info functionality requires REPO.bazel support, which is only
     # available in Bazel 7 and higher. Use this unrelated feature launched in
     # Bazel 7 as a hacky signal to skip the test if the feature is not
@@ -34,6 +34,26 @@ def _test_package_info_impl(env, target):
     subject.package_version().equals("1.0.0")
     subject.package_url().equals("https://github.com/fmeum/dep_on_gazelle")
     subject.purl().equals("pkg:golang/github.com/fmeum/dep_on_gazelle@v1.0.0")
+
+def _test_package_info_for_repo_provided_build(name):
+    analysis_test(
+        name = name,
+        impl = _test_package_info_for_repo_provided_build_impl,
+        target = "@org_example_proto_compat//:proto_compat",
+        extra_target_under_test_aspects = [
+            _package_info_aspect,
+        ],
+        provider_subject_factories = [_PackageInfoSubjectFactory],
+    )
+
+def _test_package_info_for_repo_provided_build_impl(env, target):
+    if not bazel_features.proto.starlark_proto_info:
+        return  # see _test_package_info_for_gazelle_generated_build_impl
+
+    env.expect.that_target(target).has_provider(PackageMetadataInfo)
+    env.expect.that_target(target).has_provider(PackageInfo)
+    subject = env.expect.that_target(target).provider(PackageInfo)
+    subject.package_name().equals("example.org/proto_compat")
 
 def _package_info_aspect_impl(_, ctx):
     if hasattr(ctx.rule.attr, "applicable_licenses"):
@@ -85,6 +105,7 @@ def starlark_tests(name):
     test_suite(
         name = name,
         tests = [
-            _test_package_info,
+            _test_package_info_for_gazelle_generated_build,
+            _test_package_info_for_repo_provided_build,
         ],
     )
