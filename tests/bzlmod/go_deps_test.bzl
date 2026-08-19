@@ -1,6 +1,7 @@
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load("@rules_testing//lib:truth.bzl", "subjects", "truth")
 load("//internal/bzlmod:go_deps.bzl", "get_repo_name", "go_deps_impl")
+load("//internal/bzlmod:go_deps_test_case.bzl", "parse_go_deps_test_case")
 load("//tests/bzlmod/go_deps:bcr_go_mod.bzl", BCR_GO_MOD_TEST = "TEST")
 load("//tests/bzlmod/go_deps:empty.bzl", EMPTY_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module.bzl", MODULE_TEST = "TEST")
@@ -20,7 +21,8 @@ def _go_deps_test_impl(ctx):
     env = unittest.begin(ctx)
     expect = truth.expect(env)
 
-    for case in _GO_DEPS_TEST_CASES:
+    for case_json in _GO_DEPS_TEST_CASES:
+        case = parse_go_deps_test_case(case_json)
         module_ctx = _mock_module_ctx(case)
         go_deps_impl(module_ctx)
 
@@ -69,7 +71,7 @@ def _mock_module_ctx_path(case, v):
     elif type(v) == "Label":
         return _mock_path(case, _label_to_path(repo_name, v))
     elif type(v) == "string":
-        path_name = "/{}/{}".format(repo_name, v)
+        path_name = "./{}/{}".format(repo_name, v)
         return _mock_path(case, path_name)
     else:
         fail("can't call module_ctx.path on value {} of unknown type {}".format(v, type(v)))
@@ -77,9 +79,9 @@ def _mock_module_ctx_path(case, v):
 def _label_to_path(default_repo_name, label):
     repo_name = label.repo_name if label.repo_name else default_repo_name
     if label.package:
-        return "/{}/{}/{}".format(repo_name, label.package, label.name)
+        return "./{}/{}/{}".format(repo_name, label.package, label.name)
     else:
-        return "/{}/{}".format(repo_name, label.name)
+        return "./{}/{}".format(repo_name, label.name)
 
 def _mock_module_ctx_read(case, path):
     if hasattr(path, "_name"):
@@ -99,10 +101,10 @@ def _mock_path(case, name):
     # an attribute, not a method call. In Starlark, we don't have a way to
     # define a "getter" for dirname, so we just need to compute its value
     # ahead of time. No recursion, so we need to do this with a loop.
-    if not name.startswith("/"):
-        fail("name '{}' does not start with '/'".format(name))
-    parts = name[1:].split("/")
-    path = _make_mock_path(case, "/", "", None, True, True)
+    if not name.startswith("./"):
+        fail("name '{}' does not start with './'".format(name))
+    parts = name[2:].split("/")
+    path = _make_mock_path(case, "./", "", None, True, True)
     if len(parts) > 1:
         for part in parts[:-1]:
             path = _make_mock_path(

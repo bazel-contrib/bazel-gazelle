@@ -1,0 +1,45 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "convert-go-deps-test-case_lib",
+    srcs = [
+        "bzl_to_dir.go",
+        "dir_to_bzl.go",
+        "main.go",
+        "schema.go",
+    ],
+    importpath = "github.com/bazelbuild/bazel-gazelle/tools/convert-go-deps-test-case",
+    visibility = ["//visibility:private"],
+    deps = ["@com_github_bazelbuild_buildtools//build"],
+)
+
+go_binary(
+    name = "convert-go-deps-test-case",
+    embed = [":convert-go-deps-test-case_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "convert-go-deps-test-case_test",
+    srcs = ["convert_test.go"],
+    data = ["//tests/bzlmod/go_deps:test_cases"],
+    embed = [":convert-go-deps-test-case_lib"],
+    deps = [
+        "@com_github_google_go_cmp//cmp",
+        "@io_bazel_rules_go//go/runfiles",
+    ],
+)
+
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "bzl_to_dir.go",
+        "convert_test.go",
+        "dir_to_bzl.go",
+        "main.go",
+        "schema.go",
+    ],
+    visibility = ["//visibility:public"],
+)
