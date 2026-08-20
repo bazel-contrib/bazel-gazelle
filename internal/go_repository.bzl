@@ -417,32 +417,27 @@ def _go_repository_impl(ctx):
     # Apply patches if necessary.
     patch(ctx)
 
-    if generate:
-        # Do not override a REPO.bazel patched in by users. This also provides a
-        # way for users to opt out of Gazelle-generated package_info.
-        repo_file = ctx.path("REPO.bazel")
-        if not repo_file.exists:
-            ctx.file("REPO.bazel", """\
+    # Do not override a REPO.bazel patched in by users. This also provides a
+    # way for users to opt out of Gazelle-generated package_info.
+    repo_file = ctx.path("REPO.bazel")
+    if not repo_file.exists:
+        ctx.file("REPO.bazel", """\
 repo(
     default_package_metadata = [
-        "//:gazelle_generated_package_info",
-        "//:package_metadata",
+        "//_gazelle_generated:package_info",
+        "//_gazelle_generated:package_metadata",
     ],
 )
 """)
-
-            # Modify the top-level build file after patches have been applied as the
-            # patches may otherwise conflict with our generated content.
-            build_file = ctx.path(build_file_name)
-            if build_file.exists:
-                build_file_content = ctx.read(build_file)
-            else:
-                build_file_content = ""
-            build_file_content += _generate_package_info(
+        # Write the generated targets to a dedicated package to avoid name collisions
+        # with targets already defined in the top-level build file.
+        ctx.file(
+            "_gazelle_generated/BUILD.bazel",
+            _generate_package_info(
                 importpath = ctx.attr.importpath,
                 version = ctx.attr.version,
-            )
-            ctx.file(build_file_name, build_file_content)
+            ),
+        )
 
     if reproducible and hasattr(ctx, "repo_metadata"):
         return ctx.repo_metadata(reproducible = True)
@@ -482,7 +477,7 @@ package_metadata(
 )
 
 package_info(
-    name = "gazelle_generated_package_info",
+    name = "package_info",
     package_name = {package_name},
     package_url = {package_url},
     package_version = {package_version},
