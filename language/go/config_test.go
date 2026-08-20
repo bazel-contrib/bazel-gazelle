@@ -84,6 +84,31 @@ func TestCommandLine(t *testing.T) {
 	}
 }
 
+func TestGenerateEmbedsrcsFlag(t *testing.T) {
+	for _, tc := range []struct {
+		desc         string
+		args         []string
+		wantGenerate bool
+	}{
+		{
+			desc:         "enabled by default",
+			wantGenerate: true,
+		},
+		{
+			desc:         "disabled",
+			args:         []string{"-go_generate_embedsrcs=false"},
+			wantGenerate: false,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			c, _, _ := testConfig(t, tc.args...)
+			if got := getGoConfig(c).goGenerateEmbedsrcs; got != tc.wantGenerate {
+				t.Errorf("goGenerateEmbedsrcs = %t; want %t", got, tc.wantGenerate)
+			}
+		})
+	}
+}
+
 func TestDirectives(t *testing.T) {
 	c, _, cexts := testConfig(t)
 	content := []byte(`
