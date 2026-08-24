@@ -31,6 +31,7 @@ bzl_library(
         "//internal:env",
         "//internal:go_repository",
         "@bazel_gazelle_go_repository_cache//:def",
+        "@package_metadata//purl:srcs",
     ],
 )
 

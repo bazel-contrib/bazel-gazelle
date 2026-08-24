@@ -2,6 +2,42 @@
 
 
 
+<a id="build_golang_purl"></a>
+
+## build_golang_purl
+
+<pre>
+load("@gazelle//:def.bzl", "build_golang_purl")
+
+build_golang_purl(<a href="#build_golang_purl-purl">purl</a>, <a href="#build_golang_purl-importpath">importpath</a>, <a href="#build_golang_purl-version">version</a>, <a href="#build_golang_purl-sum">sum</a>)
+</pre>
+
+Builds a golang Package URL (PURL) string for use as `go_repository`'s `purl_override`.
+
+This is the same logic the `go_deps` bzlmod extension uses internally. WORKSPACE mode callers
+of `go_repository` may call this directly to opt into the same `checksum` qualifier, since
+`@package_metadata` is not yet defined at the point `deps.bzl` itself is loaded, and
+`go_repository.bzl` cannot load `@package_metadata//purl:purl.bzl` itself as a result.
+
+See specification:
+https://github.com/package-url/purl-spec/blob/master/PURL-TYPES.rst#golang
+
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="build_golang_purl-purl"></a>purl |  the `purl` struct loaded from `@package_metadata//purl:purl.bzl`.   |  none |
+| <a id="build_golang_purl-importpath"></a>importpath |  the Go import path, as passed to `go_repository`.   |  none |
+| <a id="build_golang_purl-version"></a>version |  the module version, as passed to `go_repository`, if any.   |  `None` |
+| <a id="build_golang_purl-sum"></a>sum |  the module's `go.sum` hash, as passed to `go_repository`, if any. Included as a `checksum` qualifier when set. May only be set when `version` is also set.   |  `None` |
+
+**RETURNS**
+
+A PURL string.
+
+
 <a id="gazelle"></a>
 
 ## gazelle
@@ -175,8 +211,8 @@ go_repository(<a href="#go_repository-name">name</a>, <a href="#go_repository-au
               <a href="#go_repository-build_file_generation">build_file_generation</a>, <a href="#go_repository-build_file_name">build_file_name</a>, <a href="#go_repository-build_file_proto_mode">build_file_proto_mode</a>, <a href="#go_repository-build_naming_convention">build_naming_convention</a>,
               <a href="#go_repository-build_tags">build_tags</a>, <a href="#go_repository-canonical_id">canonical_id</a>, <a href="#go_repository-commit">commit</a>, <a href="#go_repository-debug_mode">debug_mode</a>, <a href="#go_repository-importpath">importpath</a>,
               <a href="#go_repository-internal_only_do_not_use_apparent_name">internal_only_do_not_use_apparent_name</a>, <a href="#go_repository-local_path">local_path</a>, <a href="#go_repository-patch_args">patch_args</a>, <a href="#go_repository-patch_cmds">patch_cmds</a>, <a href="#go_repository-patch_tool">patch_tool</a>,
-              <a href="#go_repository-patches">patches</a>, <a href="#go_repository-remote">remote</a>, <a href="#go_repository-replace">replace</a>, <a href="#go_repository-repo_mapping">repo_mapping</a>, <a href="#go_repository-sha256">sha256</a>, <a href="#go_repository-strip_prefix">strip_prefix</a>, <a href="#go_repository-sum">sum</a>, <a href="#go_repository-tag">tag</a>, <a href="#go_repository-type">type</a>, <a href="#go_repository-urls">urls</a>, <a href="#go_repository-vcs">vcs</a>,
-              <a href="#go_repository-version">version</a>)
+              <a href="#go_repository-patches">patches</a>, <a href="#go_repository-purl_override">purl_override</a>, <a href="#go_repository-remote">remote</a>, <a href="#go_repository-replace">replace</a>, <a href="#go_repository-repo_mapping">repo_mapping</a>, <a href="#go_repository-sha256">sha256</a>, <a href="#go_repository-strip_prefix">strip_prefix</a>, <a href="#go_repository-sum">sum</a>, <a href="#go_repository-tag">tag</a>,
+              <a href="#go_repository-type">type</a>, <a href="#go_repository-urls">urls</a>, <a href="#go_repository-vcs">vcs</a>, <a href="#go_repository-version">version</a>)
 </pre>
 
 `go_repository` downloads a Go project and generates build files with Gazelle
@@ -267,6 +303,7 @@ go_repository(
 | <a id="go_repository-patch_cmds"></a>patch_cmds |  Commands to run in the repository after patches are applied.   | List of strings | optional |  `[]`  |
 | <a id="go_repository-patch_tool"></a>patch_tool |  The patch tool used to apply `patches`. If this is specified, Bazel will use the specifed patch tool instead of the Bazel-native patch implementation.   | String | optional |  `""`  |
 | <a id="go_repository-patches"></a>patches |  A list of patches to apply to the repository after gazelle runs.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `[]`  |
+| <a id="go_repository-purl_override"></a>purl_override |  A Package URL (PURL) to use for the generated `package_metadata` and `package_info` targets, in place of the one Gazelle would otherwise construct from `importpath` and `version`.<br><br>The `go_deps` bzlmod extension sets this to a PURL that includes a `checksum` qualifier built from `sum`, using `build_golang_purl` (see below). Direct WORKSPACE mode callers of `go_repository` cannot do this from within `deps.bzl` itself, since `@package_metadata` is not yet defined at the point `deps.bzl` is loaded, but may set this attribute explicitly after calling `gazelle_dependencies()`, at which point `@package_metadata` is available:<br><br><pre><code class="language-starlark">load("@bazel_gazelle//:deps.bzl", "build_golang_purl", "gazelle_dependencies", "go_repository")&#10;&#10;gazelle_dependencies()&#10;&#10;load("@package_metadata//purl:purl.bzl", "purl")&#10;&#10;go_repository(&#10;    name = "com_github_pkg_errors",&#10;    importpath = "github.com/pkg/errors",&#10;    sum = "h1:iURUrRGxPUNPdy5/HRSm+Yj6okJ6UtLINN0Q9M4+h3I=",&#10;    version = "v0.8.1",&#10;    purl_override = build_golang_purl(&#10;        purl,&#10;        "github.com/pkg/errors",&#10;        "v0.8.1",&#10;        "h1:iURUrRGxPUNPdy5/HRSm+Yj6okJ6UtLINN0Q9M4+h3I=",&#10;    ),&#10;)</code></pre>   | String | optional |  `""`  |
 | <a id="go_repository-remote"></a>remote |  The VCS location where the repository should be downloaded from. This is usually inferred from `importpath`, but you can set `remote` to download from a private repository or a fork.   | String | optional |  `""`  |
 | <a id="go_repository-replace"></a>replace |  A replacement for the module named by `importpath`. The module named by `replace` will be downloaded at `version` and verified with `sum`.<br><br>NOTE: There is no `go_repository` equivalent to file path `replace` directives. Use `local_repository` instead.   | String | optional |  `""`  |
 | <a id="go_repository-repo_mapping"></a>repo_mapping |  In `WORKSPACE` context only: a dictionary from local repository name to global repository name. This allows controls over workspace dependency resolution for dependencies of this repository.<br><br>For example, an entry `"@foo": "@bar"` declares that, for any time this repository depends on `@foo` (such as a dependency on `@foo//some:target`, it should actually resolve that dependency within globally-declared `@bar` (`@bar//some:target`).<br><br>This attribute is _not_ supported in `MODULE.bazel` context (when invoking a repository rule inside a module extension's implementation function).   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  |

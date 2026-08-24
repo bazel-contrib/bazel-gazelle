@@ -13,8 +13,9 @@
 # limitations under the License.
 
 load("@bazel_gazelle_go_repository_cache//:def.bzl", "HOST_COMPATIBLE_SDK")
+load("@package_metadata//purl:purl.bzl", "purl")
 load("//internal:env.bzl", "compute_env")
-load("//internal:go_repository.bzl", "go_repository")
+load("//internal:go_repository.bzl", "build_golang_purl", "go_repository")
 load(
     ":default_gazelle_overrides.bzl",
     "DEFAULT_BUILD_EXTRA_ARGS_BY_PATH",
@@ -808,6 +809,8 @@ Mismatch between versions requested for Go module {module}:
             sum = _get_sum_from_module(path, module, sums)
             if sum:
                 repo_args["sum"] = sum
+
+            repo_args["purl_override"] = build_golang_purl(purl, path, repo_args["version"], sum)
 
             go_repository_args.update(repo_args)
 

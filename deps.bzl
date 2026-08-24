@@ -18,6 +18,7 @@ load(
 )
 load(
     "//internal:go_repository.bzl",
+    _build_golang_purl = "build_golang_purl",
     _go_repository = "go_repository",
 )
 load(
@@ -39,6 +40,7 @@ load(
 
 # Re-export go_repository . Users should get it from this file.
 go_repository = _go_repository
+build_golang_purl = _build_golang_purl
 
 def gazelle_dependencies(
         go_sdk = "",
@@ -69,11 +71,11 @@ def gazelle_dependencies(
         http_archive,
         name = "package_metadata",
         urls = [
-            "https://mirror.bazel.build/github.com/bazel-contrib/supply-chain/releases/download/v0.0.5/supply-chain-v0.0.5.tar.gz",
-            "https://github.com/bazel-contrib/supply-chain/releases/download/v0.0.5/supply-chain-v0.0.5.tar.gz",
+            "https://mirror.bazel.build/github.com/bazel-contrib/supply-chain/releases/download/package_metadata-0.0.13/package_metadata-0.0.13.tar.gz",
+            "https://github.com/bazel-contrib/supply-chain/releases/download/package_metadata-0.0.13/package_metadata-0.0.13.tar.gz",
         ],
-        sha256 = "49ed11e5d6b752c55fa539cbb10b2736974f347b081d7bd500a80dacb7dbec06",
-        strip_prefix = "supply-chain-0.0.5/metadata",
+        sha256 = "755bd6c8a3751982e2555d96c913ec070954ca9d01f935563392255da4ebad72",
+        strip_prefix = "package_metadata-0.0.13/metadata",
     )
 
     # We are not able to call rules_shell's dependency macros without introducing new levels of

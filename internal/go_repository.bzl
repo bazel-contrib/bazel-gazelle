@@ -436,6 +436,7 @@ repo(
             _generate_package_info(
                 importpath = ctx.attr.importpath,
                 version = ctx.attr.version,
+                purl_override = ctx.attr.purl_override,
             ),
         )
 
@@ -444,25 +445,62 @@ repo(
     else:
         return None
 
-def _generate_package_info(*, importpath, version):
+def build_golang_purl(purl, importpath, version = None, sum = None):
+    """Builds a golang Package URL (PURL) string for use as `go_repository`'s `purl_override`.
+
+    This is the same logic the `go_deps` bzlmod extension uses internally. WORKSPACE mode callers
+    of `go_repository` may call this directly to opt into the same `checksum` qualifier, since
+    `@package_metadata` is not yet defined at the point `deps.bzl` itself is loaded, and
+    `go_repository.bzl` cannot load `@package_metadata//purl:purl.bzl` itself as a result.
+
+    See specification:
+    https://github.com/package-url/purl-spec/blob/master/PURL-TYPES.rst#golang
+
+    Args:
+      purl: the `purl` struct loaded from `@package_metadata//purl:purl.bzl`.
+      importpath: the Go import path, as passed to `go_repository`.
+      version: the module version, as passed to `go_repository`, if any.
+      sum: the module's `go.sum` hash, as passed to `go_repository`, if any. Included as a
+        `checksum` qualifier when set. May only be set when `version` is also set.
+
+    Returns:
+      A PURL string.
+    """
+
+    # namespace is everything before the last '/', name is the final segment.
+    namespace, _, name = importpath.rpartition("/")
+    builder = purl.builder().type("golang").namespace(namespace).name(name)
+    if version:
+        builder = builder.version(version)
+        if sum:
+            builder = builder.add_qualifier("checksum", sum)
+    return builder.build()
+
+def _generate_package_info(*, importpath, version, purl_override):
     package_name = importpath
 
     # TODO: Consider adding support for custom remotes.
     package_url = "https://{}".format(importpath) if version else None
     package_version = version.removeprefix("v") if version else None
 
-    # See specification:
-    # https://github.com/package-url/purl-spec/blob/master/PURL-TYPES.rst#golang
-    # scheme:type/namespace/name@version?qualifiers#subpath
-    if version:
-        purl = "pkg:golang/{namespace_and_name}@{version}".format(
-            namespace_and_name = importpath,
-            version = version,
-        )
+    if purl_override:
+        # Precomputed by the go_deps bzlmod extension, which can load
+        # @package_metadata//purl:purl.bzl without the load-order problems
+        # that loading it from this file would cause in WORKSPACE mode.
+        purl_str = purl_override
     else:
-        purl = "pkg:golang/{namespace_and_name}".format(
-            namespace_and_name = importpath,
-        )
+        # See specification:
+        # https://github.com/package-url/purl-spec/blob/master/PURL-TYPES.rst#golang
+        # scheme:type/namespace/name@version?qualifiers#subpath
+        if version:
+            purl_str = "pkg:golang/{namespace_and_name}@{version}".format(
+                namespace_and_name = importpath,
+                version = version,
+            )
+        else:
+            purl_str = "pkg:golang/{namespace_and_name}".format(
+                namespace_and_name = importpath,
+            )
 
     return """
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
@@ -488,7 +526,7 @@ package_info(
         package_name = repr(package_name),
         package_url = repr(package_url),
         package_version = repr(package_version),
-        purl = repr(purl),
+        purl = repr(purl_str),
     )
 
 go_repository = repository_rule(
@@ -600,6 +638,39 @@ go_repository = repository_rule(
 
             NOTE: There is no `go_repository` equivalent to file path `replace`
             directives. Use `local_repository` instead.""",
+        ),
+        "purl_override": attr.string(
+            doc = """A Package URL (PURL) to use for the generated `package_metadata` and
+            `package_info` targets, in place of the one Gazelle would otherwise construct from
+            `importpath` and `version`.
+
+            The `go_deps` bzlmod extension sets this to a PURL that includes a `checksum`
+            qualifier built from `sum`, using `build_golang_purl` (see below). Direct WORKSPACE
+            mode callers of `go_repository` cannot do this from within `deps.bzl` itself, since
+            `@package_metadata` is not yet defined at the point `deps.bzl` is loaded, but may set
+            this attribute explicitly after calling `gazelle_dependencies()`, at which point
+            `@package_metadata` is available:
+
+            ```starlark
+            load("@bazel_gazelle//:deps.bzl", "build_golang_purl", "gazelle_dependencies", "go_repository")
+
+            gazelle_dependencies()
+
+            load("@package_metadata//purl:purl.bzl", "purl")
+
+            go_repository(
+                name = "com_github_pkg_errors",
+                importpath = "github.com/pkg/errors",
+                sum = "h1:iURUrRGxPUNPdy5/HRSm+Yj6okJ6UtLINN0Q9M4+h3I=",
+                version = "v0.8.1",
+                purl_override = build_golang_purl(
+                    purl,
+                    "github.com/pkg/errors",
+                    "v0.8.1",
+                    "h1:iURUrRGxPUNPdy5/HRSm+Yj6okJ6UtLINN0Q9M4+h3I=",
+                ),
+            )
+            ```""",
         ),
 
         # Attributes for a repository that needs automatic build file generation

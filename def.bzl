@@ -38,6 +38,7 @@ load(
 )
 load(
     "//internal:go_repository.bzl",
+    _build_golang_purl = "build_golang_purl",
     _go_repository = "go_repository",
 )
 load(
@@ -51,6 +52,7 @@ load(
 )
 
 go_repository = _go_repository
+build_golang_purl = _build_golang_purl
 git_repository = _git_repository
 http_archive = _http_archive
 gazelle_binary = _gazelle_binary
