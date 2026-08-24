@@ -33,7 +33,7 @@ def _test_package_info_for_gazelle_generated_build_impl(env, target):
     subject.package_name().equals("github.com/fmeum/dep_on_gazelle")
     subject.package_version().equals("1.0.0")
     subject.package_url().equals("https://github.com/fmeum/dep_on_gazelle")
-    subject.purl().equals("pkg:golang/github.com/fmeum/dep_on_gazelle@v1.0.0")
+    subject.purl().equals("pkg:golang/github.com/fmeum/dep_on_gazelle@v1.0.0?checksum=h1:7gEtQ2CoD77tYca%2B1iUnKjIBUZ4mX7mZwjdWp3uuN%2FE%3D")
 
 def _test_package_info_for_repo_provided_build(name):
     analysis_test(
