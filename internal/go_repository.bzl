@@ -436,6 +436,7 @@ repo(
             _generate_package_info(
                 importpath = ctx.attr.importpath,
                 version = ctx.attr.version,
+                sum = ctx.attr.sum,
             ),
         )
 
@@ -444,7 +445,7 @@ repo(
     else:
         return None
 
-def _generate_package_info(*, importpath, version):
+def _generate_package_info(*, importpath, version, sum):
     package_name = importpath
 
     # TODO: Consider adding support for custom remotes.
@@ -459,6 +460,14 @@ def _generate_package_info(*, importpath, version):
             namespace_and_name = importpath,
             version = version,
         )
+
+        # sum may only be set when version is.
+        if sum:
+            # A go.sum h1: hash only ever contains the base64 alphabet plus the literal
+            # "h1:" prefix, so only '+', '/', and '=' need percent-escaping to be a valid
+            # PURL qualifier value.
+            escaped_sum = sum.replace("+", "%2B").replace("/", "%2F").replace("=", "%3D")
+            purl += "?checksum=" + escaped_sum
     else:
         purl = "pkg:golang/{namespace_and_name}".format(
             namespace_and_name = importpath,
