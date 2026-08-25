@@ -436,6 +436,7 @@ repo(
             _generate_package_info(
                 importpath = ctx.attr.importpath,
                 version = ctx.attr.version,
+                sum = ctx.attr.sum,
             ),
         )
 
@@ -444,7 +445,7 @@ repo(
     else:
         return None
 
-def _generate_package_info(*, importpath, version):
+def _generate_package_info(*, importpath, version, sum):
     package_name = importpath
 
     # TODO: Consider adding support for custom remotes.
@@ -459,6 +460,15 @@ def _generate_package_info(*, importpath, version):
             namespace_and_name = importpath,
             version = version,
         )
+
+        # sum may only be set when version is.
+        if sum:
+            # TODO(rdesgroppes): Use @package_metadata//purl:purl.bzl's `purl.builder()` once
+            # WORKSPACE support is dropped. Until then, using it here would require extending the
+            # WORKSPACE stanza with a `package_metadata` declaration before loading
+            # `gazelle_dependencies`, so the interim solution below only percent-encodes the
+            # characters in a go.sum `h1:` digest that must be escaped in a PURL qualifier value.
+            purl += "?checksum=" + sum.replace("+", "%2B").replace("/", "%2F").replace("=", "%3D")
     else:
         purl = "pkg:golang/{namespace_and_name}".format(
             namespace_and_name = importpath,
