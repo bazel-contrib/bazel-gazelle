@@ -60,9 +60,6 @@ import (
 //
 // * Merging generated rules into existing rules: languages provide metadata
 // that helps with rule matching, merging, and deletion.
-//
-// Deprecated: use github.com/bazel-contrib/bazel-gazelle/v2/language.Language
-// or other smaller v2 interfaces instead.
 type Language interface {
 	// TODO(jayconrod): is embedding Configurer strictly necessary?
 	config.Configurer
