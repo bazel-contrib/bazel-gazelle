@@ -204,4 +204,12 @@ type GenerateResult struct {
 	// Experimental: this functionality may change a bit until it's been tested
 	// with multiple language extensions.
 	RelsToIndex []string
+
+	// RelsToUpdate is a list of strict ancestors of the directory passed to
+	// GenerateRules whose build files should also be updated. Paths are
+	// slash-separated and relative to the repository root; "" names the root
+	// directory. Each requested directory is updated at most once; its
+	// subdirectories are not updated implicitly. All enabled languages are run
+	// in each requested directory.
+	RelsToUpdate []string
 }

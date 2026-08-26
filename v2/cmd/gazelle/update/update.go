@@ -379,7 +379,7 @@ func Run(
 			mrslv.MappedKind(rel, repl)
 		}
 
-		// If this file is ignored or if Gazelle was not asked to update this
+		// If this file is ignored or Gazelle was not asked to update this
 		// directory, just index the build file and move on.
 		if !update {
 			if c.IndexLibraries && f != nil {
@@ -401,6 +401,7 @@ func Run(
 		var empty, gen []*rule.Rule
 		var imports []interface{}
 		var relsToVisit []string
+		var relsToUpdate []string
 		for _, l := range filterLanguages(c, languages) {
 			res := l.GenerateRules(language.GenerateArgs{
 				Config:       c,
@@ -422,9 +423,13 @@ func Run(
 			if c.IndexLibraries {
 				relsToVisit = append(relsToVisit, res.RelsToIndex...)
 			}
+			relsToUpdate = append(relsToUpdate, res.RelsToUpdate...)
 		}
 		if f == nil && len(gen) == 0 {
-			return walk.Walk2FuncResult{RelsToVisit: relsToVisit}
+			return walk.Walk2FuncResult{
+				RelsToVisit:  relsToVisit,
+				RelsToUpdate: relsToUpdate,
+			}
 		}
 
 		// Apply and record relevant kind mappings.
@@ -523,8 +528,9 @@ func Run(
 		}
 
 		return walk.Walk2FuncResult{
-			RelsToVisit: relsToVisit,
-			Err:         errors.Join(errs...),
+			RelsToVisit:  relsToVisit,
+			RelsToUpdate: relsToUpdate,
+			Err:          errors.Join(errs...),
 		}
 	})
 

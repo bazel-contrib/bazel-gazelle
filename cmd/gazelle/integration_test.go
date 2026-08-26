@@ -1650,6 +1650,79 @@ go_library(
 	}})
 }
 
+func TestGoUpdatesRequestedParentPackages(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{Path: "WORKSPACE"},
+		{
+			Path: "embed/BUILD.bazel",
+			Content: `
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "embed",
+    srcs = ["embed.go"],
+    importpath = "example.com/embed",
+)
+`,
+		},
+		{
+			Path: "embed/embed.go",
+			Content: `package embed
+
+import _ "embed"
+
+//go:embed assets/**
+var assets string
+`,
+		},
+		{Path: "embed/assets/deep/new.json", Content: "{}"},
+		{
+			Path: "testdata/BUILD.bazel",
+			Content: `
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "testdata",
+    srcs = ["testdata.go"],
+    importpath = "example.com/testdata",
+)
+
+go_test(
+    name = "testdata_test",
+    srcs = ["testdata_test.go"],
+    embed = [":testdata"],
+)
+`,
+		},
+		{Path: "testdata/testdata.go", Content: "package testdata\n"},
+		{Path: "testdata/testdata_test.go", Content: "package testdata\n"},
+		{Path: "testdata/testdata/deep/case.txt", Content: "case"},
+	})
+	defer cleanup()
+
+	args := []string{"-r=false", "-go_prefix=example.com", "embed/assets/deep", "testdata/testdata/deep"}
+	if err := runGazelle(dir, args); err != nil {
+		t.Fatal(err)
+	}
+
+	checks := []struct {
+		path string
+		want string
+	}{
+		{path: "embed/BUILD.bazel", want: `embedsrcs = ["assets/deep/new.json"]`},
+		{path: "testdata/BUILD.bazel", want: `data = glob(["testdata/**"])`},
+	}
+	for _, check := range checks {
+		content, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(check.path)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(content), check.want) {
+			t.Errorf("%s does not contain %q:\n%s", check.path, check.want, content)
+		}
+	}
+}
+
 // TestUpdateReposDoesNotModifyGoSum verifies that commands executed by
 // update-repos do not modify go.sum, particularly 'go mod download' when
 // a sum is missing. Verifies #990.

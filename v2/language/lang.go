@@ -119,6 +119,14 @@ type GenerateResult struct {
 	// resolved. Subdirectories are not recursively indexed. This list may
 	// contain non-existent directories.
 	RelsToIndex []string
+
+	// RelsToUpdate is a list of strict ancestors of the directory passed to
+	// Generate whose build files should also be updated. Paths are
+	// slash-separated and relative to the repository root; "" names the root
+	// directory. Each requested directory is updated at most once; its
+	// subdirectories are not updated implicitly. All enabled languages are run
+	// in each requested directory.
+	RelsToUpdate []string
 }
 
 // Fixer supports repairing deprecated usage of rules in a BUILD file.

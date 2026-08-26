@@ -168,10 +168,11 @@ func (g generatorAdapter) Generate(ctx context.Context, args language.GenerateAr
 		OtherGen:     args.OtherGen,
 	})
 	return language.GenerateResult{
-		Gen:         result.Gen,
-		Empty:       result.Empty,
-		Imports:     result.Imports,
-		RelsToIndex: result.RelsToIndex,
+		Gen:          result.Gen,
+		Empty:        result.Empty,
+		Imports:      result.Imports,
+		RelsToIndex:  result.RelsToIndex,
+		RelsToUpdate: result.RelsToUpdate,
 	}, nil
 }
 

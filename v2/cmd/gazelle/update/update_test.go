@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/label"
@@ -13,6 +14,7 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/repo"
 	"github.com/bazelbuild/bazel-gazelle/resolve"
+	"github.com/bazelbuild/bazel-gazelle/testtools"
 )
 
 // TestConfiguredMappedKindResolvesWithoutSourceRule verifies that a configured
@@ -36,6 +38,58 @@ func TestConfiguredMappedKindResolvesWithoutSourceRule(t *testing.T) {
 	if !indexed {
 		t.Fatal("configured mapped rule was not indexed by its source-kind resolver")
 	}
+}
+
+func TestAncestorUpdateDirectories(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{Path: "WORKSPACE"},
+		{Path: "a/BUILD.bazel"},
+		{Path: "a/child/file.txt"},
+	})
+	defer cleanup()
+
+	var generated, observed []string
+	lang := &ancestorUpdateTestLanguage{generated: &generated}
+	observer := &ancestorUpdateObserver{generated: &observed}
+	args := []string{"-r=false", "a/child"}
+	if err := Run(context.Background(), []language.Language{lang, observer}, dir, args); err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{"a/child", "a"}
+	if !slices.Equal(want, generated) {
+		t.Errorf("generated directories = %v, want %v", generated, want)
+	}
+	if !slices.Equal(want, observed) {
+		t.Errorf("observed directories = %v, want %v", observed, want)
+	}
+}
+
+type ancestorUpdateTestLanguage struct {
+	language.BaseLang
+	generated *[]string
+}
+
+func (*ancestorUpdateTestLanguage) Name() string { return "ancestor_update_test" }
+
+func (l *ancestorUpdateTestLanguage) GenerateRules(args language.GenerateArgs) language.GenerateResult {
+	*l.generated = append(*l.generated, args.Rel)
+	if args.Rel == "a/child" {
+		return language.GenerateResult{RelsToUpdate: []string{"a"}}
+	}
+	return language.GenerateResult{}
+}
+
+type ancestorUpdateObserver struct {
+	language.BaseLang
+	generated *[]string
+}
+
+func (*ancestorUpdateObserver) Name() string { return "ancestor_update_observer" }
+
+func (l *ancestorUpdateObserver) GenerateRules(args language.GenerateArgs) language.GenerateResult {
+	*l.generated = append(*l.generated, args.Rel)
+	return language.GenerateResult{}
 }
 
 // mapKindTestLanguage generates only mapped_library. The base_library mapping

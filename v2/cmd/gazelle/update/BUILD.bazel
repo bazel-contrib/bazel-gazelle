@@ -45,6 +45,7 @@ go_test(
         "//language",
         "//repo",
         "//resolve",
+        "//testtools",
         "//v2/label",
         "//v2/rule",
     ],

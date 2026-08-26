@@ -15,8 +15,8 @@ import v2 "github.com/bazel-contrib/bazel-gazelle/v2/walk"
 //
 // In general, language extensions should prefer to use the RegularFiles,
 // Subdirs, and File fields of language.GenerateArgs. This function returns
-// the same information and may be used by methods like Resolver.Imports
-// that get called earlier without the same information.
+// the same information and may be used by Configure or methods like
+// Resolver.Imports that are called without the same information.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/walk.GetDirInfo instead.
 func GetDirInfo(rel string) (DirInfo, error) {

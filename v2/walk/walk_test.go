@@ -772,6 +772,86 @@ func TestRelsToVisit(t *testing.T) {
 	}
 }
 
+func TestRelsToUpdate(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+		{Path: "a/b/c/file.txt"},
+		{Path: "a/sibling/file.txt"},
+	})
+	defer cleanup()
+
+	c, cexts := testConfig(t, dir)
+	var updatedRels []string
+	visitCounts := make(map[string]int)
+	updateDir := filepath.Join(dir, "a", "b", "c")
+	err := Walk2(c, cexts, []string{updateDir}, UpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+		visitCounts[args.Rel]++
+		if !args.Update {
+			return Walk2FuncResult{}
+		}
+		updatedRels = append(updatedRels, args.Rel)
+		switch args.Rel {
+		case "a/b/c":
+			return Walk2FuncResult{RelsToUpdate: []string{"a/b"}}
+		case "a/b":
+			return Walk2FuncResult{RelsToUpdate: []string{"a", ""}}
+		case "a":
+			return Walk2FuncResult{RelsToUpdate: []string{""}}
+		default:
+			return Walk2FuncResult{}
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantUpdatedRels := []string{"a/b/c", "a/b", "a", ""}
+	if diff := cmp.Diff(wantUpdatedRels, updatedRels); diff != "" {
+		t.Errorf("updated rels (-want,+got):\n%s", diff)
+	}
+	for _, rel := range wantUpdatedRels {
+		if got := visitCounts[rel]; got != 1 {
+			t.Errorf("%q was visited %d times, want 1", rel, got)
+		}
+	}
+	if visitCounts["a/sibling"] != 0 {
+		t.Error("ancestor update recursively visited a/sibling")
+	}
+}
+
+func TestRelsToUpdateRejectsNonAncestor(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{{Path: "a/b/file.txt"}})
+	defer cleanup()
+
+	c, cexts := testConfig(t, dir)
+	updateDir := filepath.Join(dir, "a", "b")
+	err := Walk2(c, cexts, []string{updateDir}, UpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+		if args.Rel == "a/b" {
+			return Walk2FuncResult{RelsToUpdate: []string{"a/b", "a/b/c", "a/c", "/absolute", "../outside"}}
+		}
+		return Walk2FuncResult{}
+	})
+	if err == nil || !strings.Contains(err.Error(), "not an ancestor") {
+		t.Fatalf("Walk2 error = %v, want non-ancestor error", err)
+	}
+}
+
+func TestRelsToUpdateRequiresUpdate(t *testing.T) {
+	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{{Path: "a/b/file.txt"}})
+	defer cleanup()
+
+	c, cexts := testConfig(t, dir)
+	updateDir := filepath.Join(dir, "a", "b")
+	err := Walk2(c, cexts, []string{updateDir}, UpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+		if args.Rel == "a" {
+			return Walk2FuncResult{RelsToUpdate: []string{""}}
+		}
+		return Walk2FuncResult{}
+	})
+	if err == nil || !strings.Contains(err.Error(), "with Update false") {
+		t.Fatalf("Walk2 error = %v, want Update false error", err)
+	}
+}
+
 func TestGetDirInfo(t *testing.T) {
 	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
 		{

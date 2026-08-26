@@ -98,13 +98,16 @@ func setGlobalWalker(w *walker) func() {
 //
 // In general, language extensions should prefer to use the RegularFiles,
 // Subdirs, and File fields of language.GenerateArgs. This function returns
-// the same information and may be used by methods like Resolver.Imports
-// that get called earlier without the same information.
+// the same information and may be used by Configure or methods like
+// Resolver.Imports that are called without the same information.
 func GetDirInfo(rel string) (DirInfo, error) {
 	if globalWalker == nil {
-		panic("globalWalker is not set")
+		return DirInfo{}, fmt.Errorf("GetDirInfo may only be called during Walk or Walk2")
 	}
 	rel = path.Clean(rel)
+	if rel == "." {
+		rel = ""
+	}
 
 	// Ensure all ancestors are loaded before loading rel itself, since their
 	// configuration may exclude rel.

@@ -188,6 +188,14 @@ type Walk2FuncResult struct {
 	//
 	// This list may contain non-existent directories.
 	RelsToVisit []string
+
+	// RelsToUpdate is a list of strict ancestors of the directory passed to the
+	// callback whose build files should also be updated. Paths are
+	// slash-separated and relative to the repository root; "" names the root
+	// directory. Each requested directory is updated at most once; its
+	// subdirectories are not updated implicitly. RelsToUpdate may only be
+	// returned when the callback's Update argument is true.
+	RelsToUpdate []string
 }
 
 // Walk2 traverses a limited part of the directory tree rooted at c.RepoRoot
@@ -284,12 +292,15 @@ type walker struct {
 	// knownDirectives is a list of directives supported by those extensions.
 	knownDirectives map[string]bool
 
-	// shouldUpdateRel indicates whether we should update a set of directories
-	// named by slash-separated repo-root-relative paths. The set is generated
-	// from the list of directories passed in to Walk2. This map contains true
-	// for explicitly listed directories, and false for ancestor directories
-	// that are not explicitly listed.
+	// shouldUpdateRel indicates whether we should update directories named by
+	// slash-separated repo-root-relative paths. The map contains true for
+	// explicitly listed directories and false for ancestors traversed for
+	// configuration. It is immutable after the background cache walk starts.
 	shouldUpdateRel map[string]bool
+
+	// requestedUpdateRel contains ancestors that callbacks requested to update.
+	// It is only accessed by the main traversal.
+	requestedUpdateRel map[string]struct{}
 
 	// wf is the callback provided by the caller. It's called in each directory
 	// that needs to be updated or indexed, determined by mode.
@@ -365,15 +376,16 @@ func newWalker(c *config.Config, cexts []config.Configurer, dirs []string, mode 
 	}
 
 	w := &walker{
-		repoRoot:        c.RepoRoot,
-		rootConfig:      c,
-		cache:           new(cache),
-		cexts:           cexts,
-		knownDirectives: knownDirectives,
-		wf:              wf,
-		shouldUpdateRel: shouldUpdateRel,
-		visits:          make(map[string]visitInfo),
-		relsToVisitSeen: make(map[string]struct{}),
+		repoRoot:           c.RepoRoot,
+		rootConfig:         c,
+		cache:              new(cache),
+		cexts:              cexts,
+		knownDirectives:    knownDirectives,
+		wf:                 wf,
+		shouldUpdateRel:    shouldUpdateRel,
+		requestedUpdateRel: make(map[string]struct{}),
+		visits:             make(map[string]visitInfo),
+		relsToVisitSeen:    make(map[string]struct{}),
 	}
 
 	// Asynchronously populate the walker cache in the background.
@@ -405,7 +417,11 @@ func (w *walker) shouldUpdate(mode Mode, rel string, updateParent bool) bool {
 	if (mode == VisitAllUpdateSubdirsMode || mode == UpdateSubdirsMode) && updateParent {
 		return true
 	}
-	return w.shouldUpdateRel[rel]
+	if w.shouldUpdateRel[rel] {
+		return true
+	}
+	_, ok := w.requestedUpdateRel[rel]
+	return ok
 }
 
 // visit is the main recursive function of walker. It visits one directory,
@@ -486,6 +502,8 @@ func (w *walker) visit(mode Mode, c *config.Config, rel string, updateParent boo
 		}
 
 		// Call the callback to update this directory.
+		// Recompute shouldUpdate since a child may have requested this ancestor.
+		shouldUpdate = w.shouldUpdate(mode, rel, updateParent)
 		update := !wc.ignore && shouldUpdate && !hasBuildFileError
 		result := w.wf(Walk2FuncArgs{
 			Dir:          dir,
@@ -512,6 +530,25 @@ func (w *walker) visit(mode Mode, c *config.Config, rel string, updateParent boo
 				w.relsToVisit = append(w.relsToVisit, relToVisit)
 				w.relsToVisitSeen[relToVisit] = struct{}{}
 			}
+		}
+		for _, relToUpdate := range result.RelsToUpdate {
+			if !update {
+				w.errs = append(w.errs, fmt.Errorf(
+					"directory %q requested ancestor update %q with Update false",
+					rel, relToUpdate))
+				continue
+			}
+			relToUpdate = path.Clean(relToUpdate)
+			if relToUpdate == "." {
+				relToUpdate = ""
+			}
+			if rel == "" || (relToUpdate != "" && !strings.HasPrefix(rel, relToUpdate+"/")) {
+				w.errs = append(w.errs, fmt.Errorf(
+					"directory %q requested update of %q, which is not an ancestor",
+					rel, relToUpdate))
+				continue
+			}
+			w.requestedUpdateRel[relToUpdate] = struct{}{}
 		}
 	}
 }

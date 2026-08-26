@@ -127,27 +127,17 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	}
 
 	// Build a set of packages from files in this directory.
-	srcdir := args.Rel
-	if gc.goRepositoryMode {
-		// cgo opts such as '-L${SRCDIR}/libs' should become
-		// '-Lexternal/my_repo~/libs' in an external repo.
-		// We obtain the path from the repo root to support both cases of
-		// --experimental_sibling_repository_layout.
-		slashPath := filepath.ToSlash(c.RepoRoot)
-		segments := strings.Split(slashPath, "/")
-		repoName := segments[len(segments)-1]
-		previousSegment := segments[len(segments)-2]
-		if previousSegment == "external" {
-			srcdir = path.Join("external", repoName, srcdir)
-		} else {
-			srcdir = path.Join("..", repoName, srcdir)
-		}
-	}
+	srcdir := goSrcDir(c, gc, args.Rel)
+	dirState := gl.dirStates[args.Rel]
 	goFileInfos := make([]fileInfo, len(goFiles))
 	var er *embedResolver
 	for i, name := range goFiles {
-		path := filepath.Join(args.Dir, name)
-		goFileInfos[i] = goFileInfo(path, srcdir)
+		if info, ok := dirState.goFileInfos[name]; ok {
+			goFileInfos[i] = info
+		} else {
+			path := filepath.Join(args.Dir, name)
+			goFileInfos[i] = goFileInfo(path, srcdir)
+		}
 		if len(goFileInfos[i].embeds) > 0 && er == nil {
 			er = newEmbedResolver(args.Dir, args.Rel, c.ValidBuildFileNames, gl.goPkgRels, args.Subdirs, args.RegularFiles, args.GenFiles)
 		}
@@ -205,7 +195,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	// Generate rules for proto packages. These should come before the other
 	// Go rules.
 	g := newGenerator(c, gc, args)
-	var res language.GenerateResult
+	res := language.GenerateResult{RelsToUpdate: gl.ancestorUpdates(args.Rel)}
 	var rules []*rule.Rule
 	var protoEmbeds []string
 	var protoEmbed string

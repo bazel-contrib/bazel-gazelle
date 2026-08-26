@@ -77,6 +77,7 @@ GO_REPOSITORY_TOOLS_SRCS = [
     Label("//language/go:lang.go"),
     Label("//language/go:modules.go"),
     Label("//language/go:package.go"),
+    Label("//language/go:parent_update.go"),
     Label("//language/go:platform_info.go"),
     Label("//language/go/platform_info_generator:BUILD.bazel"),
     Label("//language/go/platform_info_generator:main.go"),

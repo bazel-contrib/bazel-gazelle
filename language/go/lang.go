@@ -62,10 +62,17 @@ type goLang struct {
 	// Go code. If the value is false, it means the directory does not contain
 	// buildable Go code, but it has a subdir which does.
 	goPkgRels map[string]bool
+
+	// dirStates contains information collected during configuration and reused
+	// during generation.
+	dirStates map[string]goDirState
 }
 
 func (*goLang) Name() string { return goName }
 
 func NewLanguage() language.Language {
-	return &goLang{goPkgRels: make(map[string]bool)}
+	return &goLang{
+		goPkgRels: make(map[string]bool),
+		dirStates: make(map[string]goDirState),
+	}
 }

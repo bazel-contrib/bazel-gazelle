@@ -531,7 +531,7 @@ func (*goLang) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
 	return nil
 }
 
-func (*goLang) Configure(c *config.Config, rel string, f *rule.File) {
+func (gl *goLang) Configure(c *config.Config, rel string, f *rule.File) {
 	var gc *goConfig
 	if raw, ok := c.Exts[goName]; !ok {
 		gc = newGoConfig()
@@ -765,6 +765,8 @@ Update io_bazel_rules_go to a newer version in your WORKSPACE file.`
 	if gc.goNamingConvention == unknownNamingConvention {
 		gc.goNamingConvention = detectNamingConvention(c, f)
 	}
+
+	gl.configureDirState(c, gc, rel, f)
 }
 
 // checkPrefix checks that a string may be used as a prefix. We forbid local
