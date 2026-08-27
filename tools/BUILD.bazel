@@ -3,6 +3,7 @@ filegroup(
     testonly = True,
     srcs = [
         "BUILD.bazel",
+        "//tools/convert-go-deps-test-case:all_files",
         "//tools/override-generator:all_files",
         "//tools/releaser:all_files",
     ],
