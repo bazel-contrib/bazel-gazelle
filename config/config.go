@@ -45,10 +45,6 @@ import (
 // Config itself contains only general information. Most configuration
 // information is language-specific and is stored in Exts. This information
 // is modified by extensions that implement Configurer.
-//
-// Deprecated: use github.com/bazel-contrib/bazel-gazelle/v2/config.Config instead.
-//
-//go:fix inline
 type Config = v2.Config
 
 // MappedKind describes a replacement to use for a built-in kind.
