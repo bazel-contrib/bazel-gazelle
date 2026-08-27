@@ -2,20 +2,22 @@
 # See README.md for instructions.
 
 """
-A very basic use of the go_deps.module tag.
-
-Only one module is declared. No go.mod or go.work file is referenced.
-We should get a go_repository just for that module.
-"""
+Checks that setting go_deps.config(debug_mode = True) passes through
+debug_mode = True to go_repository declarations."""
 
 TEST = r"""
 {
-  "name": "module",
+  "name": "debug_mode",
   "modules": [
     {
-      "name": "root",
+      "name": "debug_mode",
       "is_root": true,
       "tags": {
+        "config": [
+          {
+            "debug_mode": true
+          }
+        ],
         "module": [
           {
             "path": "golang.org/x/mod",
@@ -35,11 +37,8 @@ TEST = r"""
     "main": {
       "repos": [
         {
-          "importpath": "golang.org/x/mod",
-          "internal_only_do_not_use_apparent_name": "org_golang_x_mod",
-          "name": "org_golang_x_mod",
-          "sum": "h1:MECBjubtXD7yj4HrhIUcywNaGeNVUdfVnxmPajOk4yk=",
-          "version": "v0.38.0"
+          "debug_mode": true,
+          "name": "org_golang_x_mod"
         }
       ],
       "root_module_direct_deps": [
