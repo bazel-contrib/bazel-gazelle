@@ -15,20 +15,34 @@
 """go_repository_config internal repo rule, used by go_deps"""
 
 load("//internal:env.bzl", "write_go_env_file")
-load(":utils.bzl", "format_rule_call")
 
 def _go_repository_config_impl(ctx):
-    repos = []
-    for name, importpath in sorted(ctx.attr.importpaths.items()):
-        repos.append(format_rule_call(
+    lines = []
+    for importpath, repo_name in ctx.attr.repo_names.items():
+        # Format as a gazelle:go_repository directive instead of a call.
+        # Gazelle accepts directives with duplicate names but not calls, and we
+        # need duplicate repo names for Bazel modules with multiple Go modules.
+        #
+        # TODO(#2413): change to a JSON format after we drop support
+        # for WORKSPACE mode.
+        words = [
+            "# gazelle:repository",
             "go_repository",
-            name = name,
-            importpath = importpath,
-            module_name = ctx.attr.module_names.get(name),
-            build_naming_convention = ctx.attr.build_naming_conventions.get(name),
-        ))
+            "name=" + repo_name,
+            "importpath=" + importpath,
+        ]
+        module_name = ctx.attr.module_names.get(repo_name)
+        if module_name:
+            words.append("module_name=" + module_name)
+        prefix_dir = ctx.attr.prefix_dirs.get(importpath)
+        if prefix_dir:
+            words.append("prefix_dir=" + prefix_dir)
+        build_naming_convention = ctx.attr.build_naming_conventions.get(repo_name)
+        if build_naming_convention:
+            words.append("build_naming_convention=" + build_naming_convention)
+        lines.append(" ".join(words))
 
-    ctx.file("WORKSPACE", "\n".join(repos))
+    ctx.file("WORKSPACE", "\n".join(lines) + "\n")
     write_go_env_file(ctx, ctx.attr.go_env)
     ctx.file("BUILD.bazel", "exports_files(['WORKSPACE', 'config.json', 'go.env', 'go_env.bzl', 'go_tools.bzl'])")
     ctx.file("go_env.bzl", content = "GO_ENV = " + repr(ctx.attr.go_env))
@@ -45,13 +59,17 @@ def _go_repository_config_impl(ctx):
 go_repository_config = repository_rule(
     implementation = _go_repository_config_impl,
     attrs = {
-        "importpaths": attr.string_dict(
+        "repo_names": attr.string_dict(
             mandatory = True,
-            doc = "Map from repo name to Go module path",
+            doc = "Map from Go module path to repo name",
         ),
         "module_names": attr.string_dict(
             mandatory = True,
             doc = "Map from repo name (including '@' prefix) to Bazel module name, for when modules are renamed",
+        ),
+        "prefix_dirs": attr.string_dict(
+            mandatory = True,
+            doc = "Map from Go module path to module root directory within repo, when Go module root is different than Bazel module root",
         ),
         "tool_targets": attr.string_dict(
             mandatory = True,
