@@ -218,8 +218,9 @@ func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) erro
 				name = r.Name()
 			}
 			uc.repos = append(uc.repos, repo.Repo{
-				Name:     name,
-				GoPrefix: r.AttrString("importpath"),
+				Name:      name,
+				GoPrefix:  r.AttrString("importpath"),
+				PrefixDir: r.AttrString("prefix_dir"),
 			})
 		}
 	}
