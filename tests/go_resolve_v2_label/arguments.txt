@@ -1,0 +1,2 @@
+-bzlmod
+-repo_config=repoconfig

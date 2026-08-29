@@ -172,7 +172,7 @@ func ResolveGo(c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, im
 	if gc.depMode == vendorMode {
 		return resolveVendored(gc, imp)
 	}
-	var resolveFn func(string) (string, string, error)
+	var resolveFn resolveRootFunc
 	if gc.depMode == staticMode {
 		resolveFn = rc.RootStatic
 	} else if gc.moduleMode || pathWithoutSemver(imp) != "" {
@@ -260,8 +260,10 @@ func resolveWithIndexGo(c *config.Config, ix *resolve.RuleIndex, imp string, fro
 	return bestMatch.Label, nil
 }
 
-func resolveToExternalLabel(c *config.Config, resolveFn func(string) (string, string, error), imp string) (label.Label, error) {
-	prefix, repo, err := resolveFn(imp)
+type resolveRootFunc func(importPath string) (root, name, prefixDir string, _ error)
+
+func resolveToExternalLabel(c *config.Config, resolveFn resolveRootFunc, imp string) (label.Label, error) {
+	prefix, repo, prefixDir, err := resolveFn(imp)
 	if err != nil {
 		return label.NoLabel, err
 	} else if prefix == "" && repo == "" {
@@ -270,11 +272,11 @@ func resolveToExternalLabel(c *config.Config, resolveFn func(string) (string, st
 
 	var pkg string
 	if pathtools.HasPrefix(imp, prefix) {
-		pkg = pathtools.TrimPrefix(imp, prefix)
+		pkg = path.Join(prefixDir, pathtools.TrimPrefix(imp, prefix))
 	} else if impWithoutSemver := pathWithoutSemver(imp); pathtools.HasPrefix(impWithoutSemver, prefix) {
 		// We may have used minimal module compatibility to resolve a path
 		// without a semantic import version suffix to a repository that has one.
-		pkg = pathtools.TrimPrefix(impWithoutSemver, prefix)
+		pkg = path.Join(prefixDir, pathtools.TrimPrefix(impWithoutSemver, prefix))
 	}
 
 	// Determine what naming convention is used by the repository.
