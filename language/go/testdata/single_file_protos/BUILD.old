@@ -1,0 +1,2 @@
+# gazelle:proto file
+# gazelle:go_generate_proto true
