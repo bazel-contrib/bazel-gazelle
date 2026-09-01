@@ -306,7 +306,8 @@ def _mock_module_ctx_path(case, v):
         # mock path, created with _mock_path. Return as-is.
         return v
     elif type(v) == "Label":
-        return _mock_path(case, _label_to_path("!!!", v))
+        default_repo_name = case.modules[0].name
+        return _mock_path(case, _label_to_path(default_repo_name, v))
     elif type(v) == "string":
         return _mock_path(case, "./" + v)
     else:
