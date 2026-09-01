@@ -2,15 +2,13 @@
 # See README.md for instructions.
 
 """
-A very basic use of the go_deps.module tag.
-
-Only one module is declared. No go.mod or go.work file is referenced.
-We should get a go_repository just for that module.
+When go_deps declares go_repository rules, it should also declare a rules_proto
+compatibility shim unless a repo named rules_proto already exists.
 """
 
 TEST = r"""
 {
-  "name": "module",
+  "name": "rules_proto_compat",
   "modules": [
     {
       "name": "root",
@@ -36,10 +34,10 @@ TEST = r"""
       "repos": [
         {
           "importpath": "golang.org/x/mod",
-          "internal_only_do_not_use_apparent_name": "org_golang_x_mod",
-          "name": "org_golang_x_mod",
-          "sum": "h1:MECBjubtXD7yj4HrhIUcywNaGeNVUdfVnxmPajOk4yk=",
-          "version": "v0.38.0"
+          "name": "org_golang_x_mod"
+        },
+        {
+          "name": "rules_proto"
         }
       ],
       "root_module_direct_deps": [

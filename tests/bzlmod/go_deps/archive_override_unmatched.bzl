@@ -2,20 +2,25 @@
 # See README.md for instructions.
 
 """
-A very basic use of the go_deps.module tag.
-
-Only one module is declared. No go.mod or go.work file is referenced.
-We should get a go_repository just for that module.
+Tests that archive_override fails when it does not match any Go module.
 """
 
 TEST = r"""
 {
-  "name": "module",
+  "name": "archive_override_unmatched",
   "modules": [
     {
-      "name": "root",
+      "name": "archive_override_unmatched",
       "is_root": true,
       "tags": {
+        "archive_override": [
+          {
+            "path": "example.com/nonexistent",
+            "urls": [
+              "https://example.com/nonexistent"
+            ]
+          }
+        ],
         "module": [
           {
             "path": "golang.org/x/mod",
@@ -33,19 +38,9 @@ TEST = r"""
   },
   "want": {
     "main": {
-      "repos": [
-        {
-          "importpath": "golang.org/x/mod",
-          "internal_only_do_not_use_apparent_name": "org_golang_x_mod",
-          "name": "org_golang_x_mod",
-          "sum": "h1:MECBjubtXD7yj4HrhIUcywNaGeNVUdfVnxmPajOk4yk=",
-          "version": "v0.38.0"
-        }
-      ],
-      "root_module_direct_deps": [
-        "org_golang_x_mod"
-      ],
-      "root_module_direct_dev_deps": []
+      "fail": [
+        "Some archive_override did not target a Go module with a matching path: example.com/nonexistent"
+      ]
     }
   }
 }
