@@ -29,6 +29,8 @@ go_library(
         "//repo",
         "//rule",
         "//v2/cmd/gazelle/update",
+        "//v2/compat",
+        "//v2/language",
     ],
 )
 

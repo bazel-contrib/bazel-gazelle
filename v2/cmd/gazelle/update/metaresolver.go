@@ -16,17 +16,21 @@ limitations under the License.
 package update
 
 import (
-	"github.com/bazel-contrib/bazel-gazelle/v2/label"
+	"context"
+
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/repo"
-	"github.com/bazelbuild/bazel-gazelle/resolve"
 )
 
 // metaResolver provides a rule.Resolver for any rule.Rule.
+//
+// TODO(#2421): in v2, only use metaResolver for pre-existing rules.
+// For freshly generated rules, call Imports and Resolve on the extension
+// that generated the rules.
 type metaResolver struct {
 	// builtins provides a map of the language kinds to their resolver.
-	builtins map[string]resolve.Resolver
+	builtins map[string]indexResolver
 
 	// mappedKinds provides a list of replacements used by File.Pkg.
 	mappedKinds map[string][]config.MappedKind
@@ -35,16 +39,21 @@ type metaResolver struct {
 	aliasedKinds map[string]map[string]string
 }
 
+type indexResolver interface {
+	resolve.Indexer
+	resolve.Resolver
+}
+
 func newMetaResolver() *metaResolver {
 	return &metaResolver{
-		builtins:     make(map[string]resolve.Resolver),
+		builtins:     make(map[string]indexResolver),
 		mappedKinds:  make(map[string][]config.MappedKind),
 		aliasedKinds: make(map[string]map[string]string),
 	}
 }
 
 // AddBuiltin registers a builtin kind with its info.
-func (mr *metaResolver) AddBuiltin(kindName string, resolver resolve.Resolver) {
+func (mr *metaResolver) AddBuiltin(kindName string, resolver indexResolver) {
 	mr.builtins[kindName] = resolver
 }
 
@@ -66,10 +75,19 @@ func (mr *metaResolver) AliasedKinds(pkgRel string, aliasedKinds map[string]stri
 	mr.aliasedKinds[pkgRel] = aliasedKinds
 }
 
-// Resolver returns a resolver for the given rule and package, and a bool
-// indicating whether one was found. Empty string may be passed for pkgRel,
-// which results in consulting the builtin kinds only.
+// Indexer returns an indexer for the given rule and package. Empty string
+// may be passed for pkgRel, which results in consulting the builtin kinds only.
+func (mr *metaResolver) Indexer(r *rule.Rule, pkgRel string) resolve.Indexer {
+	return mr.find(r, pkgRel)
+}
+
+// Resolver returns a resolver for the given rule and package. Empty string
+// may be passed for pkgRel, which results in consulting the builtin kinds only.
 func (mr *metaResolver) Resolver(r *rule.Rule, pkgRel string) resolve.Resolver {
+	return mr.find(r, pkgRel)
+}
+
+func (mr *metaResolver) find(r *rule.Rule, pkgRel string) indexResolver {
 	ruleKind := r.Kind()
 
 	if wrappedKind, ok := mr.aliasedKinds[pkgRel][ruleKind]; ok {
@@ -110,28 +128,23 @@ func (mr *metaResolver) Resolver(r *rule.Rule, pkgRel string) resolve.Resolver {
 // modules to remain ignorant of mapped kinds.
 type inverseMapKindResolver struct {
 	fromKind string
-	delegate resolve.Resolver
+	delegate indexResolver
 }
 
-var _ resolve.Resolver = (*inverseMapKindResolver)(nil)
+var _ indexResolver = (*inverseMapKindResolver)(nil)
 
 func (imkr inverseMapKindResolver) Name() string {
 	return imkr.delegate.Name()
 }
 
-func (imkr inverseMapKindResolver) Imports(c *config.Config, r *rule.Rule, f *rule.File) []resolve.ImportSpec {
-	r = imkr.inverseMapKind(r)
-	return imkr.delegate.Imports(c, r, f)
+func (imkr inverseMapKindResolver) Imports(ctx context.Context, args resolve.ImportsArgs) (resolve.ImportsResult, error) {
+	args.Rule = imkr.inverseMapKind(args.Rule)
+	return imkr.delegate.Imports(ctx, args)
 }
 
-func (imkr inverseMapKindResolver) Embeds(r *rule.Rule, from label.Label) []label.Label {
-	r = imkr.inverseMapKind(r)
-	return imkr.delegate.Embeds(r, from)
-}
-
-func (imkr inverseMapKindResolver) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, r *rule.Rule, imports interface{}, from label.Label) {
-	r = imkr.inverseMapKind(r)
-	imkr.delegate.Resolve(c, ix, rc, r, imports, from)
+func (imkr inverseMapKindResolver) Resolve(ctx context.Context, args resolve.ResolveArgs) error {
+	args.Rule = imkr.inverseMapKind(args.Rule)
+	return imkr.delegate.Resolve(ctx, args)
 }
 
 func (imkr inverseMapKindResolver) inverseMapKind(r *rule.Rule) *rule.Rule {

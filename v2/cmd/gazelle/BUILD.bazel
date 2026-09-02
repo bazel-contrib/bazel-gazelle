@@ -32,5 +32,7 @@ go_library(
         "//language/go",
         "//language/proto",
         "//v2/cmd/gazelle/update",
+        "//v2/compat",
+        "//v2/language",
     ],
 )

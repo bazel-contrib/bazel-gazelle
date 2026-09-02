@@ -26,24 +26,28 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"iter"
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"syscall"
 
+	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 	gzflag "github.com/bazel-contrib/bazel-gazelle/v2/flag"
 	"github.com/bazel-contrib/bazel-gazelle/v2/internal/wspace"
 	"github.com/bazel-contrib/bazel-gazelle/v2/label"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
 	"github.com/bazel-contrib/bazel-gazelle/v2/merger"
+	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/walk"
+	configv1 "github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/repo"
-	"github.com/bazelbuild/bazel-gazelle/resolve"
-	"github.com/bazelbuild/bazel-gazelle/walk"
 	"github.com/bazelbuild/buildtools/build"
 )
 
@@ -77,6 +81,11 @@ type updateConfig struct {
 	printVersion           bool
 }
 
+func (uc *updateConfig) handleError(err error) {
+	// TODO(#499): add a -strict flag. When enabled, print the error and exit non-zero.
+	log.Print(err)
+}
+
 type emitFunc func(c *config.Config, f *rule.File) error
 
 var modeFromName = map[string]emitFunc{
@@ -91,7 +100,7 @@ func getUpdateConfig(c *config.Config) *updateConfig {
 	return c.Exts[updateName].(*updateConfig)
 }
 
-var _ config.Configurer = (*updateConfigurer)(nil)
+var _ configv1.Configurer = (*updateConfigurer)(nil)
 
 type updateConfigurer struct {
 	mode           string
@@ -296,27 +305,46 @@ var genericLoads = []rule.LoadInfo{
 
 func Run(
 	ctx context.Context,
-	languages []language.Language,
+	languagesRaw []language.Language,
 	wd string,
 	args []string) error {
-	cexts := make([]config.Configurer, 0, len(languages)+4)
-	cexts = append(cexts,
-		&config.CommonConfigurer{},
-		&updateConfigurer{},
-		&walk.Configurer{},
-		&resolve.Configurer{})
 
-	for _, lang := range languages {
-		cexts = append(cexts, lang)
+	cexts := make([]config.Configurer, 0, len(languagesRaw)+4)
+	cexts = append(cexts,
+		compat.MustConfigurerV2(&config.CommonConfigurer{}),
+		compat.MustConfigurerV2(&updateConfigurer{}),
+		compat.MustConfigurerV2(&walk.Configurer{}),
+		compat.MustConfigurerV2(&resolve.Configurer{}))
+	flagExts := make([]compat.FlagConfigurer, 0, cap(cexts))
+	for _, cext := range cexts {
+		if flagExt, ok := cext.(compat.FlagConfigurer); ok {
+			flagExts = append(flagExts, flagExt)
+		}
 	}
 
-	c, err := newFixUpdateConfiguration(wd, args, cexts)
+	languages := make([]compat.CompleteLanguage, 0, len(languagesRaw))
+	finders := make([]resolve.Finder, 0, len(languagesRaw))
+	for _, lang := range languagesRaw {
+		languages = append(languages, compat.LanguageWithDefaults(lang))
+		if c, ok := lang.(config.Configurer); ok {
+			cexts = append(cexts, c)
+		}
+		if f, ok := lang.(compat.FlagConfigurer); ok {
+			flagExts = append(flagExts, f)
+		}
+		if f, ok := lang.(resolve.Finder); ok {
+			finders = append(finders, f)
+		}
+	}
+
+	c, err := newFixUpdateConfiguration(wd, args, flagExts)
 	if errors.Is(err, errVersion) {
 		// sentinel error; we already printed the version so just exit
 		return nil
 	} else if err != nil {
 		return err
 	}
+	uc := getUpdateConfig(c)
 
 	mrslv := newMetaResolver()
 	kinds := make(map[string]rule.KindInfo)
@@ -324,20 +352,14 @@ func Run(
 		kinds[kind] = info
 	}
 	loads := genericLoads
-	exts := make([]interface{}, 0, len(languages))
 	for _, lang := range languages {
 		for kind, info := range lang.Kinds() {
 			mrslv.AddBuiltin(kind, lang)
 			kinds[kind] = info
 		}
-		if moduleAwareLang, ok := lang.(language.ModuleAwareLanguage); ok {
-			loads = append(loads, moduleAwareLang.ApparentLoads(c.ModuleToApparentName)...)
-		} else {
-			loads = append(loads, lang.Loads()...)
-		}
-		exts = append(exts, lang)
+		loads = append(loads, lang.ApparentLoads(c.ModuleToApparentName)...)
 	}
-	ruleIndex := resolve.NewRuleIndex(mrslv.Resolver, exts...)
+	ruleIndex := resolve.NewRuleIndex(mrslv.Indexer, finders)
 
 	if err = fixRepoFiles(c, loads); err != nil {
 		return err
@@ -346,14 +368,13 @@ func Run(
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	for _, lang := range languages {
-		if life, ok := lang.(language.LifecycleManager); ok {
-			life.Before(ctx)
+		if err := lang.OnStart(ctx); err != nil {
+			uc.handleError(err)
 		}
 	}
 
 	// Visit all directories in the repository.
 	var visits []visitRecord
-	uc := getUpdateConfig(c)
 	defer func() {
 		if err := uc.profile.Stop(); err != nil {
 			log.Printf("stopping profiler: %v", err)
@@ -392,8 +413,15 @@ func Run(
 
 		// Fix any problems in the file.
 		if f != nil {
-			for _, l := range filterLanguages(c, languages) {
-				l.Fix(c, f)
+			for lang := range filterLanguages(c, languages) {
+				err := lang.Fix(ctx, language.FixArgs{
+					Config: c,
+					Rel:    rel,
+					File:   f,
+				})
+				if err != nil {
+					uc.handleError(err)
+				}
 			}
 		}
 
@@ -401,8 +429,8 @@ func Run(
 		var empty, gen []*rule.Rule
 		var imports []interface{}
 		var relsToVisit []string
-		for _, l := range filterLanguages(c, languages) {
-			res := l.GenerateRules(language.GenerateArgs{
+		for lang := range filterLanguages(c, languages) {
+			res, err := lang.Generate(ctx, language.GenerateArgs{
 				Config:       c,
 				Dir:          dir,
 				Rel:          rel,
@@ -413,8 +441,11 @@ func Run(
 				OtherEmpty:   empty,
 				OtherGen:     gen,
 			})
+			if err != nil {
+				uc.handleError(err)
+			}
 			if len(res.Gen) != len(res.Imports) {
-				log.Panicf("%s: language %s generated %d rules but returned %d imports", rel, l.Name(), len(res.Gen), len(res.Imports))
+				log.Panicf("%s: language %s generated %d rules but returned %d imports", rel, lang.Name(), len(res.Gen), len(res.Imports))
 			}
 			empty = append(empty, res.Empty...)
 			gen = append(gen, res.Gen...)
@@ -440,10 +471,9 @@ func Run(
 		}
 
 		maybeRecordReplacement := func(ruleKind string) (*string, error) {
-			var repl *config.MappedKind
-			repl, err = lookupMapKindReplacement(c.KindMap, ruleKind)
-			if err != nil {
-				return nil, err
+			repl, lookupErr := lookupMapKindReplacement(c.KindMap, ruleKind)
+			if lookupErr != nil {
+				return nil, lookupErr
 			}
 			if repl != nil {
 				mappedKindInfo[repl.KindName] = kinds[ruleKind]
@@ -456,8 +486,8 @@ func Run(
 
 		var errs []error
 		for _, r := range allRules {
-			if replacementName, err := maybeRecordReplacement(r.Kind()); err != nil {
-				errs = append(errs, fmt.Errorf("looking up mapped kind: %w", err))
+			if replacementName, mapErr := maybeRecordReplacement(r.Kind()); mapErr != nil {
+				errs = append(errs, fmt.Errorf("looking up mapped kind: %w", mapErr))
 			} else if replacementName != nil {
 				r.SetKind(*replacementName)
 			}
@@ -473,8 +503,8 @@ func Run(
 					if _, knownKind := kinds[ident.Name]; !knownKind {
 						continue
 					}
-					if replacementName, err := maybeRecordReplacement(ident.Name); err != nil {
-						errs = append(errs, fmt.Errorf("looking up mapped kind: %w", err))
+					if replacementName, mapErr := maybeRecordReplacement(ident.Name); mapErr != nil {
+						errs = append(errs, fmt.Errorf("looking up mapped kind: %w", mapErr))
 					} else if replacementName != nil {
 						if err := r.UpdateArg(i, &build.Ident{Name: *replacementName}); err != nil {
 							log.Panicf("%s: %v", rel, err)
@@ -529,8 +559,8 @@ func Run(
 	})
 
 	for _, lang := range languages {
-		if finishable, ok := lang.(language.FinishableLanguage); ok {
-			finishable.DoneGeneratingRules()
+		if err := lang.OnResolve(ctx); err != nil {
+			uc.handleError(err)
 		}
 	}
 
@@ -549,24 +579,29 @@ func Run(
 		}
 	}()
 	if err = maybePopulateRemoteCacheFromGoMod(c, rc); err != nil {
-		log.Print(err)
+		uc.handleError(err)
 	}
 	for _, v := range visits {
 		for i, r := range v.rules {
 			from := label.New(c.RepoName, v.pkgRel, r.Name())
 			if rslv := mrslv.Resolver(r, v.pkgRel); rslv != nil {
-				rslv.Resolve(v.c, ruleIndex, rc, r, v.imports[i], from)
+				err := rslv.Resolve(ctx, resolve.ResolveArgs{
+					Config:      v.c,
+					Index:       ruleIndex,
+					Rule:        r,
+					From:        from,
+					RemoteCache: rc,
+					Imports:     v.imports[i],
+				})
+				if err != nil {
+					uc.handleError(err)
+				}
 			}
 		}
 		merger.MergeFile(v.file, v.empty, v.rules, merger.PostResolve,
 			unionKindInfoMaps(kinds, v.mappedKindInfo),
 			v.c.AliasMap,
 		)
-	}
-	for _, lang := range languages {
-		if life, ok := lang.(language.LifecycleManager); ok {
-			life.AfterResolvingDeps(ctx)
-		}
 	}
 
 	// Emit merged files.
@@ -582,13 +617,19 @@ func Run(
 			if err == ErrDiff {
 				exit = err
 			} else {
-				log.Print(err)
+				uc.handleError(err)
 			}
 		}
 	}
 	if uc.patchPath != "" {
 		if err := os.WriteFile(uc.patchPath, uc.patchBuffer.Bytes(), 0o666); err != nil {
-			return err
+			uc.handleError(err)
+		}
+	}
+
+	for _, lang := range languages {
+		if err := lang.OnFinish(ctx); err != nil {
+			uc.handleError(err)
 		}
 	}
 
@@ -626,7 +667,11 @@ func lookupMapKindReplacement(kindMap map[string]config.MappedKind, kind string)
 	return mapped, nil
 }
 
-func newFixUpdateConfiguration(wd string, args []string, cexts []config.Configurer) (*config.Config, error) {
+func newFixUpdateConfiguration(
+	wd string,
+	args []string,
+	flagExts []compat.FlagConfigurer,
+) (*config.Config, error) {
 	c := config.New()
 	c.WorkDir = wd
 
@@ -647,8 +692,8 @@ func newFixUpdateConfiguration(wd string, args []string, cexts []config.Configur
 		}
 	}
 
-	for _, cext := range cexts {
-		cext.RegisterFlags(fs, cmdName, c)
+	for _, flagExts := range flagExts {
+		flagExts.RegisterFlags(fs, cmdName, c)
 	}
 
 	if err := fs.Parse(args); err != nil {
@@ -660,8 +705,8 @@ func newFixUpdateConfiguration(wd string, args []string, cexts []config.Configur
 		log.Fatal("Try -help for more information.")
 	}
 
-	for _, cext := range cexts {
-		if err := cext.CheckFlags(fs, c); err != nil {
+	for _, flagExt := range flagExts {
+		if err := flagExt.CheckFlags(fs, c); err != nil {
 			return nil, err
 		}
 	}
@@ -859,25 +904,18 @@ func isDirErr(err error) bool {
 
 // filterLanguages returns the subset of input languages that pass the config's
 // filter, if any. Gazelle should not generate rules for languages not returned.
-func filterLanguages(c *config.Config, langs []language.Language) []language.Language {
+func filterLanguages(c *config.Config, langs []compat.CompleteLanguage) iter.Seq[compat.CompleteLanguage] {
 	if len(c.Langs) == 0 {
-		return langs
+		return slices.Values(langs)
 	}
 
-	var result []language.Language
-	for _, inputLang := range langs {
-		if containsLang(c.Langs, inputLang) {
-			result = append(result, inputLang)
+	return func(yield func(compat.CompleteLanguage) bool) {
+		for _, lang := range langs {
+			if slices.Contains(c.Langs, lang.Name()) {
+				if !yield(lang) {
+					return
+				}
+			}
 		}
 	}
-	return result
-}
-
-func containsLang(langNames []string, lang language.Language) bool {
-	for _, langName := range langNames {
-		if langName == lang.Name() {
-			return true
-		}
-	}
-	return false
 }
