@@ -17,7 +17,6 @@ package testtools
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -29,12 +28,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
-
-const cmdTimeoutOrInterruptExitCode = -1
 
 // FileSpec specifies the content of a test file.
 type FileSpec struct {
@@ -161,9 +157,6 @@ type TestGazelleGenerationArgs struct {
 	// BuildOutSuffix is the suffix for all test output build files. Includes the ".".
 	// Default: ".out", so out BUILD files should be named BUILD.out.
 	BuildOutSuffix string
-
-	// Timeout is the duration after which the generation process will be killed.
-	Timeout time.Duration
 }
 
 var (
@@ -327,9 +320,7 @@ Run %s to update BUILD.out and expected{Stdout,Stderr,ExitCode}.txt files.
 			}
 		}()
 
-		ctx, cancel := context.WithTimeout(context.Background(), args.Timeout)
-		defer cancel()
-		cmd := exec.CommandContext(ctx, args.GazelleBinaryPath, config.Args...)
+		cmd := exec.CommandContext(t.Context(), args.GazelleBinaryPath, config.Args...)
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr
 		cmd.Dir = workspaceRoot
@@ -343,14 +334,9 @@ Run %s to update BUILD.out and expected{Stdout,Stderr,ExitCode}.txt files.
 		errs := make([]error, 0)
 		actualExitCode = cmd.ProcessState.ExitCode()
 		if config.ExitCode != actualExitCode {
-			if actualExitCode == cmdTimeoutOrInterruptExitCode {
-				errs = append(errs, fmt.Errorf("gazelle exceeded the timeout or was interrupted"))
-			} else {
-
-				errs = append(errs, fmt.Errorf("expected gazelle exit code: %d\ngot: %d",
-					config.ExitCode, actualExitCode,
-				))
-			}
+			errs = append(errs, fmt.Errorf("expected gazelle exit code: %d\ngot: %d",
+				config.ExitCode, actualExitCode,
+			))
 		}
 		cleanStdout := cleanOutput(stdout.String(), workspaceRoot)
 		if normalizeSpace(config.Stdout) != cleanStdout {

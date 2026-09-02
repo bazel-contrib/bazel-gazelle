@@ -18,7 +18,7 @@ Test for generating rules from gazelle.
 
 load("@io_bazel_rules_go//go:def.bzl", "go_test")
 
-def gazelle_generation_test(name, gazelle_binary, test_data, build_in_suffix = ".in", build_out_suffix = ".out", gazelle_timeout_seconds = 2, size = None, **kwargs):
+def gazelle_generation_test(name, gazelle_binary, test_data, build_in_suffix = ".in", build_out_suffix = ".out", gazelle_timeout_seconds = None, size = None, **kwargs):
     """
     gazelle_generation_test is a macro for testing gazelle against workspaces.
 
@@ -50,10 +50,12 @@ def gazelle_generation_test(name, gazelle_binary, test_data, build_in_suffix = "
             By default, will use files named BUILD.in as the BUILD files before running gazelle.
         build_out_suffix: The suffix for the expected BUILD.bazel files after running gazelle. Defaults to .out.
             By default, will use files named check the results of the gazelle run against files named BUILD.out.
-        gazelle_timeout_seconds: Number of seconds to allow the gazelle process to run before killing.
+        gazelle_timeout_seconds: Deprecated and removed. Set the builtin 'timeout' attribute instead.
         size: Specifies a test target's "heaviness": how much time/resources it needs to run.
         **kwargs: Attributes that are passed directly to the test declaration.
     """
+    if gazelle_timeout_seconds != None:
+        fail("%s: gazelle_timeout_seconds is no longer supported; remove this argument and use 'timeout' instead" % name)
     go_test(
         name = name,
         embed = [Label(":generationtest_test")],
@@ -61,7 +63,6 @@ def gazelle_generation_test(name, gazelle_binary, test_data, build_in_suffix = "
             "-gazelle_binary_path=$(rlocationpath %s)" % gazelle_binary,
             "-build_in_suffix=%s" % build_in_suffix,
             "-build_out_suffix=%s" % build_out_suffix,
-            "-timeout=%ds" % gazelle_timeout_seconds,
         ],
         size = size,
         data = test_data + [

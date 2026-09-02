@@ -90,7 +90,7 @@ To update the expected files, run `UPDATE_SNAPSHOTS=true bazel run //path/to:the
 | <a id="gazelle_generation_test-test_data"></a>test_data |  A list of target of the test data files you will pass to the test. This can be a https://bazel.build/reference/be/general#filegroup.   |  none |
 | <a id="gazelle_generation_test-build_in_suffix"></a>build_in_suffix |  The suffix for the input BUILD.bazel files. Defaults to .in. By default, will use files named BUILD.in as the BUILD files before running gazelle.   |  `".in"` |
 | <a id="gazelle_generation_test-build_out_suffix"></a>build_out_suffix |  The suffix for the expected BUILD.bazel files after running gazelle. Defaults to .out. By default, will use files named check the results of the gazelle run against files named BUILD.out.   |  `".out"` |
-| <a id="gazelle_generation_test-gazelle_timeout_seconds"></a>gazelle_timeout_seconds |  Number of seconds to allow the gazelle process to run before killing.   |  `2` |
+| <a id="gazelle_generation_test-gazelle_timeout_seconds"></a>gazelle_timeout_seconds |  Deprecated and removed. Set the builtin 'timeout' attribute instead.   |  `None` |
 | <a id="gazelle_generation_test-size"></a>size |  Specifies a test target's "heaviness": how much time/resources it needs to run.   |  `None` |
 | <a id="gazelle_generation_test-kwargs"></a>kwargs |  Attributes that are passed directly to the test declaration.   |  none |
 
