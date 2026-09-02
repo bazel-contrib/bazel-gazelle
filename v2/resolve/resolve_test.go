@@ -3,9 +3,9 @@ package resolve
 import (
 	"testing"
 
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 	"github.com/bazel-contrib/bazel-gazelle/v2/label"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
-	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -142,14 +142,19 @@ func getConfig(t *testing.T, path string, directives []rule.Directive, parent *c
 		Exts: map[string]interface{}{},
 	}
 	configurer := &Configurer{}
-	configurer.RegisterFlags(nil, "", cfg)
-	configurer.CheckFlags(nil, cfg)
 
 	if parent != nil {
 		cfg.Exts[resolveName] = parent.Exts[resolveName]
 	}
 
-	configurer.Configure(cfg, path, &rule.File{Directives: directives})
+	err := configurer.Configure(t.Context(), config.ConfigureArgs{
+		Config: cfg,
+		Rel:    path,
+		File:   &rule.File{Directives: directives},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	return cfg
 }
 

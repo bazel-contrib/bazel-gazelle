@@ -216,10 +216,6 @@ type CommonConfigurer struct {
 
 var _ Configurer = (*CommonConfigurer)(nil)
 
-func (cc *CommonConfigurer) Name() string {
-	return "_common"
-}
-
 func (cc *CommonConfigurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *Config) {
 	cc.indexLibraries = true
 	cc.indexLazy = false

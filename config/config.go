@@ -112,7 +112,7 @@ type CommonConfigurer struct {
 }
 
 func (cc *CommonConfigurer) Name() string {
-	return cc.v2.Name()
+	return "_common"
 }
 
 func (cc *CommonConfigurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *Config) {
