@@ -1,0 +1,9 @@
+load("@my_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "consumer_check",
+    srcs = ["consumer_check.go"],
+    importpath = "github.com/bazelbuild/bazel-gazelle/tests/bcr/go_work/consumer_check",
+    visibility = ["//visibility:public"],
+    deps = ["@org_example_consumer//:consumer"],
+)
