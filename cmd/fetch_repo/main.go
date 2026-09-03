@@ -47,7 +47,7 @@ var (
 	// Module flags
 	version = flag.String("version", "", "module version. Must be semantic version or pseudo-version.")
 	sum     = flag.String("sum", "", "hash of module contents")
-	prune   = flag.Bool("prune", true, "remove the extracted module tree from GOMODCACHE (the downloaded archive is retained)")
+	prune   = flag.Bool("prune", false, "remove the extracted module tree from GOMODCACHE (the downloaded archive is retained)")
 )
 
 // Override in tests to disable network calls.

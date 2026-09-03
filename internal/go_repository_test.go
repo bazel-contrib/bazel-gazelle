@@ -244,7 +244,7 @@ func TestGoModCacheModes(t *testing.T) {
 			// Explicit "0" (vs unset) invalidates Bazel's repo cache so the
 			// pre-clean's removal of shared-cache state gets repopulated.
 			extraArgs:   []string{"--repo_env=GO_REPOSITORY_EPHEMERAL_MODCACHE=0"},
-			wantTree:    false,
+			wantTree:    true,
 			wantArchive: true,
 		},
 		{

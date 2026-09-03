@@ -321,6 +321,9 @@ def _go_repository_impl(ctx):
         elif ctx.getenv("GO_REPOSITORY_EPHEMERAL_MODCACHE") == "1":
             ephemeral_modcache = ctx.path("_gomodcache_tmp")
             fetch_repo_env["GOMODCACHE"] = str(ephemeral_modcache)
+        else:
+            # This cache is shared by go_repository rules.
+            fetch_repo_args.append("-prune=false")
 
     result = env_execute(
         ctx,
