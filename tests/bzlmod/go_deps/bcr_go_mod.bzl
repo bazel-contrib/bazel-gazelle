@@ -254,6 +254,39 @@ TEST = r"""
     "main": {
       "repos": [
         {
+          "importpath": "example.org/collision/mangle",
+          "name": "org_example_collision_mangle",
+          "local_path": "/test/gazelle_bcr_go_mod_tests/fixtures/collision_slash",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "example.org/collision_mangle",
+          "name": "org_example_collision_mangle_alt",
+          "local_path": "/test/gazelle_bcr_go_mod_tests/fixtures/collision_underscore",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "example.org/hello",
+          "name": "org_example_hello",
+          "local_path": "/test/gazelle_bcr_go_mod_tests/fixtures/hello",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "example.org/proto_compat",
+          "name": "org_example_proto_compat",
+          "local_path": "/test/gazelle_bcr_go_mod_tests/fixtures/proto_compat",
+          "build_directives": [
+            "gazelle:proto disable"
+          ],
+          "build_file_generation": "off"
+        },
+        {
           "importpath": "github.com/BurntSushi/toml",
           "name": "com_github_burntsushi_toml",
           "version": "v1.4.1-0.20240526193622-a339e1f7089c",
@@ -285,13 +318,43 @@ TEST = r"""
           "patch_args": [
             "-p1"
           ],
+          "build_directives": [
+            "gazelle:proto disable"
+          ],
           "build_file_generation": "clean"
+        },
+        {
+          "importpath": "github.com/bmatcuk/doublestar/v4",
+          "name": "com_github_bmatcuk_doublestar_v4",
+          "version": "v4.9.1",
+          "sum": "h1:X8jg9rRZmJd4yRy7ZeNDRnM+T3ZfHv15JiBJ/avrEXE=",
+          "replace": "github.com/bmatcuk/doublestar/v4",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "github.com/bwesterb/go-ristretto",
+          "name": "com_github_bwesterb_go_ristretto",
+          "version": "v1.2.3",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "github.com/cespare/xxhash/v2",
+          "name": "com_github_cespare_xxhash_v2",
+          "version": "v2.3.0",
+          "sum": "h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
         },
         {
           "importpath": "github.com/davecgh/go-spew",
           "name": "com_github_davecgh_go_spew",
-          "version": "v1.1.1",
-          "sum": "h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=",
+          "version": "v1.1.2-0.20180830191138-d8f796af33cc",
+          "sum": "h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=",
           "build_directives": [
             "gazelle:proto disable"
           ]
@@ -319,6 +382,33 @@ TEST = r"""
           "name": "com_github_fsnotify_fsnotify",
           "version": "v1.7.0",
           "sum": "h1:8JEhPFa5W2WU7YfeZzPNqzMP6Lwt7L2715Ggo0nosvA=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "github.com/go-logr/logr",
+          "name": "com_github_go_logr_logr",
+          "version": "v1.4.3",
+          "sum": "h1:CjnDlHq8ikf6E492q6eKboGOC0T8CDaOvkHCIg8idEI=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "github.com/go-logr/stdr",
+          "name": "com_github_go_logr_stdr",
+          "version": "v1.2.2",
+          "sum": "h1:hSWxHoqTgW2S2qGc0LTAI563KZ5YKYRhT3MFKZMbjag=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "github.com/go-quicktest/qt",
+          "name": "com_github_go_quicktest_qt",
+          "version": "v1.101.0",
+          "sum": "h1:O1K29Txy5P2OK0dGo59b7b0LR6wKfIhttaAhHUyn7eI=",
           "build_directives": [
             "gazelle:proto disable"
           ]
@@ -364,7 +454,19 @@ TEST = r"""
           "name": "com_github_google_go_jsonnet",
           "version": "v0.20.0",
           "sum": "h1:WG4TTSARuV7bSm4PMB4ohjxe33IHT5WVTrJSU33uT4g=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ],
           "build_file_generation": "clean"
+        },
+        {
+          "importpath": "github.com/google/gofuzz",
+          "name": "com_github_google_gofuzz",
+          "version": "v1.2.0",
+          "sum": "h1:xRy4A+RhZaiKjJ1bPfwQ8sedCA+YS2YcCHW6ec7JMi0=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
         },
         {
           "importpath": "github.com/google/safetext",
@@ -377,10 +479,64 @@ TEST = r"""
           ]
         },
         {
+          "importpath": "github.com/google/uuid",
+          "name": "com_github_google_uuid",
+          "version": "v1.6.0",
+          "sum": "h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "github.com/kr/pretty",
+          "name": "com_github_kr_pretty",
+          "version": "v0.3.1",
+          "sum": "h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "github.com/kr/text",
+          "name": "com_github_kr_text",
+          "version": "v0.2.0",
+          "sum": "h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "github.com/niemeyer/pretty",
+          "name": "com_github_niemeyer_pretty",
+          "version": "v0.0.0-20200227124842-a10e7caefd8e",
+          "sum": "h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
           "importpath": "github.com/pmezard/go-difflib",
           "name": "com_github_pmezard_go_difflib",
-          "version": "v1.0.0",
-          "sum": "h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=",
+          "version": "v1.0.1-0.20181226105442-5d4384ee4fb2",
+          "sum": "h1:Jamvg5psRIccs7FGNTlIRMkT8wgtp5eCXdBlqhYGL6U=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "github.com/rogpeppe/go-internal",
+          "name": "com_github_rogpeppe_go_internal",
+          "version": "v1.14.1",
+          "sum": "h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "github.com/sergi/go-diff",
+          "name": "com_github_sergi_go_diff",
+          "version": "v1.1.0",
+          "sum": "h1:we8PVUC3FE2uYfodKH/nBHMSetSfHDR6scGdBi+erh0=",
           "build_directives": [
             "gazelle:proto disable"
           ]
@@ -388,8 +544,8 @@ TEST = r"""
         {
           "importpath": "github.com/stretchr/testify",
           "name": "com_github_stretchr_testify",
-          "version": "v1.8.0",
-          "sum": "h1:pSgiaMZlXftHpm5L7V1+rVB+AZJydKsMxsQBIJw4PKk=",
+          "version": "v1.11.1",
+          "sum": "h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=",
           "patches": [
             "//patches:testify.patch"
           ],
@@ -401,6 +557,60 @@ TEST = r"""
           ],
           "build_directives": [
             "gazelle:go_naming_convention go_default_library"
+          ]
+        },
+        {
+          "importpath": "go.opentelemetry.io/auto/sdk",
+          "name": "io_opentelemetry_go_auto_sdk",
+          "version": "v1.2.1",
+          "sum": "h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "go.opentelemetry.io/otel",
+          "name": "io_opentelemetry_go_otel",
+          "version": "v1.39.0",
+          "sum": "h1:8yPrr/S0ND9QEfTfdP9V+SiwT4E0G7Y5MO7p85nis48=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "go.opentelemetry.io/otel/metric",
+          "name": "io_opentelemetry_go_otel_metric",
+          "version": "v1.39.0",
+          "sum": "h1:d1UzonvEZriVfpNKEVmHXbdf909uGTOQjA0HF0Ls5Q0=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "go.opentelemetry.io/otel/sdk",
+          "name": "io_opentelemetry_go_otel_sdk",
+          "version": "v1.39.0",
+          "sum": "h1:nMLYcjVsvdui1B/4FRkwjzoRVsMK8uL/cj0OyhKzt18=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "go.opentelemetry.io/otel/sdk/metric",
+          "name": "io_opentelemetry_go_otel_sdk_metric",
+          "version": "v1.39.0",
+          "sum": "h1:cXMVVFVgsIf2YL6QkRF4Urbr/aMInf+2WKg+sEJTtB8=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "go.opentelemetry.io/otel/trace",
+          "name": "io_opentelemetry_go_otel_trace",
+          "version": "v1.39.0",
+          "sum": "h1:2d2vfpEDmCJ5zVYz7ijaJdOF59xLomrvj7bjt6/qCJI=",
+          "build_directives": [
+            "gazelle:proto disable"
           ]
         },
         {
@@ -480,6 +690,15 @@ TEST = r"""
           "name": "org_golang_x_tools_go_vcs",
           "version": "v0.1.0-deprecated",
           "sum": "h1:cOIJqWBl99H1dH5LWizPa+0ImeeJq3t3cJjaeOWUAL4=",
+          "build_directives": [
+            "gazelle:proto disable"
+          ]
+        },
+        {
+          "importpath": "gonum.org/v1/gonum",
+          "name": "org_gonum_v1_gonum",
+          "version": "v0.16.0",
+          "sum": "h1:5+ul4Swaf3ESvrOnidPp4GZbzf0mxVQpDCYUQE7OJfk=",
           "build_directives": [
             "gazelle:proto disable"
           ]
@@ -663,7 +882,9 @@ TEST = r"""
           ]
         }
       ],
-      "root_module_direct_deps": []
+      "root_module_direct_deps": [
+        "com_github_stretchr_testify"
+      ]
     }
   }
 }

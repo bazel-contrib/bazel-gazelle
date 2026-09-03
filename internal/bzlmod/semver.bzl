@@ -54,6 +54,10 @@ def _semver_to_comparable(v, *, relaxed = False):
             as a pre-release segment. This is the version string format used by Bazel modules.
     """
 
+    # String 'v' prefix used in Go versions.
+    if v.startswith("v"):
+        v = v[1:]
+
     # Strip build metadata as it is not relevant for comparisons.
     v, _, _ = v.partition("+")
 
@@ -86,7 +90,13 @@ def _semver_make_strict(v):
     release, prerelease = v
     return (release[:3], prerelease)
 
+def _semver_max(a, b):
+    ca = _semver_to_comparable(a)
+    cb = _semver_to_comparable(b)
+    return a if ca >= cb else b
+
 semver = struct(
     to_comparable = _semver_to_comparable,
     make_strict = _semver_make_strict,
+    max = _semver_max,
 )

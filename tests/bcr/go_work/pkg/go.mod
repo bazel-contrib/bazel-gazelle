@@ -15,6 +15,7 @@ require (
 	github.com/google/safetext v0.0.0-20240104143208-7a7d9b3d812f
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/sys v0.17.0
+	google.golang.org/protobuf v1.32.0
 )
 
 require (
@@ -24,7 +25,6 @@ require (
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
-	google.golang.org/protobuf v1.32.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/quote v1.5.2 // indirect
 	rsc.io/sampler v1.3.0 // indirect

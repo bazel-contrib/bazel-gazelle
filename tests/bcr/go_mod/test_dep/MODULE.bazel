@@ -22,12 +22,12 @@ go_deps.gazelle_override(
     path = "github.com/stretchr/testify",
 )
 go_deps.module_override(
+    patch_cmds = [
+        "echo 'const PatchCmdHello = \"not_patch_cmd_hello\"' >> require/require.go",
+    ],
     patch_strip = 1,
     patches = [
         "//patches:testify.patch",
-    ],
-    patch_cmds = [
-        "echo 'const PatchCmdHello = \"not_patch_cmd_hello\"' >> require/require.go",
     ],
     path = "github.com/stretchr/testify",
 )
@@ -48,5 +48,11 @@ go_deps.module(
     path = "github.com/davecgh/go-spew",
     sum = "h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=",
     version = "v1.1.1",
+)
+go_deps.module(
+    indirect = True,
+    path = "github.com/pmezard/go-difflib",
+    sum = "h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=",
+    version = "v1.0.0",
 )
 use_repo(go_deps, "com_github_stretchr_testify")
