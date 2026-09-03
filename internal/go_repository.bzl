@@ -315,10 +315,7 @@ def _go_repository_impl(ctx):
 
     ephemeral_modcache = None
     if ctx.attr.version:
-        if "GOMODCACHE" in env:
-            # Don't touch the user's host cache.
-            fetch_repo_args.append("-prune=false")
-        elif ctx.getenv("GO_REPOSITORY_EPHEMERAL_MODCACHE") == "1":
+        if "GOMODCACHE" not in env and ctx.getenv("GO_REPOSITORY_EPHEMERAL_MODCACHE") == "1":
             ephemeral_modcache = ctx.path("_gomodcache_tmp")
             fetch_repo_env["GOMODCACHE"] = str(ephemeral_modcache)
 
@@ -429,6 +426,7 @@ repo(
     ],
 )
 """)
+
         # Write the generated targets to a dedicated package to avoid name collisions
         # with targets already defined in the top-level build file.
         ctx.file(
