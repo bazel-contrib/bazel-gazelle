@@ -216,15 +216,18 @@ def go_deps_impl(module_ctx):
     module_ctx.declare_repo(
         go_repository_config,
         name = "bazel_gazelle_go_repository_config",
-        importpaths = {
-            _repo_name_for_config(m): m.importpath
+        repo_names = {
+            m.importpath: _repo_name_for_config(m)
             for m in go_modules.values()
-            if not (m.go_mod_label and m.go_mod_label.package)
         },
         module_names = {
             _repo_name_for_config(info): info.bazel_dep_name
             for info in bazel_go_modules.values()
-            if not info.go_mod_label.package
+        },
+        prefix_dirs = {
+            info.importpath: info.go_mod_label.package
+            for info in bazel_go_modules.values()
+            if info.go_mod_label.package
         },
         tool_targets = tool_targets,
         build_naming_conventions = drop_nones({
