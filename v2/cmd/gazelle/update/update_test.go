@@ -7,10 +7,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
 	"github.com/bazel-contrib/bazel-gazelle/v2/label"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/language"
+	languagev1 "github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/repo"
 	"github.com/bazelbuild/bazel-gazelle/resolve"
 )
@@ -30,7 +32,8 @@ func TestConfiguredMappedKindResolvesWithoutSourceRule(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := Run(context.Background(), []language.Language{mapKindTestLanguage{indexed: &indexed}}, dir, nil); err != nil {
+	langs := []language.Language{compat.LanguageV2(mapKindTestLanguage{indexed: &indexed})}
+	if err := Run(context.Background(), langs, dir, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !indexed {
@@ -72,11 +75,11 @@ func (l mapKindTestLanguage) Imports(*config.Config, *rule.Rule, *rule.File) []r
 
 func (mapKindTestLanguage) Embeds(*rule.Rule, label.Label) []label.Label { return nil }
 
-func (mapKindTestLanguage) GenerateRules(args language.GenerateArgs) language.GenerateResult {
+func (mapKindTestLanguage) GenerateRules(args languagev1.GenerateArgs) languagev1.GenerateResult {
 	if args.Rel != "" {
-		return language.GenerateResult{}
+		return languagev1.GenerateResult{}
 	}
-	return language.GenerateResult{
+	return languagev1.GenerateResult{
 		Gen:     []*rule.Rule{rule.NewRule("mapped_library", "generated")},
 		Imports: []any{nil},
 	}

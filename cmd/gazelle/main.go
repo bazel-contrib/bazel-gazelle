@@ -26,11 +26,21 @@ import (
 	"os"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update"
+	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
 	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/language"
+	languagev1 "github.com/bazelbuild/bazel-gazelle/language"
 )
 
-var languages []language.Language
+var languages []languagev1.Language
+
+func languagesV2() []language.Language {
+	langsV2 := make([]language.Language, len(languages))
+	for i := range languages {
+		langsV2[i] = compat.LanguageV2(languages[i])
+	}
+	return langsV2
+}
 
 type command int
 
@@ -93,8 +103,9 @@ func run(wd string, args []string) error {
 	if len(args) == 1 && (args[0] == "-h" || args[0] == "-help" || args[0] == "--help") {
 		return help()
 	}
+	langsV2 := languagesV2()
 	if len(args) == 0 {
-		return update.Run(ctx, languages, wd, args)
+		return update.Run(ctx, langsV2, wd, args)
 	}
 	switch args[0] {
 	case "help":
@@ -104,7 +115,7 @@ func run(wd string, args []string) error {
 	default:
 		// Either "fix", "update", or a directory name. Pass through args[0].
 		// update.Run knows what to do with it.
-		return update.Run(ctx, languages, wd, args)
+		return update.Run(ctx, langsV2, wd, args)
 	}
 }
 
@@ -143,12 +154,12 @@ without notice.
 
 // filterLanguages returns the subset of input languages that pass the config's
 // filter, if any. Gazelle should not generate rules for languages not returned.
-func filterLanguages(c *config.Config, langs []language.Language) []language.Language {
+func filterLanguages(c *config.Config, langs []languagev1.Language) []languagev1.Language {
 	if len(c.Langs) == 0 {
 		return langs
 	}
 
-	var result []language.Language
+	var result []languagev1.Language
 	for _, inputLang := range langs {
 		if containsLang(c.Langs, inputLang) {
 			result = append(result, inputLang)
@@ -157,7 +168,7 @@ func filterLanguages(c *config.Config, langs []language.Language) []language.Lan
 	return result
 }
 
-func containsLang(langNames []string, lang language.Language) bool {
+func containsLang(langNames []string, lang languagev1.Language) bool {
 	for _, langName := range langNames {
 		if langName == lang.Name() {
 			return true
