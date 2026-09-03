@@ -16,8 +16,12 @@ limitations under the License.
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 )
 
 func fetchModule(dest, importpath, version, sum string, prune bool) error {
@@ -27,6 +31,15 @@ func fetchModule(dest, importpath, version, sum string, prune bool) error {
 	} else if isSemverPrefix(version) {
 		return fmt.Errorf("-version must be a complete semantic version. %q is a prefix.", version)
 	}
+
+	// The go command only locks the extracted module tree while it is writing
+	// it. Hold our own lock until the tree has been copied and, if requested,
+	// pruned so no fetch_repo process can concurrently recreate or remove it.
+	lock, err := acquireModuleCacheLock(importpath, version)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
 
 	// Download the module. In Go 1.11, this command must be run in a module,
 	// so we create a dummy module in the current directory (which should be
@@ -70,6 +83,67 @@ func fetchModule(dest, importpath, version, sum string, prune bool) error {
 	}
 
 	return nil
+}
+
+// acquireModuleCacheLock serializes fetches that extract and prune the same
+// module. The go command protects extraction with its own lock, but releases
+// that lock before fetch_repo copies and prunes the extracted tree.
+type moduleCacheLock struct {
+	file *os.File
+}
+
+func acquireModuleCacheLock(importpath, version string) (*moduleCacheLock, error) {
+	modCache, err := findGoModCache()
+	if err != nil {
+		return nil, err
+	}
+	lockDir := filepath.Join(modCache, "cache", "gazelle-locks")
+	if err := os.MkdirAll(lockDir, 0o777); err != nil {
+		return nil, fmt.Errorf("creating module cache lock directory: %w", err)
+	}
+	key := sha256.Sum256([]byte(importpath + "@" + version))
+	return acquireFileLock(filepath.Join(lockDir, fmt.Sprintf("%x.lock", key)))
+}
+
+func findGoModCache() (string, error) {
+	if modCache := os.Getenv("GOMODCACHE"); modCache != "" {
+		return modCache, nil
+	}
+
+	// Ask the go command instead of deriving this from GOPATH: GOMODCACHE may
+	// also be set in the user's GOENV file without appearing in the process
+	// environment.
+	cmd := exec.Command(findGoPath(), "env", "GOMODCACHE")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("finding GOMODCACHE: %s: %w", strings.TrimSpace(string(out)), err)
+	}
+	modCache := strings.TrimSpace(string(out))
+	if modCache == "" {
+		return "", fmt.Errorf("finding GOMODCACHE: go env returned an empty path")
+	}
+	return modCache, nil
+}
+
+func acquireFileLock(path string) (*moduleCacheLock, error) {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o666)
+	if err != nil {
+		return nil, fmt.Errorf("opening module cache lock: %w", err)
+	}
+	if err := lockFile(file); err != nil {
+		file.Close()
+		return nil, fmt.Errorf("locking module cache: %w", err)
+	}
+	return &moduleCacheLock{file: file}, nil
+}
+
+func (lock *moduleCacheLock) Close() error {
+	unlockErr := unlockFile(lock.file)
+	closeErr := lock.file.Close()
+	if unlockErr != nil {
+		return unlockErr
+	}
+	return closeErr
 }
 
 // semantic version parsing functions below this point were copied from

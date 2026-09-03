@@ -14,6 +14,8 @@ GO_REPOSITORY_TOOLS_SRCS = [
     Label("//cmd/fetch_repo:go_mod_download.go"),
     Label("//cmd/fetch_repo:main.go"),
     Label("//cmd/fetch_repo:module.go"),
+    Label("//cmd/fetch_repo:module_unix.go"),
+    Label("//cmd/fetch_repo:module_windows.go"),
     Label("//cmd/fetch_repo:vcs.go"),
     Label("//cmd/gazelle:BUILD.bazel"),
     Label("//cmd/gazelle:langs.go"),
