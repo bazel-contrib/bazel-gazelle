@@ -147,15 +147,14 @@ func getConfig(t *testing.T, path string, directives []rule.Directive, parent *c
 		cfg.Exts[resolveName] = parent.Exts[resolveName]
 	}
 
-	err := configurer.Configure(t.Context(), config.ConfigureArgs{
+	if err := configurer.Configure(t.Context(), config.ConfigureArgs{
 		Config: cfg,
 		Rel:    path,
 		File:   &rule.File{Directives: directives},
-	})
-	if err != nil {
+	}); err != nil {
 		t.Fatal(err)
 	}
-	return cfg
+return cfg
 }
 
 func getTestLabel(t *testing.T, str string) label.Label {

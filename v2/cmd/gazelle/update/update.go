@@ -423,7 +423,15 @@ func Run(
 				if err != nil {
 					uc.handleError(err)
 				}
-			}
+			for lang := range filterLanguages(c, languages) {
+				if err := lang.Fix(ctx, language.FixArgs{
+					Config: c,
+					Rel:    rel,
+					File:   f,
+				}); err != nil {
+					uc.handleError(err)
+				}
+}
 		}
 
 		// Generate rules.
