@@ -1,0 +1,31 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "bar_proto",
+    srcs = [
+        "bar.proto",
+        "package.proto",
+    ],
+    _gazelle_imports = [
+        "file_mode/foo.proto",
+        "scalapb/scalapb.proto",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+proto_library(
+    name = "foo_proto",
+    srcs = [
+        "foo.proto",
+        "package.proto",
+    ],
+    _gazelle_imports = ["scalapb/scalapb.proto"],
+    visibility = ["//visibility:public"],
+)
+
+proto_library(
+    name = "package_proto",
+    srcs = ["package.proto"],
+    _gazelle_imports = ["scalapb/scalapb.proto"],
+    visibility = ["//visibility:public"],
+)
