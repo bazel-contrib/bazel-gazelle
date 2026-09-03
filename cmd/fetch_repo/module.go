@@ -20,7 +20,7 @@ import (
 	"os"
 )
 
-func fetchModule(dest, importpath, version, sum string, prune bool) error {
+func fetchModule(dest, importpath, version, sum string) error {
 	// Check that version is a complete semantic version or pseudo-version.
 	if _, ok := parse(version); !ok {
 		return fmt.Errorf("%q is not a valid semantic version", version)
@@ -61,12 +61,6 @@ func fetchModule(dest, importpath, version, sum string, prune bool) error {
 	// Copy the module to the destination.
 	if err := copyTree(dest, dl.Dir); err != nil {
 		return fmt.Errorf("failed copying repo: %w", err)
-	}
-
-	if prune {
-		if err := os.RemoveAll(dl.Dir); err != nil {
-			return fmt.Errorf("failed pruning module cache: %w", err)
-		}
 	}
 
 	return nil
