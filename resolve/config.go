@@ -16,8 +16,14 @@ limitations under the License.
 package resolve
 
 import (
+	"context"
+	"flag"
+	"log"
+
+	configv2 "github.com/bazel-contrib/bazel-gazelle/v2/config"
 	"github.com/bazel-contrib/bazel-gazelle/v2/label"
 	v2 "github.com/bazel-contrib/bazel-gazelle/v2/resolve"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"github.com/bazelbuild/bazel-gazelle/config"
 )
 
@@ -34,6 +40,29 @@ func FindRuleWithOverride(c *config.Config, imp ImportSpec, lang string) (label.
 }
 
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/resolve.Configurer instead.
-//
-//go:fix inline
-type Configurer = v2.Configurer
+type Configurer struct {
+	v2 v2.Configurer
+}
+
+var _ config.Configurer = (*Configurer)(nil)
+
+func (*Configurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {}
+
+func (*Configurer) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
+	return nil
+}
+
+func (cc *Configurer) KnownDirectives() []string {
+	return cc.v2.KnownDirectives()
+}
+
+func (cc *Configurer) Configure(c *config.Config, rel string, f *rule.File) {
+	err := cc.v2.Configure(context.Background(), configv2.ConfigureArgs{
+		Config: c,
+		Rel:    rel,
+		File:   f,
+	})
+	if err != nil {
+		log.Print(err)
+	}
+}

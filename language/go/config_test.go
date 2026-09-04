@@ -56,6 +56,13 @@ func testConfig(t *testing.T, args ...string) (*config.Config, []language.Langua
 	for _, lang := range langs {
 		cexts = append(cexts, lang)
 	}
+	// Call "Configure" in the root directory so that extensions have a chance
+	// to initialize.
+	for _, cext := range cexts {
+		if _, ok := cext.(*resolve.Configurer); ok {
+			cext.Configure(c, "", nil)
+		}
+	}
 	return c, langs, cexts
 }
 

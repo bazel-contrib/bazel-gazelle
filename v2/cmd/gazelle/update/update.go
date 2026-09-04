@@ -46,7 +46,6 @@ import (
 	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"github.com/bazel-contrib/bazel-gazelle/v2/walk"
-	configv1 "github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/repo"
 	"github.com/bazelbuild/buildtools/build"
 )
@@ -100,7 +99,7 @@ func getUpdateConfig(c *config.Config) *updateConfig {
 	return c.Exts[updateName].(*updateConfig)
 }
 
-var _ configv1.Configurer = (*updateConfigurer)(nil)
+var _ config.Configurer = (*updateConfigurer)(nil)
 
 type updateConfigurer struct {
 	mode           string
@@ -267,7 +266,9 @@ func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) erro
 
 func (ucr *updateConfigurer) KnownDirectives() []string { return nil }
 
-func (ucr *updateConfigurer) Configure(c *config.Config, rel string, f *rule.File) {}
+func (ucr *updateConfigurer) Configure(ctx context.Context, args config.ConfigureArgs) error {
+	return nil
+}
 
 // visitRecord stores information about a directory visited with
 // packages.Walk.
@@ -311,10 +312,10 @@ func Run(
 
 	cexts := make([]config.Configurer, 0, len(languagesRaw)+4)
 	cexts = append(cexts,
-		compat.MustConfigurerV2(&config.CommonConfigurer{}),
-		compat.MustConfigurerV2(&updateConfigurer{}),
-		compat.MustConfigurerV2(&walk.Configurer{}),
-		compat.MustConfigurerV2(&resolve.Configurer{}))
+		&config.CommonConfigurer{},
+		&updateConfigurer{},
+		&walk.Configurer{},
+		&resolve.Configurer{})
 	flagExts := make([]compat.FlagConfigurer, 0, cap(cexts))
 	for _, cext := range cexts {
 		if flagExt, ok := cext.(compat.FlagConfigurer); ok {
@@ -414,12 +415,11 @@ func Run(
 		// Fix any problems in the file.
 		if f != nil {
 			for lang := range filterLanguages(c, languages) {
-				err := lang.Fix(ctx, language.FixArgs{
+				if err := lang.Fix(ctx, language.FixArgs{
 					Config: c,
 					Rel:    rel,
 					File:   f,
-				})
-				if err != nil {
+				}); err != nil {
 					uc.handleError(err)
 				}
 			}

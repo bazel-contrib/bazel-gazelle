@@ -443,6 +443,13 @@ func testConfig(t *testing.T, repoRoot string) (*config.Config, language.Languag
 		"-repo_root=" + repoRoot,
 	})
 	cexts = append(cexts, lang)
+	// Call "Configure" in the root directory so that extensions have a chance
+	// to initialize.
+	for _, cext := range cexts {
+		if _, ok := cext.(*resolve.Configurer); ok {
+			cext.Configure(c, "", nil)
+		}
+	}
 	return c, lang, cexts
 }
 

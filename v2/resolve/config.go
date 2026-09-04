@@ -16,14 +16,14 @@ limitations under the License.
 package resolve
 
 import (
-	"flag"
-	"log"
+	"context"
+	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 	"github.com/bazel-contrib/bazel-gazelle/v2/label"
-	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
-	"github.com/bazelbuild/bazel-gazelle/config"
 )
 
 // FindRuleWithOverride searches the current configuration for user-specified
@@ -123,29 +123,26 @@ var _ config.Configurer = (*Configurer)(nil)
 
 type Configurer struct{}
 
-func (*Configurer) Name() string {
-	return "_resolve"
-}
-
-func (*Configurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
-	c.Exts[resolveName] = &resolveConfig{}
-}
-
-func (*Configurer) CheckFlags(fs *flag.FlagSet, c *config.Config) error { return nil }
-
 func (*Configurer) KnownDirectives() []string {
 	return []string{"resolve", "resolve_regexp"}
 }
 
-func (*Configurer) Configure(c *config.Config, rel string, f *rule.File) {
+func (*Configurer) Configure(ctx context.Context, args config.ConfigureArgs) error {
+	c := args.Config
+	rel := args.Rel
+	f := args.File
+	if _, ok := c.Exts[resolveName]; !ok {
+		c.Exts[resolveName] = &resolveConfig{}
+	}
 	if f == nil || len(f.Directives) == 0 {
-		return
+		return nil
 	}
 
 	rc := getResolveConfig(c)
 	var newOverrides map[overrideKey]label.Label
 	regexpOverrides := rc.regexpOverrides[:len(rc.regexpOverrides):len(rc.regexpOverrides)]
 
+	var errs []error
 	for _, d := range f.Directives {
 		if d.Key == "resolve" {
 			parts := strings.Fields(d.Value)
@@ -162,12 +159,12 @@ func (*Configurer) Configure(c *config.Config, rel string, f *rule.File) {
 				key.imp.Imp = parts[2]
 				lbl = parts[3]
 			} else {
-				log.Printf("could not parse directive: %s\n\texpected gazelle:resolve source-language [import-language] import-string label", d.Value)
+				errs = append(errs, fmt.Errorf("could not parse directive: %s\n\texpected gazelle:resolve source-language [import-language] import-string label", d.Value))
 				continue
 			}
 			dep, err := label.Parse(lbl)
 			if err != nil {
-				log.Printf("gazelle:resolve %s: %v", d.Value, err)
+				errs = append(errs, fmt.Errorf("gazelle:resolve %s: %v", d.Value, err))
 				continue
 			}
 			dep = dep.Abs("", rel)
@@ -184,7 +181,7 @@ func (*Configurer) Configure(c *config.Config, rel string, f *rule.File) {
 				var err error
 				o.ImpRegex, err = regexp.Compile(parts[1])
 				if err != nil {
-					log.Printf("gazelle:resolve_regexp %s: %v", d.Value, err)
+					errs = append(errs, fmt.Errorf("gazelle:resolve_regexp %s: %v", d.Value, err))
 					continue
 				}
 				lbl = parts[2]
@@ -194,19 +191,19 @@ func (*Configurer) Configure(c *config.Config, rel string, f *rule.File) {
 				var err error
 				o.ImpRegex, err = regexp.Compile(parts[2])
 				if err != nil {
-					log.Printf("gazelle:resolve_regexp %s: %v", d.Value, err)
+					errs = append(errs, fmt.Errorf("gazelle:resolve_regexp %s: %v", d.Value, err))
 					continue
 				}
 
 				lbl = parts[3]
 			} else {
-				log.Printf("could not parse directive: %s\n\texpected gazelle:resolve_regexp source-language [import-language] import-string-regex label", d.Value)
+				errs = append(errs, fmt.Errorf("could not parse directive: %s\n\texpected gazelle:resolve_regexp source-language [import-language] import-string-regex label", d.Value))
 				continue
 			}
 			var err error
 			o.dep, err = label.Parse(lbl)
 			if err != nil {
-				log.Printf("gazelle:resolve_regexp %s: %v", d.Value, err)
+				errs = append(errs, fmt.Errorf("gazelle:resolve_regexp %s: %v", d.Value, err))
 				continue
 			}
 			o.dep = o.dep.Abs("", rel)
@@ -215,4 +212,5 @@ func (*Configurer) Configure(c *config.Config, rel string, f *rule.File) {
 	}
 
 	c.Exts[resolveName] = newResolveConfig(rc, newOverrides, regexpOverrides)
+	return errors.Join(errs...)
 }
