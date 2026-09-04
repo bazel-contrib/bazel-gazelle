@@ -264,6 +264,9 @@ func (a CompleteLanguage) Name() string {
 // interfaces and returns a CompleteLanguage, adding stubs for any interfaces
 // that the extension didn't implement.
 func LanguageWithDefaults(v language.Language) CompleteLanguage {
+	if cl, ok := v.(CompleteLanguage); ok {
+		return cl
+	}
 	adapter := CompleteLanguage{Language: v}
 	if gen, ok := v.(language.Generator); ok {
 		adapter.Generator = gen
