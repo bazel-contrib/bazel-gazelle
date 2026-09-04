@@ -25,28 +25,17 @@ load(
 
 def _gazelle_main_impl(ctx):
     langs_file = ctx.actions.declare_file(ctx.label.name + ".go")
-    langs_content_tpl = """
-package main
-
-import (
-	"github.com/bazelbuild/bazel-gazelle/language"
-
-	{lang_imports}
-)
-
-func init() {{
-	languages = []language.Language{{
-		{lang_calls},
-	}}
-}}
-"""
-    lang_imports = [format_import(d[GoArchive].data.importpath) for d in ctx.attr.languages]
-    lang_calls = [format_call(d[GoArchive].data.importpath) for d in ctx.attr.languages]
-    langs_content = langs_content_tpl.format(
-        lang_imports = "\n\t".join(lang_imports),
-        lang_calls = ",\n\t\t".join(lang_calls),
+    export_files = [d[GoArchive].data.export_file for d in ctx.attr.languages]
+    args = ctx.actions.args()
+    args.add("-o", langs_file)
+    args.add_all(export_files)
+    ctx.actions.run(
+        outputs = [langs_file],
+        inputs = export_files,
+        executable = ctx.executable._generator,
+        arguments = [args],
+        mnemonic = "GazelleMain",
     )
-    ctx.actions.write(langs_file, langs_content)
     return DefaultInfo(files = depset([langs_file]))
 
 gazelle_main = rule(
@@ -57,10 +46,16 @@ gazelle_main = rule(
 
             Each extension must be a [go_library] or something compatible. Each extension
             must export a function named `NewLanguage` with no parameters that returns
-            a value assignable to [Language].""",
+            a value assignable to [Language], or for Gazelle v2, a function named `NewV2`
+            that returns a value assignable to [v2/language.Language].""",
             providers = [GoArchive],
             mandatory = True,
             allow_empty = False,
+        ),
+        "_generator": attr.label(
+            default = Label("//cmd/generate_gazelle_binary_languages"),
+            cfg = "exec",
+            executable = True,
         ),
     },
 )
@@ -80,22 +75,17 @@ def gazelle_binary(name, languages, version = 0, **kwargs):
         testonly = kwargs.get("testonly", False),
         visibility = ["//visibility:private"],
     )
+    binary_deps = list(languages) + [
+        "//v2/compat",
+        "//v2/language",
+    ]
     go_binary(
         name = name,
         srcs = [main_name],
-        deps = languages,
+        deps = binary_deps,
         embed = [Label("//v2/cmd/gazelle:gazelle_lib") if version == 2 else Label("//cmd/gazelle:gazelle_lib")],
         **kwargs
     )
-
-def _import_alias(importpath):
-    return importpath.replace("/", "_").replace(".", "_").replace("-", "_") + "_"
-
-def format_import(importpath):
-    return '{} "{}"'.format(_import_alias(importpath), importpath)
-
-def format_call(importpath):
-    return _import_alias(importpath) + ".NewLanguage()"
 
 def _get_gazelle_major_version():
     """Parses a version string and returns either 1 or 2.

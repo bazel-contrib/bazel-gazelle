@@ -26,20 +26,10 @@ import (
 	"os"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update"
-	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
 	"github.com/bazel-contrib/bazel-gazelle/v2/language"
-	languagev1 "github.com/bazelbuild/bazel-gazelle/language"
 )
 
-var languages []languagev1.Language
-
-func languagesV2() []language.Language {
-	langsV2 := make([]language.Language, len(languages))
-	for i := range languages {
-		langsV2[i] = compat.LanguageV2(languages[i])
-	}
-	return langsV2
-}
+var languages []language.Language
 
 type command int
 
@@ -102,19 +92,18 @@ func run(wd string, args []string) error {
 	if len(args) == 1 && (args[0] == "-h" || args[0] == "-help" || args[0] == "--help") {
 		return help()
 	}
-	langsV2 := languagesV2()
 	if len(args) == 0 {
-		return update.Run(ctx, langsV2, wd, args)
+		return update.Run(ctx, languages, wd, args)
 	}
 	switch args[0] {
 	case "help":
 		return help()
 	case "update-repos":
-		return updateRepos(ctx, langsV2, wd, args[1:])
+		return updateRepos(ctx, languages, wd, args[1:])
 	default:
 		// Either "fix", "update", or a directory name. Pass through args[0].
 		// update.Run knows what to do with it.
-		return update.Run(ctx, langsV2, wd, args)
+		return update.Run(ctx, languages, wd, args)
 	}
 }
 
