@@ -52,17 +52,8 @@ def go_deps_impl(module_ctx):
     for module in module_ctx.modules:
         if _module_acts_as_root(module_ctx, module):
             root_module = module
-            if len(module.tags.config) > 1:
-                module_ctx.fail("Multiple go_deps.config tags defined in module {}".format(module.name))
-                return None
-            if len(module.tags.config) == 1:
-                config_tag = module.tags.config[0]
-            if len(module.tags.gazelle_default_attributes) > 1:
-                module_ctx.fail("Multiple go_deps.gazelle_default_attributes tags defined in module {}".format(module.name))
-                return None
-            if len(module.tags.gazelle_default_attributes) == 1:
-                gazelle_default_attributes = module.tags.gazelle_default_attributes[0]
-
+            config_tag = _get_only_tag(module_ctx, module, "config")
+            gazelle_default_attributes = _get_only_tag(module_ctx, module, "gazelle_default_attributes")
         _process_overrides(module_ctx, module, "archive_override", archive_overrides)
         _process_overrides(module_ctx, module, "module_override", module_overrides, archive_overrides)
         _process_overrides(module_ctx, module, "gazelle_override", gazelle_overrides)
@@ -420,6 +411,39 @@ def _module_acts_as_root(module_ctx, module):
     a root or isolated module.
     """
     return module.is_root or getattr(module_ctx, "is_isolated", False)
+
+def _get_only_tag(module_ctx, root_module, tag_name):
+    """
+    Returns the only tag with the given type from the root module or None.
+
+    Fails with an error message if the module has multiple such tags.
+
+    Args:
+        module_ctx: the module context
+        root_module: the root Bazel module or a module acting as root for
+            isolated go_deps.
+        tag_name: the string name of the tag, like "config".
+
+    Returns:
+        The tag, if there is only 1. None if there are 0.
+    """
+    tags = getattr(root_module.tags, tag_name, [])
+    if len(tags) > 0:
+        # Pass tags as arguments to fail instead of formatting them as strings.
+        # The str and repr functions print nonsense for these, but the fail
+        # builtin prints something informative.
+        module_ctx.fail(
+            "Multiple go_deps.{tag_name} tags defined in module {module_name}:".format(
+                tag_name = tag_name,
+                module_name = root_module.name,
+            ),
+            *[
+                line
+                for tag in tags
+                for line in ["\n", tag]
+            ]
+        )
+    return tags[0] if len(tags) == 1 else None
 
 def _should_declare_go_repository(module_ctx, go_module):
     """
