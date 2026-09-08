@@ -1,6 +1,5 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@io_bazel_rules_go//go/tools/bazel_testing:def.bzl", "go_bazel_test")
-load(":gazelle_binary_test.bzl", "gazelle_binary_test_suite")
 
 # gazelle:exclude *_test.go
 go_bazel_test(
@@ -14,8 +13,6 @@ go_bazel_test(
     ],
     deps = ["//testtools"],
 )
-
-gazelle_binary_test_suite()
 
 # TODO(jayconrod): test fetch_repo error cases.
 
@@ -37,7 +34,6 @@ filegroup(
         "env.bzl",
         "gazelle.bash.in",
         "gazelle_binary.bzl",
-        "gazelle_binary_test.bzl",
         "go_repository.bzl",
         "go_repository_cache.bzl",
         "go_repository_tools.bzl",
