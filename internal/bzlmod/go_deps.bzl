@@ -428,7 +428,7 @@ def _get_only_tag(module_ctx, root_module, tag_name):
         The tag, if there is only 1. None if there are 0.
     """
     tags = getattr(root_module.tags, tag_name, [])
-    if len(tags) > 0:
+    if len(tags) > 1:
         # Pass tags as arguments to fail instead of formatting them as strings.
         # The str and repr functions print nonsense for these, but the fail
         # builtin prints something informative.
