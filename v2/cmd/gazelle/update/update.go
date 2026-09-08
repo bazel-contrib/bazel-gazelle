@@ -102,6 +102,7 @@ func getUpdateConfig(c *config.Config) *updateConfig {
 var _ config.Configurer = (*updateConfigurer)(nil)
 
 type updateConfigurer struct {
+	knownLanguages []string
 	mode           string
 	recursive      bool
 	knownImports   []string
@@ -142,6 +143,7 @@ func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) erro
 		} else {
 			fmt.Printf("built in workspace mode\n")
 		}
+		fmt.Printf("supported languages: %s\n", strings.Join(ucr.knownLanguages, ", "))
 		return errVersion
 	}
 
@@ -310,10 +312,16 @@ func Run(
 	wd string,
 	args []string) error {
 
+	langNames := make([]string, 0, len(languagesRaw))
+	for _, lang := range languagesRaw {
+		langNames = append(langNames, lang.Name())
+	}
+	sort.Strings(langNames)
+
 	cexts := make([]config.Configurer, 0, len(languagesRaw)+4)
 	cexts = append(cexts,
 		&config.CommonConfigurer{},
-		&updateConfigurer{},
+		&updateConfigurer{knownLanguages: langNames},
 		&walk.Configurer{},
 		&resolve.Configurer{})
 	flagExts := make([]compat.FlagConfigurer, 0, cap(cexts))
