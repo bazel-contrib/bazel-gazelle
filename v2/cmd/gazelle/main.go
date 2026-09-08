@@ -25,12 +25,10 @@ import (
 	"os/signal"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update"
-	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
 	"github.com/bazel-contrib/bazel-gazelle/v2/language"
-	languagev1 "github.com/bazelbuild/bazel-gazelle/language"
 )
 
-var languages []languagev1.Language
+var languages []language.Language
 
 func main() {
 	log.SetPrefix("gazelle: ")
@@ -66,9 +64,5 @@ func main() {
 }
 
 func run(ctx context.Context, wd string, args []string) error {
-	languagesV2 := make([]language.Language, len(languages))
-	for i := range languages {
-		languagesV2[i] = compat.LanguageV2(languages[i])
-	}
-	return update.Run(ctx, languagesV2, wd, args)
+	return update.Run(ctx, languages, wd, args)
 }

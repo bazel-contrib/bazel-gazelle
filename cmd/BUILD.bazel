@@ -6,6 +6,7 @@ filegroup(
         "//cmd/autogazelle:all_files",
         "//cmd/fetch_repo:all_files",
         "//cmd/gazelle:all_files",
+        "//cmd/generate_gazelle_binary_languages:all_files",
         "//cmd/generate_repo_config:all_files",
         "//cmd/move_labels:all_files",
     ],

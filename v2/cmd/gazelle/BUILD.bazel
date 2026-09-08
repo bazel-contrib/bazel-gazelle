@@ -27,7 +27,6 @@ go_library(
     tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
-        "//language",
         "//language/bazel/visibility",
         "//language/go",
         "//language/proto",

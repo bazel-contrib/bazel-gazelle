@@ -1,13 +1,23 @@
-load("@gazelle//:def.bzl", "gazelle", "gazelle_test")
+load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary", "gazelle_test")
 load(":tests.bzl", "starlark_tests")
 
 # gazelle:go_naming_convention import
 # gazelle:go_naming_convention_external import
-gazelle(name = "gazelle")
+gazelle(
+    name = "gazelle",
+    gazelle = ":gazelle_binary",
+)
 
 gazelle_test(
     name = "gazelle_test",
+    gazelle = ":gazelle_binary",
     workspace = "//:BUILD.bazel",
+)
+
+gazelle_binary(
+    name = "gazelle_binary",
+    languages = DEFAULT_LANGUAGES,
+    version = 2,
 )
 
 starlark_tests(
