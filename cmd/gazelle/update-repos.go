@@ -17,23 +17,28 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
+	"iter"
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update"
-	"github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/label"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/merger"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"github.com/bazelbuild/bazel-gazelle/internal/wspace"
-	"github.com/bazelbuild/bazel-gazelle/label"
-	"github.com/bazelbuild/bazel-gazelle/language"
-	"github.com/bazelbuild/bazel-gazelle/merger"
+	languagev1 "github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/repo"
-	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
 type updateReposConfig struct {
@@ -54,8 +59,6 @@ const updateReposName = "_update-repos"
 func getUpdateReposConfig(c *config.Config) *updateReposConfig {
 	return c.Exts[updateReposName].(*updateReposConfig)
 }
-
-var _ config.Configurer = (*updateReposConfigurer)(nil)
 
 type updateReposConfigurer struct{}
 
@@ -136,20 +139,23 @@ func (*updateReposConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) err
 	return nil
 }
 
-func (*updateReposConfigurer) KnownDirectives() []string { return nil }
+func updateRepos(
+	ctx context.Context,
+	languagesRaw []language.Language,
+	wd string,
+	args []string) (err error) {
 
-func (*updateReposConfigurer) Configure(c *config.Config, rel string, f *rule.File) {}
-
-func updateRepos(wd string, args []string) (err error) {
-	// Build configuration with all languages.
-	cexts := make([]config.Configurer, 0, len(languages)+2)
-	cexts = append(cexts, &config.CommonConfigurer{}, &updateReposConfigurer{})
-
-	for _, lang := range languages {
-		cexts = append(cexts, lang)
+	languages := make([]compat.CompleteLanguage, 0, len(languagesRaw))
+	flagExts := make([]compat.FlagConfigurer, 0, len(languagesRaw)+2)
+	flagExts = append(flagExts, &config.CommonConfigurer{}, &updateReposConfigurer{})
+	for _, lang := range languagesRaw {
+		languages = append(languages, compat.LanguageWithDefaults(lang))
+		if f, ok := lang.(compat.FlagConfigurer); ok {
+			flagExts = append(flagExts, f)
+		}
 	}
 
-	c, err := newUpdateReposConfiguration(wd, args, cexts)
+	c, err := newUpdateReposConfiguration(wd, args, flagExts)
 	if err != nil {
 		return err
 	}
@@ -163,15 +169,12 @@ func updateRepos(wd string, args []string) (err error) {
 	kinds := make(map[string]rule.KindInfo)
 	loads := []rule.LoadInfo{}
 	for _, lang := range languages {
-		if moduleAwareLang, ok := lang.(language.ModuleAwareLanguage); ok {
-			loads = append(loads, moduleAwareLang.ApparentLoads(c.ModuleToApparentName)...)
-		} else {
-			loads = append(loads, lang.Loads()...)
-		}
+		loads = append(loads, lang.ApparentLoads(c.ModuleToApparentName)...)
 		for kind, info := range lang.Kinds() {
 			kinds[kind] = info
 		}
 	}
+	loadFixer := merger.NewLoadFixer(loads)
 
 	// TODO(jayconrod): move Go-specific RemoteCache logic to language/go.
 	var knownRepos []repo.Repo
@@ -199,16 +202,18 @@ func updateRepos(wd string, args []string) (err error) {
 	}()
 
 	// Fix the workspace file with each language.
-	for _, lang := range filterLanguages(c, languages) {
-		lang.Fix(c, uc.workspace)
+	for lang := range filterLanguages(c, languages) {
+		if err := lang.Fix(ctx, language.FixArgs{Config: c, File: uc.workspace}); err != nil {
+			return err
+		}
 	}
 
 	// Generate rules from command language arguments or by importing a file.
 	var gen, empty []*rule.Rule
 	if uc.repoFilePath == "" {
-		gen, err = updateRepoImports(c, rc)
+		gen, err = updateRepoImports(c, languages, rc)
 	} else {
-		gen, empty, err = importRepos(c, rc)
+		gen, empty, err = importRepos(c, languages, rc)
 	}
 	if err != nil {
 		return err
@@ -326,7 +331,7 @@ func updateRepos(wd string, args []string) (err error) {
 		// the '# gazelle:alias_kind MACRO KIND' directive.
 		var emptyAliasedKinds map[string]string = nil
 		merger.MergeFile(f, emptyForFiles[f], genForFiles[f], merger.PreResolve, kinds, emptyAliasedKinds)
-		merger.FixLoads(f, loads)
+		loadFixer.Fix(f)
 		if f == uc.workspace && !c.Bzlmod {
 			if err := merger.CheckGazelleLoaded(f); err != nil {
 				return err
@@ -359,15 +364,15 @@ func updateRepos(wd string, args []string) (err error) {
 	return nil
 }
 
-func newUpdateReposConfiguration(wd string, args []string, cexts []config.Configurer) (*config.Config, error) {
+func newUpdateReposConfiguration(wd string, args []string, flagExts []compat.FlagConfigurer) (*config.Config, error) {
 	c := config.New()
 	c.WorkDir = wd
 	fs := flag.NewFlagSet("gazelle", flag.ContinueOnError)
 	// Flag will call this on any parse error. Don't print usage unless
 	// -h or -help were passed explicitly.
 	fs.Usage = func() {}
-	for _, cext := range cexts {
-		cext.RegisterFlags(fs, "update-repos", c)
+	for _, flagExt := range flagExts {
+		flagExt.RegisterFlags(fs, "update-repos", c)
 	}
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -377,8 +382,8 @@ func newUpdateReposConfiguration(wd string, args []string, cexts []config.Config
 		// flag already prints the error; don't print it again.
 		return nil, errors.New("Try -help for more information")
 	}
-	for _, cext := range cexts {
-		if err := cext.CheckFlags(fs, c); err != nil {
+	for _, flagExt := range flagExts {
+		if err := flagExt.CheckFlags(fs, c); err != nil {
 			return nil, err
 		}
 	}
@@ -405,13 +410,13 @@ FLAGS:
 	fs.PrintDefaults()
 }
 
-func updateRepoImports(c *config.Config, rc *repo.RemoteCache) (gen []*rule.Rule, err error) {
+func updateRepoImports(c *config.Config, langs []compat.CompleteLanguage, rc *repo.RemoteCache) (gen []*rule.Rule, err error) {
 	// TODO(jayconrod): let the user pick the language with a command line flag.
 	// For now, only use the first language that implements the interface.
 	uc := getUpdateReposConfig(c)
-	var updater language.RepoUpdater
-	for _, lang := range filterLanguages(c, languages) {
-		if u, ok := lang.(language.RepoUpdater); ok {
+	var updater languagev1.RepoUpdater
+	for lang := range filterLanguages(c, langs) {
+		if u, ok := lang.Language.(languagev1.RepoUpdater); ok {
 			updater = u
 			break
 		}
@@ -419,7 +424,7 @@ func updateRepoImports(c *config.Config, rc *repo.RemoteCache) (gen []*rule.Rule
 	if updater == nil {
 		return nil, fmt.Errorf("no languages can update repositories")
 	}
-	res := updater.UpdateRepos(language.UpdateReposArgs{
+	res := updater.UpdateRepos(languagev1.UpdateReposArgs{
 		Config:  c,
 		Imports: uc.importPaths,
 		Cache:   rc,
@@ -427,12 +432,12 @@ func updateRepoImports(c *config.Config, rc *repo.RemoteCache) (gen []*rule.Rule
 	return res.Gen, res.Error
 }
 
-func importRepos(c *config.Config, rc *repo.RemoteCache) (gen, empty []*rule.Rule, err error) {
+func importRepos(c *config.Config, langs []compat.CompleteLanguage, rc *repo.RemoteCache) (gen, empty []*rule.Rule, err error) {
 	uc := getUpdateReposConfig(c)
 	importSupported := false
-	var importer language.RepoImporter
-	for _, lang := range filterLanguages(c, languages) {
-		if i, ok := lang.(language.RepoImporter); ok {
+	var importer languagev1.RepoImporter
+	for lang := range filterLanguages(c, langs) {
+		if i, ok := lang.Language.(languagev1.RepoImporter); ok {
 			importSupported = true
 			if i.CanImport(uc.repoFilePath) {
 				importer = i
@@ -447,7 +452,7 @@ func importRepos(c *config.Config, rc *repo.RemoteCache) (gen, empty []*rule.Rul
 			return nil, nil, fmt.Errorf("no supported languages can import configuration files")
 		}
 	}
-	res := importer.ImportRepos(language.ImportReposArgs{
+	res := importer.ImportRepos(languagev1.ImportReposArgs{
 		Config: c,
 		Path:   uc.repoFilePath,
 		Prune:  uc.pruneRules,
@@ -587,4 +592,22 @@ func ensureMacroInWorkspace(uc *updateReposConfig, insertIndex int) (updated boo
 	call.AddComment("# gazelle:repository_macro " + macroValue)
 
 	return true
+}
+
+// filterLanguages returns the subset of input languages that pass the config's
+// filter, if any. Gazelle should not generate rules for languages not returned.
+func filterLanguages(c *config.Config, langs []compat.CompleteLanguage) iter.Seq[compat.CompleteLanguage] {
+	if len(c.Langs) == 0 {
+		return slices.Values(langs)
+	}
+
+	return func(yield func(compat.CompleteLanguage) bool) {
+		for _, lang := range langs {
+			if slices.Contains(c.Langs, lang.Name()) {
+				if !yield(lang) {
+					return
+				}
+			}
+		}
+	}
 }

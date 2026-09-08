@@ -18,19 +18,19 @@ go_library(
     tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
-        "//config",
         "//internal/wspace",
-        "//label",
         "//language",
         "//language/bazel/visibility",
         "//language/go",
         "//language/proto",
-        "//merger",
         "//repo",
-        "//rule",
         "//v2/cmd/gazelle/update",
         "//v2/compat",
+        "//v2/config",
+        "//v2/label",
         "//v2/language",
+        "//v2/merger",
+        "//v2/rule",
     ],
 )
 

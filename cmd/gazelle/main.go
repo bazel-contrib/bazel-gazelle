@@ -28,7 +28,6 @@ import (
 	"github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update"
 	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
 	"github.com/bazel-contrib/bazel-gazelle/v2/language"
-	"github.com/bazelbuild/bazel-gazelle/config"
 	languagev1 "github.com/bazelbuild/bazel-gazelle/language"
 )
 
@@ -111,7 +110,7 @@ func run(wd string, args []string) error {
 	case "help":
 		return help()
 	case "update-repos":
-		return updateRepos(wd, args[1:])
+		return updateRepos(ctx, langsV2, wd, args[1:])
 	default:
 		// Either "fix", "update", or a directory name. Pass through args[0].
 		// update.Run knows what to do with it.
@@ -150,29 +149,4 @@ without notice.
 
 `)
 	return flag.ErrHelp
-}
-
-// filterLanguages returns the subset of input languages that pass the config's
-// filter, if any. Gazelle should not generate rules for languages not returned.
-func filterLanguages(c *config.Config, langs []languagev1.Language) []languagev1.Language {
-	if len(c.Langs) == 0 {
-		return langs
-	}
-
-	var result []languagev1.Language
-	for _, inputLang := range langs {
-		if containsLang(c.Langs, inputLang) {
-			result = append(result, inputLang)
-		}
-	}
-	return result
-}
-
-func containsLang(langNames []string, lang languagev1.Language) bool {
-	for _, langName := range langNames {
-		if langName == lang.Name() {
-			return true
-		}
-	}
-	return false
 }
