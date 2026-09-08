@@ -458,7 +458,7 @@ def _get_checks_reporter(module_ctx, root_module):
             from_file_level = ERROR
     level = max(checks_level, check_direct_dependencies_level, from_file_level)
     if level == OFF:
-        return lambda *args: None
+        return lambda *args, **kwargs: None
     elif level == WARNING:
         return module_ctx.print
     else:
@@ -539,7 +539,7 @@ If you need this override for a Bazel module that will be available in a public 
 registry (such as the Bazel Central Registry), please file an issue at \
 https://github.com/bazelbuild/bazel-gazelle/issues/new or submit a PR adding \
 the required directives to the "default_gazelle_overrides.bzl" file at \
-https://github.com/bazelbuild/bazel-gazelle/tree/master/internal/bzlmod/default_gazelle_overrides.bzl.
+https://github.com/bazel-contrib/bazel-gazelle/tree/master/internal/bzlmod/default_gazelle_overrides.bzl.
 """.format(
             tag_class = tag_class,
             module_name = module.name,
@@ -668,7 +668,7 @@ To correct this:
     1. Upgrade the Bazel Go version in MODULE.bazel:
 
         go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
-        go_sdk.download("{go_mod_version}")
+        go_sdk.download(version = "{go_mod_version}")
 
     2. Or downgrade the Go module version to {go_version}.
 """.format(
