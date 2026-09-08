@@ -15,8 +15,13 @@ limitations under the License.
 
 package rule
 
+import "github.com/bazel-contrib/bazel-gazelle/v2/label"
+
 // LoadInfo describes a file that Gazelle knows about and the symbols
 // it defines.
+//
+// TODO(#2272): deprecate this in favor of KindInfo.Name and LoadedFrom
+// when v2 is ready.
 type LoadInfo struct {
 	Name    string
 	Symbols []string
@@ -25,6 +30,14 @@ type LoadInfo struct {
 
 // KindInfo stores metadata for a kind of rule, for example, "go_library".
 type KindInfo struct {
+	// Name of the rule kind.
+	Name string
+
+	// LoadedFrom is the label for the .bzl file from which this kind is loaded.
+	// Use original module names, not apparent names. Leave empty for builtin
+	// kinds like `filegroup`.
+	LoadedFrom label.Label
+
 	// MatchAny is true if a rule of this kind may be matched with any rule
 	// of the same kind, regardless of attributes, if exactly one rule is
 	// present a build file.

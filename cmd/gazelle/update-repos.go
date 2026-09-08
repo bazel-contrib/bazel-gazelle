@@ -169,9 +169,15 @@ func updateRepos(
 	kinds := make(map[string]rule.KindInfo)
 	loads := []rule.LoadInfo{}
 	for _, lang := range languages {
-		loads = append(loads, lang.ApparentLoads(c.ModuleToApparentName)...)
-		for kind, info := range lang.Kinds() {
-			kinds[kind] = info
+		for _, load := range lang.ApparentLoads(c.ModuleToApparentName) {
+			// Remove excess cap so that we can append to Symbols in addKindToLoadList
+			// without mutating the original slice.
+			load.Symbols = load.Symbols[0:len(load.Symbols):len(load.Symbols)]
+			loads = append(loads, load)
+		}
+		for _, kind := range lang.Kinds() {
+			kinds[kind.Name] = kind
+			loads = addKindToLoadList(c, loads, kind)
 		}
 	}
 	loadFixer := merger.NewLoadFixer(loads)
@@ -408,6 +414,35 @@ FLAGS:
 
 `)
 	fs.PrintDefaults()
+}
+
+// addKindToLoadList synthesizes rule.LoadInfo for a kind and adds it to loads
+// if load information is set in rule.KindInfo. v1 extensions don't need this
+// because they are expected to implement Load or ApparentLoads. v2 extensions
+// do need this because they are expected to populate rule.KindInfo.
+func addKindToLoadList(c *config.Config, loads []rule.LoadInfo, kind rule.KindInfo) []rule.LoadInfo {
+	if kind.LoadedFrom == label.NoLabel || kind.Name == "" {
+		// Skip if load information is not set. KindInfo only included load information
+		// after v2, so v1 extensions are not expected to set these fields.
+		return loads
+	}
+	kind.LoadedFrom.Repo = c.ModuleToApparentName(kind.LoadedFrom.Name)
+	loadedFrom := kind.LoadedFrom.String()
+	for i := range loads {
+		if loads[i].Name == loadedFrom {
+			if !slices.Contains(loads[i].Symbols, kind.Name) {
+				// This shouldn't mutate the original backing array returned by the
+				// extension. We limit cap so that append creates a copy the first time
+				// we call it.
+				loads[i].Symbols = append(loads[i].Symbols, kind.Name)
+			}
+			return loads
+		}
+	}
+	return append(loads, rule.LoadInfo{
+		Name:    loadedFrom,
+		Symbols: []string{kind.Name},
+	})
 }
 
 func updateRepoImports(c *config.Config, langs []compat.CompleteLanguage, rc *repo.RemoteCache) (gen []*rule.Rule, err error) {

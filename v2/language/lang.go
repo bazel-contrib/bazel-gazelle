@@ -56,7 +56,11 @@ type Generator interface {
 	// Kinds returns a map from rule names to information on how to match and
 	// merge attributes that may be found in rules of those kinds. All kinds of
 	// rules generated for this language may be found here.
-	Kinds() map[string]rule.KindInfo
+
+	// Kinds returns a list of rules this extension may generate, with information
+	// on how to load symbols and merge attributes. All kinds of rules generated
+	// by this language are found here.
+	Kinds() []rule.KindInfo
 
 	// Generate reads source files in a directory and produces a list of rules
 	// that should appear in that directory's build file.
