@@ -76,8 +76,8 @@ def gazelle_binary(name, languages, version = 0, **kwargs):
         visibility = ["//visibility:private"],
     )
     binary_deps = list(languages) + [
-        "//v2/compat",
-        "//v2/language",
+        Label("//v2/compat"),
+        Label("//v2/language"),
     ]
     go_binary(
         name = name,
