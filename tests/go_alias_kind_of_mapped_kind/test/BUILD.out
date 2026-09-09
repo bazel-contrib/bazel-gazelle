@@ -1,0 +1,7 @@
+load("//build:build.bzl", "go_integration_test")
+
+go_integration_test(
+    name = "go_default_test",
+    srcs = ["foo_test.go"],
+    deps = ["//vendor/github.com/external:go_default_library"],
+)

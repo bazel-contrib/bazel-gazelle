@@ -1,0 +1,9 @@
+load("//custom:def.bzl", "my_custom_macro")
+
+my_custom_macro(
+    name = "custom_lib",
+    srcs = ["bar.go"],
+    importpath = "example.com/aliaskind/lib",
+    visibility = ["//visibility:public"],
+    deps = ["//vendor/github.com/external:go_default_library"],
+)

@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"iter"
 	"log"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -102,6 +103,7 @@ func getUpdateConfig(c *config.Config) *updateConfig {
 var _ config.Configurer = (*updateConfigurer)(nil)
 
 type updateConfigurer struct {
+	knownLanguages []string
 	mode           string
 	recursive      bool
 	knownImports   []string
@@ -142,6 +144,7 @@ func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) erro
 		} else {
 			fmt.Printf("built in workspace mode\n")
 		}
+		fmt.Printf("supported languages: %s\n", strings.Join(ucr.knownLanguages, ", "))
 		return errVersion
 	}
 
@@ -295,6 +298,10 @@ type visitRecord struct {
 	// mappedKinds are mapped kinds used during this visit.
 	mappedKinds    []config.MappedKind
 	mappedKindInfo map[string]rule.KindInfo
+
+	// aliasedKinds maps wrapper macro names to the kind they wrap, with
+	// map_kind replacements already applied. See resolveAliasMap.
+	aliasedKinds map[string]string
 }
 
 var genericLoads = []rule.LoadInfo{
@@ -310,10 +317,16 @@ func Run(
 	wd string,
 	args []string) error {
 
+	langNames := make([]string, 0, len(languagesRaw))
+	for _, lang := range languagesRaw {
+		langNames = append(langNames, lang.Name())
+	}
+	sort.Strings(langNames)
+
 	cexts := make([]config.Configurer, 0, len(languagesRaw)+4)
 	cexts = append(cexts,
 		&config.CommonConfigurer{},
-		&updateConfigurer{},
+		&updateConfigurer{knownLanguages: langNames},
 		&walk.Configurer{},
 		&resolve.Configurer{})
 	flagExts := make([]compat.FlagConfigurer, 0, cap(cexts))
@@ -526,6 +539,13 @@ func Run(
 			}
 		}
 
+		// Rules have had map_kind applied above, so the aliased kinds must be
+		// expressed in terms of the mapped kind names before merging.
+		aliasedKinds, aliasErr := resolveAliasMap(c.AliasMap, c.KindMap)
+		if aliasErr != nil {
+			errs = append(errs, fmt.Errorf("looking up mapped kind: %w", aliasErr))
+		}
+
 		// Insert or merge rules into the build file.
 		if f == nil {
 			f = rule.EmptyFile(filepath.Join(dir, c.DefaultBuildFileName()), rel)
@@ -535,7 +555,7 @@ func Run(
 		} else {
 			merger.MergeFile(f, empty, gen, merger.PreResolve,
 				unionKindInfoMaps(kinds, mappedKindInfo),
-				c.AliasMap,
+				aliasedKinds,
 			)
 		}
 		visits = append(visits, visitRecord{
@@ -547,6 +567,7 @@ func Run(
 			file:           f,
 			mappedKinds:    mappedKinds,
 			mappedKindInfo: mappedKindInfo,
+			aliasedKinds:   aliasedKinds,
 		})
 
 		// Add library rules to the dependency resolution table.
@@ -604,7 +625,7 @@ func Run(
 		}
 		merger.MergeFile(v.file, v.empty, v.rules, merger.PostResolve,
 			unionKindInfoMaps(kinds, v.mappedKindInfo),
-			v.c.AliasMap,
+			v.aliasedKinds,
 		)
 	}
 
@@ -669,6 +690,31 @@ func lookupMapKindReplacement(kindMap map[string]config.MappedKind, kind string)
 	}
 
 	return mapped, nil
+}
+
+// resolveAliasMap returns a copy of aliasMap in which each wrapped kind has
+// been replaced by its map_kind replacement, if it has one.
+//
+// alias_kind names the kind that a wrapper macro stands in for using the kind's
+// original name (e.g. "go_test"), but map_kind may rewrite that same kind to
+// another name (e.g. "go_custom_test"). By the time rules are merged, generated
+// rules carry the mapped name, so the two directives only agree if the alias
+// targets are mapped as well. See #2313.
+func resolveAliasMap(aliasMap map[string]string, kindMap map[string]config.MappedKind) (map[string]string, error) {
+	resolved := make(map[string]string, len(aliasMap))
+	var errs []error
+	// Iterate in a stable order so that any reported errors are deterministic.
+	for _, alias := range slices.Sorted(maps.Keys(aliasMap)) {
+		wrappedKind := aliasMap[alias]
+		repl, err := lookupMapKindReplacement(kindMap, wrappedKind)
+		if err != nil {
+			errs = append(errs, err)
+		} else if repl != nil {
+			wrappedKind = repl.KindName
+		}
+		resolved[alias] = wrappedKind
+	}
+	return resolved, errors.Join(errs...)
 }
 
 func newFixUpdateConfiguration(
