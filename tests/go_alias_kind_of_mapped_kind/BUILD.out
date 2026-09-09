@@ -1,0 +1,6 @@
+# gazelle:prefix example.com/aliaskind
+# gazelle:go_naming_convention go_default_library
+# gazelle:map_kind go_test go_custom_test //build:build.bzl
+# gazelle:map_kind go_library my_library //build:build.bzl
+# gazelle:alias_kind go_integration_test go_test
+# gazelle:alias_kind my_custom_macro go_library

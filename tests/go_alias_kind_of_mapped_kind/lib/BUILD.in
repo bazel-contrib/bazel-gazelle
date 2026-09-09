@@ -1,0 +1,8 @@
+load("//custom:def.bzl", "my_custom_macro")
+
+my_custom_macro(
+    name = "custom_lib",
+    srcs = ["bar.go"],
+    importpath = "example.com/aliaskind/lib",
+    visibility = ["//visibility:public"],
+)
