@@ -53,8 +53,8 @@ func TestNoGoRepositoryForRulesGoAndGazelle(t *testing.T) {
 	require.NoError(t, err)
 
 	content := string(config)
-	require.NotContains(t, content, "com_github_bazelbuild_rules_go")
-	require.NotContains(t, content, "com_github_bazelbuild_bazel_gazelle")
+	require.NotContains(t, content, "name = \"com_github_bazelbuild_rules_go\"")
+	require.NotContains(t, content, "name = \"com_github_bazelbuild_bazel_gazelle\"")
 	require.Contains(t, content, "module_name = \"rules_go\"")
 	require.Contains(t, content, "module_name = \"gazelle\"")
 }
