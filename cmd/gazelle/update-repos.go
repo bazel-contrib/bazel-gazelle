@@ -170,9 +170,7 @@ func updateRepos(
 	loads := []rule.LoadInfo{}
 	for _, lang := range languages {
 		for _, load := range lang.ApparentLoads(c.ModuleToApparentName) {
-			// Remove excess cap so that we can append to Symbols in addKindToLoadList
-			// without mutating the original slice.
-			load.Symbols = load.Symbols[0:len(load.Symbols):len(load.Symbols)]
+			load.Symbols = slices.Clone(load.Symbols)
 			loads = append(loads, load)
 		}
 		for _, kind := range lang.Kinds() {
@@ -431,9 +429,6 @@ func addKindToLoadList(c *config.Config, loads []rule.LoadInfo, kind rule.KindIn
 	for i := range loads {
 		if loads[i].Name == loadedFrom {
 			if !slices.Contains(loads[i].Symbols, kind.Name) {
-				// This shouldn't mutate the original backing array returned by the
-				// extension. We limit cap so that append creates a copy the first time
-				// we call it.
 				loads[i].Symbols = append(loads[i].Symbols, kind.Name)
 			}
 			return loads
