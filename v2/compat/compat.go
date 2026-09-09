@@ -20,6 +20,8 @@ package compat
 import (
 	"context"
 	"flag"
+	"maps"
+	"slices"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 	"github.com/bazel-contrib/bazel-gazelle/v2/language"
@@ -151,8 +153,14 @@ type generatorAdapter struct {
 	v1 languagev1.Language
 }
 
-func (g generatorAdapter) Kinds() map[string]rule.KindInfo {
-	return g.v1.Kinds()
+func (g generatorAdapter) Kinds() []rule.KindInfo {
+	kindMap := g.v1.Kinds()
+	kinds := make([]rule.KindInfo, len(kindMap))
+	for i, name := range slices.Sorted(maps.Keys(kindMap)) {
+		kinds[i] = kindMap[name]
+		kinds[i].Name = name
+	}
+	return kinds
 }
 
 func (g generatorAdapter) Generate(ctx context.Context, args language.GenerateArgs) (language.GenerateResult, error) {
@@ -366,7 +374,7 @@ func LanguageV2(v languagev1.Language) CompleteLanguage {
 
 type noopGenerator struct{}
 
-func (noopGenerator) Kinds() map[string]rule.KindInfo {
+func (noopGenerator) Kinds() []rule.KindInfo {
 	return nil
 }
 
