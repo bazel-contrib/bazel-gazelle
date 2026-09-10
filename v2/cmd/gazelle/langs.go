@@ -25,7 +25,7 @@ import (
 
 func init() {
 	languages = []language.Language{
-		compat.LanguageV2(visibility.NewLanguage()),
+		visibility.NewV2(),
 		compat.LanguageV2(proto.NewLanguage()),
 		compat.LanguageV2(golang.NewLanguage()),
 	}

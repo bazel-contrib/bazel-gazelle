@@ -16,14 +16,14 @@ limitations under the License.
 package visibility
 
 import (
-	"flag"
+	"context"
 	"strings"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 )
 
 const (
+	_extName                 = "visibility"
 	_visibilityDirectiveName = "default_visibility"
 	_featureDirectiveName    = "default_features"
 )
@@ -44,14 +44,6 @@ func getVisConfig(c *config.Config) visConfig {
 	return cfg.(visConfig)
 }
 
-// RegisterFlags noops because we only parameterize behavior with a directive.
-func (*visibilityExtension) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {}
-
-// CheckFlags noops because no flags are referenced.
-func (*visibilityExtension) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
-	return nil
-}
-
 // KnownDirectives returns the only directive this extension operates on.
 func (*visibilityExtension) KnownDirectives() []string {
 	return []string{_featureDirectiveName, _visibilityDirectiveName}
@@ -61,10 +53,12 @@ func (*visibilityExtension) KnownDirectives() []string {
 //
 // To set multiple visibility targets, either multiple directives can be used, or a
 // list can be provided with comma-separated values.
-func (*visibilityExtension) Configure(c *config.Config, _ string, f *rule.File) {
+func (*visibilityExtension) Configure(_ context.Context, args config.ConfigureArgs) error {
+	c := args.Config
+	f := args.File
 	cfg := getVisConfig(c)
 	if f == nil {
-		return
+		return nil
 	}
 
 	var newVisTargets []string
@@ -92,6 +86,5 @@ func (*visibilityExtension) Configure(c *config.Config, _ string, f *rule.File) 
 	}
 
 	c.Exts[_extName] = cfg
+	return nil
 }
-
-// /Configurator embed
