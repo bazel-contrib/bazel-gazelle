@@ -29,6 +29,48 @@ TEST = r"""
       }
     }
   ],
+  "downloads": {
+    "https://proxy.golang.org/cel.dev/expr/@v/v0.25.1.mod": {
+      "content": "module cel.dev/expr\n\ngo 1.23.0\n\ntoolchain go1.24.9\n\nrequire google.golang.org/protobuf v1.36.10\n",
+      "sha256": "67452750d57eccae2633b174e66468b72632ede744addb4de2c0b26ddd38a8e1"
+    },
+    "https://proxy.golang.org/github.com/fatih/color/@v/v1.12.0.mod": {
+      "content": "module github.com/fatih/color\n\ngo 1.13\n\nrequire (\n\tgithub.com/mattn/go-colorable v0.1.8\n\tgithub.com/mattn/go-isatty v0.0.12\n)\n",
+      "sha256": "539fce7cf49c4dc6135f300ad471370fd0e15dff38f5cb0cc432d4131363eb8b"
+    },
+    "https://proxy.golang.org/github.com/google/go-jsonnet/@v/v0.20.0.mod": {
+      "content": "module github.com/google/go-jsonnet\n\ngo 1.17\n\nrequire (\n\tgithub.com/fatih/color v1.12.0\n\tgithub.com/sergi/go-diff v1.1.0\n\tsigs.k8s.io/yaml v1.1.0\n)\n\nrequire (\n\tgithub.com/mattn/go-colorable v0.1.8 // indirect\n\tgithub.com/mattn/go-isatty v0.0.12 // indirect\n\tgolang.org/x/sys v0.1.0 // indirect\n\tgopkg.in/yaml.v2 v2.2.7 // indirect\n)\n",
+      "sha256": "35238699c0cd09f5e79619863a0014f01129615f811c8a30239b80e8e3a58145"
+    },
+    "https://proxy.golang.org/github.com/mattn/go-colorable/@v/v0.1.8.mod": {
+      "content": "module github.com/mattn/go-colorable\n\nrequire (\n\tgithub.com/mattn/go-isatty v0.0.12\n\tgolang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae // indirect\n)\n\ngo 1.13\n",
+      "sha256": "adff3e24384bcd2ecf0c6d6a1a9e4e31065401e9b5d29ce6a120255ab3c02313"
+    },
+    "https://proxy.golang.org/github.com/mattn/go-isatty/@v/v0.0.12.mod": {
+      "content": "module github.com/mattn/go-isatty\n\ngo 1.12\n\nrequire golang.org/x/sys v0.0.0-20200116001909-b77594299b42\n",
+      "sha256": "1a062e56c0266d004bea51115acf8c2b597d1407ca55ad56cce01e97ada3da4b"
+    },
+    "https://proxy.golang.org/github.com/sergi/go-diff/@v/v1.1.0.mod": {
+      "content": "module github.com/sergi/go-diff\n\nrequire (\n\tgithub.com/davecgh/go-spew v1.1.1 // indirect\n\tgithub.com/kr/pretty v0.1.0 // indirect\n\tgithub.com/stretchr/testify v1.4.0\n\tgopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect\n\tgopkg.in/yaml.v2 v2.2.4 // indirect\n)\n\ngo 1.12\n",
+      "sha256": "20e6ecdff77b84693835b978b8a16f6c22b7855962b234103d5eb74818be441f"
+    },
+    "https://proxy.golang.org/golang.org/x/sys/@v/v0.1.0.mod": {
+      "content": "module golang.org/x/sys\n\ngo 1.17\n",
+      "sha256": "f033333096fe198f3151deed93f2deba74e50bbfe7739134045bc3b7ce4a5024"
+    },
+    "https://proxy.golang.org/google.golang.org/protobuf/@v/v1.36.10.mod": {
+      "content": "module google.golang.org/protobuf\n\ngo 1.23\n\nrequire (\n\tgithub.com/golang/protobuf v1.5.0\n\tgithub.com/google/go-cmp v0.7.0\n)\n",
+      "sha256": "a75c105a852fbd8da8d8cfac09c2eab9a206cfd27ed37c973737e23f632ca96e"
+    },
+    "https://proxy.golang.org/gopkg.in/yaml.v2/@v/v2.2.7.mod": {
+      "content": "module \"gopkg.in/yaml.v2\"\n\nrequire (\n\t\"gopkg.in/check.v1\" v0.0.0-20161208181325-20d25e280405\n)\n",
+      "sha256": "88d979d2f093d2397f756bc86efa2ca03f73a60d668ceb391b3510029f3f7cfc"
+    },
+    "https://proxy.golang.org/sigs.k8s.io/yaml/@v/v1.1.0.mod": {
+      "content": "module sigs.k8s.io/yaml\n",
+      "sha256": "242d720d1c6aefe4a305c3341a80575e19a54517a53b620f8ce28c296e51d3aa"
+    }
+  },
   "executions": {
     "main": {
       "go list -m -json all": "{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"cel.dev/expr\",\n\t\"Version\": \"v0.25.1\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/cel.dev/expr/@v/v0.25.1.mod\",\n\t\"GoVersion\": \"1.23.0\",\n\t\"Sum\": \"h1:1KrZg61W6TWSxuNZ37Xy49ps13NUovb66QLprthtwi4=\"\n}\n{\n\t\"Path\": \"github.com/fatih/color\",\n\t\"Version\": \"v1.12.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/github.com/fatih/color/@v/v1.12.0.mod\",\n\t\"GoVersion\": \"1.13\"\n}\n{\n\t\"Path\": \"github.com/google/go-jsonnet\",\n\t\"Version\": \"v0.20.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/github.com/google/go-jsonnet/@v/v0.20.0.mod\",\n\t\"GoVersion\": \"1.17\",\n\t\"Sum\": \"h1:abc123=\"\n}\n{\n\t\"Path\": \"github.com/mattn/go-colorable\",\n\t\"Version\": \"v0.1.8\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/github.com/mattn/go-colorable/@v/v0.1.8.mod\",\n\t\"GoVersion\": \"1.13\"\n}\n{\n\t\"Path\": \"github.com/mattn/go-isatty\",\n\t\"Version\": \"v0.0.12\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/github.com/mattn/go-isatty/@v/v0.0.12.mod\",\n\t\"GoVersion\": \"1.12\"\n}\n{\n\t\"Path\": \"github.com/sergi/go-diff\",\n\t\"Version\": \"v1.1.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/github.com/sergi/go-diff/@v/v1.1.0.mod\",\n\t\"GoVersion\": \"1.12\"\n}\n{\n\t\"Path\": \"golang.org/x/sys\",\n\t\"Version\": \"v0.1.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/sys/@v/v0.1.0.mod\",\n\t\"GoVersion\": \"1.17\"\n}\n{\n\t\"Path\": \"google.golang.org/protobuf\",\n\t\"Version\": \"v1.36.10\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/google.golang.org/protobuf/@v/v1.36.10.mod\",\n\t\"GoVersion\": \"1.23\"\n}\n{\n\t\"Path\": \"gopkg.in/yaml.v2\",\n\t\"Version\": \"v2.2.7\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/gopkg.in/yaml.v2/@v/v2.2.7.mod\"\n}\n{\n\t\"Path\": \"sigs.k8s.io/yaml\",\n\t\"Version\": \"v1.1.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/sigs.k8s.io/yaml/@v/v1.1.0.mod\"\n}\n"

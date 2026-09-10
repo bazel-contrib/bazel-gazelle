@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -17,6 +19,8 @@ import (
 )
 
 const normalizedGoListTime = "0001-01-01T00:00:00Z"
+
+const goModuleProxyOrigin = "https://proxy.golang.org"
 
 var goListTimeRE = regexp.MustCompile(`"Time": "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z"`)
 
@@ -152,6 +156,11 @@ func convertDirToBzlWithGoEnv(dirPath, bzlPath string) error {
 		return err
 	}
 
+	facts, err := readJSONFile[json.RawMessage](dirPath, factsFileName)
+	if err != nil {
+		return err
+	}
+
 	testName := strings.TrimSuffix(filepath.Base(bzlPath), ".bzl")
 	tcForWork := testCaseFromParsed(testName, parsed, rootName, files)
 	if err := writeGoDepsWorkFiles(dirPath, tcForWork); err != nil {
@@ -177,6 +186,11 @@ func convertDirToBzlWithGoEnv(dirPath, bzlPath string) error {
 		if len(isolateExecs) > 0 {
 			executions[isolateExecutionKey(name)] = isolateExecs
 		}
+	}
+
+	downloads, err := collectDownloadsFromModcache(os.Getenv("GOMODCACHE"))
+	if err != nil {
+		return err
 	}
 
 	modules := make([]module, 0, len(parsed))
@@ -214,6 +228,8 @@ func convertDirToBzlWithGoEnv(dirPath, bzlPath string) error {
 		Name:       testName,
 		Modules:    modules,
 		Files:      files,
+		Downloads:  downloads,
+		Facts:      facts,
 		Executions: executions,
 		Want:       want,
 	}
@@ -919,8 +935,58 @@ func runGoEditCommand(dirPath, subcommand, path string) (string, error) {
 	return string(out), nil
 }
 
+func collectDownloadsFromModcache(gomodcache string) (map[string]downloadEntry, error) {
+	if gomodcache == "" {
+		return nil, nil
+	}
+	downloadRoot := filepath.Join(filepath.Clean(gomodcache), "cache", "download")
+	if _, err := os.Stat(downloadRoot); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	downloads := map[string]downloadEntry{}
+	err := filepath.WalkDir(downloadRoot, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(d.Name(), ".mod") {
+			return nil
+		}
+		rel, err := filepath.Rel(downloadRoot, path)
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		sum := sha256.Sum256(data)
+		downloads[goModuleProxyOrigin+"/"+filepath.ToSlash(rel)] = downloadEntry{
+			Content: string(data),
+			SHA256:  hex.EncodeToString(sum[:]),
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(downloads) == 0 {
+		return nil, nil
+	}
+	return downloads, nil
+}
+
 func readWantJSON(dirPath string) (map[string]json.RawMessage, error) {
-	path := filepath.Join(dirPath, "want.json")
+	return readJSONFile[json.RawMessage](dirPath, "want.json")
+}
+
+// readJSONFile reads a JSON object from a file in dirPath, returning nil if the
+// file doesn't exist.
+func readJSONFile[V any](dirPath, name string) (map[string]V, error) {
+	path := filepath.Join(dirPath, name)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -928,14 +994,11 @@ func readWantJSON(dirPath string) (map[string]json.RawMessage, error) {
 		}
 		return nil, err
 	}
-	if !json.Valid(data) {
-		return nil, fmt.Errorf("%s: invalid JSON", path)
-	}
-	var want map[string]json.RawMessage
-	if err := json.Unmarshal(data, &want); err != nil {
+	var value map[string]V
+	if err := json.Unmarshal(data, &value); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	return want, nil
+	return value, nil
 }
 
 func collectModuleFiles(dirPath string, moduleNames map[string]bool) (map[string]string, error) {
