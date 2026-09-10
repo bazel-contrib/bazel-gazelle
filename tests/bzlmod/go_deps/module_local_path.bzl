@@ -33,6 +33,7 @@ TEST = r"""
       "repos": [
         {
           "importpath": "golang.org/x/mod",
+          "local_path": "./mod_replaced",
           "name": "org_golang_x_mod"
         }
       ],

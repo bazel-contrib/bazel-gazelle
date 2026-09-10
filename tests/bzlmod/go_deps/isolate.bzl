@@ -68,6 +68,7 @@ TEST = r"""
       "repos": [
         {
           "importpath": "golang.org/x/mod",
+          "local_path": "/test/isolate_dep/local_mod",
           "name": "org_golang_x_mod"
         }
       ],
