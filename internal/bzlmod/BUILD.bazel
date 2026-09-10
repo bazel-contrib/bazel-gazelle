@@ -26,6 +26,7 @@ bzl_library(
         ":default_gazelle_overrides",
         ":globs",
         ":go_repository_config",
+        ":goproxy",
         ":semver",
         ":utils",
         "//internal:env",

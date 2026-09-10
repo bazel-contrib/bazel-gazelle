@@ -84,12 +84,16 @@ def extension_metadata(
         *,
         root_module_direct_deps = None,
         root_module_direct_dev_deps = None,
-        reproducible = False):
+        reproducible = False,
+        facts = None):
     if not hasattr(module_ctx, "extension_metadata"):
         return None
     metadata_kwargs = {}
     if bazel_features.external_deps.extension_metadata_has_reproducible:
         metadata_kwargs["reproducible"] = reproducible
+
+    if facts != None and hasattr(module_ctx, "facts"):
+        metadata_kwargs["facts"] = facts
     return module_ctx.extension_metadata(
         root_module_direct_deps = root_module_direct_deps,
         root_module_direct_dev_deps = root_module_direct_dev_deps,
