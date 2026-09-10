@@ -35,6 +35,12 @@ TEST = r"""
     "./root/go.work": "go 1.24.12\n\nreplace golang.org/x/tools v0.49.0 =\u003e ./tools_replaced\n",
     "./root/tools_replaced/go.mod": "module golang.org/x/tools\n\ngo 1.24.12\n"
   },
+  "downloads": {
+    "https://proxy.golang.org/golang.org/x/mod/@v/v0.40.0.mod": {
+      "content": "module golang.org/x/mod\n\ngo 1.25.0\n\nrequire golang.org/x/tools v0.49.0 // tagx:ignore\n",
+      "sha256": "7458cd1a66875b76fb962428ffb61aee84acfd871a32e56b4efb43b3b8d2a70d"
+    }
+  },
   "executions": {
     "main": {
       "go list -m -json all": "{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.40.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.40.0.mod\",\n\t\"GoVersion\": \"1.25.0\",\n\t\"Sum\": \"h1:hUv+3cXcdRHz08UmSiOob7sadHig73uo5bkXxQ/tvUs=\"\n}\n{\n\t\"Path\": \"golang.org/x/tools\",\n\t\"Version\": \"v0.49.0\",\n\t\"Replace\": {\n\t\t\"Path\": \"/test/root/tools_replaced\",\n\t\t\"Dir\": \"/test/root/tools_replaced\",\n\t\t\"GoMod\": \"/test/root/tools_replaced/go.mod\",\n\t\t\"GoVersion\": \"1.24.12\"\n\t},\n\t\"Indirect\": true,\n\t\"Dir\": \"/test/root/tools_replaced\",\n\t\"GoMod\": \"/test/root/tools_replaced/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n",
