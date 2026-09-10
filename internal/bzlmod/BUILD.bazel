@@ -6,6 +6,7 @@ filegroup(
     srcs = [
         "BUILD.bazel",
         "default_gazelle_overrides.bzl",
+        "globs.bzl",
         "go_deps.bzl",
         "go_repository_config.bzl",
         "non_module_deps.bzl",
@@ -22,6 +23,7 @@ bzl_library(
     visibility = ["//:__subpackages__"],
     deps = [
         ":default_gazelle_overrides",
+        ":globs",
         ":go_repository_config",
         ":semver",
         ":utils",
@@ -30,6 +32,12 @@ bzl_library(
         "@bazel_gazelle_go_repository_cache//:def",
         "@bazel_skylib//lib:paths",
     ],
+)
+
+bzl_library(
+    name = "globs",
+    srcs = ["globs.bzl"],
+    visibility = ["//:__subpackages__"],
 )
 
 bzl_library(
