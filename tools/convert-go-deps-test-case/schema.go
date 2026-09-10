@@ -7,10 +7,24 @@ import (
 
 const goListCommand = "go list -m -json all"
 
+// Names of files in a test case directory holding optional test case fields
+// that aren't derived from the module directories.
+const (
+	downloadsFileName = "downloads.json"
+	factsFileName     = "facts.json"
+)
+
+type downloadEntry struct {
+	Content string `json:"content"`
+	SHA256  string `json:"sha256"`
+}
+
 type testCase struct {
 	Name       string                       `json:"name"`
 	Modules    []module                     `json:"modules"`
 	Files      map[string]string            `json:"files,omitempty"`
+	Downloads  map[string]downloadEntry     `json:"downloads,omitempty"`
+	Facts      map[string]json.RawMessage   `json:"facts,omitempty"`
 	Executions map[string]map[string]string `json:"executions,omitempty"`
 	Want       map[string]json.RawMessage   `json:"want,omitempty"`
 }
