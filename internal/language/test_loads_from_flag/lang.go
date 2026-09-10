@@ -13,34 +13,41 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package test_filegroup_with_config generates an "all_files" filegroup target
-// in each package. This target globs files in the same package and
-// depends on subpackages.
+// Package test_loads_from_flag generates a rule using a load location
+// configured with a command-line flag.
 //
-// These rules are used for testing with go_bazel_test.
+// These rules are used for testing with gazelle_generation_test.
 //
 // This extension is experimental and subject to change. It is not included
 // in the default Gazelle binary.
 package test_loads_from_flag
 
 import (
+	"context"
 	"flag"
 	"fmt"
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/language"
-	"github.com/bazelbuild/bazel-gazelle/rule"
 	"strings"
+
+	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 )
 
 const testLoadsFromFlagName = "test_loads_from_flag"
 
 type testLoadsFromFlag struct {
-	language.BaseLang
-
 	load Load
 }
 
-func NewLanguage() language.Language {
+var (
+	_ language.Language     = (*testLoadsFromFlag)(nil)
+	_ language.Generator    = (*testLoadsFromFlag)(nil)
+	_ compat.FlagConfigurer = (*testLoadsFromFlag)(nil)
+	_ compat.ApparentLoader = (*testLoadsFromFlag)(nil)
+)
+
+func NewV2() language.Language {
 	return &testLoadsFromFlag{}
 }
 
@@ -55,28 +62,27 @@ func (l *testLoadsFromFlag) CheckFlags(fs *flag.FlagSet, c *config.Config) error
 
 func (*testLoadsFromFlag) Name() string { return testLoadsFromFlagName }
 
-func (l *testLoadsFromFlag) Kinds() map[string]rule.KindInfo {
-	return map[string]rule.KindInfo{
-		l.load.symbol: {},
-	}
+func (l *testLoadsFromFlag) Kinds() []rule.KindInfo {
+	return []rule.KindInfo{{Name: l.load.symbol}}
 }
 
-func (l *testLoadsFromFlag) Loads() []rule.LoadInfo {
-	return []rule.LoadInfo{
-		{
-			Name:    l.load.from,
-			Symbols: []string{l.load.symbol},
-		},
+func (l *testLoadsFromFlag) ApparentLoads(func(string) string) []rule.LoadInfo {
+	if l.load.from == "" {
+		return nil
 	}
+	return []rule.LoadInfo{{
+		Name:    l.load.from,
+		Symbols: []string{l.load.symbol},
+	}}
 }
 
-func (*testLoadsFromFlag) GenerateRules(args language.GenerateArgs) language.GenerateResult {
+func (*testLoadsFromFlag) Generate(ctx context.Context, args language.GenerateArgs) (language.GenerateResult, error) {
 	load := args.Config.Exts[testLoadsFromFlagName].(Load)
 	r := rule.NewRule(load.symbol, "gen")
 	return language.GenerateResult{
 		Gen:     []*rule.Rule{r},
-		Imports: []interface{}{nil},
-	}
+		Imports: []any{nil},
+	}, nil
 }
 
 type Load struct {
