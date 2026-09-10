@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+# gazelle:prefix example.com/use
+
+go_library(
+    name = "use",
+    srcs = ["use.go"],
+    importpath = "example.com/use",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@gazelle//label",
+        "@gazelle//v2/label",
+    ],
+)

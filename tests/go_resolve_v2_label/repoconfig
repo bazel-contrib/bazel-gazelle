@@ -1,0 +1,2 @@
+# gazelle:repository go_repository name=gazelle importpath=github.com/bazelbuild/bazel-gazelle build_naming_convention=import
+# gazelle:repository go_repository name=gazelle importpath=github.com/bazel-contrib/bazel-gazelle/v2 prefix_dir=v2 build_naming_convention=import

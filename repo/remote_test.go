@@ -76,15 +76,23 @@ func TestRootSpecialCases(t *testing.T) {
 	} {
 		t.Run(tc.in, func(t *testing.T) {
 			rc := NewStubRemoteCache(tc.repos)
-			if gotRoot, gotName, err := rc.Root(tc.in); err != nil {
+			gotRoot, gotName, prefixDir, err := rc.Root(tc.in)
+			if err != nil {
 				if !tc.wantError {
-					t.Errorf("unexpected error: %v", err)
+					t.Fatalf("unexpected error: %v", err)
 				}
-			} else if tc.wantError {
-				t.Errorf("unexpected success: %v", tc.in)
-			} else if gotRoot != tc.wantRoot {
+				return
+			}
+			if tc.wantError {
+				t.Fatalf("unexpected success: %v", tc.in)
+			}
+			if prefixDir != "" {
+				t.Errorf("root for %q: prefixDir unexpectedly set to %q", tc.in, prefixDir)
+			}
+			if gotRoot != tc.wantRoot {
 				t.Errorf("root for %q: got %q; want %q", tc.in, gotRoot, tc.wantRoot)
-			} else if gotName != tc.wantName {
+			}
+			if gotName != tc.wantName {
 				t.Errorf("name for %q: got %q; want %q", tc.in, gotName, tc.wantName)
 			}
 		})
@@ -93,8 +101,8 @@ func TestRootSpecialCases(t *testing.T) {
 
 func TestRootStatic(t *testing.T) {
 	for _, tc := range []struct {
-		in, wantRoot, wantName string
-		repos                  []Repo
+		in, wantRoot, wantName, wantPrefixDir string
+		repos                                 []Repo
 	}{
 		{
 			in: "private.com/my/repo/package/path",
@@ -121,15 +129,34 @@ func TestRootStatic(t *testing.T) {
 			wantRoot: "",
 			wantName: "",
 		},
+		{
+			in: "example.com/prefix",
+			repos: []Repo{
+				{
+					Name:      "com_example",
+					GoPrefix:  "example.com",
+					PrefixDir: "prefix",
+				},
+			},
+			wantRoot:      "example.com",
+			wantName:      "com_example",
+			wantPrefixDir: "prefix",
+		},
 	} {
 		t.Run(tc.in, func(t *testing.T) {
 			rc := NewStubRemoteCache(tc.repos)
-			if gotRoot, gotName, err := rc.RootStatic(tc.in); err != nil {
-				t.Errorf("unexpected error: %v", err)
-			} else if gotRoot != tc.wantRoot {
+			gotRoot, gotName, gotPrefixDir, err := rc.RootStatic(tc.in)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if gotRoot != tc.wantRoot {
 				t.Errorf("root for %q: got %q; want %q", tc.in, gotRoot, tc.wantRoot)
-			} else if gotName != tc.wantName {
+			}
+			if gotName != tc.wantName {
 				t.Errorf("name for %q: got %q; want %q", tc.in, gotName, tc.wantName)
+			}
+			if gotPrefixDir != tc.wantPrefixDir {
+				t.Errorf("prefixDir for %q: got %q; want %q", tc.in, gotPrefixDir, tc.wantPrefixDir)
 			}
 		})
 	}
@@ -160,7 +187,7 @@ func TestRootPopulatedFromGoMod(t *testing.T) {
 	goodPkgPath := "example.com/good/pkg"
 	wantRoot := "example.com/good"
 	wantName := "com_example_good"
-	root, name, err := rc.Root(goodPkgPath)
+	root, name, prefixDir, err := rc.Root(goodPkgPath)
 	if err != nil {
 		t.Fatalf("could not resolve %q from go.mod: %v", goodPkgPath, err)
 	}
@@ -170,11 +197,14 @@ func TestRootPopulatedFromGoMod(t *testing.T) {
 	if name != wantName {
 		t.Errorf("got name %q; want %q", root, wantName)
 	}
+	if prefixDir != "" {
+		t.Errorf("prefixDir %q unexpectedly set", prefixDir)
+	}
 
 	// Resolving another module should fail because RepoRootForImportPath
 	// is stubbed out.
 	badPkgPath := "example.com/bad/pkg"
-	if _, _, err := rc.Root(badPkgPath); err == nil {
+	if _, _, _, err := rc.Root(badPkgPath); err == nil {
 		t.Errorf("resolving %q: unexpected success", badPkgPath)
 	} else if !errors.Is(err, errResolve) {
 		t.Errorf("resolving %q: got error %v, want %v", badPkgPath, err, errResolve)
@@ -270,10 +300,10 @@ func TestHead(t *testing.T) {
 
 func TestMod(t *testing.T) {
 	for _, tc := range []struct {
-		desc, importPath      string
-		repos                 []Repo
-		wantModPath, wantName string
-		wantErr               bool
+		desc, importPath                     string
+		repos                                []Repo
+		wantModPath, wantName, wantPrefixDir string
+		wantErr                              bool
 	}{
 		{
 			desc:       "no_special_cases",
@@ -305,11 +335,22 @@ func TestMod(t *testing.T) {
 			importPath:  "example.com/stub/v2/foo",
 			wantModPath: "example.com/stub/v2",
 			wantName:    "com_example_stub_v2",
+		}, {
+			desc:       "prefix",
+			importPath: "example.com/prefix",
+			repos: []Repo{{
+				Name:      "com_example",
+				GoPrefix:  "example.com/prefix",
+				PrefixDir: "prefix",
+			}},
+			wantModPath:   "example.com/prefix",
+			wantName:      "com_example",
+			wantPrefixDir: "prefix",
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			rc := NewStubRemoteCache(tc.repos)
-			modPath, name, err := rc.Mod(tc.importPath)
+			modPath, name, prefixDir, err := rc.Mod(tc.importPath)
 			if err != nil && tc.wantErr {
 				return
 			} else if err == nil && tc.wantErr {
@@ -322,6 +363,9 @@ func TestMod(t *testing.T) {
 			}
 			if name != tc.wantName {
 				t.Errorf("name: got %s; want %s", name, tc.wantName)
+			}
+			if prefixDir != tc.wantPrefixDir {
+				t.Errorf("prefixDir: got %s; want %s", prefixDir, tc.wantPrefixDir)
 			}
 		})
 	}
