@@ -11,6 +11,9 @@ load("//tests/bzlmod/go_deps:default_gazelle_overrides.bzl", DEFAULT_GAZELLE_OVE
 load("//tests/bzlmod/go_deps:dep_files.bzl", DEP_FILES_TEST = "TEST")
 load("//tests/bzlmod/go_deps:duplicate_module_tag.bzl", DUPLICATE_MODULE_TAG_TEST = "TEST")
 load("//tests/bzlmod/go_deps:empty.bzl", EMPTY_TEST = "TEST")
+load("//tests/bzlmod/go_deps:facts_all.bzl", FACTS_ALL_TEST = "TEST")
+load("//tests/bzlmod/go_deps:facts_gonoproxy.bzl", FACTS_GONOPROXY_TEST = "TEST")
+load("//tests/bzlmod/go_deps:facts_goprivate.bzl", FACTS_GOPRIVATE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:gazelle_default_attributes.bzl", GAZELLE_DEFAULT_ATTRIBUTES_TEST = "TEST")
 load("//tests/bzlmod/go_deps:gazelle_override.bzl", GAZELLE_OVERRIDE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:go_version_low.bzl", GO_VERSION_LOW_TEST = "TEST")
@@ -45,6 +48,9 @@ _GO_DEPS_TEST_CASES = [
     DEP_FILES_TEST,
     DUPLICATE_MODULE_TAG_TEST,
     EMPTY_TEST,
+    FACTS_ALL_TEST,
+    FACTS_GONOPROXY_TEST,
+    FACTS_GOPRIVATE_TEST,
     GAZELLE_DEFAULT_ATTRIBUTES_TEST,
     GAZELLE_OVERRIDE_TEST,
     GO_VERSION_LOW_TEST,
@@ -141,6 +147,13 @@ def _run_go_deps_instance(env, expect, case, instance_name, isolated, isolate_mo
         module_ctx._state.repos.keys(),
         expr = "declared repos",
     ).contains_at_least([repo.name for repo in want.repos])
+
+    if want.facts != None:
+        case_expect.that_value(
+            metadata.facts,
+            factory = subjects.dict,
+            expr = "facts",
+        ).contains_exactly(want.facts)
 
     for want_repo in want.repos:
         if want_repo.name not in module_ctx._state.repos:

@@ -54,6 +54,44 @@ TEST = r"""
     "./isolate_dep/go.sum": "golang.org/x/mod v0.39.0 h1:UF5zwQdCRRUpHfyPwr7d4UrGiVeldIsogtzWVnczL74=\ngolang.org/x/mod v0.39.0/go.mod h1:bvIbwjQ0HUFFf5AKukeeYQG4ZBUG9yxQbR9aEweIwYY=\ngoogle.golang.org/protobuf v1.36.3 h1:abc123=\n",
     "./isolate_dep/local_mod/go.mod": "module golang.org/x/mod\n\ngo 1.24.12\n"
   },
+  "downloads": {
+    "https://proxy.golang.org/github.com/golang/protobuf/@v/v1.5.0.mod": {
+      "content": "module github.com/golang/protobuf\n\ngo 1.9\n\nrequire (\n\tgithub.com/google/go-cmp v0.5.5\n\tgoogle.golang.org/protobuf v1.26.0-rc.1\n)\n",
+      "sha256": "738cbb1de96b67a6238ac3b8081cd8b1bfb0daebcf6c9bbe8cbdb6d73baecd19"
+    },
+    "https://proxy.golang.org/github.com/google/go-cmp/@v/v0.5.5.mod": {
+      "content": "module github.com/google/go-cmp\n\ngo 1.8\n\nrequire golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543\n",
+      "sha256": "4036ab5636aa42bd313296cd3bfcb4c88912760c56a9e6655ae422d8767c80da"
+    },
+    "https://proxy.golang.org/golang.org/x/mod/@v/v0.40.0.mod": {
+      "content": "module golang.org/x/mod\n\ngo 1.25.0\n\nrequire golang.org/x/tools v0.49.0 // tagx:ignore\n",
+      "sha256": "7458cd1a66875b76fb962428ffb61aee84acfd871a32e56b4efb43b3b8d2a70d"
+    },
+    "https://proxy.golang.org/golang.org/x/text/@v/v0.0.0-20170915032832-14c0d48ead0c.mod": {
+      "content": "module golang.org/x/text\n",
+      "sha256": "36879d586fd8001e84da8787190a11e4f78749e2a81dfe8b9b6931899fff31cf"
+    },
+    "https://proxy.golang.org/golang.org/x/tools/@v/v0.49.0.mod": {
+      "content": "module golang.org/x/tools\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/google/go-cmp v0.6.0\n\tgithub.com/yuin/goldmark v1.4.13\n\tgolang.org/x/mod v0.39.0\n\tgolang.org/x/net v0.58.0\n\tgolang.org/x/sync v0.22.0\n\tgolang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5\n)\n\nrequire golang.org/x/sys v0.47.0 // indirect\n",
+      "sha256": "86e34efea35b8aa52aabff0ea18c0ef217f074dff67ef7b4c700ae833968cf62"
+    },
+    "https://proxy.golang.org/golang.org/x/xerrors/@v/v0.0.0-20191204190536-9bdfabe68543.mod": {
+      "content": "module golang.org/x/xerrors\n\ngo 1.11\n",
+      "sha256": "aa5e3ec9bb7b9f681609efac019d9de1a7ba7719248ff1eaa27e78882db3d7f5"
+    },
+    "https://proxy.golang.org/google.golang.org/protobuf/@v/v1.36.3.mod": {
+      "content": "module google.golang.org/protobuf\n\ngo 1.21\n\nrequire (\n\tgithub.com/golang/protobuf v1.5.0\n\tgithub.com/google/go-cmp v0.5.5\n)\n\nrequire golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543 // indirect\n",
+      "sha256": "19a404db0a71ea56c16003e0279957f04aa69363ef966c6df8d2d98e291ff953"
+    },
+    "https://proxy.golang.org/rsc.io/quote/@v/v1.5.2.mod": {
+      "content": "module \"rsc.io/quote\"\n\nrequire \"rsc.io/sampler\" v1.3.0\n",
+      "sha256": "b167e79090d79e4b5738995c62a2186548fc33c919d6b4da1d36cc8c7c1e40c1"
+    },
+    "https://proxy.golang.org/rsc.io/sampler/@v/v1.3.0.mod": {
+      "content": "module \"rsc.io/sampler\"\n\nrequire \"golang.org/x/text\" v0.0.0-20170915032832-14c0d48ead0c\n",
+      "sha256": "a2ae6e8540a40b85e57703cc618b99c5b1075386d958e8999a0e2d4c02f3a705"
+    }
+  },
   "executions": {
     "isolate_dep_isolate": {
       "go list -m -json all": "{\n\t\"Path\": \"example.com/isolate_dep\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps_isolate_dep_isolate/mod/isolate_dep\",\n\t\"GoMod\": \"/test/go_deps_isolate_dep_isolate/mod/isolate_dep/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps_isolate_dep_isolate\",\n\t\"GoMod\": \"/test/go_deps_isolate_dep_isolate/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"github.com/golang/protobuf\",\n\t\"Version\": \"v1.5.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/github.com/golang/protobuf/@v/v1.5.0.mod\",\n\t\"GoVersion\": \"1.9\"\n}\n{\n\t\"Path\": \"github.com/google/go-cmp\",\n\t\"Version\": \"v0.5.5\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/github.com/google/go-cmp/@v/v0.5.5.mod\",\n\t\"GoVersion\": \"1.8\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.39.0\",\n\t\"Replace\": {\n\t\t\"Path\": \"/test/isolate_dep/local_mod\",\n\t\t\"Dir\": \"/test/isolate_dep/local_mod\",\n\t\t\"GoMod\": \"/test/isolate_dep/local_mod/go.mod\",\n\t\t\"GoVersion\": \"1.24.12\"\n\t},\n\t\"Dir\": \"/test/isolate_dep/local_mod\",\n\t\"GoMod\": \"/test/isolate_dep/local_mod/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"golang.org/x/xerrors\",\n\t\"Version\": \"v0.0.0-20191204190536-9bdfabe68543\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/xerrors/@v/v0.0.0-20191204190536-9bdfabe68543.mod\",\n\t\"GoVersion\": \"1.11\"\n}\n{\n\t\"Path\": \"google.golang.org/protobuf\",\n\t\"Version\": \"v1.36.3\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/google.golang.org/protobuf/@v/v1.36.3.mod\",\n\t\"GoVersion\": \"1.21\",\n\t\"Sum\": \"h1:abc123=\"\n}\n",
