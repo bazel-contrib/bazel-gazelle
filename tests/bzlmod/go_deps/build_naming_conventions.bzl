@@ -35,6 +35,16 @@ TEST = r"""
   "files": {
     "./build_naming_conventions/BUILD.bazel": ""
   },
+  "downloads": {
+    "https://proxy.golang.org/golang.org/x/mod/@v/v0.40.0.mod": {
+      "content": "module golang.org/x/mod\n\ngo 1.25.0\n\nrequire golang.org/x/tools v0.49.0 // tagx:ignore\n",
+      "sha256": "7458cd1a66875b76fb962428ffb61aee84acfd871a32e56b4efb43b3b8d2a70d"
+    },
+    "https://proxy.golang.org/golang.org/x/tools/@v/v0.49.0.mod": {
+      "content": "module golang.org/x/tools\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/google/go-cmp v0.6.0\n\tgithub.com/yuin/goldmark v1.4.13\n\tgolang.org/x/mod v0.39.0\n\tgolang.org/x/net v0.58.0\n\tgolang.org/x/sync v0.22.0\n\tgolang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5\n)\n\nrequire golang.org/x/sys v0.47.0 // indirect\n",
+      "sha256": "86e34efea35b8aa52aabff0ea18c0ef217f074dff67ef7b4c700ae833968cf62"
+    }
+  },
   "executions": {
     "main": {
       "go list -m -json all": "{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.40.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.40.0.mod\",\n\t\"GoVersion\": \"1.25.0\",\n\t\"Sum\": \"h1:hUv+3cXcdRHz08UmSiOob7sadHig73uo5bkXxQ/tvUs=\"\n}\n{\n\t\"Path\": \"golang.org/x/tools\",\n\t\"Version\": \"v0.49.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/tools/@v/v0.49.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n"
