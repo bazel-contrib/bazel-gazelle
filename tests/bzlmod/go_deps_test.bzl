@@ -184,6 +184,8 @@ def _mock_module_ctx(case, executions, isolated, isolate_module = None):
         ),
         execute = lambda arguments, environment = {}: _mock_module_ctx_execute(state, arguments, environment),
         declare_repo = lambda rule, *, name, **kwargs: _mock_module_ctx_declare_repo(state, rule, name = name, **kwargs),
+        download = lambda url, output, sha256 = "", allow_fail = False, block = True: _mock_module_ctx_download(state, url, output, sha256, block, allow_fail),
+        facts = struct(get = lambda key, default = None: case.facts.get(key, default)),
         file = lambda path, content = "", executable = True: _mock_module_ctx_file(state, path, content),
         extension_metadata = lambda **kwargs: _mock_module_ctx_extension_metadata(**kwargs),
         getenv = state.environ.get,
@@ -238,6 +240,32 @@ def _mark_dev_tags(tags):
         marked.append(struct(**fields))
     return marked
 
+def _mock_module_ctx_download(state, url, output, sha256, block, allow_fail):
+    entry = state.case.downloads.get(url)
+    if entry == None:
+        result = struct(success = False, error = "no such file")
+    elif sha256 and sha256 != entry.sha256:
+        result = struct(success = False, error = "checksum mismatch")
+    else:
+        if output != None:
+            _mock_module_ctx_file(state, output, entry.content)
+        result = struct(success = True, sha256 = entry.sha256)
+    if not allow_fail and not result.success:
+        _mock_module_ctx_fail(state, result.error)
+    return result if block else struct(wait = lambda: result)
+
+# Output of commands that test cases don't need to include, since it would be
+# the same for almost every one. A test case may still list any of these
+# commands in its executions to override the output.
+_DEFAULT_EXECUTIONS = {
+    "go env -json GONOPROXY GOPRIVATE GOPROXY": json.encode({
+        "GONOPROXY": "",
+        "GOPRIVATE": "",
+        "GOPROXY": "https://proxy.golang.org,direct",
+    }),
+    "go version": "go version go1.27rc3 darwin/arm64",
+}
+
 def _mock_module_ctx_execute(state, arguments, environment):
     if len(environment) > 0:
         fail("test case {}: environment was not empty; expected all environment variables to be passed through 'env -i'".format(state.case.name))
@@ -261,18 +289,12 @@ def _mock_module_ctx_execute(state, arguments, environment):
 
     cmd_without_env = " ".join(arguments)
     cmd = " ".join(env_arguments + arguments)
-    if cmd_without_env == "go version":
-        # Test cases don't need to include this command, since it would be
-        # the same for every one.
-        return struct(
-            return_code = 0,
-            stdout = "go version go1.27rc3 darwin/arm64",
-            stderr = "",
-        )
     if cmd in state.executions:
         stdout = state.executions[cmd]
     elif cmd_without_env in state.executions:
         stdout = state.executions[cmd_without_env]
+    elif cmd_without_env in _DEFAULT_EXECUTIONS:
+        stdout = _DEFAULT_EXECUTIONS[cmd_without_env]
     else:
         fail("test case {}: command '{}' not included in test case".format(state.case.name, cmd))
     return struct(
@@ -324,7 +346,12 @@ def _mock_module_ctx_read(state, path):
         # special case: mock @bazel_gazelle_go_repository_cache//:go.env
         # We'll get a label with mangled repo name, but we don't want to simulate
         # the mangling, so only match go.env here.
-        return "GOROOT=@go_sdk//:ROOT"
+        return """\
+GOROOT_LABEL=@go_sdk//:ROOT
+GOPROXY=https://proxy.golang.org,direct
+GOPRIVATE=
+GONOPROXY=
+"""
     if filename in state.files:
         # file written with module_ctx.file
         return state.files[filename]
@@ -386,6 +413,7 @@ def _mock_module_ctx_extension_metadata(*, root_module_direct_deps = None, root_
         root_module_direct_deps = root_module_direct_deps if root_module_direct_deps != None else [],
         root_module_direct_dev_deps = root_module_direct_dev_deps if root_module_direct_dev_deps != None else [],
         reproducible = kwargs.get("reproducible", False),
+        facts = kwargs.get("facts", {}),
     )
 
 def _tags_empty(tags):
