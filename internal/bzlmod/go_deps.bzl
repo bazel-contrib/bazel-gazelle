@@ -672,14 +672,10 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
           go_deps.module or go_deps.from_file with go.mod.
     """
 
-    result = env_execute(module_ctx, [go_tool, "version"], go_env)
-    if result.return_code != 0:
-        module_ctx.fail("determining go version: {}".format(result.stderr))
+    go_version_info = _go_version(module_ctx, go_tool, go_env)
+    if go_version_info == None:
         return None
-
-    # example output: go version go1.27rc3 darwin/arm64
-    go_version_str = result.stdout.split(" ")[2][len("go"):]
-    go_version = _parse_go_version(go_version_str)
+    go_version_str, go_version = go_version_info
 
     go_work_lines = [
         "go {}".format(go_version_str),
@@ -738,7 +734,15 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
             go_mod_json = _parse_go_mod_json(module_ctx, go_tool, go_env, go_mod_path)
             if module_ctx.failed():
                 return
-            go_mod_version = _parse_go_version(go_mod_json["Go"])
+
+            # 'go mod edit -json' omits the key if there is no go directive.
+            # Go would assume 1.16, but any go.mod file written by a
+            # reasonably recent version of Go has one.
+            go_mod_version_str = go_mod_json.get("Go")
+            if not go_mod_version_str:
+                module_ctx.fail("{}: go.mod file has no go directive. Add one with 'go mod edit -go=<version>'.".format(go_mod_label))
+                return
+            go_mod_version = _parse_go_version(go_mod_version_str)
             if go_mod_version > go_version:
                 module_ctx.fail("""\
 In {go_mod_label}, go version is {go_mod_version}, but Bazel is using {go_version}.
@@ -752,7 +756,7 @@ To correct this:
 """.format(
                     go_version = go_version_str,
                     go_mod_label = go_mod_label,
-                    go_mod_version = go_mod_json["Go"],
+                    go_mod_version = go_mod_version_str,
                 ))
                 return
             if _module_acts_as_root(module_ctx, module):
@@ -1189,23 +1193,65 @@ Add to go.sum with:
         )
     return go_modules
 
+def _go_version(module_ctx, go_tool, go_env):
+    """
+    Determines the version of the Go toolchain by running 'go version'
+
+    Example outputs:
+
+        go version go1.27rc3 darwin/arm64
+        go version go1.28-devel_abc123 linux/amd64
+        go version devel go1.24-abc123 Thu Jan 1 00:00:00 2024 +0000 linux/amd64
+
+    The last form was printed by development builds before Go 1.25.
+
+    Returns:
+        a (version string, parsed version) tuple, or None after calling
+        module_ctx.fail. The version string has no "go" prefix and can be
+        used in a go directive, like "1.27rc3". For development versions
+        like "1.28-devel_abc123", which are not valid in go directives, it
+        is only the numeric part, like "1.28", which is what Go itself uses
+        as the version of such a toolchain.
+    """
+    result = env_execute(module_ctx, [go_tool, "version"], go_env)
+    if result.return_code != 0:
+        module_ctx.fail("determining go version: {}".format(result.stderr))
+        return None
+    output = result.stdout
+    words = output.split(" ")
+    if len(words) > 3 and words[2] == "devel":
+        toolchain = words[3]
+    elif len(words) > 2:
+        toolchain = words[2]
+    else:
+        toolchain = ""
+    if not toolchain.startswith("go") or not _parse_go_version(toolchain):
+        module_ctx.fail("could not parse output of 'go version': {}".format(output.strip()))
+        return None
+    version_str = toolchain[len("go"):]
+    version = _parse_go_version(version_str)
+    if "-" in version_str:
+        version_str = ".".join([str(n) for n in version])
+    return version_str, version
+
 def _parse_go_version(v):
     """
     Parses a go version like "go1.23" or "go1.27.8" or "go1.18beta2"
 
     Drops the "go" prefix if present and any suffix after the version numbers
-    like "rc3" or "beta2".
+    like "rc3", "beta2", or "-devel_abc123".
 
     Returns:
-        an array of integers that can be compared to other versions
+        an array of integers that can be compared to other versions, empty if
+        the string does not start with a version number
     """
     if v.startswith("go"):
         v = v[2:]
     for i, c in enumerate(v.elems()):
-        if c != "." and c < "0" or "9" < c:
+        if c != "." and (c < "0" or "9" < c):
             v = v[:i]
             break
-    return [int(part) for part in v.split(".")]
+    return [int(part) for part in v.split(".") if part != ""]
 
 def _normalize_version(version):
     """Strips a leading 'v' from a Go module version for comparison."""

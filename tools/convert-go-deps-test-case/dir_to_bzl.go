@@ -153,6 +153,11 @@ func convertDirToBzlWithGoEnv(dirPath, bzlPath string) error {
 		return err
 	}
 
+	goVersionOutput, err := os.ReadFile(filepath.Join(dirPath, "go_version.txt"))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
 	testName := strings.TrimSuffix(filepath.Base(bzlPath), ".bzl")
 	tcForWork := testCaseFromParsed(testName, parsed, rootName, files)
 	if err := writeGoDepsWorkFiles(dirPath, tcForWork); err != nil {
@@ -213,11 +218,12 @@ func convertDirToBzlWithGoEnv(dirPath, bzlPath string) error {
 	}
 
 	tc := testCase{
-		Name:       testName,
-		Modules:    modules,
-		Files:      files,
-		Executions: executions,
-		Want:       want,
+		Name:            testName,
+		Modules:         modules,
+		Files:           files,
+		Executions:      executions,
+		GoVersionOutput: string(goVersionOutput),
+		Want:            want,
 	}
 
 	content, err := renderTestCaseBzl(string(docstring), &tc)
