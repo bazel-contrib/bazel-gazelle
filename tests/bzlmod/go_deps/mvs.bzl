@@ -53,6 +53,9 @@ TEST = r"""
   },
   "want": {
     "main": {
+      "print": [
+        "Version conflict found for Go module golang.org/x/sync:"
+      ],
       "repos": [
         {
           "importpath": "golang.org/x/sync",

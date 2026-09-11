@@ -38,7 +38,7 @@ Each test case has the following fields:
   - root_module_direct_dev_deps: list of repo names passed to extension metadata
     as root_module_direct_dev_deps.
   - print: optional list of substrings expected to appear in messages passed to
-    module_ctx.print, in order.
+    module_ctx.print, in order. Every printed message must be listed here.
   - fail: optional list of substrings expected to appear in messages passed to
     module_ctx.fail, in order. If fail was called and this field is omitted,
     the test fails.

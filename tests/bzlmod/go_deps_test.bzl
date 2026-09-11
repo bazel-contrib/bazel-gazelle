@@ -116,13 +116,14 @@ def _run_go_deps_instance(env, expect, case, instance_name, isolated, isolate_mo
         if metadata == None:
             fail("test case {} ({}): go_deps_impl did not return extension metadata".format(case.name, instance_name))
 
-    if want.print:
-        _assert_messages_contain_substrings(
-            case_expect,
-            module_ctx._state.printed_messages,
-            want.print,
-            "printed_messages",
-        )
+    # Every printed message must be expected by the test case so that
+    # spurious warnings don't go unnoticed.
+    _assert_messages_contain_substrings(
+        case_expect,
+        module_ctx._state.printed_messages,
+        want.print,
+        "printed_messages",
+    )
 
     if metadata == None:
         return
