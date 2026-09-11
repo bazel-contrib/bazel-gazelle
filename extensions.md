@@ -48,11 +48,11 @@ Configures the general behavior of the go_deps extension.
 
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
-| <a id="go_deps.config-check_direct_dependencies"></a>check_direct_dependencies |  DEPRECATED: Use `checks` instead.   | String | optional |  `"off"`  |
+| <a id="go_deps.config-check_direct_dependencies"></a>check_direct_dependencies |  DEPRECATED: Use `checks` instead. If set, it takes the place of `checks`.   | String | optional |  `""`  |
 | <a id="go_deps.config-checks"></a>checks |  How to handle problems with inconsistent versions, like a Go module being requested at different versions with go_deps.module and go.mod. "error" fails the build when an inconsistency is detected. "warning" prints a message. "off" suppresses these messages.   | String | optional |  `"warning"`  |
 | <a id="go_deps.config-debug_mode"></a>debug_mode |  Whether or not to print stdout and stderr messages from gazelle   | Boolean | optional |  `False`  |
 | <a id="go_deps.config-go_env"></a>go_env |  The environment variables to use when fetching Go dependencies or running the `@rules_go//go` tool.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
-| <a id="go_deps.config-go_env_inherit"></a>go_env_inherit |  Host environment variable names to inherit when fetching Go dependencies or running the `@rules_go//go` tool.   | List of strings | optional |  `[]`  |
+| <a id="go_deps.config-go_env_inherit"></a>go_env_inherit |  Host environment variable names to inherit when fetching Go dependencies or running the `@rules_go//go` tool. Proxy, module sum database, and VCS settings such as `GOPROXY`, `GOPRIVATE`, `HTTPS_PROXY`, `SSL_CERT_FILE`, `PATH`, and `HOME` are always inherited.   | List of strings | optional |  `[]`  |
 
 <a id="go_deps.from_file"></a>
 
@@ -112,10 +112,10 @@ Declare a single Go module dependency. Prefer using `from_file` instead.
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="go_deps.module-indirect"></a>indirect |  Whether this Go module is an indirect dependency.   | Boolean | optional |  `False`  |
-| <a id="go_deps.module-local_path"></a>local_path |  For when a module is replaced by one residing in a local directory path   | String | optional |  `""`  |
+| <a id="go_deps.module-local_path"></a>local_path |  Path to a directory containing the Go module's source code, used instead of downloading the module, like a directory replacement in a go.mod file. Relative paths are resolved from the root Bazel module's directory. Only allowed in the root Bazel module.   | String | optional |  `""`  |
 | <a id="go_deps.module-path"></a>path |  The module path.   | String | required |  |
-| <a id="go_deps.module-sum"></a>sum |  -   | String | optional |  `""`  |
-| <a id="go_deps.module-version"></a>version |  -   | String | required |  |
+| <a id="go_deps.module-sum"></a>sum |  The go.sum checksum of the module's zip file, like "h1:...". Not needed together with `local_path` or `archive_override`; otherwise, downloading the module fails without it.   | String | optional |  `""`  |
+| <a id="go_deps.module-version"></a>version |  The module version, like "v1.2.3". The leading "v" may be omitted.   | String | required |  |
 
 <a id="go_deps.module_override"></a>
 

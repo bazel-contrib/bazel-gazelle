@@ -5,6 +5,7 @@
 An empty module.
 
 Tests what happens when go_deps is loaded, but no tags are declared.
+The synthetic go_deps_module_tags module must not be indexed for Gazelle.
 """
 
 TEST = r"""
@@ -25,7 +26,14 @@ TEST = r"""
     "main": {
       "repos": [
         {
-          "name": "bazel_gazelle_go_repository_config"
+          "go_env": {
+            "GOROOT_LABEL": "@@go_sdk//:ROOT",
+            "GOTOOLCHAIN": "local"
+          },
+          "importpaths": {},
+          "module_names": {},
+          "name": "bazel_gazelle_go_repository_config",
+          "tool_targets": {}
         }
       ],
       "root_module_direct_deps": [],

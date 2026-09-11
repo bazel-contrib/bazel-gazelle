@@ -4,6 +4,14 @@
 """
 go_deps.module tag versions use a leading 'v' (v1.0.0) while Bazel module
 versions do not (1.0.0). Matching versions should not be reported as conflicts.
+Bazel module versions may have extra components (1.0.0.bcr.1 for a patched
+registry entry), which still provide the same Go module version.
+
+The leading 'v' may also be omitted from go_deps.module tag versions
+(0.40.0); go_deps adds it before writing the synthetic go.mod file.
+
+A Bazel module that is newer than an indirect go.mod requirement
+(example.com/newer) is not a conflict either.
 """
 
 TEST = r"""
@@ -19,18 +27,28 @@ TEST = r"""
             "checks": "error"
           }
         ],
+        "from_file": [
+          {
+            "go_mod": "@@root//:go.mod"
+          }
+        ],
         "module": [
           {
             "path": "example.com/matching",
             "sum": "h1:abc123=",
             "version": "v1.0.0"
+          },
+          {
+            "path": "golang.org/x/mod",
+            "sum": "h1:hUv+3cXcdRHz08UmSiOob7sadHig73uo5bkXxQ/tvUs=",
+            "version": "0.40.0"
           }
         ]
       }
     },
     {
       "name": "matching_dep",
-      "version": "1.0.0",
+      "version": "1.0.0.bcr.1",
       "tags": {
         "from_file": [
           {
@@ -38,20 +56,48 @@ TEST = r"""
           }
         ]
       }
+    },
+    {
+      "name": "newer_dep",
+      "version": "2.0.0",
+      "tags": {
+        "from_file": [
+          {
+            "go_mod": "@@newer_dep//:go.mod"
+          }
+        ]
+      }
     }
   ],
   "files": {
-    "./matching_dep/go.mod": "module example.com/matching\n\ngo 1.24.12\n"
+    "./matching_dep/go.mod": "module example.com/matching\n\ngo 1.24.12\n",
+    "./newer_dep/go.mod": "module example.com/newer\n\ngo 1.24.12\n",
+    "./root/go.mod": "module example.com/root\n\ngo 1.24.12\n\nrequire example.com/newer v1.5.0 // indirect\n"
   },
   "executions": {
     "main": {
-      "go list -m -json all": "{\n\t\"Path\": \"example.com/matching\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps/mod/matching_dep\",\n\t\"GoMod\": \"/test/go_deps/mod/matching_dep/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n",
-      "go mod edit -json -- ./matching_dep/go.mod": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/matching\"\n\t},\n\t\"Go\": \"1.24.12\",\n\t\"Require\": null,\n\t\"Exclude\": null,\n\t\"Replace\": null,\n\t\"Retract\": null,\n\t\"Tool\": null,\n\t\"Ignore\": null\n}\n"
+      "go list -m -json all": "{\n\t\"Path\": \"example.com/matching\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps/mod/matching_dep\",\n\t\"GoMod\": \"/test/go_deps/mod/matching_dep/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"example.com/newer\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps/mod/newer_dep\",\n\t\"GoMod\": \"/test/go_deps/mod/newer_dep/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"example.com/root\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps/mod/root\",\n\t\"GoMod\": \"/test/go_deps/mod/root/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.40.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.40.0.mod\",\n\t\"GoVersion\": \"1.25.0\",\n\t\"Sum\": \"h1:hUv+3cXcdRHz08UmSiOob7sadHig73uo5bkXxQ/tvUs=\"\n}\n{\n\t\"Path\": \"golang.org/x/tools\",\n\t\"Version\": \"v0.49.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/tools/@v/v0.49.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n",
+      "go mod edit -json -- ./matching_dep/go.mod": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/matching\"\n\t},\n\t\"Go\": \"1.24.12\",\n\t\"Require\": null,\n\t\"Exclude\": null,\n\t\"Replace\": null,\n\t\"Retract\": null,\n\t\"Tool\": null,\n\t\"Ignore\": null\n}\n",
+      "go mod edit -json -- ./newer_dep/go.mod": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/newer\"\n\t},\n\t\"Go\": \"1.24.12\",\n\t\"Require\": null,\n\t\"Exclude\": null,\n\t\"Replace\": null,\n\t\"Retract\": null,\n\t\"Tool\": null,\n\t\"Ignore\": null\n}\n",
+      "go mod edit -json -- ./root/go.mod": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/root\"\n\t},\n\t\"Go\": \"1.24.12\",\n\t\"Require\": [\n\t\t{\n\t\t\t\"Path\": \"example.com/newer\",\n\t\t\t\"Version\": \"v1.5.0\",\n\t\t\t\"Indirect\": true\n\t\t}\n\t],\n\t\"Exclude\": null,\n\t\"Replace\": null,\n\t\"Retract\": null,\n\t\"Tool\": null,\n\t\"Ignore\": null\n}\n"
     }
   },
   "want": {
     "main": {
-      "root_module_direct_deps": [],
+      "files": {
+        "go.mod": "module go_deps_module_tags\ngo 1.27rc3\nrequire example.com/matching v1.0.0\nrequire golang.org/x/mod v0.40.0\nreplace example.com/newer v1.5.0 =\u003e ./mod/newer_dep\nreplace example.com/matching v1.0.0 =\u003e ./mod/matching_dep"
+      },
+      "repos": [
+        {
+          "importpath": "golang.org/x/mod",
+          "name": "org_golang_x_mod",
+          "sum": "h1:hUv+3cXcdRHz08UmSiOob7sadHig73uo5bkXxQ/tvUs=",
+          "version": "v0.40.0"
+        }
+      ],
+      "root_module_direct_deps": [
+        "org_golang_x_mod"
+      ],
       "root_module_direct_dev_deps": []
     }
   }

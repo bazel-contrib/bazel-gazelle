@@ -2,7 +2,8 @@
 # See README.md for instructions.
 
 """
-Tests that the archive_override tag is applied to go_repository
+Tests that the archive_override tag is applied to go_repository.
+The module tag has no sum, since the archive is verified with sha256.
 """
 
 TEST = r"""
@@ -33,7 +34,6 @@ TEST = r"""
         "module": [
           {
             "path": "golang.org/x/mod",
-            "sum": "h1:hUv+3cXcdRHz08UmSiOob7sadHig73uo5bkXxQ/tvUs=",
             "version": "v0.40.0"
           }
         ]
@@ -42,7 +42,7 @@ TEST = r"""
   ],
   "executions": {
     "main": {
-      "go list -m -json all": "{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.40.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.40.0.mod\",\n\t\"GoVersion\": \"1.25.0\",\n\t\"Sum\": \"h1:hUv+3cXcdRHz08UmSiOob7sadHig73uo5bkXxQ/tvUs=\"\n}\n{\n\t\"Path\": \"golang.org/x/tools\",\n\t\"Version\": \"v0.49.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/tools/@v/v0.49.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n"
+      "go list -m -json all": "{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.40.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.40.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"golang.org/x/tools\",\n\t\"Version\": \"v0.49.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/tools/@v/v0.49.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n"
     }
   },
   "want": {

@@ -4,6 +4,11 @@
 """
 Checks that direct dependencies are reported separately for
 dev and non-dev dependencies.
+
+rsc.io/quote is declared with a dev-only go_deps.module tag but also
+required by the root module's go.mod file in a non-dev usage, so it is a
+regular dependency: a module is only a dev dependency if all of its
+requirements are.
 """
 
 TEST = r"""
@@ -14,6 +19,11 @@ TEST = r"""
       "name": "root",
       "is_root": true,
       "tags": {
+        "from_file": [
+          {
+            "go_mod": "@@root//:go.mod"
+          }
+        ],
         "module": [
           {
             "path": "golang.org/x/mod",
@@ -33,9 +43,14 @@ TEST = r"""
       }
     }
   ],
+  "files": {
+    "./root/go.mod": "module example.com/root\n\ngo 1.24.12\n\nrequire rsc.io/quote v1.5.2\n",
+    "./root/go.sum": "golang.org/x/text v0.0.0-20170915032832-14c0d48ead0c/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=\nrsc.io/quote v1.5.2 h1:w5fcysjrx7yqtD/aO+QwRjYZOKnaM9Uh2b40tElTs3Y=\nrsc.io/quote v1.5.2/go.mod h1:LzX7hefJvL54yjefDEDHNONDjII0t9xZLPXsUe+TKr0=\nrsc.io/sampler v1.3.0/go.mod h1:T1hPZKmBbMNahiBKFy5HrXp6adAjACjK9JXDnKaTXpA=\n"
+  },
   "executions": {
     "main": {
-      "go list -m -json all": "{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.38.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.38.0.mod\",\n\t\"GoVersion\": \"1.25.0\",\n\t\"Sum\": \"h1:MECBjubtXD7yj4HrhIUcywNaGeNVUdfVnxmPajOk4yk=\"\n}\n{\n\t\"Path\": \"golang.org/x/text\",\n\t\"Version\": \"v0.0.0-20170915032832-14c0d48ead0c\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/text/@v/v0.0.0-20170915032832-14c0d48ead0c.mod\"\n}\n{\n\t\"Path\": \"golang.org/x/tools\",\n\t\"Version\": \"v0.47.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/tools/@v/v0.47.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"rsc.io/quote\",\n\t\"Version\": \"v1.5.2\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/rsc.io/quote/@v/v1.5.2.mod\",\n\t\"Sum\": \"h1:w5fcysjrx7yqtD/aO+QwRjYZOKnaM9Uh2b40tElTs3Y=\"\n}\n{\n\t\"Path\": \"rsc.io/sampler\",\n\t\"Version\": \"v1.3.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/rsc.io/sampler/@v/v1.3.0.mod\"\n}\n"
+      "go list -m -json all": "{\n\t\"Path\": \"example.com/root\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps/mod/root\",\n\t\"GoMod\": \"/test/go_deps/mod/root/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.38.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.38.0.mod\",\n\t\"GoVersion\": \"1.25.0\",\n\t\"Sum\": \"h1:MECBjubtXD7yj4HrhIUcywNaGeNVUdfVnxmPajOk4yk=\"\n}\n{\n\t\"Path\": \"golang.org/x/text\",\n\t\"Version\": \"v0.0.0-20170915032832-14c0d48ead0c\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/text/@v/v0.0.0-20170915032832-14c0d48ead0c.mod\",\n\t\"GoModSum\": \"h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=\"\n}\n{\n\t\"Path\": \"golang.org/x/tools\",\n\t\"Version\": \"v0.47.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/tools/@v/v0.47.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"rsc.io/quote\",\n\t\"Version\": \"v1.5.2\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/rsc.io/quote/@v/v1.5.2.mod\",\n\t\"Sum\": \"h1:w5fcysjrx7yqtD/aO+QwRjYZOKnaM9Uh2b40tElTs3Y=\",\n\t\"GoModSum\": \"h1:LzX7hefJvL54yjefDEDHNONDjII0t9xZLPXsUe+TKr0=\"\n}\n{\n\t\"Path\": \"rsc.io/sampler\",\n\t\"Version\": \"v1.3.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/rsc.io/sampler/@v/v1.3.0.mod\",\n\t\"GoModSum\": \"h1:T1hPZKmBbMNahiBKFy5HrXp6adAjACjK9JXDnKaTXpA=\"\n}\n",
+      "go mod edit -json -- ./root/go.mod": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/root\"\n\t},\n\t\"Go\": \"1.24.12\",\n\t\"Require\": [\n\t\t{\n\t\t\t\"Path\": \"rsc.io/quote\",\n\t\t\t\"Version\": \"v1.5.2\"\n\t\t}\n\t],\n\t\"Exclude\": null,\n\t\"Replace\": null,\n\t\"Retract\": null,\n\t\"Tool\": null,\n\t\"Ignore\": null\n}\n"
     }
   },
   "want": {
@@ -55,11 +70,10 @@ TEST = r"""
         }
       ],
       "root_module_direct_deps": [
-        "org_golang_x_mod"
-      ],
-      "root_module_direct_dev_deps": [
+        "org_golang_x_mod",
         "io_rsc_quote"
-      ]
+      ],
+      "root_module_direct_dev_deps": []
     }
   }
 }

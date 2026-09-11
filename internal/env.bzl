@@ -164,6 +164,78 @@ def resolve_env(ctx, direct = {}, inherit = [], reserved = []):
 
     return env
 
+# Host environment variables that Go tools inherit when they may access the
+# network or run VCS tools. Used by go_repository and go_deps.
+HOST_ENV_KEYS = [
+    # keep sorted
+
+    # Respect user proxy and sumdb settings for privacy.
+    # TODO(jayconrod): gazelle in go_repository mode should probably
+    # not go out to the network at all. This means *the build*
+    # goes out to the network. We tolerate this for downloading
+    # archives, but finding module roots is a bit much.
+    "GOAUTH",
+    "GONOPROXY",
+    "GONOSUMDB",
+    "GOPRIVATE",
+    "GOPROXY",
+    "GOSUMDB",
+
+    # PATH is needed to locate git and other vcs tools.
+    "PATH",
+
+    # HOME is needed to locate vcs configuration files (.gitconfig).
+    "HOME",
+
+    # Settings below are used by vcs tools.
+    "GIT_CONFIG",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_NOSYSTEM",
+    "GIT_CONFIG_SYSTEM",
+    "GIT_SSH",
+    "GIT_SSH_COMMAND",
+    "GIT_SSL_CAINFO",
+    "HTTPS_PROXY",
+    "HTTP_PROXY",
+    "NO_PROXY",
+    "SSH_AUTH_SOCK",
+    "SSL_CERT_DIR",
+    "SSL_CERT_FILE",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
+]
+
+def host_env(environ):
+    """
+    Returns environment variables that Go tools should inherit from the host.
+
+    These are proxy, module sum database, and VCS settings (HOST_ENV_KEYS) that
+    are needed to download modules, plus git configuration passed through
+    GIT_CONFIG_COUNT and GIT_CONFIG_KEY_<n> / GIT_CONFIG_VALUE_<n>
+    (https://www.git-scm.com/docs/git-config/#Documentation/git-config.txt-GITCONFIGCOUNT).
+
+    Args:
+        environ: a dict of the host environment, usually ctx.os.environ.
+
+    Returns:
+        A dict of environment variable settings.
+    """
+    env_keys = HOST_ENV_KEYS
+    count = environ.get("GIT_CONFIG_COUNT")
+    if count:
+        if not count.isdigit() or int(count) < 1:
+            fail("GIT_CONFIG_COUNT has to be a positive integer")
+        for i in range(int(count)):
+            key = "GIT_CONFIG_KEY_%d" % i
+            value = "GIT_CONFIG_VALUE_%d" % i
+            for j in [key, value]:
+                if j not in environ:
+                    fail("%s is not defined as an environment variable, but you asked for GIT_CONFIG_COUNT=%d" % (j, int(count)))
+            env_keys = env_keys + [key, value]
+    return {k: environ[k] for k in env_keys if k in environ}
+
 def read_go_env(ctx, go_tool, var):
     """
     Runs 'go env' to find Go's opinion on what an environment variable should be
@@ -208,6 +280,25 @@ def read_go_env_file(ctx, env_path, cache_dir_file = None):
         A dict of environment variables, ready for execution. Do not write to
         a file, since it contains absolute paths.
     """
+    env = parse_go_env_file(ctx, env_path)
+    if cache_dir_file == None:
+        cache_dir_file = env_path
+    return resolve_go_env(ctx, env, cache_dir_file)
+
+def parse_go_env_file(ctx, env_path):
+    """
+    Reads a go.env file without resolving labels or applying defaults.
+
+    Unlike the result of read_go_env_file, the returned settings contain no
+    absolute paths and may be written to another go.env file.
+
+    Args:
+        ctx: a repository_ctx or module_ctx.
+        env_path: path, label, or string for the go.env file to read.
+
+    Returns:
+        A dict of environment variables as written in the file.
+    """
     contents = ctx.read(env_path)
     env = {}
     lines = contents.split("\n")
@@ -219,13 +310,30 @@ def read_go_env_file(ctx, env_path, cache_dir_file = None):
         if sep == "":
             fail("failed to parse cache environment")
         env[k] = v.strip("'")
+    return env
+
+def resolve_go_env(ctx, env, cache_dir_file):
+    """
+    Prepares Go environment settings read from a go.env file for execution.
+
+    Args:
+        ctx: a repository_ctx or module_ctx.
+        env: a dict of environment variables, as returned by
+            parse_go_env_file. Not modified.
+        cache_dir_file: path, label, or string for a file within
+            @bazel_gazelle_go_repository_cache. GOPATH and GOCACHE default to
+            this repo's directory when unset in env.
+
+    Returns:
+        A dict of environment variables, ready for execution. Do not write to
+        a file, since it contains absolute paths.
+    """
+    env = dict(env)
 
     # Resolve the GOROOT label (see _go_repository_cache_impl) to an absolute
     # path and register a dependency by doing so.
     if env.get("GOROOT_LABEL"):
         env["GOROOT"] = path_str(ctx.path(Label(env["GOROOT_LABEL"])).dirname)
-    if cache_dir_file == None:
-        cache_dir_file = env_path
     cache_dir = path_str(ctx.path(cache_dir_file).dirname)
     env.setdefault("GOPATH", cache_dir)
     env.setdefault("GOCACHE", cache_dir + "/gocache")

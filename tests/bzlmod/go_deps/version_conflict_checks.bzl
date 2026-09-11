@@ -82,7 +82,7 @@ TEST = r"""
     "./from_file_dep/go.mod": "module example.com/from_file_conflict\n\ngo 1.24.12\n",
     "./local_tag_dep/go.mod": "module example.com/local_tag_conflict\n\ngo 1.24.12\n",
     "./version_conflict_checks/deps/mod_local/go.mod": "module golang.org/x/mod\n\ngo 1.24.12\n",
-    "./version_conflict_checks/go.mod": "module example.com/root\n\ngo 1.24.12\n\nrequire (\n\texample.com/from_file_conflict v1.0.0\n\tgolang.org/x/exp v0.0.0-20240719175910-8a7402abbf56\n\tgolang.org/x/mod v0.38.0\n\tgolang.org/x/tools v0.20.0\n)\n\nreplace example.com/from_file_conflict =\u003e ../from_file_dep\n\nreplace example.com/local_tag_conflict =\u003e ../local_tag_dep\n\nreplace golang.org/x/mod v0.38.0 =\u003e ./deps/mod_local\n",
+    "./version_conflict_checks/go.mod": "module example.com/root\n\ngo 1.24.12\n\nrequire (\n\texample.com/from_file_conflict v1.0.0\n\tgolang.org/x/exp v0.0.0-20240719175910-8a7402abbf56\n\tgolang.org/x/mod v0.38.0\n\tgolang.org/x/tools v0.20.0\n)\n\nreplace golang.org/x/mod v0.38.0 =\u003e ./deps/mod_local\n",
     "./version_conflict_checks/go.sum": "example.com/from_file_conflict v1.0.0 h1:abc=\ngolang.org/x/exp v0.0.0-20240719175910-8a7402abbf56/go.mod h1:M4RDyNAINzryxdtnbRXRL/OHtkFuWGRjvuhBJpk2IlY=\n"
   },
   "executions": {
@@ -91,7 +91,7 @@ TEST = r"""
       "go mod edit -json -- ./bazel_tag_dep/pkg/go.mod": "{\n\t\"Module\": {\n\t\t\"Path\": \"golang.org/x/sync\"\n\t},\n\t\"Go\": \"1.24.12\",\n\t\"Require\": null,\n\t\"Exclude\": null,\n\t\"Replace\": null,\n\t\"Retract\": null,\n\t\"Tool\": null,\n\t\"Ignore\": null\n}\n",
       "go mod edit -json -- ./from_file_dep/go.mod": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/from_file_conflict\"\n\t},\n\t\"Go\": \"1.24.12\",\n\t\"Require\": null,\n\t\"Exclude\": null,\n\t\"Replace\": null,\n\t\"Retract\": null,\n\t\"Tool\": null,\n\t\"Ignore\": null\n}\n",
       "go mod edit -json -- ./local_tag_dep/go.mod": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/local_tag_conflict\"\n\t},\n\t\"Go\": \"1.24.12\",\n\t\"Require\": null,\n\t\"Exclude\": null,\n\t\"Replace\": null,\n\t\"Retract\": null,\n\t\"Tool\": null,\n\t\"Ignore\": null\n}\n",
-      "go mod edit -json -- ./version_conflict_checks/go.mod": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/root\"\n\t},\n\t\"Go\": \"1.24.12\",\n\t\"Require\": [\n\t\t{\n\t\t\t\"Path\": \"example.com/from_file_conflict\",\n\t\t\t\"Version\": \"v1.0.0\"\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"golang.org/x/exp\",\n\t\t\t\"Version\": \"v0.0.0-20240719175910-8a7402abbf56\"\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"golang.org/x/mod\",\n\t\t\t\"Version\": \"v0.38.0\"\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"golang.org/x/tools\",\n\t\t\t\"Version\": \"v0.20.0\"\n\t\t}\n\t],\n\t\"Exclude\": null,\n\t\"Replace\": [\n\t\t{\n\t\t\t\"Old\": {\n\t\t\t\t\"Path\": \"example.com/from_file_conflict\"\n\t\t\t},\n\t\t\t\"New\": {\n\t\t\t\t\"Path\": \"../from_file_dep\"\n\t\t\t}\n\t\t},\n\t\t{\n\t\t\t\"Old\": {\n\t\t\t\t\"Path\": \"example.com/local_tag_conflict\"\n\t\t\t},\n\t\t\t\"New\": {\n\t\t\t\t\"Path\": \"../local_tag_dep\"\n\t\t\t}\n\t\t},\n\t\t{\n\t\t\t\"Old\": {\n\t\t\t\t\"Path\": \"golang.org/x/mod\",\n\t\t\t\t\"Version\": \"v0.38.0\"\n\t\t\t},\n\t\t\t\"New\": {\n\t\t\t\t\"Path\": \"./deps/mod_local\"\n\t\t\t}\n\t\t}\n\t],\n\t\"Retract\": null,\n\t\"Tool\": null,\n\t\"Ignore\": null\n}\n"
+      "go mod edit -json -- ./version_conflict_checks/go.mod": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/root\"\n\t},\n\t\"Go\": \"1.24.12\",\n\t\"Require\": [\n\t\t{\n\t\t\t\"Path\": \"example.com/from_file_conflict\",\n\t\t\t\"Version\": \"v1.0.0\"\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"golang.org/x/exp\",\n\t\t\t\"Version\": \"v0.0.0-20240719175910-8a7402abbf56\"\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"golang.org/x/mod\",\n\t\t\t\"Version\": \"v0.38.0\"\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"golang.org/x/tools\",\n\t\t\t\"Version\": \"v0.20.0\"\n\t\t}\n\t],\n\t\"Exclude\": null,\n\t\"Replace\": [\n\t\t{\n\t\t\t\"Old\": {\n\t\t\t\t\"Path\": \"golang.org/x/mod\",\n\t\t\t\t\"Version\": \"v0.38.0\"\n\t\t\t},\n\t\t\t\"New\": {\n\t\t\t\t\"Path\": \"./deps/mod_local\"\n\t\t\t}\n\t\t}\n\t],\n\t\"Retract\": null,\n\t\"Tool\": null,\n\t\"Ignore\": null\n}\n"
     }
   },
   "want": {
@@ -100,11 +100,14 @@ TEST = r"""
         "Version conflict found for Go module example.com/from_file_conflict:",
         "Version conflict found for Go module golang.org/x/sync:",
         "Version conflict found for Go module example.com/local_tag_conflict:",
-        "Version conflict found for Go module golang.org/x/mod:",
+        "Version conflict found for Go module golang.org/x/mod:\n    requested with go_deps.module: v0.1.0\n    selected by Go:                v0.38.0",
         "Version conflict found for Go module golang.org/x/tools:",
         "Missing go.sum entry for Go module golang.org/x/exp:",
         "Missing go.sum entry for Go module golang.org/x/tools:"
-      ]
+      ],
+      "files": {
+        "go.mod": "module go_deps_module_tags\ngo 1.27rc3\nrequire golang.org/x/sync v0.3.0\nrequire example.com/local_tag_conflict v1.0.0\nrequire golang.org/x/mod v0.1.0\nreplace example.com/from_file_conflict v1.0.0 =\u003e ./mod/from_file_dep\nreplace golang.org/x/sync v0.3.0 =\u003e ./mod/bazel_tag_dep/pkg\nreplace example.com/local_tag_conflict v1.0.0 =\u003e ./mod/local_tag_dep"
+      }
     }
   }
 }
