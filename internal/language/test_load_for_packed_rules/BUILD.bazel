@@ -6,12 +6,10 @@ go_library(
     importpath = "github.com/bazelbuild/bazel-gazelle/internal/language/test_load_for_packed_rules",
     visibility = ["//visibility:public"],
     deps = [
-        "//config",
-        "//label",
-        "//language",
-        "//repo",
-        "//resolve",
-        "//rule",
+        "//v2/compat",
+        "//v2/language",
+        "//v2/resolve",
+        "//v2/rule",
     ],
 )
 
