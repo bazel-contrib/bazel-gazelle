@@ -26,6 +26,12 @@ TEST = r"""
     "main": {
       "repos": [
         {
+          "go_env": {
+            "GONOPROXY": "",
+            "GOPRIVATE": "",
+            "GOPROXY": "https://proxy.golang.org,direct",
+            "GOROOT_LABEL": "@go_sdk//:ROOT"
+          },
           "module_names": {},
           "name": "bazel_gazelle_go_repository_config",
           "repo_names": {},

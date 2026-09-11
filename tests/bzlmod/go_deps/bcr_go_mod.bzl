@@ -2251,6 +2251,15 @@ TEST = r"""
           "build_directives": [
             "gazelle:proto disable"
           ]
+        },
+        {
+          "go_env": {
+            "GONOPROXY": "example.com/*",
+            "GOPRIVATE": "example.com/*",
+            "GOPROXY": "https://proxy.golang.org,direct",
+            "GOROOT_LABEL": "@go_sdk//:ROOT"
+          },
+          "name": "bazel_gazelle_go_repository_config"
         }
       ],
       "root_module_direct_deps": [

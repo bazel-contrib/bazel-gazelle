@@ -14,7 +14,7 @@
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("//internal:common.bzl", "env_execute", "executable_extension", "path_str", "watch")
-load("//internal:env.bzl", "read_go_env_file", "resolve_env")
+load("//internal:env.bzl", "parse_go_env_file", "resolve_env", "resolve_go_env")
 load("//internal:go_repository.bzl", "go_repository")
 load(
     ":default_gazelle_overrides.bzl",
@@ -73,11 +73,13 @@ def go_deps_impl(module_ctx):
     root_module_tags = root_module.tags.module if root_module else []
 
     # Compute the environment based on the config tag and available go_sdks.
-    # Use this to locate the go tool.
-    go_env = read_go_env_file(
-        module_ctx,
-        env_path = Label("@bazel_gazelle_go_repository_cache//:go.env"),
-    )
+    # These settings are persisted in @bazel_gazelle_go_repository_config for
+    # go_repository and @rules_go//go. Like the cache repo's go.env, they must
+    # not contain absolute paths: those differ between output bases and would
+    # defeat repository caching, and @rules_go//go would run with GOPATH and
+    # GOCACHE pointing into the output base.
+    cache_go_env_label = Label("@bazel_gazelle_go_repository_cache//:go.env")
+    go_env = parse_go_env_file(module_ctx, cache_go_env_label)
     if config_tag:
         go_env |= resolve_env(
             module_ctx,
@@ -91,13 +93,16 @@ def go_deps_impl(module_ctx):
                 "GOROOT_LABEL",
             ],
         )
-    go_tool = go_env["GOROOT"] + "/bin/go" + executable_extension(module_ctx)
+
+    # Resolve GOROOT and the cache directories to run the go tool.
+    go_exec_env = resolve_go_env(module_ctx, go_env, cache_go_env_label)
+    go_tool = go_exec_env["GOROOT"] + "/bin/go" + executable_extension(module_ctx)
     watch(module_ctx, go_tool)
 
     # Create a scratch Go workspace (with a synthetic go.work and go.mod file)
     # expressing constraints from go_deps tags, linking with go.mod files
     # provided by go_deps.from_file.
-    workspace = _create_workspace_from_tags(module_ctx, go_tool, go_env)
+    workspace = _create_workspace_from_tags(module_ctx, go_tool, go_exec_env)
     if module_ctx.failed() or workspace == None:
         return None
     bazel_go_modules, root_required_mods, root_replaced_paths, required_mod_files_from_workspace = workspace
@@ -108,7 +113,7 @@ def go_deps_impl(module_ctx):
     download_dir, new_sha256 = download_mod_files(module_ctx, go_env, required_mod_files)
     if module_ctx.failed():
         return None
-    list_env = go_env | {"GOPROXY": _file_url(download_dir) + "," + go_env["GOPROXY"]}
+    list_env = go_exec_env | {"GOPROXY": _file_url(download_dir) + "," + go_exec_env["GOPROXY"]}
     required_mod_files.update(new_sha256)
 
     # Run 'go list -m' in the scratch workspace to select versions of Go modules.
