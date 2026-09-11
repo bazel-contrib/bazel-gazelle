@@ -714,7 +714,7 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
                     is_dev_dependency = module_ctx.is_dev_dependency(tag),
                 )
 
-        def visit_go_mod(go_mod_label):
+        def visit_go_mod(go_mod_label, is_dev_dependency):
             go_mod_path = module_ctx.path(go_mod_label)
             watch(module_ctx, go_mod_path)
             go_sum_path = go_mod_path.dirname.get_child("go.sum")
@@ -768,19 +768,22 @@ To correct this:
                 for r in go_mod_json.get("Require") or []:
                     # A module may be required multiple times from different go.mod
                     # files within a go.work workspace, so update the existing entry
-                    # if needed.
+                    # if needed. A requirement is only a dev dependency if all
+                    # requirements are.
                     if r["Path"] in root_required_mods:
                         prev = root_required_mods[r["Path"]]
                         root_required_mods[r["Path"]] = _go_require_info(
                             importpath = r["Path"],
                             version = semver.max(prev.version, r["Version"]),
                             indirect = prev.indirect and bool(r.get("Indirect")),
+                            is_dev_dependency = prev.is_dev_dependency and is_dev_dependency,
                         )
                     else:
                         root_required_mods[r["Path"]] = _go_require_info(
                             importpath = r["Path"],
                             version = r["Version"],
                             indirect = bool(r.get("Indirect")),
+                            is_dev_dependency = is_dev_dependency,
                         )
             else:
                 # We want to ignore 'replace' and 'exclude' directives from go.mod
@@ -804,8 +807,9 @@ To correct this:
             if bool(tag.go_work) == bool(tag.go_mod):
                 module_ctx.fail("in {}, go_deps.from_file tag must have either go_work or go_mod attribute, but not both.".format(module.name))
                 return None
+            is_dev_dependency = module_ctx.is_dev_dependency(tag)
             if tag.go_mod:
-                visit_go_mod(tag.go_mod)
+                visit_go_mod(tag.go_mod, is_dev_dependency)
             else:
                 # go.work
                 go_work_path = module_ctx.path(tag.go_work)
@@ -818,7 +822,7 @@ To correct this:
                         if go_mod_package == ".":
                             go_mod_package = ""
                         go_mod_label = Label("@@{}//{}:go.mod".format(tag.go_work.repo_name, go_mod_package))
-                        visit_go_mod(go_mod_label)
+                        visit_go_mod(go_mod_label, is_dev_dependency)
                     else:
                         go_work_lines.append("use {}".format(u["DiskPath"]))
 

@@ -12,6 +12,7 @@ load("//tests/bzlmod/go_deps:default_gazelle_overrides.bzl", DEFAULT_GAZELLE_OVE
 load("//tests/bzlmod/go_deps:dep_files.bzl", DEP_FILES_TEST = "TEST")
 load("//tests/bzlmod/go_deps:duplicate_module_tag.bzl", DUPLICATE_MODULE_TAG_TEST = "TEST")
 load("//tests/bzlmod/go_deps:empty.bzl", EMPTY_TEST = "TEST")
+load("//tests/bzlmod/go_deps:from_file_dev_deps.bzl", FROM_FILE_DEV_DEPS_TEST = "TEST")
 load("//tests/bzlmod/go_deps:gazelle_default_attributes.bzl", GAZELLE_DEFAULT_ATTRIBUTES_TEST = "TEST")
 load("//tests/bzlmod/go_deps:gazelle_override.bzl", GAZELLE_OVERRIDE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:go_version_low.bzl", GO_VERSION_LOW_TEST = "TEST")
@@ -48,6 +49,7 @@ _GO_DEPS_TEST_CASES = [
     DEP_FILES_TEST,
     DUPLICATE_MODULE_TAG_TEST,
     EMPTY_TEST,
+    FROM_FILE_DEV_DEPS_TEST,
     GAZELLE_DEFAULT_ATTRIBUTES_TEST,
     GAZELLE_OVERRIDE_TEST,
     GO_VERSION_LOW_TEST,
