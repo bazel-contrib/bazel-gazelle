@@ -53,7 +53,13 @@ limitations under the License.
 // Known Types and Google APIs. rules_go declares canonical rules for these.
 package golang
 
-import "github.com/bazelbuild/bazel-gazelle/language"
+import (
+	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
+	languagev1 "github.com/bazelbuild/bazel-gazelle/language"
+)
 
 const goName = "go"
 
@@ -64,8 +70,20 @@ type goLang struct {
 	goPkgRels map[string]bool
 }
 
+var (
+	_ language.Language       = (*goLang)(nil)
+	_ config.Configurer       = (*goLang)(nil)
+	_ compat.FlagConfigurer = (*goLang)(nil)
+	_ language.Generator    = (*goLang)(nil)
+	_ language.Fixer          = (*goLang)(nil)
+	_ resolve.Indexer         = (*goLang)(nil)
+	_ resolve.Resolver        = (*goLang)(nil)
+	_ languagev1.RepoUpdater  = (*goLang)(nil)
+	_ languagev1.RepoImporter = (*goLang)(nil)
+)
+
 func (*goLang) Name() string { return goName }
 
-func NewLanguage() language.Language {
+func NewV2() language.Language {
 	return &goLang{goPkgRels: make(map[string]bool)}
 }

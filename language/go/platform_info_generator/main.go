@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 )
 
 func stringify(m map[string]struct{}) string {

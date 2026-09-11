@@ -11,7 +11,7 @@ go_library(
     srcs = ["main.go"],
     importpath = "github.com/bazelbuild/bazel-gazelle/language/go/platform_info_generator",
     visibility = ["//visibility:private"],
-    deps = ["//rule"],
+    deps = ["//v2/rule"],
 )
 
 filegroup(

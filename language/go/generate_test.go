@@ -24,12 +24,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
-	"github.com/bazelbuild/bazel-gazelle/merger"
-	"github.com/bazelbuild/bazel-gazelle/rule"
-	"github.com/bazelbuild/bazel-gazelle/walk"
+	"github.com/bazel-contrib/bazel-gazelle/v2/merger"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/walk"
 	bzl "github.com/bazelbuild/buildtools/build"
 	"github.com/bazelbuild/rules_go/go/tools/bazel"
 	"github.com/google/go-cmp/cmp"
@@ -79,19 +79,16 @@ func TestGenerateRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, cext := range cexts {
-		cext.Configure(c, "", f)
+		configure(t, cext, c, "", f)
 	}
 
-	var loads []rule.LoadInfo
-	for _, lang := range langs {
-		loads = append(loads, lang.(language.ModuleAwareLanguage).ApparentLoads(func(string) string { return "" })...)
-	}
+	loads := loadsForTest(c, langs)
 	var testsFound int
 	walk.Walk(c, cexts, []string{testdataDir}, walk.VisitAllUpdateSubdirsMode, func(dir, rel string, c *config.Config, update bool, oldFile *rule.File, subdirs, regularFiles, genFiles []string) {
 		t.Run(rel, func(t *testing.T) {
 			var empty, gen []*rule.Rule
 			for _, lang := range langs {
-				res := lang.GenerateRules(language.GenerateArgs{
+				res := generate(t, lang, language.GenerateArgs{
 					Config:       c,
 					Dir:          dir,
 					Rel:          rel,
@@ -123,7 +120,7 @@ func TestGenerateRules(t *testing.T) {
 				r.Insert(f)
 			}
 			convertImportsAttrs(f)
-			merger.FixLoads(f, loads)
+			merger.NewLoadFixer(loads).Fix(f)
 			f.Sync()
 			got := string(bzl.Format(f.File))
 			wantPath := filepath.Join(dir, "BUILD.want")
@@ -147,11 +144,14 @@ func TestGenerateRules(t *testing.T) {
 func TestGenerateRulesEmpty(t *testing.T) {
 	c, langs, _ := testConfig(t, "-go_prefix=example.com/repo")
 	goLang := langs[1].(*goLang)
-	res := goLang.GenerateRules(language.GenerateArgs{
+	res, err := goLang.Generate(t.Context(), language.GenerateArgs{
 		Config: c,
 		Dir:    "./foo",
 		Rel:    "foo",
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(res.Gen) > 0 {
 		t.Errorf("got %d generated rules; want 0", len(res.Gen))
 	}
@@ -209,13 +209,16 @@ func TestExample(t *testing.T) {
 	goLang := langs[1].(*goLang)
 
 	walk.Walk(c, cexts, []string{dir}, walk.VisitAllUpdateSubdirsMode, func(dir, rel string, c *config.Config, update bool, oldFile *rule.File, subdirs, regularFiles, genFiles []string) {
-		res := goLang.GenerateRules(language.GenerateArgs{
+		res, err := goLang.Generate(t.Context(), language.GenerateArgs{
 			Config:       c,
 			Dir:          dir,
 			Rel:          "example",
 			Subdirs:      []string{"testdata"},
 			RegularFiles: []string{"example_test.go"},
 		})
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		// Find the go_test rule
 		var testRule *rule.Rule
@@ -240,11 +243,14 @@ func TestExample(t *testing.T) {
 func TestGenerateRulesEmptyLegacyProto(t *testing.T) {
 	c, langs, _ := testConfig(t, "-proto=legacy")
 	goLang := langs[len(langs)-1].(*goLang)
-	res := goLang.GenerateRules(language.GenerateArgs{
+	res, err := goLang.Generate(t.Context(), language.GenerateArgs{
 		Config: c,
 		Dir:    "./foo",
 		Rel:    "foo",
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, e := range res.Empty {
 		if kind := e.Kind(); kind == "proto_library" || kind == "go_proto_library" || kind == "go_grpc_library" {
 			t.Errorf("deleted rule %s ; should not delete in legacy proto mode", kind)
@@ -266,7 +272,7 @@ proto_library(
 	}
 	var empty []*rule.Rule
 	for _, lang := range langs {
-		res := lang.GenerateRules(language.GenerateArgs{
+		res := generate(t, lang, language.GenerateArgs{
 			Config:     c,
 			Dir:        "./foo",
 			Rel:        "foo",
@@ -310,12 +316,15 @@ func TestGenerateRulesPrebuiltGoProtoRules(t *testing.T) {
 			c, langs, _ := testConfig(t, protoFlag)
 			goLang := langs[len(langs)-1].(*goLang)
 
-			res := goLang.GenerateRules(language.GenerateArgs{
+			res, err := goLang.Generate(t.Context(), language.GenerateArgs{
 				Config:   c,
 				Dir:      "./foo",
 				Rel:      "foo",
 				OtherGen: prebuiltProtoRules(),
 			})
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			if len(res.Gen) != 0 {
 				t.Errorf("got %d generated rules; want 0", len(res.Gen))
@@ -349,11 +358,16 @@ func TestConsumedGenFiles(t *testing.T) {
 	otherRule.SetAttr("srcs", []string{"mocks.go"})
 	args.OtherGen = append(args.OtherGen, otherRule)
 
-	gl := goLang{
+	gl := &goLang{
 		goPkgRels: make(map[string]bool),
 	}
-	gl.Configure(args.Config, "", nil)
-	res := gl.GenerateRules(args)
+	if err := gl.Configure(t.Context(), config.ConfigureArgs{Config: args.Config, Rel: "", File: nil}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := gl.Generate(t.Context(), args)
+	if err != nil {
+		t.Fatal(err)
+	}
 	got := res.Gen[0].AttrStrings("srcs")
 	want := []string{"regular.go"}
 	if len(got) != len(want) || got[0] != want[0] {
@@ -419,9 +433,9 @@ func prebuiltProtoRules() []*rule.Rule {
 // values of private attributes with simple string comparison.
 func convertImportsAttrs(f *rule.File) {
 	for _, r := range f.Rules {
-		v := r.PrivateAttr(config.GazelleImportsKey)
+		v := r.PrivateAttr(gazelleImportsKey)
 		if v != nil {
-			r.SetAttr(config.GazelleImportsKey, v)
+			r.SetAttr(gazelleImportsKey, v)
 		}
 	}
 }
@@ -472,14 +486,14 @@ service S {}
 				"-go_prefix=example.com/repo",
 				"-repo_root="+dir)
 			for _, cext := range cexts {
-				cext.Configure(c, "", nil)
+				configure(t, cext, c, "", nil)
 			}
 
 			var got []string
 			walk.Walk(c, cexts, []string{dir}, walk.VisitAllUpdateSubdirsMode, func(walkDir, rel string, walkC *config.Config, _ bool, oldFile *rule.File, subdirs, regularFiles, genFiles []string) {
 				var empty, gen []*rule.Rule
 				for _, lang := range langs {
-					res := lang.GenerateRules(language.GenerateArgs{
+					res := generate(t, lang, language.GenerateArgs{
 						Config:       walkC,
 						Dir:          walkDir,
 						Rel:          rel,

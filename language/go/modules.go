@@ -22,19 +22,19 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bazelbuild/bazel-gazelle/language"
+	languagev1 "github.com/bazelbuild/bazel-gazelle/language"
 )
 
-func importReposFromModules(args language.ImportReposArgs) language.ImportReposResult {
+func importReposFromModules(args languagev1.ImportReposArgs) languagev1.ImportReposResult {
 	// run go list in the dir where go.mod is located
 	data, err := goListModules(filepath.Dir(args.Path))
 	if err != nil {
-		return language.ImportReposResult{Error: processGoListError(err, data)}
+		return languagev1.ImportReposResult{Error: processGoListError(err, data)}
 	}
 
 	pathToModule, err := extractModules(data)
 	if err != nil {
-		return language.ImportReposResult{Error: err}
+		return languagev1.ImportReposResult{Error: err}
 	}
 
 	// Load sums from go.sum. Ideally, they're all there.
@@ -58,8 +58,8 @@ func importReposFromModules(args language.ImportReposArgs) language.ImportReposR
 
 	pathToModule, err = fillMissingSums(pathToModule)
 	if err != nil {
-		return language.ImportReposResult{Error: fmt.Errorf("finding module sums: %v", err)}
+		return languagev1.ImportReposResult{Error: fmt.Errorf("finding module sums: %v", err)}
 	}
 
-	return language.ImportReposResult{Gen: toRepositoryRules(pathToModule)}
+	return languagev1.ImportReposResult{Gen: toRepositoryRules(pathToModule)}
 }

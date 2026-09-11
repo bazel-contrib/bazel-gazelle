@@ -16,6 +16,7 @@ limitations under the License.
 package golang
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -28,13 +29,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	gzflag "github.com/bazelbuild/bazel-gazelle/flag"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	gzflag "github.com/bazel-contrib/bazel-gazelle/v2/flag"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"github.com/bazelbuild/bazel-gazelle/internal/module"
 	"github.com/bazelbuild/bazel-gazelle/internal/version"
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
 	"github.com/bazelbuild/bazel-gazelle/repo"
-	"github.com/bazelbuild/bazel-gazelle/rule"
 	bzl "github.com/bazelbuild/buildtools/build"
 	"golang.org/x/mod/modfile"
 )
@@ -531,7 +532,10 @@ func (*goLang) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
 	return nil
 }
 
-func (*goLang) Configure(c *config.Config, rel string, f *rule.File) {
+func (*goLang) Configure(_ context.Context, args config.ConfigureArgs) error {
+	c := args.Config
+	rel := args.Rel
+	f := args.File
 	var gc *goConfig
 	if raw, ok := c.Exts[goName]; !ok {
 		gc = newGoConfig()
@@ -765,6 +769,7 @@ Update io_bazel_rules_go to a newer version in your WORKSPACE file.`
 	if gc.goNamingConvention == unknownNamingConvention {
 		gc.goNamingConvention = detectNamingConvention(c, f)
 	}
+	return nil
 }
 
 // checkPrefix checks that a string may be used as a prefix. We forbid local
@@ -815,7 +820,7 @@ func findRulesGoVersion(c *config.Config) (version.Version, error) {
 Update io_bazel_rules_go to a newer version in your WORKSPACE file.`
 
 	var vstr string
-	if rulesGoPath, err := repo.FindExternalRepo(c.RepoRoot, config.RulesGoRepoName); err == nil {
+	if rulesGoPath, err := repo.FindExternalRepo(c.RepoRoot, rulesGoRepoName); err == nil {
 		// Bazel has already fetched io_bazel_rules_go. We can read its version
 		// from //go:def.bzl.
 		defBzlPath := filepath.Join(rulesGoPath, "go", "def.bzl")
@@ -826,7 +831,7 @@ Update io_bazel_rules_go to a newer version in your WORKSPACE file.`
 		versionRe := regexp.MustCompile(`(?m)^RULES_GO_VERSION = ['"]([0-9.]*)['"]`)
 		match := versionRe.FindSubmatch(defBzlContent)
 		if match == nil {
-			return nil, fmt.Errorf("RULES_GO_VERSION not found in @%s//go:def.bzl.\n%s", config.RulesGoRepoName, message)
+			return nil, fmt.Errorf("RULES_GO_VERSION not found in @%s//go:def.bzl.\n%s", rulesGoRepoName, message)
 		}
 		vstr = string(match[1])
 	} else {
@@ -855,7 +860,7 @@ Update io_bazel_rules_go to a newer version in your WORKSPACE file.`
 	return version.ParseVersion(vstr)
 }
 
-var errRulesGoRepoNotFound = errors.New(config.RulesGoRepoName + " external repository not found")
+var errRulesGoRepoNotFound = errors.New(rulesGoRepoName + " external repository not found")
 
 // detectNamingConvention attempts to detect the naming convention in use by
 // reading build files in subdirectories of the repository root directory.

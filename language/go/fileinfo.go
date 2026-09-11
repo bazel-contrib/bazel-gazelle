@@ -31,9 +31,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 	"github.com/bazelbuild/bazel-gazelle/internal/version"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 )
 
 // fileInfo holds information used to decide how to build a file. This
