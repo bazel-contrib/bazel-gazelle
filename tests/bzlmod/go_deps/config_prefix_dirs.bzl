@@ -59,8 +59,7 @@ TEST = r"""
           },
           "repo_names": {
             "example.com/config_prefix_dirs": "@config_prefix_dirs",
-            "example.com/config_prefix_dirs/v2": "@config_prefix_dirs",
-            "go_deps_module_tags": "go_deps_module_tags"
+            "example.com/config_prefix_dirs/v2": "@config_prefix_dirs"
           }
         }
       ]
