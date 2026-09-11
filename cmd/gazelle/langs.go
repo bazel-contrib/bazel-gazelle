@@ -16,7 +16,6 @@ limitations under the License.
 package main
 
 import (
-	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
 	"github.com/bazel-contrib/bazel-gazelle/v2/language"
 	"github.com/bazelbuild/bazel-gazelle/language/bazel/visibility"
 	golang "github.com/bazelbuild/bazel-gazelle/language/go"
@@ -26,7 +25,7 @@ import (
 func init() {
 	languages = []language.Language{
 		visibility.NewV2(),
-		compat.LanguageV2(proto.NewLanguage()),
+		proto.NewV2(),
 		golang.NewV2(),
 	}
 }

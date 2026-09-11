@@ -19,9 +19,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	gazelleupdate "github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update"
 	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
-	gazelleupdate "github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update"
 	"github.com/bazel-contrib/bazel-gazelle/v2/language"
 	"github.com/bazel-contrib/bazel-gazelle/v2/merger"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
@@ -1082,7 +1082,7 @@ func init() {
 	testKinds = make(map[string]rule.KindInfo)
 	c := config.New()
 	c.ModuleToApparentName = func(string) string { return "" }
-	langs := []language.Language{compat.LanguageV2(proto.NewLanguage()), golang.NewV2()}
+	langs := []language.Language{proto.NewV2(), golang.NewV2()}
 	for _, lang := range langs {
 		cl := compat.LanguageWithDefaults(lang)
 		for _, info := range cl.Kinds() {

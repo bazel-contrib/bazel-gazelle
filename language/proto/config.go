@@ -16,15 +16,16 @@ limitations under the License.
 package proto
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"path"
 	"strings"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/pathtools"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/pathtools"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 )
 
 // ProtoConfig contains configuration values related to protos.
@@ -214,7 +215,10 @@ func (*protoLang) KnownDirectives() []string {
 	return []string{"proto", "proto_group", "proto_strip_import_prefix", "proto_import_prefix", "proto_search"}
 }
 
-func (*protoLang) Configure(c *config.Config, rel string, f *rule.File) {
+func (*protoLang) Configure(_ context.Context, args config.ConfigureArgs) error {
+	c := args.Config
+	rel := args.Rel
+	f := args.File
 	pc := &ProtoConfig{}
 	*pc = *GetProtoConfig(c)
 	c.Exts[protoName] = pc
@@ -256,6 +260,7 @@ func (*protoLang) Configure(c *config.Config, rel string, f *rule.File) {
 		}
 	}
 	inferProtoMode(c, rel, f)
+	return nil
 }
 
 // inferProtoMode sets ProtoConfig.Mode based on the directory name and the
