@@ -34,4 +34,11 @@ const (
 	// goProtoSuffix is the suffix applied to the labels of all generated
 	// go_proto_library targets.
 	goProtoSuffix = "_go_proto"
+
+	// gazelleImportsKey is a private rule attribute listing imports before
+	// dependency resolution replaces it with "deps".
+	gazelleImportsKey = "_gazelle_imports"
+
+	// rulesGoRepoName is the canonical WORKSPACE name for rules_go.
+	rulesGoRepoName = "io_bazel_rules_go"
 )

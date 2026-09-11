@@ -16,15 +16,19 @@ limitations under the License.
 package golang
 
 import (
+	"context"
 	"log"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	bzl "github.com/bazelbuild/buildtools/build"
 )
 
-func (*goLang) Fix(c *config.Config, f *rule.File) {
+func (*goLang) Fix(_ context.Context, args language.FixArgs) error {
+	c := args.Config
+	f := args.File
 	migrateLibraryEmbed(c, f)
 	migrateGrpcCompilers(c, f)
 	flattenSrcs(c, f)
@@ -33,6 +37,7 @@ func (*goLang) Fix(c *config.Config, f *rule.File) {
 	removeLegacyProto(c, f)
 	removeLegacyGazelle(c, f)
 	migrateNamingConvention(c, f)
+	return nil
 }
 
 // migrateNamingConvention renames rules according to go_naming_convention

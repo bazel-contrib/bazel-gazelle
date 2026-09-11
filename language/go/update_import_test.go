@@ -21,11 +21,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	languagev1 "github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/repo"
-	"github.com/bazelbuild/bazel-gazelle/rule"
-	"github.com/bazelbuild/bazel-gazelle/testtools"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/testtools"
 )
 
 func TestImports(t *testing.T) {
@@ -612,10 +612,12 @@ go_repository(
 					t.Fatal(err)
 				}
 			}()
-			gl := NewLanguage()
-			gl.Configure(c, "", nil)
-			importer := gl.(language.RepoImporter)
-			result := importer.ImportRepos(language.ImportReposArgs{
+			gl := NewV2()
+			if err := gl.(*goLang).Configure(t.Context(), config.ConfigureArgs{Config: c, Rel: "", File: nil}); err != nil {
+				t.Fatal(err)
+			}
+			importer := gl.(languagev1.RepoImporter)
+			result := importer.ImportRepos(languagev1.ImportReposArgs{
 				Config: c,
 				Path:   filename,
 				Cache:  rc,

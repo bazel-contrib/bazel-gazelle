@@ -16,6 +16,7 @@ limitations under the License.
 package golang
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"go/build"
@@ -23,29 +24,38 @@ import (
 	"path"
 	"strings"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/label"
-	"github.com/bazelbuild/bazel-gazelle/pathtools"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/label"
+	"github.com/bazel-contrib/bazel-gazelle/v2/pathtools"
 	"github.com/bazelbuild/bazel-gazelle/repo"
-	"github.com/bazelbuild/bazel-gazelle/resolve"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 )
 
-func (*goLang) Imports(_ *config.Config, r *rule.Rule, f *rule.File) []resolve.ImportSpec {
+func (*goLang) Imports(_ context.Context, args resolve.ImportsArgs) (resolve.ImportsResult, error) {
+	r := args.Rule
+	from := args.From
 	if !isGoLibrary(r.Kind()) || isExtraLibrary(r) {
-		return nil
+		return resolve.ImportsResult{NotImportable: true}, nil
 	}
-	if importPath := r.AttrString("importpath"); importPath == "" {
-		return []resolve.ImportSpec{}
-	} else {
-		return []resolve.ImportSpec{{
+	embeds := embedLabels(r, from)
+	importPath := r.AttrString("importpath")
+	if importPath == "" {
+		return resolve.ImportsResult{
+			Imports: []resolve.ImportSpec{},
+			Embeds:  embeds,
+		}, nil
+	}
+	return resolve.ImportsResult{
+		Imports: []resolve.ImportSpec{{
 			Lang: goName,
 			Imp:  importPath,
-		}}
-	}
+		}},
+		Embeds: embeds,
+	}, nil
 }
 
-func (*goLang) Embeds(r *rule.Rule, from label.Label) []label.Label {
+func embedLabels(r *rule.Rule, from label.Label) []label.Label {
 	embedStrings := r.AttrStrings("embed")
 	if isGoProtoLibrary(r.Kind()) {
 		embedStrings = append(embedStrings, r.AttrString("proto"))
@@ -63,28 +73,35 @@ func (*goLang) Embeds(r *rule.Rule, from label.Label) []label.Label {
 	return embedLabels
 }
 
-func (gl *goLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, r *rule.Rule, importsRaw interface{}, from label.Label) {
+func (gl *goLang) Resolve(_ context.Context, args resolve.ResolveArgs) error {
+	c := args.Config
+	ix := args.Index
+	rc := args.RemoteCache
+	r := args.Rule
+	from := args.From
+	importsRaw := args.Imports
 	if importsRaw == nil {
 		// may not be set in tests.
-		return
+		return nil
 	}
 	imports := importsRaw.(rule.PlatformStrings)
 	r.DelAttr("deps")
-	var resolve func(*config.Config, *resolve.RuleIndex, *repo.RemoteCache, string, label.Label) (label.Label, error)
+	var resolveFn func(*config.Config, *resolve.RuleIndex, *repo.RemoteCache, string, label.Label) (label.Label, error)
 	switch r.Kind() {
 	case "go_proto_library":
-		resolve = resolveProto
+		resolveFn = resolveProto
 	default:
-		resolve = ResolveGo
+		resolveFn = ResolveGo
 	}
+	embeds := embedLabels(r, from)
 	deps, errs := imports.Map(func(imp string) (string, error) {
-		l, err := resolve(c, ix, rc, imp, from)
+		l, err := resolveFn(c, ix, rc, imp, from)
 		if err == errSkipImport {
 			return "", nil
 		} else if err != nil {
 			return "", err
 		}
-		for _, embed := range gl.Embeds(r, from) {
+		for _, embed := range embeds {
 			if embed.Equal(l) {
 				return "", nil
 			}
@@ -108,6 +125,7 @@ func (gl *goLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Remo
 			r.SetAttr("deps", deps)
 		}
 	}
+	return nil
 }
 
 var (
