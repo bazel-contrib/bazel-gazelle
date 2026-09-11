@@ -13,52 +13,56 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package visibility_test
+package visibility
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/label"
-	"github.com/bazelbuild/bazel-gazelle/language"
-	"github.com/bazelbuild/bazel-gazelle/language/bazel/visibility"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 )
 
-func TestNoopsBecauseILoveCoverage(t *testing.T) {
-	ext := visibility.NewLanguage()
+func newExt(t *testing.T) *visibilityExtension {
+	t.Helper()
+	ext, ok := NewV2().(*visibilityExtension)
+	if !ok {
+		t.Fatal("NewV2() must return *visibilityExtension")
+	}
+	return ext
+}
 
-	ext.RegisterFlags(nil /* flagset */, "command", nil /* config */)
-	ext.Resolve(nil /* config */, nil /* RuleIndex */, nil /* RemoteCache */, nil /* Rule */, nil /* imports */, label.New("repo", "pkg", "name"))
-	ext.Fix(nil /* config */, nil /* File */)
-	if ext.CheckFlags(nil /* flagset */, nil /* config */) != nil {
-		t.Fatal("expected nil")
-	}
-	if ext.Imports(nil /* rule */, nil /* rule */, nil /* file */) != nil {
-		t.Fatal("expected nil")
-	}
-	if ext.Embeds(nil /* rule */, label.New("repo", "pkg", "name")) != nil {
-		t.Fatal("expected nil")
-	}
+func TestExtensionMetadata(t *testing.T) {
+	ext := newExt(t)
+
 	if ext.KnownDirectives() == nil {
 		t.Fatal("expected not nil")
 	}
-	if ext.Name() == "" {
-		t.Fatal("expected not empty name")
+	if ext.Name() != "visibility" {
+		t.Fatalf("Name() = %q, want %q", ext.Name(), "visibility")
+	}
+	if len(ext.Kinds()) != 1 {
+		t.Fatal("expected one kind")
 	}
 }
 
-func Test_NoDirective(t *testing.T) {
+func TestNoDirective(t *testing.T) {
+	ctx := t.Context()
 	cfg := config.New()
 	file := rule.EmptyFile("path", "pkg")
 
-	ext := visibility.NewLanguage()
-	ext.Configure(cfg, "rel", file)
-	res := ext.GenerateRules(language.GenerateArgs{
+	ext := newExt(t)
+	if err := ext.Configure(ctx, config.ConfigureArgs{Config: cfg, Rel: "rel", File: file}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := ext.Generate(ctx, language.GenerateArgs{
 		Config: cfg,
 		File:   rule.EmptyFile("path/file", "pkg"),
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(res.Imports) != 0 {
 		t.Fatal("expected empty array")
@@ -68,7 +72,8 @@ func Test_NoDirective(t *testing.T) {
 	}
 }
 
-func Test_NewDirective(t *testing.T) {
+func TestNewDirective(t *testing.T) {
+	ctx := t.Context()
 	testVis := "//src:__subpackages__"
 	cfg := config.New()
 	file, err := rule.LoadData("path", "pkg", []byte(fmt.Sprintf("# gazelle:default_visibility %s", testVis)))
@@ -76,12 +81,17 @@ func Test_NewDirective(t *testing.T) {
 		t.Fatal("expected nil")
 	}
 
-	ext := visibility.NewLanguage()
-	ext.Configure(cfg, "rel", file)
-	res := ext.GenerateRules(language.GenerateArgs{
+	ext := newExt(t)
+	if err := ext.Configure(ctx, config.ConfigureArgs{Config: cfg, Rel: "rel", File: file}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := ext.Generate(ctx, language.GenerateArgs{
 		Config: cfg,
 		File:   rule.EmptyFile("path/file", "pkg"),
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(res.Gen) != 1 {
 		t.Fatal("expected array of length 1")
@@ -97,7 +107,8 @@ func Test_NewDirective(t *testing.T) {
 	}
 }
 
-func Test_ReplacementDirective(t *testing.T) {
+func TestReplacementDirective(t *testing.T) {
+	ctx := t.Context()
 	testVis := "//src:__subpackages__"
 	cfg := config.New()
 	file, err := rule.LoadData("path", "pkg", []byte(fmt.Sprintf(`
@@ -109,12 +120,17 @@ package(default_visibility = "//not-src:__subpackages__")
 		t.Fatalf("expected not nil - %+v", err)
 	}
 
-	ext := visibility.NewLanguage()
-	ext.Configure(cfg, "rel", file)
-	res := ext.GenerateRules(language.GenerateArgs{
+	ext := newExt(t)
+	if err := ext.Configure(ctx, config.ConfigureArgs{Config: cfg, Rel: "rel", File: file}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := ext.Generate(ctx, language.GenerateArgs{
 		Config: cfg,
 		File:   rule.EmptyFile("path/file", "pkg"),
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(res.Gen) != 1 {
 		t.Fatal("expected array of length 1")
@@ -130,7 +146,8 @@ package(default_visibility = "//not-src:__subpackages__")
 	}
 }
 
-func Test_MultipleDirectives(t *testing.T) {
+func TestMultipleDirectives(t *testing.T) {
+	ctx := t.Context()
 	testVis1 := "//src:__subpackages__"
 	testVis2 := "//src2:__subpackages__"
 	cfg := config.New()
@@ -142,12 +159,17 @@ func Test_MultipleDirectives(t *testing.T) {
 		t.Fatalf("expected not nil - %+v", err)
 	}
 
-	ext := visibility.NewLanguage()
-	ext.Configure(cfg, "rel", file)
-	res := ext.GenerateRules(language.GenerateArgs{
+	ext := newExt(t)
+	if err := ext.Configure(ctx, config.ConfigureArgs{Config: cfg, Rel: "rel", File: file}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := ext.Generate(ctx, language.GenerateArgs{
 		Config: cfg,
 		File:   rule.EmptyFile("path/file", "pkg"),
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(res.Gen) != 1 {
 		t.Fatal("expected array of length 1")
@@ -166,7 +188,8 @@ func Test_MultipleDirectives(t *testing.T) {
 	}
 }
 
-func Test_MultipleDefaultsSingleDirective(t *testing.T) {
+func TestMultipleDefaultsSingleDirective(t *testing.T) {
+	ctx := t.Context()
 	testVis1 := "//src:__subpackages__"
 	testVis2 := "//src2:__subpackages__"
 	cfg := config.New()
@@ -177,12 +200,17 @@ func Test_MultipleDefaultsSingleDirective(t *testing.T) {
 		t.Fatalf("expected not nil - %+v", err)
 	}
 
-	ext := visibility.NewLanguage()
-	ext.Configure(cfg, "rel", file)
-	res := ext.GenerateRules(language.GenerateArgs{
+	ext := newExt(t)
+	if err := ext.Configure(ctx, config.ConfigureArgs{Config: cfg, Rel: "rel", File: file}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := ext.Generate(ctx, language.GenerateArgs{
 		Config: cfg,
 		File:   rule.EmptyFile("path/file", "pkg"),
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(res.Gen) != 1 {
 		t.Fatal("expected array of length 1")
@@ -201,7 +229,8 @@ func Test_MultipleDefaultsSingleDirective(t *testing.T) {
 	}
 }
 
-func Test_NoRuleIfNoBuildFile(t *testing.T) {
+func TestNoRuleIfNoBuildFile(t *testing.T) {
+	ctx := t.Context()
 	testVis1 := "//src:__subpackages__"
 	cfg := config.New()
 	file, err := rule.LoadData("path", "pkg", []byte(fmt.Sprintf(`
@@ -212,12 +241,17 @@ func Test_NoRuleIfNoBuildFile(t *testing.T) {
 		t.Fatalf("expected not nil - %+v", err)
 	}
 
-	ext := visibility.NewLanguage()
-	ext.Configure(cfg, "rel", file)
-	res := ext.GenerateRules(language.GenerateArgs{
+	ext := newExt(t)
+	if err := ext.Configure(ctx, config.ConfigureArgs{Config: cfg, Rel: "rel", File: file}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := ext.Generate(ctx, language.GenerateArgs{
 		Config: cfg,
 		File:   nil,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(res.Gen) != 0 {
 		t.Fatal("expected array of length 0, no rules generated for missing BUILD.bazel file")
@@ -227,7 +261,8 @@ func Test_NoRuleIfNoBuildFile(t *testing.T) {
 	}
 }
 
-func Test_MultipleDirectivesAcrossFilesSupercede(t *testing.T) {
+func TestMultipleDirectivesAcrossFilesSupercede(t *testing.T) {
+	ctx := t.Context()
 	testVis1 := "//src:__subpackages__"
 	testVis2 := "//src2:__subpackages__"
 	file1, err := rule.LoadData("path", "pkg", []byte(fmt.Sprintf(`
@@ -244,17 +279,24 @@ func Test_MultipleDirectivesAcrossFilesSupercede(t *testing.T) {
 	}
 
 	cfg := config.New()
-	ext := visibility.NewLanguage()
-	ext.Configure(cfg, "path", file1)
+	ext := newExt(t)
+	if err := ext.Configure(ctx, config.ConfigureArgs{Config: cfg, Rel: "path", File: file1}); err != nil {
+		t.Fatal(err)
+	}
 
 	// clone the config as if we were decending through Walk
 	cfg2 := cfg.Clone()
-	ext.Configure(cfg2, "path/path", file2)
+	if err := ext.Configure(ctx, config.ConfigureArgs{Config: cfg2, Rel: "path/path", File: file2}); err != nil {
+		t.Fatal(err)
+	}
 
-	res2 := ext.GenerateRules(language.GenerateArgs{
+	res2, err := ext.Generate(ctx, language.GenerateArgs{
 		Config: cfg2,
 		File:   rule.EmptyFile("path/path/file", "pkg"),
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(res2.Gen) != 1 {
 		t.Fatal("expected array of length 1")
@@ -269,10 +311,13 @@ func Test_MultipleDirectivesAcrossFilesSupercede(t *testing.T) {
 		t.Fatal("expected returned visibility to match '//src2:__subpackages__'")
 	}
 
-	res1 := ext.GenerateRules(language.GenerateArgs{
+	res1, err := ext.Generate(ctx, language.GenerateArgs{
 		Config: cfg,
 		File:   rule.EmptyFile("path/file", "pkg"),
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(res1.Gen) != 1 {
 		t.Fatal("expected array of length 1")

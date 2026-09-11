@@ -5,18 +5,14 @@ go_library(
     srcs = [
         "config.go",
         "lang.go",
-        "resolve.go",
     ],
     importpath = "github.com/bazelbuild/bazel-gazelle/language/bazel/visibility",
     visibility = ["//visibility:public"],
     deps = [
-        "//config",
-        "//label",
-        "//language",
-        "//merger",
-        "//repo",
-        "//resolve",
-        "//rule",
+        "//v2/config",
+        "//v2/language",
+        "//v2/merger",
+        "//v2/rule",
     ],
 )
 
@@ -29,12 +25,11 @@ alias(
 go_test(
     name = "visibility_test",
     srcs = ["lang_test.go"],
+    embed = [":visibility"],
     deps = [
-        ":visibility",
-        "//config",
-        "//label",
-        "//language",
-        "//rule",
+        "//v2/config",
+        "//v2/language",
+        "//v2/rule",
     ],
 )
 
@@ -46,7 +41,6 @@ filegroup(
         "config.go",
         "lang.go",
         "lang_test.go",
-        "resolve.go",
     ],
     visibility = ["//visibility:public"],
 )

@@ -62,7 +62,6 @@ GO_REPOSITORY_TOOLS_SRCS = [
     Label("//language/bazel/visibility:BUILD.bazel"),
     Label("//language/bazel/visibility:config.go"),
     Label("//language/bazel/visibility:lang.go"),
-    Label("//language/bazel/visibility:resolve.go"),
     Label("//language/go:BUILD.bazel"),
     Label("//language/go:build_constraints.go"),
     Label("//language/go:config.go"),
