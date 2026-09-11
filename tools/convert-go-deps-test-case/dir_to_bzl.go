@@ -517,7 +517,7 @@ func omitTagDefaults(tagType string, attrs map[string]any) map[string]any {
 
 var tagDefaults = map[string]map[string]any{
 	"config": {
-		"check_direct_dependencies": "off",
+		"check_direct_dependencies": "",
 		"debug_mode":                false,
 		"go_env":                    map[string]any{},
 		"go_env_inherit":            []any{},

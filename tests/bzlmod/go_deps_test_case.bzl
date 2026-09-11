@@ -135,7 +135,7 @@ def _parse_archive_override_tag(d):
 def _parse_config_tag(d):
     return _apply_tag_defaults(d, {
         "checks": "warning",
-        "check_direct_dependencies": "off",
+        "check_direct_dependencies": "",
         "go_env": {},
         "go_env_inherit": [],
         "debug_mode": False,
