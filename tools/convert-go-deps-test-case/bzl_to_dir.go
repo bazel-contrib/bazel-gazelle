@@ -919,7 +919,7 @@ func renderGoDepsGoMod(ws *goDepsWorkspace) string {
 		if !ok || ws.rootReplaced[rv.path] {
 			continue
 		}
-		fmt.Fprintf(&b, "replace %s %s => %s\n", rv.path, rv.version, localReplacePath(dir))
+		fmt.Fprintf(&b, "replace %s %s => %s\n", rv.path, rv.version, modfile.AutoQuote(localReplacePath(dir)))
 	}
 	for _, rv := range ws.requiredVersions {
 		dir, ok := ws.localPathDirs[rv.path]
@@ -929,7 +929,7 @@ func renderGoDepsGoMod(ws *goDepsWorkspace) string {
 		if _, bazel := ws.bazelGoModDirs[rv.path]; bazel || ws.rootReplaced[rv.path] {
 			continue
 		}
-		fmt.Fprintf(&b, "replace %s %s => %s\n", rv.path, rv.version, dir)
+		fmt.Fprintf(&b, "replace %s %s => %s\n", rv.path, rv.version, modfile.AutoQuote(dir))
 	}
 	return b.String()
 }
@@ -953,7 +953,7 @@ func renderGoDepsGoWork(ws *goDepsWorkspace) string {
 	b.WriteString("\n\nuse .\n")
 	for _, usePath := range ws.usePaths {
 		b.WriteString("use ")
-		b.WriteString(usePath)
+		b.WriteString(modfile.AutoQuote(usePath))
 		b.WriteString("\n")
 	}
 	for _, r := range ws.replaces {
@@ -964,7 +964,7 @@ func renderGoDepsGoWork(ws *goDepsWorkspace) string {
 			b.WriteString(r.oldVers)
 		}
 		b.WriteString(" => ")
-		b.WriteString(r.newPath)
+		b.WriteString(modfile.AutoQuote(r.newPath))
 		if r.newVers != "" {
 			b.WriteString(" ")
 			b.WriteString(r.newVers)
