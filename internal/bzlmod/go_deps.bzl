@@ -54,6 +54,9 @@ def go_deps_impl(module_ctx):
             root_module = module
             config_tag = _get_only_tag(module_ctx, module, "config")
             gazelle_default_attributes = _get_only_tag(module_ctx, module, "gazelle_default_attributes")
+        else:
+            # Like overrides, these defaults would silently do nothing.
+            _fail_on_non_root_overrides(module_ctx, module, "gazelle_default_attributes")
         _process_overrides(module_ctx, module, "archive_override", archive_overrides)
         _process_overrides(module_ctx, module, "module_override", module_overrides, archive_overrides)
         _process_overrides(module_ctx, module, "gazelle_override", gazelle_overrides)
