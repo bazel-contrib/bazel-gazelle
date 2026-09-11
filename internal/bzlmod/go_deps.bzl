@@ -1217,6 +1217,11 @@ def _select_module_versions(
     go_modules = {}
     for m in parsed_list_results:
         importpath = m["Path"]
+        if m.get("Main") and importpath not in bazel_go_modules:
+            # The synthetic go_deps_module_tags module holding the
+            # go_deps.module requirements. It is not a real Go module and
+            # must not be indexed for Gazelle.
+            continue
         if "Replace" in m:
             if "Version" in m["Replace"]:
                 replace_path = m["Replace"]["Path"]
