@@ -280,6 +280,25 @@ def read_go_env_file(ctx, env_path, cache_dir_file = None):
         A dict of environment variables, ready for execution. Do not write to
         a file, since it contains absolute paths.
     """
+    env = parse_go_env_file(ctx, env_path)
+    if cache_dir_file == None:
+        cache_dir_file = env_path
+    return resolve_go_env(ctx, env, cache_dir_file)
+
+def parse_go_env_file(ctx, env_path):
+    """
+    Reads a go.env file without resolving labels or applying defaults.
+
+    Unlike the result of read_go_env_file, the returned settings contain no
+    absolute paths and may be written to another go.env file.
+
+    Args:
+        ctx: a repository_ctx or module_ctx.
+        env_path: path, label, or string for the go.env file to read.
+
+    Returns:
+        A dict of environment variables as written in the file.
+    """
     contents = ctx.read(env_path)
     env = {}
     lines = contents.split("\n")
@@ -291,13 +310,30 @@ def read_go_env_file(ctx, env_path, cache_dir_file = None):
         if sep == "":
             fail("failed to parse cache environment")
         env[k] = v.strip("'")
+    return env
+
+def resolve_go_env(ctx, env, cache_dir_file):
+    """
+    Prepares Go environment settings read from a go.env file for execution.
+
+    Args:
+        ctx: a repository_ctx or module_ctx.
+        env: a dict of environment variables, as returned by
+            parse_go_env_file. Not modified.
+        cache_dir_file: path, label, or string for a file within
+            @bazel_gazelle_go_repository_cache. GOPATH and GOCACHE default to
+            this repo's directory when unset in env.
+
+    Returns:
+        A dict of environment variables, ready for execution. Do not write to
+        a file, since it contains absolute paths.
+    """
+    env = dict(env)
 
     # Resolve the GOROOT label (see _go_repository_cache_impl) to an absolute
     # path and register a dependency by doing so.
     if env.get("GOROOT_LABEL"):
         env["GOROOT"] = path_str(ctx.path(Label(env["GOROOT_LABEL"])).dirname)
-    if cache_dir_file == None:
-        cache_dir_file = env_path
     cache_dir = path_str(ctx.path(cache_dir_file).dirname)
     env.setdefault("GOPATH", cache_dir)
     env.setdefault("GOCACHE", cache_dir + "/gocache")

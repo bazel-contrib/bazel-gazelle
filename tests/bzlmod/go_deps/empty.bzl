@@ -26,6 +26,10 @@ TEST = r"""
     "main": {
       "repos": [
         {
+          "go_env": {
+            "GOROOT_LABEL": "@@go_sdk//:ROOT",
+            "GOTOOLCHAIN": "local"
+          },
           "importpaths": {},
           "module_names": {},
           "name": "bazel_gazelle_go_repository_config",

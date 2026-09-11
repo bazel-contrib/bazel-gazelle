@@ -828,6 +828,14 @@ TEST = r"""
           "build_directives": [
             "gazelle:proto disable"
           ]
+        },
+        {
+          "go_env": {
+            "GOPRIVATE": "example.com/*",
+            "GOROOT_LABEL": "@@go_sdk//:ROOT",
+            "GOTOOLCHAIN": "local"
+          },
+          "name": "bazel_gazelle_go_repository_config"
         }
       ],
       "root_module_direct_deps": [
