@@ -1058,6 +1058,9 @@ def _index_tool_targets(module_ctx, bazel_go_modules, root_required_mods, module
     } | {
         path: struct(repo_name = _get_repo_name(path, bazel_go_modules, module_overrides), package = "")
         for path in root_required_mods.keys()
+        # Bazel modules may provide Go modules in subdirectories (like
+        # Gazelle's v2/go.mod); keep their package instead of overwriting it.
+        if path not in bazel_go_modules
     }
 
     tool_targets = {}  # tool import path => Bazel label string
