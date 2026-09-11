@@ -6,9 +6,10 @@ go_library(
     importpath = "github.com/bazelbuild/bazel-gazelle/internal/language/test_loads_from_flag",
     visibility = ["//visibility:public"],
     deps = [
-        "//config",
-        "//language",
-        "//rule",
+        "//v2/compat",
+        "//v2/config",
+        "//v2/language",
+        "//v2/rule",
     ],
 )
 

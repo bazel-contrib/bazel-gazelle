@@ -19,21 +19,18 @@ limitations under the License.
 package gazellebinarytest
 
 import (
-	"flag"
+	"context"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/label"
-	"github.com/bazelbuild/bazel-gazelle/language"
-	"github.com/bazelbuild/bazel-gazelle/repo"
-	"github.com/bazelbuild/bazel-gazelle/resolve"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 )
 
-var _ config.Configurer = (*xlang)(nil)
+var _ language.Language = (*xlang)(nil)
+var _ language.Generator = (*xlang)(nil)
 
 type xlang struct{}
 
-func NewLanguage() language.Language {
+func NewV2() language.Language {
 	return &xlang{}
 }
 
@@ -41,47 +38,13 @@ func (x *xlang) Name() string {
 	return "x"
 }
 
-func (x *xlang) Kinds() map[string]rule.KindInfo {
-	return map[string]rule.KindInfo{
-		"x_library": {},
-	}
+func (x *xlang) Kinds() []rule.KindInfo {
+	return []rule.KindInfo{{Name: "x_library"}}
 }
 
-func (x *xlang) Loads() []rule.LoadInfo {
-	return nil
-}
-
-func (x *xlang) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
-}
-
-func (x *xlang) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
-	return nil
-}
-
-func (x *xlang) KnownDirectives() []string {
-	return nil
-}
-
-func (x *xlang) Configure(c *config.Config, rel string, f *rule.File) {
-}
-
-func (x *xlang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
+func (x *xlang) Generate(ctx context.Context, args language.GenerateArgs) (language.GenerateResult, error) {
 	return language.GenerateResult{
 		Gen:     []*rule.Rule{rule.NewRule("x_library", "x_default_library")},
-		Imports: []interface{}{nil},
-	}
-}
-
-func (x *xlang) Fix(c *config.Config, f *rule.File) {
-}
-
-func (x *xlang) Imports(c *config.Config, r *rule.Rule, f *rule.File) []resolve.ImportSpec {
-	return nil
-}
-
-func (x *xlang) Embeds(r *rule.Rule, from label.Label) []label.Label {
-	return nil
-}
-
-func (x *xlang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, r *rule.Rule, imports interface{}, from label.Label) {
+		Imports: []any{nil},
+	}, nil
 }

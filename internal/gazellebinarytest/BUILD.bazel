@@ -8,6 +8,7 @@ gazelle_binary(
         "//language/go",
         ":gazellebinarytest",
     ],
+    version = 2,
 )
 
 go_library(
@@ -16,12 +17,8 @@ go_library(
     importpath = "github.com/bazelbuild/bazel-gazelle/internal/gazellebinarytest",
     visibility = ["//:__subpackages__"],
     deps = [
-        "//config",
-        "//label",
-        "//language",
-        "//repo",
-        "//resolve",
-        "//rule",
+        "//v2/language",
+        "//v2/rule",
     ],
 )
 

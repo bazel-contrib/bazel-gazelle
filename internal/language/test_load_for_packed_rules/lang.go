@@ -23,72 +23,67 @@ package test_load_for_packed_rules
 import (
 	"context"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/label"
-	"github.com/bazelbuild/bazel-gazelle/language"
-	"github.com/bazelbuild/bazel-gazelle/repo"
-	"github.com/bazelbuild/bazel-gazelle/resolve"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 )
 
 const testLoadForPackedRulesName = "test_load_for_packed_rules"
 
 type testLoadForPackedRulesLang struct {
-	language.BaseLang
-
-	Initialized, RulesGenerated, DepsResolved bool
+	Started, Resolved, Finished bool
 }
 
 var (
-	_ language.Language         = (*testLoadForPackedRulesLang)(nil)
-	_ language.LifecycleManager = (*testLoadForPackedRulesLang)(nil)
+	_ language.Language     = (*testLoadForPackedRulesLang)(nil)
+	_ language.Generator    = (*testLoadForPackedRulesLang)(nil)
+	_ language.OnStarter    = (*testLoadForPackedRulesLang)(nil)
+	_ language.OnResolver   = (*testLoadForPackedRulesLang)(nil)
+	_ language.OnFinisher   = (*testLoadForPackedRulesLang)(nil)
+	_ resolve.Resolver      = (*testLoadForPackedRulesLang)(nil)
+	_ compat.ApparentLoader = (*testLoadForPackedRulesLang)(nil)
 )
 
-func NewLanguage() language.Language {
+func NewV2() language.Language {
 	return &testLoadForPackedRulesLang{}
 }
 
-var kinds = map[string]rule.KindInfo{
-	"selects.config_setting_group": {
-		NonEmptyAttrs: map[string]bool{"name": true},
-		MergeableAttrs: map[string]bool{
-			"match_all": true,
-			"match_any": true,
-		},
+var kinds = []rule.KindInfo{{
+	Name: "selects.config_setting_group",
+	NonEmptyAttrs: map[string]bool{"name": true},
+	MergeableAttrs: map[string]bool{
+		"match_all": true,
+		"match_any": true,
 	},
-}
-
-var loads = []rule.LoadInfo{
-	{
-		Name: "@bazel_skylib//lib:selects.bzl",
-		Symbols: []string{
-			"selects",
-		},
-	},
-}
+}}
 
 func (*testLoadForPackedRulesLang) Name() string {
 	return testLoadForPackedRulesName
 }
 
-func (*testLoadForPackedRulesLang) Kinds() map[string]rule.KindInfo {
+func (*testLoadForPackedRulesLang) Kinds() []rule.KindInfo {
 	return kinds
 }
 
-func (*testLoadForPackedRulesLang) Loads() []rule.LoadInfo {
-	return loads
+func (*testLoadForPackedRulesLang) ApparentLoads(func(string) string) []rule.LoadInfo {
+	return []rule.LoadInfo{{
+		Name:    "@bazel_skylib//lib:selects.bzl",
+		Symbols: []string{"selects"},
+	}}
 }
 
-func (l *testLoadForPackedRulesLang) Before(ctx context.Context) {
-	l.Initialized = true
+func (l *testLoadForPackedRulesLang) OnStart(ctx context.Context) error {
+	l.Started = true
+	return nil
 }
 
-func (l *testLoadForPackedRulesLang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
-	if !l.Initialized {
-		panic("GenerateRules must not be called before Before")
+func (l *testLoadForPackedRulesLang) Generate(ctx context.Context, args language.GenerateArgs) (language.GenerateResult, error) {
+	if !l.Started {
+		panic("Generate must not be called before OnStart")
 	}
-	if l.RulesGenerated {
-		panic("GenerateRules must not be called after DoneGeneratingRules")
+	if l.Resolved {
+		panic("Generate must not be called after OnResolve")
 	}
 
 	r := rule.NewRule("selects.config_setting_group", "all_configs_group")
@@ -102,23 +97,26 @@ func (l *testLoadForPackedRulesLang) GenerateRules(args language.GenerateArgs) l
 
 	return language.GenerateResult{
 		Gen:     []*rule.Rule{r},
-		Imports: []interface{}{nil},
-	}
+		Imports: []any{nil},
+	}, nil
 }
 
-func (l *testLoadForPackedRulesLang) DoneGeneratingRules() {
-	l.RulesGenerated = true
+func (l *testLoadForPackedRulesLang) OnResolve(ctx context.Context) error {
+	l.Resolved = true
+	return nil
 }
 
-func (l *testLoadForPackedRulesLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, r *rule.Rule, imports interface{}, from label.Label) {
-	if !l.RulesGenerated {
-		panic("Expected a call to DoneGeneratingRules before Resolve")
+func (l *testLoadForPackedRulesLang) Resolve(ctx context.Context, args resolve.ResolveArgs) error {
+	if !l.Resolved {
+		panic("Expected a call to OnResolve before Resolve")
 	}
-	if l.DepsResolved {
-		panic("Resolve must be called before calling AfterResolvingDeps")
+	if l.Finished {
+		panic("Resolve must be called before calling OnFinish")
 	}
+	return nil
 }
 
-func (l *testLoadForPackedRulesLang) AfterResolvingDeps(ctx context.Context) {
-	l.DepsResolved = true
+func (l *testLoadForPackedRulesLang) OnFinish(ctx context.Context) error {
+	l.Finished = true
+	return nil
 }
