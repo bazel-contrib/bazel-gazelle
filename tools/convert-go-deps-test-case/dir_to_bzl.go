@@ -709,6 +709,9 @@ func expandFromFileRefs(files map[string]string, fromFileRefs []fromFileRef) ([]
 			if err != nil {
 				return nil, err
 			}
+			if escapesModule(goModLabel) {
+				continue
+			}
 			goModPath, err := labelToFileKey(goModLabel)
 			if err != nil {
 				return nil, err
