@@ -622,10 +622,15 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
       its 'use' directives, normalizing paths as needed. We only copy 'replace'
       directives if the tag is from the root Bazel module.
     - For each 'module' tag, we add a 'require' directive to a dummy go.mod
-      file, referenced from our go.work file with 'use .'. If the required
-      module is also provided by a Bazel module (via from_file), we add a
-      matching 'replace' directive pointing at that module's workspace
-      directory so 'go list -m' can resolve the version.
+      file, referenced from our go.work file with 'use .'.
+    - For each version of a Go module required by any go.mod file or module
+      tag, if the module is provided by a Bazel module (via from_file), we
+      add a 'replace' directive to the dummy go.mod file pointing at that
+      module's workspace directory. Without it, 'go list -m' would download
+      the required version from the module proxy to load its go.mod file,
+      which fails for private modules and requires network access for
+      public ones. We skip modules replaced by the root Bazel module's own
+      go.mod or go.work files, since Go rejects conflicting replacements.
 
     Args:
         module_ctx: the module context.
@@ -665,6 +670,12 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
     bazel_go_module_dirs = {}  # Go module path => directory in synthetic workspace
     root_required_mods = {}
     module_tag_requires = {}  # Go module path => go_deps.module tag with highest version
+    required_versions = {}  # Go module path => dict of required versions from all go.mod files
+    root_replaced_paths = {}  # Go module paths replaced by the root module's go.mod or go.work files
+
+    def add_required_version(path, version):
+        required_versions.setdefault(path, {})[version] = True
+
     for module in module_ctx.modules:
         module_tag_paths = {}
         for tag in module.tags.module:
@@ -733,11 +744,15 @@ To correct this:
             )
             bazel_go_modules[info.importpath] = info
 
+            for r in go_mod_json.get("Require") or []:
+                add_required_version(r["Path"], r["Version"])
             if acts_as_root:
                 # We can use 'replace' and 'exclude' directives in go.mod files from
                 # the Bazel root module without modification.
                 bazel_go_module_dirs[info.importpath] = path_str(go_mod_path.dirname)
                 go_work_lines.append("use {}".format(path_str(go_mod_path.dirname)))
+                for r in go_mod_json.get("Replace") or []:
+                    root_replaced_paths[r["Old"]["Path"]] = True
                 for r in go_mod_json.get("Require") or []:
                     # A module may be required multiple times from different go.mod
                     # files within a go.work workspace, so update the existing entry
@@ -797,6 +812,8 @@ To correct this:
 
                 if _module_acts_as_root(module_ctx, module):
                     _fix_replace_paths(go_work_path, go_work_json)
+                    for r in go_work_json.get("Replace") or []:
+                        root_replaced_paths[r["Old"]["Path"]] = True
                     go_work_lines.extend([
                         "replace {}{} => {}{}".format(
                             r["Old"]["Path"],
@@ -818,8 +835,13 @@ To correct this:
         go_mod_lines.append("require {} {}".format(tag.path, tag.version))
         if tag.sum:
             go_sum_lines.append("{} {} {}".format(tag.path, tag.version, tag.sum))
-        if tag.path in bazel_go_module_dirs and not tag.local_path:
-            go_mod_lines.append("replace {} {} => {}".format(tag.path, tag.version, _local_replace_path(bazel_go_module_dirs[tag.path])))
+        add_required_version(tag.path, tag.version)
+
+    for path, versions in required_versions.items():
+        if path not in bazel_go_module_dirs or path in root_replaced_paths:
+            continue
+        for version in versions:
+            go_mod_lines.append("replace {} {} => {}".format(path, version, _local_replace_path(bazel_go_module_dirs[path])))
 
     module_ctx.file("go.work", "\n".join(go_work_lines))
     module_ctx.file("go.mod", "\n".join(go_mod_lines))
