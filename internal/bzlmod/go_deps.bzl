@@ -1173,17 +1173,11 @@ def _select_module_versions(
             if "Version" in m["Replace"]:
                 replace_path = m["Replace"]["Path"]
                 version = m["Replace"]["Version"]
-                if "Sum" not in m["Replace"]:
-                    module_ctx.fail("""\
-{importpath}: sum missing for replacement {repl_importpath}@{repl_version}
-Add to go.sum with:
-    go mod download {repl_importpath}@{repl_version}""".format(
-                        importpath = importpath,
-                        repl_importpath = m["Replace"]["Path"],
-                        repl_version = m["Replace"]["Version"],
-                    ))
-                    return None
-                sum = m["Replace"]["Sum"]
+
+                # Like for other modules, the sum may be missing if no
+                # package of the module is needed. _check_for_version_conflict
+                # reports this for modules the root module requires.
+                sum = m["Replace"].get("Sum")
                 local_path = None
             else:
                 replace_path = None
@@ -1430,14 +1424,23 @@ To correct this:
         if (go_module.go_mod_label == None and
             go_module.sum == None and
             go_module.local_path == None):
+            if go_module.replace_path != None:
+                # 'go get' would change the require directive, not the replace.
+                fix = "Run 'go mod download {importpath}' to update go.sum.".format(importpath = path)
+            else:
+                fix = "Run 'go get {importpath}@{go_version}' to update go.mod and go.sum.".format(
+                    importpath = path,
+                    go_version = go_module.version,
+                )
             report_error("""\
 Missing go.sum entry for Go module {importpath}:
     selected by Go: {go_version}
 To correct this:
-    Run 'go get {importpath}@{go_version}' to update go.mod and go.sum.
+    {fix}
 """.format(
                 importpath = path,
                 go_version = go_module.version,
+                fix = fix,
             ))
 
     for go_module in go_modules.values():
