@@ -784,6 +784,10 @@ func processGoWorkFromFileTag(dirPath string, tc *testCase, m *module, goWorkLab
 			if err != nil {
 				return err
 			}
+			if escapesModule(goModLabel) {
+				addUse(u.Path)
+				continue
+			}
 			ref, err := goModRefFromLabel(goModLabel, m.Name, m.IsRoot)
 			if err != nil {
 				return err
@@ -857,8 +861,27 @@ func fixReplacePaths(mf *modfile.File, absGoModDir string) error {
 	return nil
 }
 
+// isRelativeUsePath reports whether a go.work use path is resolved relative to
+// the go.work file (like go_deps does for all non-absolute paths). Like
+// go_deps, treat both POSIX and Windows absolute paths as absolute on every
+// platform, since test cases are shared between platforms.
 func isRelativeUsePath(path string) bool {
-	return path == "." || strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../")
+	if strings.HasPrefix(path, "/") || filepath.IsAbs(path) {
+		return false
+	}
+	return !(len(path) > 1 && path[1] == ':')
+}
+
+// escapesModule reports whether a go.mod label computed from a go.work use
+// path points outside the Bazel module. go_deps rejects such use directives;
+// the tool skips them so that it can still derive the other executions.
+func escapesModule(goModLabel string) bool {
+	m := bazelLabelRE.FindStringSubmatch(goModLabel)
+	if m == nil {
+		return false
+	}
+	pkg := m[2]
+	return pkg == ".." || strings.HasPrefix(pkg, "../")
 }
 
 func isRelativeReplacePath(path string) bool {

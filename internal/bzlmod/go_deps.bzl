@@ -642,8 +642,9 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
       'use' directive. If the tag is outside the root Bazel module, we make
       a copy of the go.mod file first, dropping 'replace' and 'exclude'
       directives.
-    - For each 'from_file(go_work = ...)' tag, we parse the file and copy
-      its 'use' directives, normalizing paths as needed. We only copy 'replace'
+    - For each 'from_file(go_work = ...)' tag, we parse the file and visit
+      the go.mod file of each 'use' directive as above. Use paths must be
+      relative and stay within the Bazel module. We only copy 'replace'
       directives if the tag is from the root Bazel module.
     - For each 'module' tag, we add a 'require' directive to a dummy go.mod
       file, referenced from our go.work file with 'use .'. If the tag sets
@@ -845,14 +846,22 @@ To correct this:
                 # 'go work edit -json' reports "Use": null for a go.work file
                 # without use directives, like one written by 'go work init'.
                 for u in go_work_json.get("Use") or []:
-                    if u["DiskPath"] == "." or u["DiskPath"].startswith("./") or u["DiskPath"].startswith("../"):
-                        go_mod_package = paths.normalize(paths.join(tag.go_work.package, u["DiskPath"]))
-                        if go_mod_package == ".":
-                            go_mod_package = ""
-                        go_mod_label = Label("@@{}//{}:go.mod".format(tag.go_work.repo_name, go_mod_package))
-                        visit_go_mod(go_mod_label, is_dev_dependency)
-                    else:
-                        go_work_lines.append("use {}".format(_modfile_token(u["DiskPath"])))
+                    # Go resolves relative use paths (including bare paths
+                    # like "foo") from the go.work file's directory. The
+                    # go.mod file must be within the Bazel module so that we
+                    # can reference it with a label.
+                    disk_path = u["DiskPath"]
+                    if paths.is_absolute(disk_path):
+                        module_ctx.fail("in {}, use directive '{}' is an absolute path, which is not supported. Use a path relative to the go.work file within the Bazel module.".format(tag.go_work, disk_path))
+                        return None
+                    go_mod_package = paths.normalize(paths.join(tag.go_work.package, disk_path))
+                    if go_mod_package == ".":
+                        go_mod_package = ""
+                    if go_mod_package == ".." or go_mod_package.startswith("../"):
+                        module_ctx.fail("in {}, use directive '{}' points outside the Bazel module, which is not supported.".format(tag.go_work, disk_path))
+                        return None
+                    go_mod_label = Label("@@{}//{}:go.mod".format(tag.go_work.repo_name, go_mod_package))
+                    visit_go_mod(go_mod_label, is_dev_dependency)
 
                 if _module_acts_as_root(module_ctx, module):
                     _fix_replace_paths(go_work_path, go_work_json)
