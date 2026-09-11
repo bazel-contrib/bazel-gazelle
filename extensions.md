@@ -48,7 +48,7 @@ Configures the general behavior of the go_deps extension.
 
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
-| <a id="go_deps.config-check_direct_dependencies"></a>check_direct_dependencies |  DEPRECATED: Use `checks` instead.   | String | optional |  `"off"`  |
+| <a id="go_deps.config-check_direct_dependencies"></a>check_direct_dependencies |  DEPRECATED: Use `checks` instead. If set, it takes the place of `checks`.   | String | optional |  `""`  |
 | <a id="go_deps.config-checks"></a>checks |  How to handle problems with inconsistent versions, like a Go module being requested at different versions with go_deps.module and go.mod. "error" fails the build when an inconsistency is detected. "warning" prints a message. "off" suppresses these messages.   | String | optional |  `"warning"`  |
 | <a id="go_deps.config-debug_mode"></a>debug_mode |  Whether or not to print stdout and stderr messages from gazelle   | Boolean | optional |  `False`  |
 | <a id="go_deps.config-go_env"></a>go_env |  The environment variables to use when fetching Go dependencies or running the `@rules_go//go` tool.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |

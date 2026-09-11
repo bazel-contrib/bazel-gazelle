@@ -7,6 +7,7 @@ load("//tests/bzlmod/go_deps:archive_override.bzl", ARCHIVE_OVERRIDE_TEST = "TES
 load("//tests/bzlmod/go_deps:archive_override_unmatched.bzl", ARCHIVE_OVERRIDE_UNMATCHED_TEST = "TEST")
 load("//tests/bzlmod/go_deps:bcr_go_mod.bzl", BCR_GO_MOD_TEST = "TEST")
 load("//tests/bzlmod/go_deps:build_naming_conventions.bzl", BUILD_NAMING_CONVENTIONS_TEST = "TEST")
+load("//tests/bzlmod/go_deps:check_direct_dependencies.bzl", CHECK_DIRECT_DEPENDENCIES_TEST = "TEST")
 load("//tests/bzlmod/go_deps:debug_mode.bzl", DEBUG_MODE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:default_gazelle_overrides.bzl", DEFAULT_GAZELLE_OVERRIDES_TEST = "TEST")
 load("//tests/bzlmod/go_deps:dep_files.bzl", DEP_FILES_TEST = "TEST")
@@ -51,6 +52,7 @@ _GO_DEPS_TEST_CASES = [
     ARCHIVE_OVERRIDE_UNMATCHED_TEST,
     BUILD_NAMING_CONVENTIONS_TEST,
     BCR_GO_MOD_TEST,
+    CHECK_DIRECT_DEPENDENCIES_TEST,
     DEBUG_MODE_TEST,
     DEFAULT_GAZELLE_OVERRIDES_TEST,
     DEP_FILES_TEST,

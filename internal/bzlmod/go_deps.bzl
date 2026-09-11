@@ -501,19 +501,23 @@ def _get_checks_reporter(module_ctx, root_module):
     }
     if not root_module:
         return module_ctx.print
-    check_direct_dependencies_level = OFF
+    checks_level = WARNING
     if len(root_module.tags.config) > 0:
         config_tag = root_module.tags.config[0]
-        checks_level = LEVEL[config_tag.checks]
-        check_direct_dependencies_level = LEVEL[config_tag.check_direct_dependencies]
-    else:
-        checks_level = WARNING
-        check_direct_dependencies_level = OFF
+        if config_tag.check_direct_dependencies:
+            # The deprecated attribute takes the place of checks when set, so
+            # that an explicit "off" still silences the checks.
+            module_ctx.print('go_deps.config(check_direct_dependencies = "{level}") is deprecated, use go_deps.config(checks = "{level}") instead.'.format(
+                level = config_tag.check_direct_dependencies,
+            ))
+            checks_level = LEVEL[config_tag.check_direct_dependencies]
+        else:
+            checks_level = LEVEL[config_tag.checks]
     from_file_level = OFF
     for tag in root_module.tags.from_file:
         if tag.fail_on_version_conflict:
             from_file_level = ERROR
-    level = max(checks_level, check_direct_dependencies_level, from_file_level)
+    level = max(checks_level, from_file_level)
     if level == OFF:
         return lambda *args, **kwargs: None
     elif level == WARNING:
@@ -1672,9 +1676,9 @@ _config_tag = tag_class(
             default = "warning",
         ),
         "check_direct_dependencies": attr.string(
-            doc = "DEPRECATED: Use `checks` instead.",
-            values = ["off", "warning", "error"],
-            default = "off",
+            doc = "DEPRECATED: Use `checks` instead. If set, it takes the place of `checks`.",
+            values = ["", "off", "warning", "error"],
+            default = "",
         ),
         "go_env": attr.string_dict(
             doc = "The environment variables to use when fetching Go dependencies or running the `@rules_go//go` tool.",
