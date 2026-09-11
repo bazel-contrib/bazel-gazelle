@@ -21,12 +21,13 @@ const normalizedGoListTime = "0001-01-01T00:00:00Z"
 var goListTimeRE = regexp.MustCompile(`"Time": "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z"`)
 
 type parsedModule struct {
-	name        string
-	version     string
-	tags        tags
-	tagsDev     tags
-	tagsIsolate tags
-	siblingDeps []string
+	name          string
+	version       string
+	noGoDepsUsage bool
+	tags          tags
+	tagsDev       tags
+	tagsIsolate   tags
+	siblingDeps   []string
 }
 
 func convertDirToBzl(dirPath, bzlPath string) error {
@@ -191,9 +192,10 @@ func convertDirToBzlWithGoEnv(dirPath, bzlPath string) error {
 	for _, name := range names {
 		pm := parsed[name]
 		m := module{
-			Name:    pm.name,
-			IsRoot:  name == rootName,
-			Version: pm.version,
+			Name:          pm.name,
+			IsRoot:        name == rootName,
+			NoGoDepsUsage: pm.noGoDepsUsage,
+			Version:       pm.version,
 		}
 		if !pm.tags.isEmpty() {
 			t := pm.tags
@@ -262,7 +264,14 @@ func parseModuleBazel(dirName string, data []byte) (*parsedModule, error) {
 
 	pm := &parsedModule{name: dirName}
 
+	usesGoDeps := false
 	for _, stmt := range file.Stmt {
+		if assign, ok := stmt.(*build.AssignExpr); ok {
+			if call, ok := assign.RHS.(*build.CallExpr); ok && isGoDepsUseExtension(call) {
+				usesGoDeps = true
+			}
+			continue
+		}
 		call, ok := stmt.(*build.CallExpr)
 		if !ok {
 			continue
@@ -311,7 +320,18 @@ func parseModuleBazel(dirName string, data []byte) (*parsedModule, error) {
 	}
 
 	sort.Strings(pm.siblingDeps)
+	pm.noGoDepsUsage = !usesGoDeps
 	return pm, nil
+}
+
+// isGoDepsUseExtension reports whether call is use_extension(..., "go_deps").
+func isGoDepsUseExtension(call *build.CallExpr) bool {
+	ident, ok := call.X.(*build.Ident)
+	if !ok || ident.Name != "use_extension" || len(call.List) < 2 {
+		return false
+	}
+	name, ok := call.List[1].(*build.StringExpr)
+	return ok && name.Value == "go_deps"
 }
 
 func goDepsTagTargetForModule(call *build.CallExpr, pm *parsedModule) (tagType string, target *tags, ok bool) {
@@ -595,9 +615,10 @@ func testCaseFromParsed(testName string, parsed map[string]*parsedModule, rootNa
 	for _, name := range names {
 		pm := parsed[name]
 		m := module{
-			Name:    pm.name,
-			IsRoot:  name == rootName,
-			Version: pm.version,
+			Name:          pm.name,
+			IsRoot:        name == rootName,
+			NoGoDepsUsage: pm.noGoDepsUsage,
+			Version:       pm.version,
 		}
 		if !pm.tags.isEmpty() {
 			t := pm.tags

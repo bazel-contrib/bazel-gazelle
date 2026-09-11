@@ -218,6 +218,14 @@ func buildModuleBazelFile(m *module, deps []module, gazelleRoot string) (*build.
 		)
 	}
 
+	if m.NoGoDepsUsage {
+		// The module depends on gazelle but does not use go_deps.
+		return &build.File{
+			Path: "MODULE.bazel",
+			Type: build.TypeModule,
+			Stmt: stmts,
+		}, nil
+	}
 	stmts = append(stmts, &build.AssignExpr{
 		LHS: bazelIdent("go_deps"),
 		Op:  "=",
@@ -504,11 +512,11 @@ type replaceDirective struct {
 }
 
 type goDepsWorkspace struct {
-	usePaths        []string
-	replaces        []replaceDirective
-	goWorkSum       []string
-	moduleTags      []map[string]any
-	bazelGoModDirs  map[string]string // Go module path => directory in synthetic workspace
+	usePaths       []string
+	replaces       []replaceDirective
+	goWorkSum      []string
+	moduleTags     []map[string]any
+	bazelGoModDirs map[string]string // Go module path => directory in synthetic workspace
 }
 
 func writeGoDepsWorkFiles(dirPath string, tc *testCase) error {
