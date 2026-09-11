@@ -18,6 +18,7 @@ load("//tests/bzlmod/go_deps:facts_all.bzl", FACTS_ALL_TEST = "TEST")
 load("//tests/bzlmod/go_deps:facts_gonoproxy.bzl", FACTS_GONOPROXY_TEST = "TEST")
 load("//tests/bzlmod/go_deps:facts_goprivate.bzl", FACTS_GOPRIVATE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:from_file_dev_deps.bzl", FROM_FILE_DEV_DEPS_TEST = "TEST")
+load("//tests/bzlmod/go_deps:from_file_not_go_mod.bzl", FROM_FILE_NOT_GO_MOD_TEST = "TEST")
 load("//tests/bzlmod/go_deps:gazelle_default_attributes.bzl", GAZELLE_DEFAULT_ATTRIBUTES_TEST = "TEST")
 load("//tests/bzlmod/go_deps:gazelle_default_attributes_not_root.bzl", GAZELLE_DEFAULT_ATTRIBUTES_NOT_ROOT_TEST = "TEST")
 load("//tests/bzlmod/go_deps:gazelle_override.bzl", GAZELLE_OVERRIDE_TEST = "TEST")
@@ -70,6 +71,7 @@ _GO_DEPS_TEST_CASES = [
     FACTS_GONOPROXY_TEST,
     FACTS_GOPRIVATE_TEST,
     FROM_FILE_DEV_DEPS_TEST,
+    FROM_FILE_NOT_GO_MOD_TEST,
     GAZELLE_DEFAULT_ATTRIBUTES_TEST,
     GAZELLE_DEFAULT_ATTRIBUTES_NOT_ROOT_TEST,
     GAZELLE_OVERRIDE_TEST,
