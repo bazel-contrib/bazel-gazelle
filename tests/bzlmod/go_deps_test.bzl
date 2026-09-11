@@ -367,8 +367,9 @@ def _mock_module_ctx_read(state, path):
     if filename.endswith("/go.env"):
         # special case: mock @bazel_gazelle_go_repository_cache//:go.env
         # We'll get a label with mangled repo name, but we don't want to simulate
-        # the mangling, so only match go.env here.
-        return "GOROOT=@go_sdk//:ROOT"
+        # the mangling, so only match go.env here. The content matches what
+        # go_repository_cache writes.
+        return "GOROOT_LABEL='@@go_sdk//:ROOT'\nGOTOOLCHAIN='local'\n"
     if filename.startswith("./") and filename[len("./"):] in state.files:
         # file written with module_ctx.file
         return state.files[filename[len("./"):]]
