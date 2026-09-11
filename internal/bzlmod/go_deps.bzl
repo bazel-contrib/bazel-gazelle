@@ -62,6 +62,12 @@ def go_deps_impl(module_ctx):
         _process_overrides(module_ctx, module, "gazelle_override", gazelle_overrides)
     if module_ctx.failed():
         return None
+    for override in gazelle_overrides.values():
+        _check_directives(module_ctx, override.directives)
+    if gazelle_default_attributes:
+        _check_directives(module_ctx, gazelle_default_attributes.directives)
+    if module_ctx.failed():
+        return None
 
     # Bazel only includes modules that use the extension in module_ctx.modules,
     # so the root module may be absent if only dependencies use go_deps. In
@@ -605,6 +611,13 @@ https://github.com/bazel-contrib/bazel-gazelle/tree/master/internal/bzlmod/defau
             tag_class = tag_class,
             module_name = module.name,
         ))
+
+def _check_directives(module_ctx, directives):
+    """Fails for directives that Gazelle would ignore as plain comments in a BUILD file"""
+    for directive in directives:
+        if directive.startswith("gazelle:") and " " in directive and not directive[len("gazelle:"):][0].isspace():
+            continue
+        module_ctx.fail("Invalid Gazelle directive: \"{}\". Gazelle directives must be of the form \"gazelle:key value\".".format(directive))
 
 def _fail_on_duplicate_overrides(module_ctx, path, module_name, overrides):
     if path in overrides:
