@@ -511,12 +511,35 @@ type replaceDirective struct {
 	newVers string
 }
 
+type requiredVersion struct {
+	path    string
+	version string
+}
+
 type goDepsWorkspace struct {
-	usePaths       []string
-	replaces       []replaceDirective
-	goWorkSum      []string
-	moduleTags     []map[string]any
-	bazelGoModDirs map[string]string // Go module path => directory in synthetic workspace
+	usePaths         []string
+	replaces         []replaceDirective
+	goWorkSum        []string
+	moduleTags       []map[string]any
+	bazelGoModDirs   map[string]string // Go module path => directory in synthetic workspace
+	requiredVersions []requiredVersion // versions required by any go.mod file or module tag
+	rootReplaced     map[string]bool   // Go module paths replaced by the root module's go.mod or go.work
+}
+
+func (ws *goDepsWorkspace) addRequiredVersion(path, version string) {
+	for _, rv := range ws.requiredVersions {
+		if rv.path == path && rv.version == version {
+			return
+		}
+	}
+	ws.requiredVersions = append(ws.requiredVersions, requiredVersion{path: path, version: version})
+}
+
+func (ws *goDepsWorkspace) addRootReplaced(path string) {
+	if ws.rootReplaced == nil {
+		ws.rootReplaced = map[string]bool{}
+	}
+	ws.rootReplaced[path] = true
 }
 
 func writeGoDepsWorkFiles(dirPath string, tc *testCase) error {
@@ -631,6 +654,14 @@ func buildGoDepsWorkspace(dirPath string, tc *testCase, isolateModuleName string
 				ws.bazelGoModDirs = map[string]string{}
 			}
 			ws.bazelGoModDirs[mf.Module.Mod.Path] = usePath
+		}
+		for _, r := range mf.Require {
+			ws.addRequiredVersion(r.Mod.Path, r.Mod.Version)
+		}
+		if actsAsRoot {
+			for _, r := range mf.Replace {
+				ws.addRootReplaced(r.Old.Path)
+			}
 		}
 		return nil
 	}
@@ -761,6 +792,7 @@ func processGoWorkFromFileTag(dirPath string, tc *testCase, m *module, goWorkLab
 	if actsAsRoot {
 		absGoWorkDir := filepath.Join(dirPath, filepath.Dir(strings.TrimPrefix(fileKey, "./")))
 		for _, r := range wf.Replace {
+			ws.addRootReplaced(r.Old.Path)
 			newPath := r.New.Path
 			newVers := r.New.Version
 			if newVers == "" && isRelativeReplacePath(newPath) {
@@ -875,12 +907,17 @@ func renderGoDepsGoMod(ws *goDepsWorkspace) string {
 		path, _ := tag["path"].(string)
 		version, _ := tag["version"].(string)
 		fmt.Fprintf(&b, "require %s %s\n", path, version)
-		localPath, _ := tag["local_path"].(string)
-		if localPath == "" {
-			if dir, ok := ws.bazelGoModDirs[path]; ok {
-				fmt.Fprintf(&b, "replace %s %s => %s\n", path, version, localReplacePath(dir))
-			}
+		ws.addRequiredVersion(path, version)
+	}
+	// Like go_deps, replace every required version of a Go module provided by
+	// a Bazel module with its directory in the workspace, unless the root
+	// module replaces it itself.
+	for _, rv := range ws.requiredVersions {
+		dir, ok := ws.bazelGoModDirs[rv.path]
+		if !ok || ws.rootReplaced[rv.path] {
+			continue
 		}
+		fmt.Fprintf(&b, "replace %s %s => %s\n", rv.path, rv.version, localReplacePath(dir))
 	}
 	return b.String()
 }
