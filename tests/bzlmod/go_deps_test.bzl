@@ -27,6 +27,8 @@ load("//tests/bzlmod/go_deps:module_override.bzl", MODULE_OVERRIDE_TEST = "TEST"
 load("//tests/bzlmod/go_deps:module_tag_version_normalize.bzl", MODULE_TAG_VERSION_NORMALIZE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:mvs.bzl", MVS_TEST = "TEST")
 load("//tests/bzlmod/go_deps:no_root_usage.bzl", NO_ROOT_USAGE_TEST = "TEST")
+load("//tests/bzlmod/go_deps:override_bazel_module.bzl", OVERRIDE_BAZEL_MODULE_TEST = "TEST")
+load("//tests/bzlmod/go_deps:replace_bazel_module.bzl", REPLACE_BAZEL_MODULE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_dir_mod.bzl", REPLACE_DIR_MOD_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_dir_work.bzl", REPLACE_DIR_WORK_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_ignore_not_root.bzl", REPLACE_IGNORE_NOT_ROOT_TEST = "TEST")
@@ -68,6 +70,8 @@ _GO_DEPS_TEST_CASES = [
     MISSING_SUM_TEST,
     MVS_TEST,
     NO_ROOT_USAGE_TEST,
+    OVERRIDE_BAZEL_MODULE_TEST,
+    REPLACE_BAZEL_MODULE_TEST,
     REPLACE_DIR_MOD_TEST,
     REPLACE_DIR_WORK_TEST,
     REPLACE_IGNORE_NOT_ROOT_TEST,

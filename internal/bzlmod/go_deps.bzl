@@ -98,7 +98,7 @@ def go_deps_impl(module_ctx):
     workspace = _create_workspace_from_tags(module_ctx, go_tool, go_exec_env)
     if module_ctx.failed() or workspace == None:
         return None
-    bazel_go_modules, root_required_mods = workspace
+    bazel_go_modules, root_required_mods, root_replaced_paths = workspace
 
     # Run 'go list -m' in the scratch workspace to select versions of Go modules.
     module_ctx.report_progress("selecting versions with 'go list -m'")
@@ -112,6 +112,14 @@ def go_deps_impl(module_ctx):
     if module_ctx.failed():
         return None
 
+    # Overrides can't be applied to Go modules provided by Bazel modules, and
+    # silently ignoring them would be confusing.
+    _fail_on_bazel_module_overrides(module_ctx, archive_overrides.keys(), bazel_go_modules, "archive_override")
+    _fail_on_bazel_module_overrides(module_ctx, module_overrides.keys(), bazel_go_modules, "module_override")
+    _fail_on_bazel_module_overrides(module_ctx, gazelle_overrides.keys(), bazel_go_modules, "gazelle_override")
+    if module_ctx.failed():
+        return None
+
     module_ctx.report_progress("declaring repositories")
     reserved_repo_names = _collect_reserved_repo_names(module_ctx, bazel_go_modules)
     _check_for_version_conflict(
@@ -120,6 +128,7 @@ def go_deps_impl(module_ctx):
         bazel_go_modules,
         root_module_tags,
         root_required_mods,
+        root_replaced_paths,
         archive_overrides,
         _get_checks_reporter(module_ctx, root_module),
         reserved_repo_names,
@@ -585,6 +594,20 @@ def _fail_on_duplicate_overrides(module_ctx, path, module_name, overrides):
     if path in overrides:
         module_ctx.fail("Multiple overrides defined for Go module path \"{}\" in module \"{}\".".format(path, module_name))
 
+def _fail_on_bazel_module_overrides(module_ctx, override_keys, bazel_go_modules, override_name):
+    for path in override_keys:
+        bazel_go_mod = bazel_go_modules.get(path)
+        if bazel_go_mod and not bazel_go_mod.is_root:
+            module_ctx.fail("""\
+Go module {path} is provided by Bazel module "{bazel_dep_name}", so go_deps.{override_name} has no effect on it.
+To use different sources for the module, override the Bazel module in MODULE.bazel instead, \
+for example with local_path_override or single_version_override.
+""".format(
+                path = path,
+                bazel_dep_name = bazel_go_mod.bazel_dep_name,
+                override_name = override_name,
+            ))
+
 def _fail_on_unmatched_overrides(module_ctx, override_keys, resolutions, override_name):
     unmatched_overrides = [path for path in override_keys if path not in resolutions]
     if unmatched_overrides:
@@ -677,6 +700,8 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
         - root_required_mods: a dict mapping Go module path to _go_require_info
           struct for Go modules required by the root Bazel module, either via
           go_deps.module or go_deps.from_file with go.mod.
+        - root_replaced_paths: a dict whose keys are the Go module paths
+          replaced by the root Bazel module's go.mod or go.work files.
     """
 
     result = env_execute(module_ctx, [go_tool, "version"], go_env)
@@ -911,7 +936,7 @@ To correct this:
     if go_work_sum_lines:
         module_ctx.file("go.work.sum", "\n".join(go_work_sum_lines))
 
-    return bazel_go_modules, root_required_mods
+    return bazel_go_modules, root_required_mods, root_replaced_paths
 
 def _parse_go_mod_json(module_ctx, go_tool, go_env, go_mod_path):
     watch(module_ctx, go_mod_path)
@@ -1295,6 +1320,7 @@ def _check_for_version_conflict(
         bazel_go_modules,
         root_module_tags,
         root_required_mods,
+        root_replaced_paths,
         archive_overrides,
         report_error,
         reserved_repo_names):
@@ -1316,6 +1342,8 @@ def _check_for_version_conflict(
             can't do anything about them.
         root_required_mods: a dict mapping Go module paths to _go_require_info
             structs for modules required from the root Bazel module.
+        root_replaced_paths: a dict whose keys are the Go module paths replaced
+            by the root Bazel module's go.mod or go.work files.
         archive_overrides: a dict mapping Go module paths to archive_override
             tags. These modules don't need a go.sum entry.
         report_error: module_ctx.print, module_ctx.fail, or a no-op function,
@@ -1324,6 +1352,19 @@ def _check_for_version_conflict(
             with each go_repository that will be declared. Used to detect name
             collisions and decide whether to declare the rules_proto shim.
     """
+    for path in root_replaced_paths:
+        bazel_dep = bazel_go_modules.get(path)
+        if bazel_dep and not bazel_dep.is_root:
+            report_error("""\
+Go module {importpath} is provided by Bazel module "{bazel_dep_name}", but the root module replaces it in go.mod or go.work.
+Bazel builds the Bazel module's sources; the replace directive only affects version selection.
+To use different sources for the module, override the Bazel module in MODULE.bazel instead,
+for example with local_path_override.
+""".format(
+                importpath = path,
+                bazel_dep_name = bazel_dep.bazel_dep_name,
+            ))
+
     for path, require in root_required_mods.items():
         bazel_dep = bazel_go_modules.get(path)
         if not bazel_dep or bazel_dep.go_mod_label.package != "":
