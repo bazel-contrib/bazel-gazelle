@@ -524,6 +524,7 @@ type goDepsWorkspace struct {
 	bazelGoModDirs   map[string]string // Go module path => directory in synthetic workspace
 	requiredVersions []requiredVersion // versions required by any go.mod file or module tag
 	rootReplaced     map[string]bool   // Go module paths replaced by the root module's go.mod or go.work
+	localPathDirs    map[string]string // Go module path => absolute directory from go_deps.module.local_path
 }
 
 func (ws *goDepsWorkspace) addRequiredVersion(path, version string) {
@@ -594,6 +595,7 @@ func buildGoDepsWorkspace(dirPath string, tc *testCase, isolateModuleName string
 	if isolated && len(ws.moduleTags) == 0 && !hasFromFileTags(tc, isolateModuleName, isolated) {
 		return nil, nil
 	}
+	ws.localPathDirs = collectLocalPathDirs(dirPath, tc, isolateModuleName, isolated)
 
 	seenGoMod := map[string]bool{}
 	seenUse := map[string]bool{}
@@ -919,6 +921,16 @@ func renderGoDepsGoMod(ws *goDepsWorkspace) string {
 		}
 		fmt.Fprintf(&b, "replace %s %s => %s\n", rv.path, rv.version, localReplacePath(dir))
 	}
+	for _, rv := range ws.requiredVersions {
+		dir, ok := ws.localPathDirs[rv.path]
+		if !ok {
+			continue
+		}
+		if _, bazel := ws.bazelGoModDirs[rv.path]; bazel || ws.rootReplaced[rv.path] {
+			continue
+		}
+		fmt.Fprintf(&b, "replace %s %s => %s\n", rv.path, rv.version, dir)
+	}
 	return b.String()
 }
 
@@ -960,6 +972,41 @@ func renderGoDepsGoWork(ws *goDepsWorkspace) string {
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+// collectLocalPathDirs maps Go module paths to absolute directories for module
+// tags with local_path in the module acting as root. Like go_deps, relative
+// paths are resolved from that module's directory.
+func collectLocalPathDirs(dirPath string, tc *testCase, isolateModuleName string, isolated bool) map[string]string {
+	dirs := map[string]string{}
+	for i := range tc.Modules {
+		m := &tc.Modules[i]
+		var tagSets []*tags
+		if isolated {
+			if m.Name == isolateModuleName {
+				tagSets = []*tags{m.TagsIsolate}
+			}
+		} else if m.IsRoot {
+			tagSets = []*tags{m.Tags, m.TagsDev}
+		}
+		for _, ts := range tagSets {
+			if ts == nil {
+				continue
+			}
+			for _, tag := range ts.Module {
+				path, _ := tag["path"].(string)
+				localPath, _ := tag["local_path"].(string)
+				if localPath == "" {
+					continue
+				}
+				if !filepath.IsAbs(localPath) {
+					localPath = filepath.Join(dirPath, m.Name, localPath)
+				}
+				dirs[path] = abs(localPath)
+			}
+		}
+	}
+	return dirs
 }
 
 func collectModuleTags(tc *testCase) []map[string]any {

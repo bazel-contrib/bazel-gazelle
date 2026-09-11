@@ -2,8 +2,11 @@
 # See README.md for instructions.
 
 """
-Tests that go_deps.module.local_path is passed through to the
-declared go_repository."""
+Tests that go_deps.module.local_path is applied as a directory replacement
+in the synthetic workspace and passed through to the declared go_repository
+as an absolute path. Relative paths are resolved from the root module's
+directory.
+"""
 
 TEST = r"""
 {
@@ -23,17 +26,26 @@ TEST = r"""
       }
     }
   ],
+  "files": {
+    "./mvs_test/mod_replaced/go.mod": "module golang.org/x/mod\n\ngo 1.24.12\n"
+  },
   "executions": {
     "main": {
-      "go list -m -json all": "{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.40.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.40.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"golang.org/x/tools\",\n\t\"Version\": \"v0.49.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/tools/@v/v0.49.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n"
+      "go list -m -json all": "{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.40.0\",\n\t\"Replace\": {\n\t\t\"Path\": \"/test/mvs_test/mod_replaced\",\n\t\t\"Dir\": \"/test/mvs_test/mod_replaced\",\n\t\t\"GoMod\": \"/test/mvs_test/mod_replaced/go.mod\",\n\t\t\"GoVersion\": \"1.24.12\"\n\t},\n\t\"Dir\": \"/test/mvs_test/mod_replaced\",\n\t\"GoMod\": \"/test/mvs_test/mod_replaced/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n"
     }
   },
   "want": {
     "main": {
+      "files": {
+        "go.mod": "module go_deps_module_tags\ngo 1.27rc3\nrequire golang.org/x/mod v0.40.0\nreplace golang.org/x/mod v0.40.0 =\u003e ./mvs_test/mod_replaced"
+      },
+      "print": [
+        "Version conflict found for Go module golang.org/x/mod:\n    requested with go_deps.module: v0.40.0\n    selected by Go:                None"
+      ],
       "repos": [
         {
           "importpath": "golang.org/x/mod",
-          "local_path": "./mod_replaced",
+          "local_path": "/test/mvs_test/mod_replaced",
           "name": "org_golang_x_mod"
         }
       ],

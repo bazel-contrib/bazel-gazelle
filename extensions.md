@@ -112,7 +112,7 @@ Declare a single Go module dependency. Prefer using `from_file` instead.
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="go_deps.module-indirect"></a>indirect |  Whether this Go module is an indirect dependency.   | Boolean | optional |  `False`  |
-| <a id="go_deps.module-local_path"></a>local_path |  For when a module is replaced by one residing in a local directory path   | String | optional |  `""`  |
+| <a id="go_deps.module-local_path"></a>local_path |  Path to a directory containing the Go module's source code, used instead of downloading the module, like a directory replacement in a go.mod file. Relative paths are resolved from the root Bazel module's directory. Only allowed in the root Bazel module.   | String | optional |  `""`  |
 | <a id="go_deps.module-path"></a>path |  The module path.   | String | required |  |
 | <a id="go_deps.module-sum"></a>sum |  -   | String | optional |  `""`  |
 | <a id="go_deps.module-version"></a>version |  -   | String | required |  |

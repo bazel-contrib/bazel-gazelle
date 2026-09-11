@@ -20,6 +20,7 @@ load("//tests/bzlmod/go_deps:missing_sum.bzl", MISSING_SUM_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module.bzl", MODULE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module_dev_deps.bzl", MODULE_DEV_DEPS_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module_local_path.bzl", MODULE_LOCAL_PATH_TEST = "TEST")
+load("//tests/bzlmod/go_deps:module_local_path_conflict.bzl", MODULE_LOCAL_PATH_CONFLICT_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module_override.bzl", MODULE_OVERRIDE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module_tag_version_normalize.bzl", MODULE_TAG_VERSION_NORMALIZE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:mvs.bzl", MVS_TEST = "TEST")
@@ -53,6 +54,7 @@ _GO_DEPS_TEST_CASES = [
     ISOLATE_TEST,
     MODULE_DEV_DEPS_TEST,
     MODULE_LOCAL_PATH_TEST,
+    MODULE_LOCAL_PATH_CONFLICT_TEST,
     MODULE_OVERRIDE_TEST,
     MODULE_TAG_VERSION_NORMALIZE_TEST,
     MODULE_TEST,

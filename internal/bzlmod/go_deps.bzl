@@ -107,7 +107,6 @@ def go_deps_impl(module_ctx):
         go_tool,
         go_exec_env,
         bazel_go_modules,
-        root_required_mods,
         module_overrides,
     )
     if module_ctx.failed():
@@ -298,8 +297,8 @@ def _go_module_info(
         replace_path: Go module path of a versioned replacement. For example,
             in 'replace example.com/a => example.com/b v1.0.0', this is
             'example.com/b'.
-        local_path: directory path of a directory replacement. Can come from
-            a replace directive or module tag.
+        local_path: directory path of a directory replacement, from a
+            replace directive or a go_deps.module tag's local_path attribute.
         go_mod_label: Label for the go.mod file, if provided by a Bazel module.
 
     Returns:
@@ -359,16 +358,12 @@ def _go_require_info(
         *,
         importpath,
         version,
-        sum = None,
-        local_path = None,
         indirect = False,
         is_dev_dependency = False):
     """Tracks a version constraint, from a go.mod require directive or go_deps.module tag"""
     return struct(
         importpath = importpath,
         version = version,
-        sum = sum,
-        local_path = local_path,
         indirect = indirect,
         is_dev_dependency = is_dev_dependency,
     )
@@ -600,6 +595,19 @@ def _fail_on_unmatched_overrides(module_ctx, override_keys, resolutions, overrid
 def _get_patch_args(archive_override):
     return ["-p{}".format(archive_override.patch_strip)] if archive_override.patch_strip else []
 
+def _resolve_local_path(module_ctx, local_path):
+    """
+    Returns an absolute path for a go_deps.module.local_path attribute
+
+    Relative paths are resolved from the root Bazel module's directory, like
+    relative paths in replace directives are resolved from the go.mod file's
+    directory.
+    """
+    if paths.is_absolute(local_path):
+        return paths.normalize(local_path)
+    root_dir = path_str(module_ctx.path(Label("@@//:MODULE.bazel")).dirname)
+    return paths.normalize(paths.join(root_dir, local_path))
+
 def _local_replace_path(dir_path):
     """Formats a workspace directory path for a go.mod replace directive."""
     if dir_path.startswith("./") or dir_path.startswith("../") or dir_path.startswith("/"):
@@ -622,7 +630,10 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
       its 'use' directives, normalizing paths as needed. We only copy 'replace'
       directives if the tag is from the root Bazel module.
     - For each 'module' tag, we add a 'require' directive to a dummy go.mod
-      file, referenced from our go.work file with 'use .'.
+      file, referenced from our go.work file with 'use .'. If the tag sets
+      local_path, we also add a 'replace' directive pointing at that directory,
+      so that 'go list -m' reads its go.mod file instead of downloading the
+      required version.
     - For each version of a Go module required by any go.mod file or module
       tag, if the module is provided by a Bazel module (via from_file), we
       add a 'replace' directive to the dummy go.mod file pointing at that
@@ -672,6 +683,7 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
     module_tag_requires = {}  # Go module path => go_deps.module tag with highest version
     required_versions = {}  # Go module path => dict of required versions from all go.mod files
     root_replaced_paths = {}  # Go module paths replaced by the root module's go.mod or go.work files
+    local_path_dirs = {}  # Go module path => absolute directory from go_deps.module.local_path
 
     def add_required_version(path, version):
         required_versions.setdefault(path, {})[version] = True
@@ -693,11 +705,11 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
             if existing == None or semver.to_comparable(_normalize_version(tag.version)) > semver.to_comparable(_normalize_version(existing.version)):
                 module_tag_requires[tag.path] = tag
             if _module_acts_as_root(module_ctx, module):
+                if tag.local_path:
+                    local_path_dirs[tag.path] = _resolve_local_path(module_ctx, tag.local_path)
                 root_required_mods[tag.path] = _go_require_info(
                     importpath = tag.path,
                     version = tag.version,
-                    sum = tag.sum,
-                    local_path = tag.local_path,
                     indirect = tag.indirect,
                     is_dev_dependency = module_ctx.is_dev_dependency(tag),
                 )
@@ -842,6 +854,17 @@ To correct this:
             continue
         for version in versions:
             go_mod_lines.append("replace {} {} => {}".format(path, version, _local_replace_path(bazel_go_module_dirs[path])))
+
+    for path, dir_path in local_path_dirs.items():
+        if path in bazel_go_module_dirs:
+            # Reported by _check_for_version_conflict. The Bazel module's
+            # directory takes precedence, since that's what gets built.
+            continue
+        if path in root_replaced_paths:
+            module_ctx.fail("{}: Go module has a local path set by both go_deps.module.local_path and a replace directive in the root module".format(path))
+            return None
+        for version in required_versions.get(path, {}):
+            go_mod_lines.append("replace {} {} => {}".format(path, version, _local_replace_path(dir_path)))
 
     module_ctx.file("go.work", "\n".join(go_work_lines))
     module_ctx.file("go.mod", "\n".join(go_mod_lines))
@@ -1067,7 +1090,6 @@ def _select_module_versions(
         go_tool,
         go_env,
         bazel_go_modules,
-        root_required_mods,
         module_overrides):
     """
     Runs 'go list -m' to decide what versions of Go modules to use.
@@ -1085,8 +1107,6 @@ def _select_module_versions(
         go_env: the environment to run the go tool with.
         bazel_go_modules: a dict mapping Go module path to _bazel_go_mod_info
             struct.
-        root_required_mods: dict mapping Go module paths to _go_require_info
-            structs, returned by _create_workspace_from_tags.
         module_overrides: list of module_override tags from the root Bazel
             module, used to infer repo names for modules providing tools.
 
@@ -1137,13 +1157,6 @@ Add to go.sum with:
             sum = m.get("Sum")
             replace_path = None
             local_path = None
-        if (importpath in root_required_mods and
-            root_required_mods[importpath].local_path != None):
-            if local_path != None:
-                module_ctx.fail("{}: Go module has a local path set by both go_deps.module.local_path and a Go replace directive".format(importpath))
-                return None
-            local_path = root_required_mods[importpath].local_path
-
         go_modules[importpath] = _go_module_info(
             importpath = importpath,
             version = version,
@@ -1508,7 +1521,11 @@ _module_tag = tag_class(
             default = False,
         ),
         "local_path": attr.string(
-            doc = """For when a module is replaced by one residing in a local directory path """,
+            doc = """\
+            Path to a directory containing the Go module's source code, used instead of downloading
+            the module, like a directory replacement in a go.mod file. Relative paths are resolved
+            from the root Bazel module's directory. Only allowed in the root Bazel module.
+            """,
             mandatory = False,
         ),
     },
