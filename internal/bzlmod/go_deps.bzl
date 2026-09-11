@@ -120,6 +120,7 @@ def go_deps_impl(module_ctx):
         bazel_go_modules,
         root_module_tags,
         root_required_mods,
+        archive_overrides,
         _get_checks_reporter(module_ctx, root_module),
         reserved_repo_names,
     )
@@ -720,9 +721,6 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
             if not _module_acts_as_root(module_ctx, module) and tag.local_path:
                 module_ctx.fail("{}: go_deps.module.local_path is only allowed in the root Bazel module".format(tag.path))
                 return None
-            if not tag.sum and not tag.local_path:
-                module_ctx.fail("{}: go_deps.module.sum must be set unless local_path is set".format(tag.path))
-                return None
             existing = module_tag_requires.get(tag.path)
             if existing == None or semver.to_comparable(_normalize_version(tag.version)) > semver.to_comparable(_normalize_version(existing.version)):
                 module_tag_requires[tag.path] = tag
@@ -1299,6 +1297,7 @@ def _check_for_version_conflict(
         bazel_go_modules,
         root_module_tags,
         root_required_mods,
+        archive_overrides,
         report_error,
         reserved_repo_names):
     """
@@ -1319,6 +1318,8 @@ def _check_for_version_conflict(
             can't do anything about them.
         root_required_mods: a dict mapping Go module paths to _go_require_info
             structs for modules required from the root Bazel module.
+        archive_overrides: a dict mapping Go module paths to archive_override
+            tags. These modules don't need a go.sum entry.
         report_error: module_ctx.print, module_ctx.fail, or a no-op function,
             depending on go_deps.config(checks).
         reserved_repo_names: mutable dict of repo names already in use, updated
@@ -1424,7 +1425,7 @@ To correct this:
             ))
 
     for path, go_module in go_modules.items():
-        if path not in root_required_mods or go_module.version == None:
+        if path not in root_required_mods or go_module.version == None or path in archive_overrides:
             continue
         if (go_module.go_mod_label == None and
             go_module.sum == None and
@@ -1597,7 +1598,12 @@ _module_tag = tag_class(
             doc = """The module version, like "v1.2.3". The leading "v" may be omitted.""",
             mandatory = True,
         ),
-        "sum": attr.string(),
+        "sum": attr.string(
+            doc = """\
+            The go.sum checksum of the module's zip file, like "h1:...". Not needed together with
+            `local_path` or `archive_override`; otherwise, downloading the module fails without it.
+            """,
+        ),
         "indirect": attr.bool(
             doc = """Whether this Go module is an indirect dependency.""",
             default = False,
