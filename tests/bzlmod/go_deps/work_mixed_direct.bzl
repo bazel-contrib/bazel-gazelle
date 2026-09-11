@@ -45,7 +45,8 @@ TEST = r"""
   "want": {
     "main": {
       "files": {
-        "go.work": "go 1.27rc3\nuse .\nuse ./work_mixed_direct/use_direct\nuse ./work_mixed_direct/use_indirect"
+        "go.work": "go 1.27rc3\nuse .\nuse ./work_mixed_direct/use_direct\nuse ./work_mixed_direct/use_indirect",
+        "go.work.sum": "github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=\ngithub.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=\ngolang.org/x/net v0.58.0/go.mod h1:YwCddHnFlT7eLQqVprV19OnhLGtc5xOKgE0RyqgfWAU=\ngolang.org/x/sync v0.22.0/go.mod h1:9xrNwdLfx4jkKbNva9FpL6vEN7evnE43NNNJQ2LF3+0=\ngolang.org/x/sys v0.47.0/go.mod h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=\ngolang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5/go.mod h1:LVehoXe41cL5SCVQilsV7Gg6BNG+Js6P9PhSbYTIUkQ=\ngolang.org/x/tools v0.48.0/go.mod h1:08xX0orndb/F7jJxGDicx061tyd5pcMto75YMAXr6lk=\ngolang.org/x/tools v0.49.0/go.mod h1:SJNXV9DBKT0UbdttsQjbfJlAE/q+y36++zo3uL3N0Oo="
       },
       "repos": [
         {

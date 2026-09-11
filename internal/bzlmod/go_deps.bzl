@@ -899,8 +899,9 @@ To correct this:
                         for r in go_work_json.get("Replace") or []
                     ])
 
-                go_work_stem = go_work_path.basename[:-len(".work")] if go_work_path.basename.endswith(".work") else go_work_path.basename
-                orig_go_sum_path = go_work_path.dirname.get_child(go_work_stem + ".sum")
+                # Go keeps the workspace's checksums in <go.work file>.sum,
+                # so go.work.sum for the default name.
+                orig_go_sum_path = go_work_path.dirname.get_child(go_work_path.basename + ".sum")
                 watch(module_ctx, orig_go_sum_path)
                 if orig_go_sum_path.exists:
                     go_work_sum_content = module_ctx.read(orig_go_sum_path)
