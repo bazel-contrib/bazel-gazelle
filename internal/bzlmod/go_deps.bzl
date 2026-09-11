@@ -793,6 +793,11 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
                 )
 
         def visit_go_mod(go_mod_label, is_dev_dependency):
+            if go_mod_label.name != "go.mod":
+                # The synthetic go.work references the file's directory, where
+                # Go only reads go.mod.
+                module_ctx.fail("go_deps.from_file requires a 'go.mod' file, not '{}'".format(go_mod_label))
+                return
             go_mod_path = module_ctx.path(go_mod_label)
             watch(module_ctx, go_mod_path)
             go_sum_path = go_mod_path.dirname.get_child("go.sum")
