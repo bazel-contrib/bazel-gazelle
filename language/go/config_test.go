@@ -24,14 +24,14 @@ import (
 	gazelleupdate "github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update"
 	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
-	"github.com/bazel-contrib/bazel-gazelle/v2/language"
-	"github.com/bazelbuild/bazel-gazelle/language/proto"
-	"github.com/bazelbuild/bazel-gazelle/repo"
 	"github.com/bazel-contrib/bazel-gazelle/v2/label"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
 	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"github.com/bazel-contrib/bazel-gazelle/v2/testtools"
 	"github.com/bazel-contrib/bazel-gazelle/v2/walk"
+	"github.com/bazelbuild/bazel-gazelle/language/proto"
+	"github.com/bazelbuild/bazel-gazelle/repo"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -142,7 +142,7 @@ func testConfig(t *testing.T, args ...string) (*config.Config, []language.Langua
 		&walk.Configurer{},
 		&resolve.Configurer{},
 	}
-	langs := []language.Language{compat.LanguageV2(proto.NewLanguage()), NewV2()}
+	langs := []language.Language{proto.NewV2(), NewV2()}
 	c := testtools.NewTestConfig(t, cexts, langs, args)
 	for _, lang := range langs {
 		if cfg, ok := compat.ConfigurerV2(lang); ok {

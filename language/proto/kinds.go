@@ -16,35 +16,23 @@ limitations under the License.
 package proto
 
 import (
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/label"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 )
 
-var protoKinds = map[string]rule.KindInfo{
-	"proto_library": {
-		MatchAttrs:    []string{"srcs"},
-		NonEmptyAttrs: map[string]bool{"srcs": true},
-		MergeableAttrs: map[string]bool{
-			"srcs":                true,
-			"import_prefix":       true,
-			"strip_import_prefix": true,
-		},
-		ResolveAttrs: map[string]bool{"deps": true},
+var protoLibraryKind = rule.KindInfo{
+	Name:          "proto_library",
+	LoadedFrom:    label.New(protobufModuleName, "bazel", "proto_library.bzl"),
+	MatchAttrs:    []string{"srcs"},
+	NonEmptyAttrs: map[string]bool{"srcs": true},
+	MergeableAttrs: map[string]bool{
+		"srcs":                true,
+		"import_prefix":       true,
+		"strip_import_prefix": true,
 	},
+	ResolveAttrs: map[string]bool{"deps": true},
 }
 
-func (*protoLang) Kinds() map[string]rule.KindInfo { return protoKinds }
-
-func (pl *protoLang) Loads() []rule.LoadInfo {
-	panic("ApparentLoads should be called instead")
-}
-
-func (*protoLang) ApparentLoads(moduleToApparentName func(string) string) []rule.LoadInfo {
-	return []rule.LoadInfo{
-		{
-			Name: symbolToFileLabel(moduleToApparentName, "proto_library").String(),
-			Symbols: []string{
-				"proto_library",
-			},
-		},
-	}
+func (*protoLang) Kinds() []rule.KindInfo {
+	return []rule.KindInfo{protoLibraryKind}
 }
