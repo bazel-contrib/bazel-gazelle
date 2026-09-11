@@ -936,7 +936,7 @@ func renderGoDepsGoMod(ws *goDepsWorkspace) string {
 	b.WriteString("\n\n")
 	for _, tag := range ws.moduleTags {
 		path, _ := tag["path"].(string)
-		version, _ := tag["version"].(string)
+		version := canonicalModuleVersion(tag["version"])
 		fmt.Fprintf(&b, "require %s %s\n", path, version)
 		ws.addRequiredVersion(path, version)
 	}
@@ -963,6 +963,16 @@ func renderGoDepsGoMod(ws *goDepsWorkspace) string {
 	return b.String()
 }
 
+// canonicalModuleVersion adds the leading "v" to a go_deps.module tag version
+// if it is missing, like go_deps does.
+func canonicalModuleVersion(v any) string {
+	version, _ := v.(string)
+	if strings.HasPrefix(version, "v") {
+		return version
+	}
+	return "v" + version
+}
+
 func renderGoDepsGoSum(ws *goDepsWorkspace) string {
 	var b strings.Builder
 	for _, tag := range ws.moduleTags {
@@ -970,7 +980,7 @@ func renderGoDepsGoSum(ws *goDepsWorkspace) string {
 		if sum == "" {
 			continue
 		}
-		fmt.Fprintf(&b, "%s %s %s\n", tag["path"], tag["version"], sum)
+		fmt.Fprintf(&b, "%s %s %s\n", tag["path"], canonicalModuleVersion(tag["version"]), sum)
 	}
 	return b.String()
 }

@@ -731,7 +731,7 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
                     local_path_dirs[tag.path] = _resolve_local_path(module_ctx, tag.local_path)
                 root_required_mods[tag.path] = _go_require_info(
                     importpath = tag.path,
-                    version = tag.version,
+                    version = _canonical_module_version(tag.version),
                     indirect = tag.indirect,
                     is_dev_dependency = module_ctx.is_dev_dependency(tag),
                 )
@@ -880,10 +880,11 @@ To correct this:
                     go_work_sum_lines.append(go_work_sum_content.strip())
 
     for tag in module_tag_requires.values():
-        go_mod_lines.append("require {} {}".format(tag.path, tag.version))
+        version = _canonical_module_version(tag.version)
+        go_mod_lines.append("require {} {}".format(tag.path, version))
         if tag.sum:
-            go_sum_lines.append("{} {} {}".format(tag.path, tag.version, tag.sum))
-        add_required_version(tag.path, tag.version)
+            go_sum_lines.append("{} {} {}".format(tag.path, version, tag.sum))
+        add_required_version(tag.path, version)
 
     for path, versions in required_versions.items():
         if path not in bazel_go_module_dirs or path in root_replaced_paths:
@@ -1260,6 +1261,15 @@ def _normalize_version(version):
         return version[1:]
     return version
 
+def _canonical_module_version(version):
+    """Adds the leading 'v' that Go requires in module versions if it is missing.
+
+    go_deps.module tags may omit it.
+    """
+    if version.startswith("v"):
+        return version
+    return "v" + version
+
 def _collect_reserved_repo_names(module_ctx, bazel_go_modules):
     """Returns repo names already taken by Bazel modules before declaring go_repository rules.
 
@@ -1373,7 +1383,8 @@ To correct this:
             continue
 
         go_module = go_modules[tag.path]
-        if tag.version != go_module.version:
+        tag_version = _canonical_module_version(tag.version)
+        if tag_version != go_module.version:
             report_error("""\
 Version conflict found for Go module {importpath}:
     requested with go_deps.module: {tag_version}
@@ -1385,7 +1396,7 @@ To correct this:
        to downgrade indirect dependencies if needed.
 """.format(
                 importpath = go_module.importpath,
-                tag_version = tag.version,
+                tag_version = tag_version,
                 go_version = go_module.version,
             ))
 
@@ -1582,7 +1593,10 @@ _module_tag = tag_class(
             doc = """The module path.""",
             mandatory = True,
         ),
-        "version": attr.string(mandatory = True),
+        "version": attr.string(
+            doc = """The module version, like "v1.2.3". The leading "v" may be omitted.""",
+            mandatory = True,
+        ),
         "sum": attr.string(),
         "indirect": attr.bool(
             doc = """Whether this Go module is an indirect dependency.""",

@@ -115,7 +115,7 @@ Declare a single Go module dependency. Prefer using `from_file` instead.
 | <a id="go_deps.module-local_path"></a>local_path |  Path to a directory containing the Go module's source code, used instead of downloading the module, like a directory replacement in a go.mod file. Relative paths are resolved from the root Bazel module's directory. Only allowed in the root Bazel module.   | String | optional |  `""`  |
 | <a id="go_deps.module-path"></a>path |  The module path.   | String | required |  |
 | <a id="go_deps.module-sum"></a>sum |  -   | String | optional |  `""`  |
-| <a id="go_deps.module-version"></a>version |  -   | String | required |  |
+| <a id="go_deps.module-version"></a>version |  The module version, like "v1.2.3". The leading "v" may be omitted.   | String | required |  |
 
 <a id="go_deps.module_override"></a>
 
