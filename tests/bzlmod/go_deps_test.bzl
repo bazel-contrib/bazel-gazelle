@@ -1,3 +1,4 @@
+load("@bazel_gazelle_is_bazel_module//:defs.bzl", "GAZELLE_IS_BAZEL_MODULE")
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load("@rules_testing//lib:truth.bzl", "matching", "subjects", "truth")
 load("//internal/bzlmod:go_deps.bzl", "go_deps_impl")
@@ -154,9 +155,18 @@ def _run_go_deps_instance(env, expect, case, instance_name, isolated, isolate_mo
 go_deps_test = unittest.make(_go_deps_test_impl)
 
 def go_deps_test_suite(name):
-    unittest.suite(
-        name,
-        go_deps_test,
+    # go_deps is a module extension, so its tests only run with Bzlmod. Labels
+    # in test cases and messages use Bzlmod's canonical form.
+    tags = [] if GAZELLE_IS_BAZEL_MODULE else ["manual"]
+    test_name = name + "_test_0"
+    go_deps_test(
+        name = test_name,
+        tags = tags,
+    )
+    native.test_suite(
+        name = name,
+        tags = tags,
+        tests = [":" + test_name],
     )
 
 def _mock_module_ctx(case, executions, isolated, isolate_module = None):
