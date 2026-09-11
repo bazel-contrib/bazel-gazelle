@@ -12,7 +12,10 @@ type testCase struct {
 	Modules    []module                     `json:"modules"`
 	Files      map[string]string            `json:"files,omitempty"`
 	Executions map[string]map[string]string `json:"executions,omitempty"`
-	Want       map[string]json.RawMessage   `json:"want,omitempty"`
+	// GoVersionOutput is the mocked output of 'go version'; stored in
+	// go_version.txt in a test directory.
+	GoVersionOutput string                     `json:"go_version_output,omitempty"`
+	Want            map[string]json.RawMessage `json:"want,omitempty"`
 }
 
 type module struct {

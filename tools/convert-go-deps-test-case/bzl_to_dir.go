@@ -39,6 +39,12 @@ func convertBzlToDir(bzlPath, dirPath string, force bool, repoRoot string) error
 		return err
 	}
 
+	if tc.GoVersionOutput != "" {
+		if err := os.WriteFile(filepath.Join(dirPath, "go_version.txt"), []byte(tc.GoVersionOutput), 0666); err != nil {
+			return err
+		}
+	}
+
 	if err := writeFiles(dirPath, tc.Files); err != nil {
 		return err
 	}
