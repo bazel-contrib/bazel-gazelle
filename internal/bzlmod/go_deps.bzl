@@ -1306,6 +1306,41 @@ def _parse_go_version(v):
             break
     return [int(part) for part in v.split(".") if part != ""]
 
+def _bazel_dep_version_conflicts(bazel_dep_version, go_version, indirect):
+    """
+    Reports whether a Bazel module's version conflicts with a requested Go module version
+
+    Bazel module versions may use relaxed semver with more than three release
+    components (like "1.2.3.bcr.1" for a patched registry entry), which
+    provides the same Go module as "v1.2.3". Modules with a non-registry
+    override like local_path_override have an empty version, which can't be
+    compared. A newer Bazel module satisfies an indirect requirement; only a
+    direct requirement should match exactly, since the go.mod file is
+    supposed to be tidy.
+
+    Args:
+        bazel_dep_version: the Bazel module's version, without a 'v' prefix.
+        go_version: the requested Go module version, with or without a 'v'
+            prefix.
+        indirect: whether the requirement is indirect.
+
+    Returns:
+        True if a conflict should be reported.
+    """
+    if not bazel_dep_version:
+        return False
+    bazel_version = semver.make_strict(semver.to_comparable(bazel_dep_version, relaxed = True))
+    requested_version = semver.to_comparable(go_version)
+    if bazel_version == requested_version:
+        return False
+    return bazel_version < requested_version or not indirect
+
+def _bazel_dep_go_version(bazel_dep_version):
+    """Returns the Go module version corresponding to a Bazel module version, like "v1.2.3" for "1.2.3.bcr.1"."""
+    release, _, _ = bazel_dep_version.partition("+")
+    release, dash, prerelease = release.partition("-")
+    return "v" + ".".join(release.split(".")[:3]) + dash + prerelease
+
 def _normalize_version(version):
     """Strips a leading 'v' from a Go module version for comparison."""
     if version.startswith("v"):
@@ -1403,22 +1438,21 @@ for example with local_path_override.
             # modules, there's not a good correspondence between Bazel module
             # version and Go module version.
             continue
-        normalized_require_version = _normalize_version(require.version)
-        if (path in bazel_go_modules and
-            not bazel_dep.is_root and
-            _normalize_version(bazel_dep.bazel_dep_version) != normalized_require_version):
+        if (not bazel_dep.is_root and
+            _bazel_dep_version_conflicts(bazel_dep.bazel_dep_version, require.version, require.indirect)):
             report_error("""\
 Version conflict found for Go module {importpath}:
     provided by Bazel module:       {bazel_dep_version}
-    requested by go_deps.from_file: {normalized_require_version}
+    requested by go_deps.from_file: {require_version}
 To correct this:
     1. Update the bazel_dep for {bazel_dep_name} in MODULE.bazel.
-    2. Or update go.mod with 'go get {importpath}@v{bazel_dep_version}'.
+    2. Or update go.mod with 'go get {importpath}@{bazel_dep_go_version}'.
 """.format(
                 importpath = path,
                 bazel_dep_name = bazel_dep.bazel_dep_name,
                 bazel_dep_version = bazel_dep.bazel_dep_version,
-                normalized_require_version = normalized_require_version,
+                bazel_dep_go_version = _bazel_dep_go_version(bazel_dep.bazel_dep_version),
+                require_version = _normalize_version(require.version),
             ))
 
     for tag in root_module_tags:
@@ -1435,7 +1469,7 @@ To replace the content of a Bazel module, use local_path_override.
                     local_path = tag.local_path,
                 ))
                 continue
-            if _normalize_version(tag.version) != _normalize_version(bazel_go_modules[tag.path].bazel_dep_version):
+            if _bazel_dep_version_conflicts(bazel_go_modules[tag.path].bazel_dep_version, tag.version, tag.indirect):
                 report_error("""\
 Version conflict found for Go module {importpath}:
     provided by Bazel module:    {bazel_dep_version}

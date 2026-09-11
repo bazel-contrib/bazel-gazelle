@@ -256,7 +256,6 @@ TEST = r"""
         "go.mod": "module go_deps_module_tags\ngo 1.27rc3\nrequire github.com/stretchr/testify v1.8.0\nrequire gopkg.in/yaml.v3 v3.0.1\nrequire github.com/davecgh/go-spew v1.1.1\nreplace github.com/bazelbuild/bazel-gazelle v0.30.0 =\u003e ./mod/gazelle_for_test\nreplace github.com/bazel-contrib/bazel-gazelle/v2 v2.0.0-3 =\u003e ./mod/gazelle_for_test/v2"
       },
       "print": [
-        "Version conflict found for Go module github.com/bazelbuild/bazel-gazelle:",
         "Version conflict found for Go module github.com/stretchr/testify:",
         "Version conflict found for Go module github.com/davecgh/go-spew:",
         "Version conflict found for Go module github.com/bmatcuk/doublestar/v4:"
