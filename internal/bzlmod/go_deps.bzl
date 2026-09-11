@@ -626,8 +626,12 @@ def _modfile_token(s):
     return s
 
 def _local_replace_path(dir_path):
-    """Formats a workspace directory path for a go.mod replace directive."""
-    if dir_path.startswith("./") or dir_path.startswith("../") or dir_path.startswith("/"):
+    """Formats a workspace directory path for a go.mod replace directive.
+
+    Go only treats a replacement as a directory if it starts with "./" or
+    "../" or is absolute, which includes Windows paths like "C:/...".
+    """
+    if dir_path.startswith("./") or dir_path.startswith("../") or paths.is_absolute(dir_path):
         return _modfile_token(dir_path)
     return _modfile_token("./" + dir_path)
 
