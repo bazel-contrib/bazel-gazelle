@@ -1142,12 +1142,17 @@ def _index_tool_targets(module_ctx, bazel_go_modules, root_required_mods, module
                     # from the config repo, since the same extension declares
                     # them.
                     repo = "@" + label_prefix.repo_name
+
+                # Gazelle names the go_binary after the last element of the
+                # import path, even if it is a major version suffix like "v2".
+                # The tool is invoked by the name before the suffix.
+                target_name = paths.basename(tool)
                 if tool == tool_prefix:
                     # package at Go module root
                     tool_target = "{}//{}:{}".format(
                         repo,
                         label_prefix.package,
-                        _tool_name(tool),
+                        target_name,
                     )
                 else:
                     # package in subdirectory within Go module
@@ -1157,7 +1162,7 @@ def _index_tool_targets(module_ctx, bazel_go_modules, root_required_mods, module
                         tool_target = "{}//{}:{}".format(
                             repo,
                             tool_suffix,
-                            _tool_name(tool),
+                            target_name,
                         )
                     else:
                         # Go module in repo subdirectory
@@ -1165,7 +1170,7 @@ def _index_tool_targets(module_ctx, bazel_go_modules, root_required_mods, module
                             repo,
                             label_prefix.package,
                             tool_suffix,
-                            _tool_name(tool),
+                            target_name,
                         )
                 if tool_prefix not in bazel_go_modules:
                     is_direct[tool_prefix] = True
