@@ -1071,10 +1071,20 @@ def _index_tool_targets(module_ctx, bazel_go_modules, root_required_mods, module
                 label_prefix = module_label_prefixes.get(tool_prefix)
                 if not label_prefix:
                     continue
+                if tool_prefix in bazel_go_modules:
+                    # The label is evaluated in the config repo, which can't
+                    # see other Bazel modules by their apparent names, so use
+                    # the canonical repo name (empty for the root module).
+                    repo = "@@" + bazel_go_modules[tool_prefix].go_mod_label.repo_name
+                else:
+                    # go_repository repos are visible by their apparent names
+                    # from the config repo, since the same extension declares
+                    # them.
+                    repo = "@" + label_prefix.repo_name
                 if tool == tool_prefix:
                     # package at Go module root
-                    tool_target = "@{}//{}:{}".format(
-                        label_prefix.repo_name,
+                    tool_target = "{}//{}:{}".format(
+                        repo,
                         label_prefix.package,
                         _tool_name(tool),
                     )
@@ -1083,15 +1093,15 @@ def _index_tool_targets(module_ctx, bazel_go_modules, root_required_mods, module
                     tool_suffix = tool[len(tool_prefix) + 1:]
                     if label_prefix.package == "":
                         # Go module in repo root
-                        tool_target = "@{}//{}:{}".format(
-                            label_prefix.repo_name,
+                        tool_target = "{}//{}:{}".format(
+                            repo,
                             tool_suffix,
                             _tool_name(tool),
                         )
                     else:
                         # Go module in repo subdirectory
-                        tool_target = "@{}//{}/{}:{}".format(
-                            label_prefix.repo_name,
+                        tool_target = "{}//{}/{}:{}".format(
+                            repo,
                             label_prefix.package,
                             tool_suffix,
                             _tool_name(tool),

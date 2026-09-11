@@ -2,9 +2,14 @@
 # See README.md for instructions.
 
 """
-Check that a 'tool' directive in a go.mod file causes
-its module to be a direct dependency and registers the tool
-with go_repository_config.
+Check that 'tool' directives in a go.mod file cause their modules to be
+direct dependencies and register the tools with go_repository_config.
+
+Tools may live in modules provided by go_repository (stringer), by the
+root Bazel module itself (self), or by another Bazel module (dep_tool).
+For Bazel modules, the label uses the canonical repo name of the go.mod
+file's label, which is empty for the real root module; the test harness
+uses the module name instead.
 """
 
 TEST = r"""
@@ -21,24 +26,46 @@ TEST = r"""
           }
         ]
       }
+    },
+    {
+      "name": "tool_dep",
+      "version": "1.0.0",
+      "tags": {
+        "from_file": [
+          {
+            "go_work": "@@tool_dep//:go.work"
+          }
+        ]
+      }
     }
   ],
   "files": {
-    "./tool/go.mod": "module example.com/mvs_test\n\ngo 1.25.0\n\ntool golang.org/x/tools/cmd/stringer\n\nrequire (\n\tgolang.org/x/mod v0.39.0 // indirect\n\tgolang.org/x/sync v0.22.0 // indirect\n\tgolang.org/x/tools v0.49.0 // indirect\n)\n",
-    "./tool/go.sum": "github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=\ngithub.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=\ngolang.org/x/mod v0.39.0 h1:UF5zwQdCRRUpHfyPwr7d4UrGiVeldIsogtzWVnczL74=\ngolang.org/x/mod v0.39.0/go.mod h1:bvIbwjQ0HUFFf5AKukeeYQG4ZBUG9yxQbR9aEweIwYY=\ngolang.org/x/sync v0.22.0 h1:SZjpbeLmrCk4xhRSZFNZW5gFUeCeFgjekvI/+gfScek=\ngolang.org/x/sync v0.22.0/go.mod h1:9xrNwdLfx4jkKbNva9FpL6vEN7evnE43NNNJQ2LF3+0=\ngolang.org/x/tools v0.49.0 h1:3NI7VXzL9+1WZD52Dx2ttoPwD5DWrFGpl9mFZDlmisI=\ngolang.org/x/tools v0.49.0/go.mod h1:SJNXV9DBKT0UbdttsQjbfJlAE/q+y36++zo3uL3N0Oo=\n"
+    "./tool/go.mod": "module example.com/mvs_test\n\ngo 1.25.0\n\ntool (\n\texample.com/mvs_test/cmd/self\n\texample.com/tool_dep/cmd/dep_tool\n\tgolang.org/x/tools/cmd/stringer\n)\n\nrequire example.com/tool_dep v1.0.0\n\nrequire (\n\tgolang.org/x/mod v0.39.0 // indirect\n\tgolang.org/x/sync v0.22.0 // indirect\n\tgolang.org/x/tools v0.49.0 // indirect\n)\n",
+    "./tool/go.sum": "github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=\ngithub.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=\ngolang.org/x/mod v0.39.0 h1:UF5zwQdCRRUpHfyPwr7d4UrGiVeldIsogtzWVnczL74=\ngolang.org/x/mod v0.39.0/go.mod h1:bvIbwjQ0HUFFf5AKukeeYQG4ZBUG9yxQbR9aEweIwYY=\ngolang.org/x/sync v0.22.0 h1:SZjpbeLmrCk4xhRSZFNZW5gFUeCeFgjekvI/+gfScek=\ngolang.org/x/sync v0.22.0/go.mod h1:9xrNwdLfx4jkKbNva9FpL6vEN7evnE43NNNJQ2LF3+0=\ngolang.org/x/tools v0.49.0 h1:3NI7VXzL9+1WZD52Dx2ttoPwD5DWrFGpl9mFZDlmisI=\ngolang.org/x/tools v0.49.0/go.mod h1:SJNXV9DBKT0UbdttsQjbfJlAE/q+y36++zo3uL3N0Oo=\n",
+    "./tool_dep/go.mod": "module example.com/tool_dep\n\ngo 1.24.12\n",
+    "./tool_dep/go.work": "go 1.24.12\n\nuse (\n\t.\n\t./v2\n)\n",
+    "./tool_dep/v2/go.mod": "module example.com/tool_dep/v2\n\ngo 1.24.12\n"
   },
   "executions": {
     "main": {
-      "go list -m -json all": "{\n\t\"Path\": \"example.com/mvs_test\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps/mod/tool\",\n\t\"GoMod\": \"/test/go_deps/mod/tool/go.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"github.com/google/go-cmp\",\n\t\"Version\": \"v0.6.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/github.com/google/go-cmp/@v/v0.6.0.mod\",\n\t\"GoVersion\": \"1.13\",\n\t\"Sum\": \"h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=\",\n\t\"GoModSum\": \"h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=\"\n}\n{\n\t\"Path\": \"github.com/yuin/goldmark\",\n\t\"Version\": \"v1.4.13\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/github.com/yuin/goldmark/@v/v1.4.13.mod\",\n\t\"GoVersion\": \"1.18\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.39.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.39.0.mod\",\n\t\"GoVersion\": \"1.25.0\",\n\t\"Sum\": \"h1:UF5zwQdCRRUpHfyPwr7d4UrGiVeldIsogtzWVnczL74=\",\n\t\"GoModSum\": \"h1:bvIbwjQ0HUFFf5AKukeeYQG4ZBUG9yxQbR9aEweIwYY=\"\n}\n{\n\t\"Path\": \"golang.org/x/net\",\n\t\"Version\": \"v0.58.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/net/@v/v0.58.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"golang.org/x/sync\",\n\t\"Version\": \"v0.22.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/sync/@v/v0.22.0.mod\",\n\t\"GoVersion\": \"1.25.0\",\n\t\"Sum\": \"h1:SZjpbeLmrCk4xhRSZFNZW5gFUeCeFgjekvI/+gfScek=\",\n\t\"GoModSum\": \"h1:9xrNwdLfx4jkKbNva9FpL6vEN7evnE43NNNJQ2LF3+0=\"\n}\n{\n\t\"Path\": \"golang.org/x/sys\",\n\t\"Version\": \"v0.47.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/sys/@v/v0.47.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"golang.org/x/telemetry\",\n\t\"Version\": \"v0.0.0-20260811182544-a038080d80e5\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/telemetry/@v/v0.0.0-20260811182544-a038080d80e5.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"golang.org/x/tools\",\n\t\"Version\": \"v0.49.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/tools/@v/v0.49.0.mod\",\n\t\"GoVersion\": \"1.25.0\",\n\t\"Sum\": \"h1:3NI7VXzL9+1WZD52Dx2ttoPwD5DWrFGpl9mFZDlmisI=\",\n\t\"GoModSum\": \"h1:SJNXV9DBKT0UbdttsQjbfJlAE/q+y36++zo3uL3N0Oo=\"\n}\n",
-      "go mod edit -json -- ./tool/go.mod": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/mvs_test\"\n\t},\n\t\"Go\": \"1.25.0\",\n\t\"Require\": [\n\t\t{\n\t\t\t\"Path\": \"golang.org/x/mod\",\n\t\t\t\"Version\": \"v0.39.0\",\n\t\t\t\"Indirect\": true\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"golang.org/x/sync\",\n\t\t\t\"Version\": \"v0.22.0\",\n\t\t\t\"Indirect\": true\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"golang.org/x/tools\",\n\t\t\t\"Version\": \"v0.49.0\",\n\t\t\t\"Indirect\": true\n\t\t}\n\t],\n\t\"Exclude\": null,\n\t\"Replace\": null,\n\t\"Retract\": null,\n\t\"Tool\": [\n\t\t{\n\t\t\t\"Path\": \"golang.org/x/tools/cmd/stringer\"\n\t\t}\n\t],\n\t\"Ignore\": null\n}\n"
+      "go list -m -json all": "{\n\t\"Path\": \"example.com/mvs_test\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps/mod/tool\",\n\t\"GoMod\": \"/test/go_deps/mod/tool/go.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"example.com/tool_dep\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps/mod/tool_dep\",\n\t\"GoMod\": \"/test/go_deps/mod/tool_dep/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"example.com/tool_dep/v2\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps/mod/tool_dep/v2\",\n\t\"GoMod\": \"/test/go_deps/mod/tool_dep/v2/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"github.com/google/go-cmp\",\n\t\"Version\": \"v0.6.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/github.com/google/go-cmp/@v/v0.6.0.mod\",\n\t\"GoVersion\": \"1.13\",\n\t\"Sum\": \"h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=\",\n\t\"GoModSum\": \"h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=\"\n}\n{\n\t\"Path\": \"github.com/yuin/goldmark\",\n\t\"Version\": \"v1.4.13\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/github.com/yuin/goldmark/@v/v1.4.13.mod\",\n\t\"GoVersion\": \"1.18\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.39.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.39.0.mod\",\n\t\"GoVersion\": \"1.25.0\",\n\t\"Sum\": \"h1:UF5zwQdCRRUpHfyPwr7d4UrGiVeldIsogtzWVnczL74=\",\n\t\"GoModSum\": \"h1:bvIbwjQ0HUFFf5AKukeeYQG4ZBUG9yxQbR9aEweIwYY=\"\n}\n{\n\t\"Path\": \"golang.org/x/net\",\n\t\"Version\": \"v0.58.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/net/@v/v0.58.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"golang.org/x/sync\",\n\t\"Version\": \"v0.22.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/sync/@v/v0.22.0.mod\",\n\t\"GoVersion\": \"1.25.0\",\n\t\"Sum\": \"h1:SZjpbeLmrCk4xhRSZFNZW5gFUeCeFgjekvI/+gfScek=\",\n\t\"GoModSum\": \"h1:9xrNwdLfx4jkKbNva9FpL6vEN7evnE43NNNJQ2LF3+0=\"\n}\n{\n\t\"Path\": \"golang.org/x/sys\",\n\t\"Version\": \"v0.47.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/sys/@v/v0.47.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"golang.org/x/telemetry\",\n\t\"Version\": \"v0.0.0-20260811182544-a038080d80e5\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/telemetry/@v/v0.0.0-20260811182544-a038080d80e5.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"golang.org/x/tools\",\n\t\"Version\": \"v0.49.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/tools/@v/v0.49.0.mod\",\n\t\"GoVersion\": \"1.25.0\",\n\t\"Sum\": \"h1:3NI7VXzL9+1WZD52Dx2ttoPwD5DWrFGpl9mFZDlmisI=\",\n\t\"GoModSum\": \"h1:SJNXV9DBKT0UbdttsQjbfJlAE/q+y36++zo3uL3N0Oo=\"\n}\n",
+      "go mod edit -json -- ./tool/go.mod": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/mvs_test\"\n\t},\n\t\"Go\": \"1.25.0\",\n\t\"Require\": [\n\t\t{\n\t\t\t\"Path\": \"example.com/tool_dep\",\n\t\t\t\"Version\": \"v1.0.0\"\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"golang.org/x/mod\",\n\t\t\t\"Version\": \"v0.39.0\",\n\t\t\t\"Indirect\": true\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"golang.org/x/sync\",\n\t\t\t\"Version\": \"v0.22.0\",\n\t\t\t\"Indirect\": true\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"golang.org/x/tools\",\n\t\t\t\"Version\": \"v0.49.0\",\n\t\t\t\"Indirect\": true\n\t\t}\n\t],\n\t\"Exclude\": null,\n\t\"Replace\": null,\n\t\"Retract\": null,\n\t\"Tool\": [\n\t\t{\n\t\t\t\"Path\": \"example.com/mvs_test/cmd/self\"\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"example.com/tool_dep/cmd/dep_tool\"\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"golang.org/x/tools/cmd/stringer\"\n\t\t}\n\t],\n\t\"Ignore\": null\n}\n",
+      "go mod edit -json -- ./tool_dep/go.mod": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/tool_dep\"\n\t},\n\t\"Go\": \"1.24.12\",\n\t\"Require\": null,\n\t\"Exclude\": null,\n\t\"Replace\": null,\n\t\"Retract\": null,\n\t\"Tool\": null,\n\t\"Ignore\": null\n}\n",
+      "go mod edit -json -- ./tool_dep/v2/go.mod": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/tool_dep/v2\"\n\t},\n\t\"Go\": \"1.24.12\",\n\t\"Require\": null,\n\t\"Exclude\": null,\n\t\"Replace\": null,\n\t\"Retract\": null,\n\t\"Tool\": null,\n\t\"Ignore\": null\n}\n",
+      "go work edit -json -- ./tool_dep/go.work": "{\n\t\"Go\": \"1.24.12\",\n\t\"Use\": [\n\t\t{\n\t\t\t\"DiskPath\": \".\"\n\t\t},\n\t\t{\n\t\t\t\"DiskPath\": \"./v2\"\n\t\t}\n\t],\n\t\"Replace\": null\n}\n"
     }
   },
   "want": {
     "main": {
+      "files": {
+        "go.mod": "module go_deps_module_tags\ngo 1.27rc3\nreplace example.com/tool_dep v1.0.0 =\u003e ./mod/tool_dep"
+      },
       "repos": [
         {
           "name": "bazel_gazelle_go_repository_config",
           "tool_targets": {
+            "dep_tool": "@@tool_dep//cmd/dep_tool:dep_tool",
+            "self": "@@tool//cmd/self:self",
             "stringer": "@org_golang_x_tools//cmd/stringer:stringer"
           }
         }
