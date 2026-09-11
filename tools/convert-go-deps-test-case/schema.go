@@ -16,12 +16,13 @@ type testCase struct {
 }
 
 type module struct {
-	Name         string `json:"name"`
-	IsRoot       bool   `json:"is_root,omitempty"`
-	Version      string `json:"version,omitempty"`
-	Tags         *tags  `json:"tags,omitempty"`
-	TagsDev      *tags  `json:"tags_dev,omitempty"`
-	TagsIsolate  *tags  `json:"tags_isolate,omitempty"`
+	Name          string `json:"name"`
+	IsRoot        bool   `json:"is_root,omitempty"`
+	NoGoDepsUsage bool   `json:"no_go_deps_usage,omitempty"`
+	Version       string `json:"version,omitempty"`
+	Tags          *tags  `json:"tags,omitempty"`
+	TagsDev       *tags  `json:"tags_dev,omitempty"`
+	TagsIsolate   *tags  `json:"tags_isolate,omitempty"`
 }
 
 type tags struct {
