@@ -13,6 +13,11 @@ Each test case has the following fields:
   here roughly matches what you'd see in module_ctx.modules.
   - name: the name of the module
   - is_root: true for the first module
+  - no_go_deps_usage: optional, true if the module does not use the go_deps
+    extension at all. Bazel does not include such modules in
+    module_ctx.modules, and neither does the test harness. The module still
+    exists in the test case, for example, as the root module, whose files are
+    referenced by labels like "@@root//:go.mod".
   - tags: a set of go_deps tags. Each field corresponds to a tag like module
     or from_file. Each value is a list of dicts, the attributes for each tag.
   - tags_dev: optional set of go_deps tags with the same schema as tags,
@@ -85,6 +90,7 @@ def _parse_module(d):
     return struct(
         name = d["name"],
         is_root = d.get("is_root", False),
+        no_go_deps_usage = d.get("no_go_deps_usage", False),
         version = d.get("version", ""),
         tags = _parse_tags(d.get("tags", {})),
         tags_dev = _parse_tags(d.get("tags_dev", {})),

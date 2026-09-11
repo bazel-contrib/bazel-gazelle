@@ -59,9 +59,11 @@ def go_deps_impl(module_ctx):
         _process_overrides(module_ctx, module, "gazelle_override", gazelle_overrides)
     if module_ctx.failed():
         return None
-    if not root_module:
-        module_ctx.fail("root module not found")
-        return None
+
+    # Bazel only includes modules that use the extension in module_ctx.modules,
+    # so the root module may be absent if only dependencies use go_deps. In
+    # that case, there are no root requirements, config, or overrides.
+    root_module_tags = root_module.tags.module if root_module else []
 
     # Compute the environment based on the config tag and available go_sdks.
     # Use this to locate the go tool.
@@ -112,7 +114,7 @@ def go_deps_impl(module_ctx):
         module_ctx,
         go_modules,
         bazel_go_modules,
-        root_module.tags.module,
+        root_module_tags,
         root_required_mods,
         _get_checks_reporter(module_ctx, root_module),
         reserved_repo_names,
@@ -243,7 +245,8 @@ def go_deps_impl(module_ctx):
     # Only include bazel_gazelle_go_repository_config in direct dependencies for
     # gazelle and rules_go; it shouldn't be generally available.
     # Don't include common repo names if this is an isolated go_deps instance.
-    if (root_module.name in ("gazelle", "rules_go", "gazelle_bcr_go_mod_tests", "gazelle_bcr_go_work_tests") and
+    if (root_module and
+        root_module.name in ("gazelle", "rules_go", "gazelle_bcr_go_mod_tests", "gazelle_bcr_go_work_tests") and
         not getattr(module_ctx, "is_isolated", False)):
         direct_deps.append("bazel_gazelle_go_repository_config")
     if getattr(module_ctx, "is_isolated", False):
@@ -461,13 +464,21 @@ def _should_declare_go_repository(module_ctx, go_module):
     )
 
 def _get_checks_reporter(module_ctx, root_module):
-    """Returns a function for reporting problems, depending on the error level"""
+    """Returns a function for reporting problems, depending on the error level
+
+    Args:
+        module_ctx: the module context.
+        root_module: the root Bazel module, or None if the root module does
+            not use go_deps.
+    """
     OFF, WARNING, ERROR = 0, 1, 2
     LEVEL = {
         "off": OFF,
         "warning": WARNING,
         "error": ERROR,
     }
+    if not root_module:
+        return module_ctx.print
     check_direct_dependencies_level = OFF
     if len(root_module.tags.config) > 0:
         config_tag = root_module.tags.config[0]

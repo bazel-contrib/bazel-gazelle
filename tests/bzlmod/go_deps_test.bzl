@@ -23,6 +23,7 @@ load("//tests/bzlmod/go_deps:module_local_path.bzl", MODULE_LOCAL_PATH_TEST = "T
 load("//tests/bzlmod/go_deps:module_override.bzl", MODULE_OVERRIDE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module_tag_version_normalize.bzl", MODULE_TAG_VERSION_NORMALIZE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:mvs.bzl", MVS_TEST = "TEST")
+load("//tests/bzlmod/go_deps:no_root_usage.bzl", NO_ROOT_USAGE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_dir_mod.bzl", REPLACE_DIR_MOD_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_dir_work.bzl", REPLACE_DIR_WORK_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_ignore_not_root.bzl", REPLACE_IGNORE_NOT_ROOT_TEST = "TEST")
@@ -57,6 +58,7 @@ _GO_DEPS_TEST_CASES = [
     MODULE_TEST,
     MISSING_SUM_TEST,
     MVS_TEST,
+    NO_ROOT_USAGE_TEST,
     REPLACE_DIR_MOD_TEST,
     REPLACE_DIR_WORK_TEST,
     REPLACE_IGNORE_NOT_ROOT_TEST,
@@ -196,7 +198,8 @@ def _mock_module_ctx(case, executions, isolated, isolate_module = None):
     if isolated:
         modules = [_mock_isolated_module(isolate_module)]
     else:
-        modules = [_mock_module(m) for m in case.modules]
+        # Like Bazel, only pass modules that use the extension.
+        modules = [_mock_module(m) for m in case.modules if not m.no_go_deps_usage]
     return struct(
         modules = modules,
         is_isolated = isolated,
