@@ -252,6 +252,12 @@ TEST = r"""
   },
   "want": {
     "main": {
+      "print": [
+        "Version conflict found for Go module github.com/bazelbuild/bazel-gazelle:",
+        "Version conflict found for Go module github.com/stretchr/testify:",
+        "Version conflict found for Go module github.com/davecgh/go-spew:",
+        "Version conflict found for Go module github.com/bmatcuk/doublestar/v4:"
+      ],
       "repos": [
         {
           "importpath": "example.org/collision/mangle",
