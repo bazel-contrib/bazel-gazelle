@@ -841,7 +841,10 @@ To correct this:
                 go_work_json = _parse_go_work_json(module_ctx, go_tool, go_env, go_work_path)
                 if module_ctx.failed():
                     return None
-                for u in go_work_json.get("Use"):
+
+                # 'go work edit -json' reports "Use": null for a go.work file
+                # without use directives, like one written by 'go work init'.
+                for u in go_work_json.get("Use") or []:
                     if u["DiskPath"] == "." or u["DiskPath"].startswith("./") or u["DiskPath"].startswith("../"):
                         go_mod_package = paths.normalize(paths.join(tag.go_work.package, u["DiskPath"]))
                         if go_mod_package == ".":

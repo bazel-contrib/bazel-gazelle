@@ -37,6 +37,7 @@ load("//tests/bzlmod/go_deps:rules_proto_compat.bzl", RULES_PROTO_COMPAT_TEST = 
 load("//tests/bzlmod/go_deps:tool.bzl", TOOL_TEST = "TEST")
 load("//tests/bzlmod/go_deps:version_conflict_checks.bzl", VERSION_CONFLICT_CHECKS_TEST = "TEST")
 load("//tests/bzlmod/go_deps:work_mixed_direct.bzl", WORK_MIXED_DIRECT_TEST = "TEST")
+load("//tests/bzlmod/go_deps:work_no_use.bzl", WORK_NO_USE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:workspace_mvs_pruning.bzl", WORKSPACE_MVS_PRUNING_TEST = "TEST")
 
 # Keep sorted
@@ -75,6 +76,7 @@ _GO_DEPS_TEST_CASES = [
     TOOL_TEST,
     VERSION_CONFLICT_CHECKS_TEST,
     WORK_MIXED_DIRECT_TEST,
+    WORK_NO_USE_TEST,
     WORKSPACE_MVS_PRUNING_TEST,
 ]
 
