@@ -608,11 +608,27 @@ def _resolve_local_path(module_ctx, local_path):
     root_dir = path_str(module_ctx.path(Label("@@//:MODULE.bazel")).dirname)
     return paths.normalize(paths.join(root_dir, local_path))
 
+def _modfile_token(s):
+    """
+    Quotes a string if needed so that it is a single token in go.mod or go.work
+
+    Go's modfile package splits directive arguments on whitespace, so paths
+    containing spaces or other special characters must be quoted. This
+    follows modfile.MustQuote; json.encode produces a string literal that
+    Go's strconv.Unquote accepts.
+    """
+    if s == "" or "//" in s or "/*" in s:
+        return json.encode(s)
+    for c in s.elems():
+        if c in " \"'`" or c < " " or c == "\177":
+            return json.encode(s)
+    return s
+
 def _local_replace_path(dir_path):
     """Formats a workspace directory path for a go.mod replace directive."""
     if dir_path.startswith("./") or dir_path.startswith("../") or dir_path.startswith("/"):
-        return dir_path
-    return "./" + dir_path
+        return _modfile_token(dir_path)
+    return _modfile_token("./" + dir_path)
 
 def _create_workspace_from_tags(module_ctx, go_tool, go_env):
     """
@@ -762,7 +778,7 @@ To correct this:
                 # We can use 'replace' and 'exclude' directives in go.mod files from
                 # the Bazel root module without modification.
                 bazel_go_module_dirs[info.importpath] = path_str(go_mod_path.dirname)
-                go_work_lines.append("use {}".format(path_str(go_mod_path.dirname)))
+                go_work_lines.append("use {}".format(_modfile_token(path_str(go_mod_path.dirname))))
                 for r in go_mod_json.get("Replace") or []:
                     root_replaced_paths[r["Old"]["Path"]] = True
                 for r in go_mod_json.get("Require") or []:
@@ -798,7 +814,7 @@ To correct this:
                     copied_go_sum_path = copied_go_mod_path.dirname.get_child("go.sum")
                     module_ctx.file(copied_go_sum_path, go_sum_content)
                 bazel_go_module_dirs[info.importpath] = path_str(copied_go_mod_path.dirname)
-                go_work_lines.append("use {}".format(path_str(copied_go_mod_path.dirname)))
+                go_work_lines.append("use {}".format(_modfile_token(path_str(copied_go_mod_path.dirname))))
 
         if len(module.tags.from_file) > 1:
             module_ctx.fail("in {}, multiple go_deps.from_file tags were declared. Use a single go.work file if you need multiple modules.".format(module.name))
@@ -824,19 +840,14 @@ To correct this:
                         go_mod_label = Label("@@{}//{}:go.mod".format(tag.go_work.repo_name, go_mod_package))
                         visit_go_mod(go_mod_label, is_dev_dependency)
                     else:
-                        go_work_lines.append("use {}".format(u["DiskPath"]))
+                        go_work_lines.append("use {}".format(_modfile_token(u["DiskPath"])))
 
                 if _module_acts_as_root(module_ctx, module):
                     _fix_replace_paths(go_work_path, go_work_json)
                     for r in go_work_json.get("Replace") or []:
                         root_replaced_paths[r["Old"]["Path"]] = True
                     go_work_lines.extend([
-                        "replace {}{} => {}{}".format(
-                            r["Old"]["Path"],
-                            " " + r["Old"]["Version"] if "Version" in r["Old"] else "",
-                            r["New"]["Path"],
-                            " " + r["New"]["Version"] if "Version" in r["New"] else "",
-                        )
+                        _format_replace(r)
                         for r in go_work_json.get("Replace") or []
                     ])
 
@@ -929,12 +940,7 @@ def _format_go_mod_json(go_mod_json):
         for r in go_mod_json.get("Require") or []
     ])
     lines.extend([
-        "replace {}{} => {}{}".format(
-            r["Old"]["Path"],
-            " " + r["Old"]["Version"] if "Version" in r["Old"] else "",
-            r["New"]["Path"],
-            " " + r["New"]["Version"] if "Version" in r["New"] else "",
-        )
+        _format_replace(r)
         for r in go_mod_json.get("Replace") or []
     ])
     lines.extend([
@@ -942,6 +948,15 @@ def _format_go_mod_json(go_mod_json):
         for e in go_mod_json.get("Exclude") or []
     ])
     return "\n".join(lines)
+
+def _format_replace(r):
+    """Formats a replace directive parsed by 'go mod edit -json' or 'go work edit -json'"""
+    return "replace {}{} => {}{}".format(
+        r["Old"]["Path"],
+        " " + r["Old"]["Version"] if "Version" in r["Old"] else "",
+        _modfile_token(r["New"]["Path"]),
+        " " + r["New"]["Version"] if "Version" in r["New"] else "",
+    )
 
 def _label_to_rel(label):
     return label.package + "/" + label.name if label.package else label.name
