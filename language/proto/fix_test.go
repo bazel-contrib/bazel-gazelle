@@ -20,8 +20,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 )
 
 type fixTestCase struct {
@@ -205,7 +206,9 @@ func testFix(t *testing.T, tc fixTestCase) {
 	// Strip leading newline, added for readability
 	want := strings.TrimPrefix(tc.want, "\n")
 
-	NewLanguage().Fix(c, f)
+	if err := NewV2().(language.Fixer).Fix(t.Context(), language.FixArgs{Config: c, File: f}); err != nil {
+		t.Fatal(err)
+	}
 	if got := string(f.Format()); got != want {
 		t.Errorf("%s:\ngot:\n%s\nwant:\n%s", tc.desc, got, want)
 	}

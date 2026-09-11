@@ -16,11 +16,13 @@ limitations under the License.
 package proto
 
 import (
+	"context"
 	"log"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/label"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/label"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 )
 
 const (
@@ -73,9 +75,11 @@ func hasProtobufModuleDependency(c *config.Config) bool {
 	return c.ModuleToApparentName(protobufModuleName) != ""
 }
 
-func (*protoLang) Fix(c *config.Config, f *rule.File) {
+func (*protoLang) Fix(_ context.Context, args language.FixArgs) error {
+	c := args.Config
+	f := args.File
 	if !hasProtobufModuleDependency(c) {
-		return
+		return nil
 	}
 
 	// Collect deprecated Load statements
@@ -88,7 +92,7 @@ func (*protoLang) Fix(c *config.Config, f *rule.File) {
 	}
 
 	if len(deprecatedLoads) == 0 {
-		return
+		return nil
 	}
 
 	// Replace the deprecated load statements with the new load statements for
@@ -105,4 +109,5 @@ func (*protoLang) Fix(c *config.Config, f *rule.File) {
 			}
 		}
 	}
+	return nil
 }

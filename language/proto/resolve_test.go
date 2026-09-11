@@ -21,10 +21,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bazelbuild/bazel-gazelle/label"
+	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/label"
 	"github.com/bazelbuild/bazel-gazelle/repo"
-	"github.com/bazelbuild/bazel-gazelle/resolve"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	bzl "github.com/bazelbuild/buildtools/build"
 )
 
@@ -388,8 +390,8 @@ proto_library(
 		t.Run(tc.desc, func(t *testing.T) {
 			c, lang, cexts := testConfig(t, ".")
 			mrslv := make(mapResolver)
-			mrslv["proto_library"] = lang
-			ix := resolve.NewRuleIndex(mrslv.Resolver, []resolve.CrossResolver{lang.(resolve.CrossResolver)})
+			mrslv["proto_library"] = NewV2().(resolve.Indexer)
+			ix := resolve.NewRuleIndex(mrslv.Resolver, []resolve.Finder{NewV2().(resolve.Finder)})
 			rc := (*repo.RemoteCache)(nil)
 			for _, bf := range tc.index {
 				f, err := rule.LoadData(filepath.Join(bf.rel, "BUILD.bazel"), bf.rel, []byte(bf.content))
@@ -398,7 +400,9 @@ proto_library(
 				}
 				if bf.rel == "" {
 					for _, cext := range cexts {
-						cext.Configure(c, "", f)
+						if err := compat.MustConfigurerV2(cext).Configure(t.Context(), config.ConfigureArgs{Config: c, Rel: "", File: f}); err != nil {
+							t.Fatal(err)
+						}
 					}
 				}
 				for _, r := range f.Rules {
@@ -416,7 +420,16 @@ proto_library(
 			}
 			ix.Finish()
 			for i, r := range f.Rules {
-				lang.Resolve(c, ix, rc, r, imports[i], label.New("", "test", r.Name()))
+				if err := lang.(resolve.Resolver).Resolve(t.Context(), resolve.ResolveArgs{
+					Config:      c,
+					Index:       ix,
+					RemoteCache: rc,
+					Rule:        r,
+					Imports:     imports[i],
+					From:        label.New("", "test", r.Name()),
+				}); err != nil {
+					t.Fatal(err)
+				}
 			}
 			f.Sync()
 			got := strings.TrimSpace(string(bzl.Format(f.File)))
@@ -428,7 +441,7 @@ proto_library(
 	}
 }
 
-func TestCrossResolve(t *testing.T) {
+func TestFind(t *testing.T) {
 	type testCase struct {
 		desc      string
 		protoMode Mode
@@ -488,11 +501,18 @@ func TestCrossResolve(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			c, lang, _ := testConfig(t, ".")
+			c, _, _ := testConfig(t, ".")
 			pc := GetProtoConfig(c)
 			pc.Mode = tc.protoMode
-			ix := (*resolve.RuleIndex)(nil)
-			got := lang.(resolve.CrossResolver).CrossResolve(c, ix, tc.imp, tc.lang)
+			got, err := NewV2().(resolve.Finder).Find(t.Context(), resolve.FindArgs{
+				Config: c,
+				Index:  nil,
+				Import: tc.imp,
+				Lang:   tc.lang,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("got %#v ; want %#v", got, tc.want)
 			}
@@ -509,8 +529,8 @@ func convertImportsAttr(r *rule.Rule) interface{} {
 	return value
 }
 
-type mapResolver map[string]resolve.Resolver
+type mapResolver map[string]resolve.Indexer
 
-func (mr mapResolver) Resolver(r *rule.Rule, f string) resolve.Resolver {
+func (mr mapResolver) Resolver(r *rule.Rule, f string) resolve.Indexer {
 	return mr[r.Kind()]
 }
