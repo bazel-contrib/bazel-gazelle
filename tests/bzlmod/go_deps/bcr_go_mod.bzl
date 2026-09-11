@@ -258,7 +258,7 @@ TEST = r"""
       "print": [
         "Version conflict found for Go module github.com/stretchr/testify:",
         "Version conflict found for Go module github.com/davecgh/go-spew:",
-        "Version conflict found for Go module github.com/bmatcuk/doublestar/v4:"
+        "Version conflict found for Go module github.com/bmatcuk/doublestar/v4:\n    requested in root module: v4.6.0\n    selected by Go:           v4.9.1"
       ],
       "repos": [
         {
