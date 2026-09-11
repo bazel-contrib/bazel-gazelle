@@ -38,7 +38,12 @@ Each test case has the following fields:
   - root_module_direct_dev_deps: list of repo names passed to extension metadata
     as root_module_direct_dev_deps.
   - print: optional list of substrings expected to appear in messages passed to
-    module_ctx.print, in order.
+    module_ctx.print, in order. Every printed message must be listed here: the
+    test fails if go_deps prints a message that is not expected.
+  - files: optional dict of files that go_deps is expected to write with
+    module_ctx.file, mapping paths relative to the extension's working
+    directory (like "go.work" or "mod/dep/go.mod") to their exact content.
+    Files that are not listed are not checked.
   - fail: optional list of substrings expected to appear in messages passed to
     module_ctx.fail, in order. If fail was called and this field is omitted,
     the test fails.
@@ -73,6 +78,7 @@ def _parse_want(d):
         root_module_direct_dev_deps = d.get("root_module_direct_dev_deps", []),
         print = d.get("print", []),
         fail = d.get("fail", []),
+        files = d.get("files", {}),
     )
 
 def _parse_module(d):

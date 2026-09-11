@@ -114,12 +114,25 @@ def _run_go_deps_instance(env, expect, case, instance_name, isolated, isolate_mo
         if metadata == None:
             fail("test case {} ({}): go_deps_impl did not return extension metadata".format(case.name, instance_name))
 
-    if want.print:
-        _assert_messages_contain_substrings(
-            case_expect,
-            module_ctx._state.printed_messages,
-            want.print,
-            "printed_messages",
+    # Every printed message must be expected by the test case so that
+    # spurious warnings don't go unnoticed.
+    _assert_messages_contain_substrings(
+        case_expect,
+        module_ctx._state.printed_messages,
+        want.print,
+        "printed_messages",
+    )
+
+    for filename, want_content in want.files.items():
+        asserts.equals(
+            env,
+            want_content,
+            module_ctx._state.files.get(filename),
+            "test case {} ({}): content of file '{}' written by go_deps".format(
+                case.name,
+                instance_name,
+                filename,
+            ),
         )
 
     if metadata == None:
@@ -301,6 +314,8 @@ def _mock_module_ctx_file(state, path, content):
         filename = path
     else:
         fail("test case {}: can't read from file with value {} of unknown type {}".format(state.case.name, path, type(path)))
+    if filename.startswith("./"):
+        filename = filename[len("./"):]
     state.files[filename] = content
 
 def _mock_module_ctx_path(case, v):
@@ -335,9 +350,9 @@ def _mock_module_ctx_read(state, path):
         # We'll get a label with mangled repo name, but we don't want to simulate
         # the mangling, so only match go.env here.
         return "GOROOT=@go_sdk//:ROOT"
-    if filename in state.files:
+    if filename.startswith("./") and filename[len("./"):] in state.files:
         # file written with module_ctx.file
-        return state.files[filename]
+        return state.files[filename[len("./"):]]
     if filename in state.case.files:
         # file from test case
         return state.case.files[filename]
