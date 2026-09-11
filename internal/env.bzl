@@ -164,6 +164,78 @@ def resolve_env(ctx, direct = {}, inherit = [], reserved = []):
 
     return env
 
+# Host environment variables that Go tools inherit when they may access the
+# network or run VCS tools. Used by go_repository and go_deps.
+HOST_ENV_KEYS = [
+    # keep sorted
+
+    # Respect user proxy and sumdb settings for privacy.
+    # TODO(jayconrod): gazelle in go_repository mode should probably
+    # not go out to the network at all. This means *the build*
+    # goes out to the network. We tolerate this for downloading
+    # archives, but finding module roots is a bit much.
+    "GOAUTH",
+    "GONOPROXY",
+    "GONOSUMDB",
+    "GOPRIVATE",
+    "GOPROXY",
+    "GOSUMDB",
+
+    # PATH is needed to locate git and other vcs tools.
+    "PATH",
+
+    # HOME is needed to locate vcs configuration files (.gitconfig).
+    "HOME",
+
+    # Settings below are used by vcs tools.
+    "GIT_CONFIG",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_NOSYSTEM",
+    "GIT_CONFIG_SYSTEM",
+    "GIT_SSH",
+    "GIT_SSH_COMMAND",
+    "GIT_SSL_CAINFO",
+    "HTTPS_PROXY",
+    "HTTP_PROXY",
+    "NO_PROXY",
+    "SSH_AUTH_SOCK",
+    "SSL_CERT_DIR",
+    "SSL_CERT_FILE",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
+]
+
+def host_env(environ):
+    """
+    Returns environment variables that Go tools should inherit from the host.
+
+    These are proxy, module sum database, and VCS settings (HOST_ENV_KEYS) that
+    are needed to download modules, plus git configuration passed through
+    GIT_CONFIG_COUNT and GIT_CONFIG_KEY_<n> / GIT_CONFIG_VALUE_<n>
+    (https://www.git-scm.com/docs/git-config/#Documentation/git-config.txt-GITCONFIGCOUNT).
+
+    Args:
+        environ: a dict of the host environment, usually ctx.os.environ.
+
+    Returns:
+        A dict of environment variable settings.
+    """
+    env_keys = HOST_ENV_KEYS
+    count = environ.get("GIT_CONFIG_COUNT")
+    if count:
+        if not count.isdigit() or int(count) < 1:
+            fail("GIT_CONFIG_COUNT has to be a positive integer")
+        for i in range(int(count)):
+            key = "GIT_CONFIG_KEY_%d" % i
+            value = "GIT_CONFIG_VALUE_%d" % i
+            for j in [key, value]:
+                if j not in environ:
+                    fail("%s is not defined as an environment variable, but you asked for GIT_CONFIG_COUNT=%d" % (j, int(count)))
+            env_keys = env_keys + [key, value]
+    return {k: environ[k] for k in env_keys if k in environ}
+
 def read_go_env(ctx, go_tool, var):
     """
     Runs 'go env' to find Go's opinion on what an environment variable should be

@@ -14,7 +14,7 @@
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("//internal:common.bzl", "env_execute", "executable_extension", "path_str", "watch")
-load("//internal:env.bzl", "read_go_env_file", "resolve_env")
+load("//internal:env.bzl", "host_env", "read_go_env_file", "resolve_env")
 load("//internal:go_repository.bzl", "go_repository")
 load(
     ":default_gazelle_overrides.bzl",
@@ -87,10 +87,15 @@ def go_deps_impl(module_ctx):
     go_tool = go_env["GOROOT"] + "/bin/go" + executable_extension(module_ctx)
     watch(module_ctx, go_tool)
 
+    # 'go list -m' may need to download go.mod files, so like go_repository,
+    # pass proxy, sumdb, and VCS settings through from the host environment.
+    # Explicit settings from the cache repo and go_deps.config take precedence.
+    go_exec_env = host_env(module_ctx.os.environ) | go_env
+
     # Create a scratch Go workspace (with a synthetic go.work and go.mod file)
     # expressing constraints from go_deps tags, linking with go.mod files
     # provided by go_deps.from_file.
-    workspace = _create_workspace_from_tags(module_ctx, go_tool, go_env)
+    workspace = _create_workspace_from_tags(module_ctx, go_tool, go_exec_env)
     if module_ctx.failed() or workspace == None:
         return None
     bazel_go_modules, root_required_mods = workspace
@@ -100,7 +105,7 @@ def go_deps_impl(module_ctx):
     go_modules = _select_module_versions(
         module_ctx,
         go_tool,
-        go_env,
+        go_exec_env,
         bazel_go_modules,
         root_required_mods,
         module_overrides,
@@ -1439,7 +1444,11 @@ _config_tag = tag_class(
             doc = "The environment variables to use when fetching Go dependencies or running the `@rules_go//go` tool.",
         ),
         "go_env_inherit": attr.string_list(
-            doc = "Host environment variable names to inherit when fetching Go dependencies or running the `@rules_go//go` tool.",
+            doc = """\
+            Host environment variable names to inherit when fetching Go dependencies or running the `@rules_go//go` tool.
+            Proxy, module sum database, and VCS settings such as `GOPROXY`, `GOPRIVATE`, `HTTPS_PROXY`,
+            `SSL_CERT_FILE`, `PATH`, and `HOME` are always inherited.
+            """,
         ),
         "debug_mode": attr.bool(doc = "Whether or not to print stdout and stderr messages from gazelle", default = False),
     },
