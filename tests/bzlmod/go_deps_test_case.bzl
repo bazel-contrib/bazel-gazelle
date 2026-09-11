@@ -32,6 +32,8 @@ Each test case has the following fields:
   "<module_name>_isolate" for isolated instances. Command strings omit the
   leading "env -i" wrapper and use "go" instead of the GOROOT path to the go
   binary.
+- go_version_output: optional string returned as the stdout of the mocked
+  'go version' command. Defaults to a release version.
 - want: object mapping go_deps instance names to expected output objects.
   The "main" key is for the un-isolated go_deps instance. Additional keys have
   the form "<module_name>_isolate" for isolated instances. Each value has:
@@ -70,6 +72,7 @@ def parse_go_deps_test_case(s):
         modules = [_parse_module(m) for m in d["modules"]],
         files = d.get("files", {}),
         executions = d.get("executions", {}),
+        go_version_output = d.get("go_version_output", ""),
         want = {
             key: _parse_want(value)
             for key, value in d["want"].items()
