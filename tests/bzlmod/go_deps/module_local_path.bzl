@@ -39,9 +39,6 @@ TEST = r"""
       "files": {
         "go.mod": "module go_deps_module_tags\ngo 1.27rc3\nrequire golang.org/x/mod v0.40.0\nreplace golang.org/x/mod v0.40.0 =\u003e ./mvs_test/mod_replaced"
       },
-      "print": [
-        "Version conflict found for Go module golang.org/x/mod:\n    requested with go_deps.module: v0.40.0\n    selected by Go:                None"
-      ],
       "repos": [
         {
           "importpath": "golang.org/x/mod",

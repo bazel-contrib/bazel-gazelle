@@ -100,7 +100,7 @@ TEST = r"""
         "Version conflict found for Go module example.com/from_file_conflict:",
         "Version conflict found for Go module golang.org/x/sync:",
         "Version conflict found for Go module example.com/local_tag_conflict:",
-        "Version conflict found for Go module golang.org/x/mod:",
+        "Version conflict found for Go module golang.org/x/mod:\n    requested with go_deps.module: v0.1.0\n    selected by Go:                v0.38.0",
         "Version conflict found for Go module golang.org/x/tools:",
         "Missing go.sum entry for Go module golang.org/x/exp:",
         "Missing go.sum entry for Go module golang.org/x/tools:"
