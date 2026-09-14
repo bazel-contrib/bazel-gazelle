@@ -28,10 +28,9 @@ import (
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 	"github.com/bazel-contrib/bazel-gazelle/v2/language"
-	"github.com/bazelbuild/bazel-gazelle/language/proto"
 	"github.com/bazel-contrib/bazel-gazelle/v2/pathtools"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
-	"github.com/bazel-contrib/bazel-gazelle/v2/walk"
+	"github.com/bazelbuild/bazel-gazelle/language/proto"
 )
 
 func (gl *goLang) Generate(ctx context.Context, args language.GenerateArgs) (language.GenerateResult, error) {
@@ -118,7 +117,7 @@ func (gl *goLang) Generate(ctx context.Context, args language.GenerateArgs) (lan
 			// Check that testdata directory is not empty
 			if !ok {
 				testdataRel := path.Join(args.Rel, "testdata")
-				testdataDir, err := walk.GetDirInfo(testdataRel)
+				testdataDir, err := args.Cache.GetDirInfo(testdataRel)
 				if err == nil && (len(testdataDir.Subdirs) > 0 || len(testdataDir.RegularFiles) > 0 || len(testdataDir.GenFiles) > 0) {
 					hasTestdata = true
 				}

@@ -30,6 +30,7 @@ go_library(
         "//v2/resolve",
         "//v2/rule",
         "//v2/walk",
+        "//walk",
         "@com_github_bazelbuild_buildtools//build",
         "@com_github_pmezard_go_difflib//difflib",
     ],

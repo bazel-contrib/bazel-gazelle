@@ -48,6 +48,7 @@ import (
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"github.com/bazel-contrib/bazel-gazelle/v2/walk"
 	"github.com/bazelbuild/bazel-gazelle/repo"
+	walkv1 "github.com/bazelbuild/bazel-gazelle/walk"
 	"github.com/bazelbuild/buildtools/build"
 )
 
@@ -401,7 +402,12 @@ func Run(
 
 	rule.RemoveNoopKeepComments = uc.removeNoopKeepComments || c.ShouldFix
 
-	walkErr := walk.Walk2(c, cexts, uc.dirs, uc.walkMode, func(args walk.Walk2FuncArgs) walk.Walk2FuncResult {
+	cache := walk.NewCache(c)
+	// Support v1 extensions that call walkv1.GetDirInfo directly instead of
+	// cache.GetDirInfo. The old version relies on this global state.
+	cleanup := walkv1.SetGlobalCache_InternalDoNotCall(cache)
+	defer cleanup()
+	walkErr := walk.Walk(ctx, c, cexts, cache, uc.dirs, uc.walkMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
 		dir := args.Dir
 		rel := args.Rel
 		c := args.Config
@@ -426,7 +432,7 @@ func Run(
 					ruleIndex.AddRule(c, r, f)
 				}
 			}
-			return walk.Walk2FuncResult{}
+			return walk.WalkFuncResult{}, nil
 		}
 
 		// Fix any problems in the file.
@@ -436,6 +442,7 @@ func Run(
 					Config: c,
 					Rel:    rel,
 					File:   f,
+					Cache:  cache,
 				}); err != nil {
 					uc.handleError(err)
 				}
@@ -457,12 +464,13 @@ func Run(
 				GenFiles:     genFiles,
 				OtherEmpty:   empty,
 				OtherGen:     gen,
+				Cache:        cache,
 			})
 			if err != nil {
-				uc.handleError(err)
+				return walk.WalkFuncResult{}, fmt.Errorf("%s: language %s: %w", rel, lang.Name(), err)
 			}
 			if len(res.Gen) != len(res.Imports) {
-				log.Panicf("%s: language %s generated %d rules but returned %d imports", rel, lang.Name(), len(res.Gen), len(res.Imports))
+				return walk.WalkFuncResult{}, fmt.Errorf("%s: language %s: generated %d rules but returned %d imports", rel, lang.Name(), len(res.Gen), len(res.Imports))
 			}
 			empty = append(empty, res.Empty...)
 			gen = append(gen, res.Gen...)
@@ -472,7 +480,7 @@ func Run(
 			}
 		}
 		if f == nil && len(gen) == 0 {
-			return walk.Walk2FuncResult{RelsToVisit: relsToVisit}
+			return walk.WalkFuncResult{RelsToVisit: relsToVisit}, nil
 		}
 
 		// Apply and record relevant kind mappings.
@@ -577,10 +585,7 @@ func Run(
 			}
 		}
 
-		return walk.Walk2FuncResult{
-			RelsToVisit: relsToVisit,
-			Err:         errors.Join(errs...),
-		}
+		return walk.WalkFuncResult{RelsToVisit: relsToVisit}, errors.Join(errs...)
 	})
 
 	for _, lang := range languages {

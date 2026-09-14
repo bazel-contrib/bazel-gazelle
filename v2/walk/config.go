@@ -272,7 +272,7 @@ func loadBazelIgnore(repoRoot string) (map[string]struct{}, error) {
 		excludes[ignore] = struct{}{}
 	}
 
-	return excludes, nil
+	return excludes, scanner.Err()
 }
 
 func loadRepoDirectoryIgnore(repoRoot string) ([]string, error) {

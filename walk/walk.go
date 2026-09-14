@@ -18,10 +18,14 @@ limitations under the License.
 package walk
 
 import (
+	"context"
+	"log"
+
 	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
 	v2config "github.com/bazel-contrib/bazel-gazelle/v2/config"
 	v2 "github.com/bazel-contrib/bazel-gazelle/v2/walk"
 	"github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
 // Mode determines which directories Walk visits and which directories
@@ -66,10 +70,9 @@ const UpdateSubdirsMode = v2.UpdateSubdirsMode
 // genFiles is a list of names of generated files, found by reading
 // "out" and "outs" attributes of rules in f.
 //
-// DEPRECATED: Use Walk2Func with Walk2 instead.
-//
-// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/walk.WalkFunc instead.
-type WalkFunc = v2.WalkFunc
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/walk.Walk
+// with WalkFunc instead.
+type WalkFunc func(dir, rel string, c *config.Config, update bool, f *rule.File, subdirs, regularFiles, genFiles []string)
 
 // Walk traverses the directory tree rooted at c.RepoRoot. Walk visits
 // subdirectories in depth-first post-order.
@@ -107,17 +110,29 @@ func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode,
 	for i, cext := range cexts {
 		v2cexts[i] = compat.MustConfigurerV2(cext)
 	}
-	v2.Walk(c, v2cexts, dirs, mode, wf)
+	cache := v2.NewCache(c)
+	cleanup := SetGlobalCache_InternalDoNotCall(cache)
+	defer cleanup()
+	w2f := func(args v2.WalkFuncArgs) (v2.WalkFuncResult, error) {
+		wf(args.Dir, args.Rel, args.Config, args.Update, args.File, args.Subdirs, args.RegularFiles, args.GenFiles)
+		return v2.WalkFuncResult{}, nil
+	}
+	if err := v2.Walk(context.Background(), c, v2cexts, cache, dirs, mode, w2f); err != nil {
+		log.Print(err)
+		if c.Strict {
+			log.Fatal("Exit as strict mode is on")
+		}
+	}
 }
 
-// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/walk.Walk2Func instead.
-type Walk2Func = v2.Walk2Func
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/walk.WalkFunc instead.
+type Walk2Func = v2.WalkFunc
 
-// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/walk.Walk2FuncArgs instead.
-type Walk2FuncArgs = v2.Walk2FuncArgs
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/walk.WalkFuncArgs instead.
+type Walk2FuncArgs = v2.WalkFuncArgs
 
-// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/walk.Walk2FuncResult instead.
-type Walk2FuncResult = v2.Walk2FuncResult
+// Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/walk.WalkFuncResult instead.
+type Walk2FuncResult = v2.WalkFuncResult
 
 // Walk2 traverses a limited part of the directory tree rooted at c.RepoRoot
 // and calls the function wf in each visited directory.
@@ -144,5 +159,8 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 	for i, cext := range cexts {
 		v2cexts[i] = compat.MustConfigurerV2(cext)
 	}
-	return v2.Walk2(c, v2cexts, dirs, mode, wf)
+	cache := v2.NewCache(c)
+	cleanup := SetGlobalCache_InternalDoNotCall(cache)
+	defer cleanup()
+	return v2.Walk(context.Background(), c, v2cexts, cache, dirs, mode, wf)
 }

@@ -20,5 +20,17 @@ import v2 "github.com/bazel-contrib/bazel-gazelle/v2/walk"
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/walk.GetDirInfo instead.
 func GetDirInfo(rel string) (DirInfo, error) {
-	return v2.GetDirInfo(rel)
+	return globalCache.GetDirInfo(rel)
+}
+
+var globalCache *v2.Cache
+
+// HACK: v2/cmd/gazelle/update calls this so that extensions that call
+// GetDirInfo can work. Nothing else should call this.
+func SetGlobalCache_InternalDoNotCall(c *v2.Cache) func() {
+	if globalCache != nil {
+		panic("globalCache already set")
+	}
+	globalCache = c
+	return func() { globalCache = nil }
 }
