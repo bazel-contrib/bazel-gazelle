@@ -27,9 +27,6 @@ var (
 )
 
 var goKinds = []rule.KindInfo{{
-	Name:       "cgo_library",
-	LoadedFrom: rulesGoGoDefBzl,
-}, {
 	Name:       "go_binary",
 	LoadedFrom: rulesGoGoDefBzl,
 	MatchAny:   true,
@@ -106,9 +103,6 @@ var goKinds = []rule.KindInfo{{
 		"compilers":  true,
 	},
 	ResolveAttrs: map[string]bool{"deps": true},
-}, {
-	Name:       "go_grpc_library",
-	LoadedFrom: rulesGoProtoDefBzl,
 }, {
 	Name:       "go_repository",
 	LoadedFrom: gazelleDepsBzl,

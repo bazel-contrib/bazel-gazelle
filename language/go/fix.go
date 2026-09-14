@@ -30,9 +30,7 @@ func (*goLang) Fix(_ context.Context, args language.FixArgs) error {
 	c := args.Config
 	f := args.File
 	migrateLibraryEmbed(c, f)
-	migrateGrpcCompilers(c, f)
 	flattenSrcs(c, f)
-	squashCgoLibrary(c, f)
 	squashXtest(c, f)
 	removeLegacyProto(c, f)
 	removeLegacyGazelle(c, f)
@@ -176,70 +174,6 @@ func migrateLibraryEmbed(c *config.Config, f *rule.File) {
 	}
 }
 
-// migrateGrpcCompilers converts "go_grpc_library" rules into "go_proto_library"
-// rules with a "compilers" attribute.
-func migrateGrpcCompilers(c *config.Config, f *rule.File) {
-	for _, r := range f.Rules {
-		if r.Kind() != "go_grpc_library" || r.ShouldKeep() || r.Attr("compilers") != nil {
-			continue
-		}
-		r.SetKind("go_proto_library")
-		r.SetAttr("compilers", getGoConfig(c).defaultGoGrpcCompilers())
-	}
-}
-
-// squashCgoLibrary removes cgo_library rules with the default name and
-// merges their attributes with go_library with the default name. If no
-// go_library rule exists, a new one will be created.
-//
-// Note that the library attribute is disregarded, so cgo_library and
-// go_library attributes will be squashed even if the cgo_library was unlinked.
-// MergeFile will remove unused values and attributes later.
-func squashCgoLibrary(c *config.Config, f *rule.File) {
-	// Find the default cgo_library and go_library rules.
-	var cgoLibrary, goLibrary *rule.Rule
-	for _, r := range f.Rules {
-		if r.Kind() == "cgo_library" && r.Name() == "cgo_default_library" && !r.ShouldKeep() {
-			if cgoLibrary != nil {
-				log.Printf("%s: when fixing existing file, multiple cgo_library rules with default name found", f.Path)
-				continue
-			}
-			cgoLibrary = r
-			continue
-		}
-		if r.Kind() == "go_library" && r.Name() == defaultLibName {
-			if goLibrary != nil {
-				log.Printf("%s: when fixing existing file, multiple go_library rules with default name referencing cgo_library found", f.Path)
-			}
-			goLibrary = r
-			continue
-		}
-	}
-
-	if cgoLibrary == nil {
-		return
-	}
-	if !c.ShouldFix {
-		log.Printf("%s: cgo_library is deprecated. Run 'gazelle fix' to squash with go_library.", f.Path)
-		return
-	}
-
-	if goLibrary == nil {
-		cgoLibrary.SetKind("go_library")
-		cgoLibrary.SetName(defaultLibName)
-		cgoLibrary.SetAttr("cgo", true)
-		return
-	}
-
-	if err := rule.SquashRules(cgoLibrary, goLibrary, f.Path); err != nil {
-		log.Print(err)
-		return
-	}
-	goLibrary.DelAttr("embed")
-	goLibrary.SetAttr("cgo", true)
-	cgoLibrary.Delete()
-}
-
 // squashXtest removes go_test rules with the default external name and merges
 // their attributes with a go_test rule with the default internal name. If
 // no internal go_test rule exists, a new one will be created (effectively
@@ -373,6 +307,5 @@ func isGoRule(kind string) bool {
 	return kind == "go_library" ||
 		kind == "go_binary" ||
 		kind == "go_test" ||
-		kind == "go_proto_library" ||
-		kind == "go_grpc_library"
+		kind == "go_proto_library"
 }

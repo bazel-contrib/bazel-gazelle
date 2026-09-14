@@ -395,7 +395,7 @@ func isGoLibrary(kind string) bool {
 }
 
 func isGoProtoLibrary(kind string) bool {
-	return kind == "go_proto_library" || kind == "go_grpc_library"
+	return kind == "go_proto_library"
 }
 
 // isExtraLibrary returns true if this rule is one of a handful of proto

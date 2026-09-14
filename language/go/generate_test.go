@@ -252,7 +252,7 @@ func TestGenerateRulesEmptyLegacyProto(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, e := range res.Empty {
-		if kind := e.Kind(); kind == "proto_library" || kind == "go_proto_library" || kind == "go_grpc_library" {
+		if kind := e.Kind(); kind == "proto_library" || kind == "go_proto_library" {
 			t.Errorf("deleted rule %s ; should not delete in legacy proto mode", kind)
 		}
 	}
