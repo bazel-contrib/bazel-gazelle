@@ -16,26 +16,27 @@ limitations under the License.
 package proto
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"path"
 	"sort"
 	"strings"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/language"
-	"github.com/bazelbuild/bazel-gazelle/merger"
-	"github.com/bazelbuild/bazel-gazelle/pathtools"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	gazelleconfig "github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/merger"
+	"github.com/bazel-contrib/bazel-gazelle/v2/pathtools"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 )
 
-func (*protoLang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
+func (*protoLang) Generate(ctx context.Context, args language.GenerateArgs) (language.GenerateResult, error) {
 	c := args.Config
 	pc := GetProtoConfig(c)
 	if !pc.Mode.ShouldGenerateRules() {
 		// Don't create or delete proto rules in this mode. Any existing rules
 		// are likely hand-written.
-		return language.GenerateResult{}
+		return language.GenerateResult{}, nil
 	}
 
 	var regularProtoFiles []string
@@ -78,12 +79,12 @@ func (*protoLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 			// If matching rule already exists, use its name for generated rule, otherwise other languages may not be able to resolve proto_library rule.
 			// This way we can propagate the name that would actually written to the BUILD file.
 			// Most of downstream extensions would refer to this name directly when generating `<lang>_proto_library`.
-			previous, err := merger.Match(args.File.Rules, r, protoKinds["proto_library"], c.AliasMap)
+			previous, err := merger.Match(args.File.Rules, r, protoLibraryKind, c.AliasMap)
 			if err == nil && previous != nil {
 				r.SetName(previous.Name())
 			}
 		}
-		if r.IsEmpty(protoKinds[r.Kind()]) {
+		if r.Kind() == protoLibraryKind.Name && r.IsEmpty(protoLibraryKind) {
 			res.Empty = append(res.Empty, r)
 		} else {
 			res.Gen = append(res.Gen, r)
@@ -92,13 +93,13 @@ func (*protoLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	sort.SliceStable(res.Gen, func(i, j int) bool {
 		return res.Gen[i].Name() < res.Gen[j].Name()
 	})
-	res.Imports = make([]interface{}, len(res.Gen))
+	res.Imports = make([]any, len(res.Gen))
 	for i, r := range res.Gen {
-		res.Imports[i] = r.PrivateAttr(config.GazelleImportsKey)
+		res.Imports[i] = r.PrivateAttr(gazelleconfig.GazelleImportsKey)
 	}
 	res.Empty = append(res.Empty, generateEmpty(args.File, regularProtoFiles, genProtoFiles)...)
 	res.RelsToIndex = buildRelsToIndex(pc, pkgs)
-	return res
+	return res, nil
 }
 
 // RuleName returns a name for a proto_library derived from the given strings.
@@ -272,7 +273,7 @@ func generateProto(pc *ProtoConfig, rel string, pkg *Package, shouldSetVisibilit
 	sort.Strings(imports)
 	// NOTE: This attribute should not be used outside this extension. It's still
 	// convenient for testing though.
-	r.SetPrivateAttr(config.GazelleImportsKey, imports)
+	r.SetPrivateAttr(gazelleconfig.GazelleImportsKey, imports)
 	for k, v := range pkg.Options {
 		r.SetPrivateAttr(k, v)
 	}

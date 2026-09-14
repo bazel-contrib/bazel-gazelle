@@ -23,13 +23,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/language"
-	"github.com/bazelbuild/bazel-gazelle/merger"
-	"github.com/bazelbuild/bazel-gazelle/resolve"
-	"github.com/bazelbuild/bazel-gazelle/rule"
-	"github.com/bazelbuild/bazel-gazelle/testtools"
-	"github.com/bazelbuild/bazel-gazelle/walk"
+	gazelleconfig "github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/merger"
+	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/testtools"
+	"github.com/bazel-contrib/bazel-gazelle/v2/walk"
 
 	bzl "github.com/bazelbuild/buildtools/build"
 )
@@ -44,9 +46,9 @@ func TestGenerateRules(t *testing.T) {
 		}
 	}
 
-	c, lang, _ := testConfig(t, "testdata")
+	c, lang, cexts := testConfig(t, "testdata")
 
-	walk.Walk(c, []config.Configurer{lang}, []string{"testdata"}, walk.VisitAllUpdateSubdirsMode, func(dir, rel string, c *config.Config, update bool, oldFile *rule.File, subdirs, regularFiles, genFiles []string) {
+	walk.Walk(c, cexts, []string{"testdata"}, walk.VisitAllUpdateSubdirsMode, func(dir, rel string, c *config.Config, update bool, oldFile *rule.File, subdirs, regularFiles, genFiles []string) {
 		isTest := false
 		for _, name := range regularFiles {
 			if name == "BUILD.want" {
@@ -58,7 +60,7 @@ func TestGenerateRules(t *testing.T) {
 			return
 		}
 		t.Run(rel, func(t *testing.T) {
-			res := lang.GenerateRules(language.GenerateArgs{
+			res, err := lang.Generate(t.Context(), language.GenerateArgs{
 				Config:       c,
 				Dir:          dir,
 				Rel:          rel,
@@ -67,6 +69,9 @@ func TestGenerateRules(t *testing.T) {
 				RegularFiles: regularFiles,
 				GenFiles:     genFiles,
 			})
+			if err != nil {
+				t.Fatal(err)
+			}
 			if len(res.Empty) > 0 {
 				t.Errorf("got %d empty rules; want 0", len(res.Empty))
 			}
@@ -75,7 +80,7 @@ func TestGenerateRules(t *testing.T) {
 				r.Insert(f)
 			}
 			convertImportsAttrs(f)
-			merger.FixLoads(f, lang.(language.ModuleAwareLanguage).ApparentLoads(func(string) string { return "" }))
+			merger.NewLoadFixer(protoLibraryLoadInfo()).Fix(f)
 			f.Sync()
 			got := string(bzl.Format(f.File))
 			wantPath := filepath.Join(dir, "BUILD.want")
@@ -93,7 +98,7 @@ func TestGenerateRules(t *testing.T) {
 }
 
 func TestGenerateRulesEmpty(t *testing.T) {
-	lang := NewLanguage()
+	lang := NewV2()
 	c := config.New()
 	c.Exts[protoName] = &ProtoConfig{}
 
@@ -120,12 +125,15 @@ proto_library(
 		t.Fatal(err)
 	}
 	genFiles := []string{"bar.proto"}
-	res := lang.GenerateRules(language.GenerateArgs{
+	res, err := lang.(language.Generator).Generate(t.Context(), language.GenerateArgs{
 		Config:   c,
 		Rel:      "foo",
 		File:     old,
 		GenFiles: genFiles,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(res.Gen) > 0 {
 		t.Errorf("got %d generated rules; want 0", len(res.Gen))
 	}
@@ -151,15 +159,18 @@ func TestGeneratePackage(t *testing.T) {
 		}
 	}
 
-	lang := NewLanguage()
+	lang := NewV2()
 	c, _, _ := testConfig(t, "testdata")
 	dir := filepath.FromSlash("testdata/protos")
-	res := lang.GenerateRules(language.GenerateArgs{
+	res, err := lang.(language.Generator).Generate(t.Context(), language.GenerateArgs{
 		Config:       c,
 		Dir:          dir,
 		Rel:          "protos",
 		RegularFiles: []string{"foo.proto"},
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	r := res.Gen[0]
 	got := r.PrivateAttr(PackageKey).(Package)
 	want := Package{
@@ -202,19 +213,22 @@ func TestFileModeImports(t *testing.T) {
 		}
 	}
 
-	lang := NewLanguage()
+	lang := NewV2()
 	c, _, _ := testConfig(t, "testdata")
 	c.Exts[protoName] = &ProtoConfig{
 		Mode: FileMode,
 	}
 
 	dir := filepath.FromSlash("testdata/file_mode")
-	res := lang.GenerateRules(language.GenerateArgs{
+	res, err := lang.(language.Generator).Generate(t.Context(), language.GenerateArgs{
 		Config:       c,
 		Dir:          dir,
 		Rel:          "file_mode",
 		RegularFiles: []string{"foo.proto", "bar.proto"},
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(res.Gen) != 2 {
 		t.Error("expected 2 generated packages")
@@ -308,7 +322,7 @@ proto_library(
 
 	c, lang, _ := testConfig(t, "testdata")
 
-	res := lang.GenerateRules(language.GenerateArgs{
+	res, err := lang.(language.Generator).Generate(t.Context(), language.GenerateArgs{
 		Config:       c,
 		Dir:          filepath.FromSlash("testdata/protos"),
 		File:         old,
@@ -317,6 +331,9 @@ proto_library(
 		GenFiles:     []string{"gen.proto", "gen_not_consumed.proto"},
 		OtherGen:     []*rule.Rule{genRule1, genRule2},
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Make sure that "gen.proto" is not added to existing foo_proto rule
 	// because it is consumed by existing_gen_proto proto_library.
@@ -431,26 +448,37 @@ func TestRuleName(t *testing.T) {
 	}
 }
 
-func testConfig(t *testing.T, repoRoot string) (*config.Config, language.Language, []config.Configurer) {
+func testConfig(t *testing.T, repoRoot string) (*config.Config, language.Generator, []config.Configurer) {
 	cexts := []config.Configurer{
 		&config.CommonConfigurer{},
 		&walk.Configurer{},
 		&resolve.Configurer{},
 	}
-	lang := NewLanguage()
-	c := testtools.NewTestConfig(t, cexts, []language.Language{lang}, []string{
+	lang := NewV2().(language.Generator)
+	c := testtools.NewTestConfig(t, cexts, []language.Language{NewV2()}, []string{
 		"-build_file_name=BUILD.old",
 		"-repo_root=" + repoRoot,
 	})
-	cexts = append(cexts, lang)
+	cexts = append(cexts, compat.MustConfigurerV2(NewV2()))
 	// Call "Configure" in the root directory so that extensions have a chance
 	// to initialize.
 	for _, cext := range cexts {
 		if _, ok := cext.(*resolve.Configurer); ok {
-			cext.Configure(c, "", nil)
+			if err := compat.MustConfigurerV2(cext).Configure(t.Context(), config.ConfigureArgs{Config: c, Rel: "", File: nil}); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	return c, lang, cexts
+}
+
+func protoLibraryLoadInfo() []rule.LoadInfo {
+	loadFrom := protoLibraryKind.LoadedFrom
+	loadFrom.Repo = protobufWorkspaceName
+	return []rule.LoadInfo{{
+		Name:    loadFrom.String(),
+		Symbols: []string{"proto_library"},
+	}}
 }
 
 // convertImportsAttrs copies private attributes to regular attributes, which
@@ -458,9 +486,9 @@ func testConfig(t *testing.T, repoRoot string) (*config.Config, language.Languag
 // values of private attributes with simple string comparison.
 func convertImportsAttrs(f *rule.File) {
 	for _, r := range f.Rules {
-		v := r.PrivateAttr(config.GazelleImportsKey)
+		v := r.PrivateAttr(gazelleconfig.GazelleImportsKey)
 		if v != nil {
-			r.SetAttr(config.GazelleImportsKey, v)
+			r.SetAttr(gazelleconfig.GazelleImportsKey, v)
 		}
 	}
 }
