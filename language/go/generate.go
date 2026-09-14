@@ -16,6 +16,7 @@ limitations under the License.
 package golang
 
 import (
+	"context"
 	"fmt"
 	"go/build"
 	"log"
@@ -25,15 +26,15 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
-	"github.com/bazelbuild/bazel-gazelle/pathtools"
-	"github.com/bazelbuild/bazel-gazelle/rule"
-	"github.com/bazelbuild/bazel-gazelle/walk"
+	"github.com/bazel-contrib/bazel-gazelle/v2/pathtools"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/walk"
 )
 
-func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
+func (gl *goLang) Generate(ctx context.Context, args language.GenerateArgs) (language.GenerateResult, error) {
 	// Extract information about proto files. We need this to exclude .pb.go
 	// files and generate go_proto_library rules.
 	c := args.Config
@@ -367,7 +368,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		}
 		lib := g.generateLib(pkg, protoEmbeds)
 		var libName string
-		if !lib.IsEmpty(goKinds[lib.Kind()]) {
+		if !lib.IsEmpty(goKindsMap[lib.Kind()]) {
 			libName = lib.Name()
 		}
 		rules = append(rules, lib)
@@ -384,11 +385,11 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	}
 
 	for _, r := range rules {
-		if r.IsEmpty(goKinds[r.Kind()]) {
+		if r.IsEmpty(goKindsMap[r.Kind()]) {
 			res.Empty = append(res.Empty, r)
 		} else {
 			res.Gen = append(res.Gen, r)
-			rawImports := r.PrivateAttr(config.GazelleImportsKey)
+			rawImports := r.PrivateAttr(gazelleImportsKey)
 			res.Imports = append(res.Imports, rawImports)
 			if imports, ok := rawImports.(rule.PlatformStrings); ok && g.shouldIndex {
 				g.addRelsToIndex(imports)
@@ -412,7 +413,7 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		}
 	}
 
-	return res
+	return res, nil
 }
 
 func filterFiles(files *[]string, pred func(string) bool) {
@@ -624,7 +625,7 @@ func (g *generator) generateProto(mode proto.Mode, targets []protoTarget, import
 		goProtoLibrary.SetAttr("visibility", visibility)
 	}
 	if len(targets) == 1 {
-		goProtoLibrary.SetPrivateAttr(config.GazelleImportsKey, targets[0].imports.build())
+		goProtoLibrary.SetPrivateAttr(gazelleImportsKey, targets[0].imports.build())
 	} else {
 		protoSources := make(map[string]struct{})
 		for _, target := range targets {
@@ -650,7 +651,7 @@ func (g *generator) generateProto(mode proto.Mode, targets []protoTarget, import
 			}
 		}
 
-		goProtoLibrary.SetPrivateAttr(config.GazelleImportsKey, combinedImports.build())
+		goProtoLibrary.SetPrivateAttr(gazelleImportsKey, combinedImports.build())
 	}
 	return goProtoName, []*rule.Rule{goProtoLibrary}
 }
@@ -866,7 +867,7 @@ func (g *generator) setCommonAttrs(r *rule.Rule, pkgRel string, visibility []str
 		}
 		r.SetAttr("embed", colonEmbeds)
 	}
-	r.SetPrivateAttr(config.GazelleImportsKey, target.imports.build())
+	r.SetPrivateAttr(gazelleImportsKey, target.imports.build())
 }
 
 func (g *generator) setImportAttrs(r *rule.Rule, importPath string) {

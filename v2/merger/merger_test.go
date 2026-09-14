@@ -19,9 +19,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	gazelleupdate "github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
 	"github.com/bazel-contrib/bazel-gazelle/v2/merger"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
-	"github.com/bazelbuild/bazel-gazelle/language"
 	golang "github.com/bazelbuild/bazel-gazelle/language/go"
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
 )
@@ -1077,15 +1080,18 @@ var (
 
 func init() {
 	testKinds = make(map[string]rule.KindInfo)
-	langs := []language.Language{proto.NewLanguage(), golang.NewLanguage()}
+	c := config.New()
+	c.ModuleToApparentName = func(string) string { return "" }
+	langs := []language.Language{compat.LanguageV2(proto.NewLanguage()), golang.NewV2()}
 	for _, lang := range langs {
-		for kind, info := range lang.Kinds() {
-			testKinds[kind] = info
+		cl := compat.LanguageWithDefaults(lang)
+		for _, info := range cl.Kinds() {
+			testKinds[info.Name] = info
+			testLoads = gazelleupdate.AddKindToLoadList(c, testLoads, info)
 		}
-		loads := lang.(language.ModuleAwareLanguage).ApparentLoads(func(s string) string {
+		testLoads = append(testLoads, cl.ApparentLoads(func(s string) string {
 			return ""
-		})
-		testLoads = append(testLoads, loads...)
+		})...)
 	}
 
 	// add skylib defs

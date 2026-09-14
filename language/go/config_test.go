@@ -21,15 +21,106 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/language"
+	gazelleupdate "github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update"
+	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
-	"github.com/bazelbuild/bazel-gazelle/resolve"
-	"github.com/bazelbuild/bazel-gazelle/rule"
-	"github.com/bazelbuild/bazel-gazelle/testtools"
-	"github.com/bazelbuild/bazel-gazelle/walk"
+	"github.com/bazelbuild/bazel-gazelle/repo"
+	"github.com/bazel-contrib/bazel-gazelle/v2/label"
+	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/testtools"
+	"github.com/bazel-contrib/bazel-gazelle/v2/walk"
 	"github.com/google/go-cmp/cmp"
 )
+
+func testLoadConfig() *config.Config {
+	c := config.New()
+	c.ModuleToApparentName = func(string) string { return "" }
+	return c
+}
+
+func loadsForTest(c *config.Config, langs []language.Language) []rule.LoadInfo {
+	var loads []rule.LoadInfo
+	for _, lang := range langs {
+		cl := compat.LanguageWithDefaults(lang)
+		for _, kind := range cl.Kinds() {
+			loads = gazelleupdate.AddKindToLoadList(c, loads, kind)
+		}
+		loads = append(loads, cl.ApparentLoads(func(string) string { return "" })...)
+	}
+	return loads
+}
+
+func goLoadsForTest(c *config.Config) []rule.LoadInfo {
+	var loads []rule.LoadInfo
+	for _, kind := range goKinds {
+		loads = gazelleupdate.AddKindToLoadList(c, loads, kind)
+	}
+	return loads
+}
+
+func configure(t *testing.T, cext config.Configurer, c *config.Config, rel string, f *rule.File) {
+	t.Helper()
+	if err := cext.Configure(t.Context(), config.ConfigureArgs{Config: c, Rel: rel, File: f}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func generate(t *testing.T, lang language.Language, args language.GenerateArgs) language.GenerateResult {
+	t.Helper()
+	res, err := compat.LanguageWithDefaults(lang).Generate(t.Context(), args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res
+}
+
+func languagesByKind(langs []language.Language) map[string]compat.CompleteLanguage {
+	langByKind := map[string]compat.CompleteLanguage{}
+	for _, lang := range langs {
+		cl := compat.LanguageWithDefaults(lang)
+		for _, kind := range cl.Kinds() {
+			langByKind[kind.Name] = cl
+		}
+	}
+	return langByKind
+}
+
+func ruleIndexForLangs(langs []language.Language) *resolve.RuleIndex {
+	langByKind := languagesByKind(langs)
+	var finders []resolve.Finder
+	for _, cl := range langByKind {
+		finders = append(finders, cl)
+	}
+	mrslv := func(r *rule.Rule, pkgRel string) resolve.Indexer {
+		if cl, ok := langByKind[r.Kind()]; ok {
+			return cl
+		}
+		return nil
+	}
+	return resolve.NewRuleIndex(mrslv, finders)
+}
+
+func resolveRule(t *testing.T, cl compat.CompleteLanguage, c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, r *rule.Rule, imports interface{}, from label.Label) {
+	t.Helper()
+	if err := cl.Resolve(t.Context(), resolve.ResolveArgs{
+		Config:      c,
+		Index:       ix,
+		RemoteCache: rc,
+		Rule:        r,
+		Imports:     imports,
+		From:        from,
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func resolveGo(t *testing.T, gl *goLang, c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, r *rule.Rule, imports interface{}, from label.Label) {
+	t.Helper()
+	resolveRule(t, compat.LanguageWithDefaults(gl), c, ix, rc, r, imports, from)
+}
 
 func testConfig(t *testing.T, args ...string) (*config.Config, []language.Language, []config.Configurer) {
 	// Add a -repo_root argument if none is present. Without this,
@@ -51,16 +142,18 @@ func testConfig(t *testing.T, args ...string) (*config.Config, []language.Langua
 		&walk.Configurer{},
 		&resolve.Configurer{},
 	}
-	langs := []language.Language{proto.NewLanguage(), NewLanguage()}
+	langs := []language.Language{compat.LanguageV2(proto.NewLanguage()), NewV2()}
 	c := testtools.NewTestConfig(t, cexts, langs, args)
 	for _, lang := range langs {
-		cexts = append(cexts, lang)
+		if cfg, ok := compat.ConfigurerV2(lang); ok {
+			cexts = append(cexts, cfg)
+		}
 	}
 	// Call "Configure" in the root directory so that extensions have a chance
 	// to initialize.
 	for _, cext := range cexts {
 		if _, ok := cext.(*resolve.Configurer); ok {
-			cext.Configure(c, "", nil)
+			configure(t, cext, c, "", nil)
 		}
 	}
 	return c, langs, cexts
@@ -105,7 +198,7 @@ func TestDirectives(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, cext := range cexts {
-		cext.Configure(c, "test", f)
+		configure(t, cext, c, "test", f)
 	}
 	gc := getGoConfig(c)
 	for _, tag := range []string{"foo", "bar", "gc"} {
@@ -141,7 +234,7 @@ func TestDirectives(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, cext := range cexts {
-		cext.Configure(c, "test/sub", f)
+		configure(t, cext, c, "test/sub", f)
 	}
 	gc = getGoConfig(c)
 	if diff := cmp.Diff([]string(nil), gc.goGrpcCompilers); diff != "" {
@@ -192,7 +285,7 @@ func TestCompilerFlagDirectives(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, cext := range cexts {
-		cext.Configure(c, "test", f)
+		configure(t, cext, c, "test", f)
 	}
 	gc := getGoConfig(c)
 	for _, tc := range []struct {
@@ -218,7 +311,7 @@ func TestCompilerFlagDirectives(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, cext := range cexts {
-		cext.Configure(c, "test/child", cf)
+		configure(t, cext, c, "test/child", cf)
 	}
 	if diff := cmp.Diff([]string{"-N", "-l", "-m"}, getGoConfig(c).gcGoopts); diff != "" {
 		t.Errorf("child append gc_goopts (-want, +got): %s", diff)
@@ -230,7 +323,7 @@ func TestCompilerFlagDirectives(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, cext := range cexts {
-		cext.Configure(c, "test/sub", sf)
+		configure(t, cext, c, "test/sub", sf)
 	}
 	gc = getGoConfig(c)
 	if diff := cmp.Diff([]string(nil), gc.gcGoopts); diff != "" {
@@ -249,7 +342,7 @@ func TestVendorConfig(t *testing.T) {
 	gc.importMapPrefix = "bad-importmap-prefix"
 	gc.importMapPrefixRel = ""
 	for _, cext := range cexts {
-		cext.Configure(c, "x/vendor", nil)
+		configure(t, cext, c, "x/vendor", nil)
 	}
 	gc = getGoConfig(c)
 	if gc.prefix != "" {
@@ -339,7 +432,7 @@ load("@io_bazel_rules_go//proto:go_proto_library.bzl", "go_proto_library")
 				}
 			}
 			for _, cext := range cexts {
-				cext.Configure(c, tc.rel, f)
+				configure(t, cext, c, tc.rel, f)
 			}
 			pc = proto.GetProtoConfig(c)
 			if pc.Mode != tc.want {
@@ -377,7 +470,7 @@ gazelle(
 				t.Fatal(err)
 			}
 			for _, cext := range cexts {
-				cext.Configure(c, "x", f)
+				configure(t, cext, c, "x", f)
 			}
 			gc := getGoConfig(c)
 			if !gc.prefixSet {

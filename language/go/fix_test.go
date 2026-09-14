@@ -19,8 +19,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/bazelbuild/bazel-gazelle/merger"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
+	"github.com/bazel-contrib/bazel-gazelle/v2/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/merger"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 )
 
 type fixTestCase struct {
@@ -884,7 +886,10 @@ go_proto_library(name = "foo_proto")
 				)
 				c.ShouldFix = true
 				for _, lang := range langs {
-					lang.Fix(c, f)
+					cl := compat.LanguageWithDefaults(lang)
+					if err := cl.Fix(t.Context(), language.FixArgs{Config: c, Rel: f.Pkg, File: f}); err != nil {
+						t.Fatal(err)
+					}
 				}
 			})
 		})
@@ -1091,7 +1096,7 @@ go_repository(name = "foo")
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			testFix(t, tc, func(f *rule.File) {
-				merger.FixLoads(f, goLoadsForTesting)
+				merger.NewLoadFixer(goLoadsForTest(testLoadConfig())).Fix(f)
 			})
 		})
 	}

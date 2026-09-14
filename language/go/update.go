@@ -20,8 +20,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bazelbuild/bazel-gazelle/language"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	languagev1 "github.com/bazelbuild/bazel-gazelle/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -29,7 +29,7 @@ import (
 // args.Imports. Each module argument may specify a version with an '@' suffix
 // (in the same format as 'go get'). If no version is specified, @latest
 // is requested.
-func (*goLang) UpdateRepos(args language.UpdateReposArgs) language.UpdateReposResult {
+func (*goLang) UpdateRepos(args languagev1.UpdateReposArgs) languagev1.UpdateReposResult {
 	gen := make([]*rule.Rule, len(args.Imports))
 	var eg errgroup.Group
 	for i := range args.Imports {
@@ -53,12 +53,12 @@ func (*goLang) UpdateRepos(args language.UpdateReposArgs) language.UpdateReposRe
 		})
 	}
 	if err := eg.Wait(); err != nil {
-		return language.UpdateReposResult{Error: err}
+		return languagev1.UpdateReposResult{Error: err}
 	}
-	return language.UpdateReposResult{Gen: gen}
+	return languagev1.UpdateReposResult{Gen: gen}
 }
 
-var repoImportFuncs = map[string]func(args language.ImportReposArgs) language.ImportReposResult{
+var repoImportFuncs = map[string]func(args languagev1.ImportReposArgs) languagev1.ImportReposResult{
 	"go.mod":  importReposFromModules,
 	"go.work": importReposFromWork,
 }
@@ -67,7 +67,7 @@ func (*goLang) CanImport(path string) bool {
 	return repoImportFuncs[filepath.Base(path)] != nil
 }
 
-func (*goLang) ImportRepos(args language.ImportReposArgs) language.ImportReposResult {
+func (*goLang) ImportRepos(args languagev1.ImportReposArgs) languagev1.ImportReposResult {
 	res := repoImportFuncs[filepath.Base(args.Path)](args)
 	for _, r := range res.Gen {
 		setBuildAttrs(getGoConfig(args.Config), r)
