@@ -23,7 +23,6 @@ import (
 	"strings"
 	"testing"
 
-	gazelleconfig "github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 	"github.com/bazel-contrib/bazel-gazelle/v2/language"
@@ -32,6 +31,7 @@ import (
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"github.com/bazel-contrib/bazel-gazelle/v2/testtools"
 	"github.com/bazel-contrib/bazel-gazelle/v2/walk"
+	gazelleconfig "github.com/bazelbuild/bazel-gazelle/config"
 
 	bzl "github.com/bazelbuild/buildtools/build"
 )
@@ -46,28 +46,33 @@ func TestGenerateRules(t *testing.T) {
 		}
 	}
 
-	c, lang, cexts := testConfig(t, "testdata")
-
-	walk.Walk(c, cexts, []string{"testdata"}, walk.VisitAllUpdateSubdirsMode, func(dir, rel string, c *config.Config, update bool, oldFile *rule.File, subdirs, regularFiles, genFiles []string) {
+	repoRoot, err := filepath.Abs("testdata")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, lang, cexts := testConfig(t, repoRoot)
+	cache := walk.NewCache(c)
+	err = walk.Walk(t.Context(), c, cexts, cache, []string{repoRoot}, walk.VisitAllUpdateSubdirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
 		isTest := false
-		for _, name := range regularFiles {
+		for _, name := range args.RegularFiles {
 			if name == "BUILD.want" {
 				isTest = true
 				break
 			}
 		}
 		if !isTest {
-			return
+			return walk.WalkFuncResult{}, nil
 		}
-		t.Run(rel, func(t *testing.T) {
+		t.Run(args.Rel, func(t *testing.T) {
 			res, err := lang.Generate(t.Context(), language.GenerateArgs{
-				Config:       c,
-				Dir:          dir,
-				Rel:          rel,
-				File:         oldFile,
-				Subdirs:      subdirs,
-				RegularFiles: regularFiles,
-				GenFiles:     genFiles,
+				Config:       args.Config,
+				Dir:          args.Dir,
+				Rel:          args.Rel,
+				File:         args.File,
+				Subdirs:      args.Subdirs,
+				RegularFiles: args.RegularFiles,
+				GenFiles:     args.GenFiles,
+				Cache:        cache,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -83,7 +88,7 @@ func TestGenerateRules(t *testing.T) {
 			merger.NewLoadFixer(protoLibraryLoadInfo()).Fix(f)
 			f.Sync()
 			got := string(bzl.Format(f.File))
-			wantPath := filepath.Join(dir, "BUILD.want")
+			wantPath := filepath.Join(args.Dir, "BUILD.want")
 			wantBytes, err := os.ReadFile(wantPath)
 			if err != nil {
 				t.Fatalf("error reading %s: %v", wantPath, err)
@@ -91,10 +96,14 @@ func TestGenerateRules(t *testing.T) {
 			want := string(wantBytes)
 
 			if got != want {
-				t.Errorf("GenerateRules %q: got:\n%s\nwant:\n%s", rel, got, want)
+				t.Errorf("GenerateRules %q: got:\n%s\nwant:\n%s", args.Rel, got, want)
 			}
 		})
+		return walk.WalkFuncResult{}, nil
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestGenerateRulesEmpty(t *testing.T) {

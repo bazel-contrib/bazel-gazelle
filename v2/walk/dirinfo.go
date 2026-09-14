@@ -6,12 +6,13 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 )
 
-// DirInfo holds all the information about a directory that Walk2 needs.
+// DirInfo holds all the information about a directory that Walk needs.
 type DirInfo struct {
 	// Subdirs and RegularFiles hold the names of subdirectories and regular files
 	// that are not ignored or excluded.
@@ -30,23 +31,23 @@ type DirInfo struct {
 	config *walkConfig
 }
 
-// loadDirInfo reads directory info for the directory named by the given
-// slash-separated path relative to the repo root.
+// load reads directory info for rel, a slash-separated path relative to
+// the repo root.
 //
-// Do not call this method directly. This should be used with w.cache.get to
-// avoid redundant I/O.
+// Do not call this method directly. Call Cache.GetDirInfo instead to avoid
+// redundant I/O.
 //
-// loadDirInfo must be called on the parent directory first and the result
-// must be stored in the cache unless rel is "" (repo root).
+// load must be called on the parent directory first, and the result must be
+// stored in the cache unless rel is "" (repo root).
 //
-// This method may return partial results with an error. For example, if the
+// load may return partial results with an error. For example, if the
 // directory's build file contains a syntax error, the contents of the
 // directory are still returned.
-func (w *walker) loadDirInfo(rel string) (DirInfo, error) {
+func (c *Cache) load(rel string) (DirInfo, error) {
 	var info DirInfo
 	var errs []error
 	var err error
-	dir := filepath.Join(w.rootConfig.RepoRoot, rel)
+	dir := filepath.Join(c.rootConfig.RepoRoot, rel)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		errs = append(errs, err)
@@ -54,17 +55,17 @@ func (w *walker) loadDirInfo(rel string) (DirInfo, error) {
 
 	var parentConfig *walkConfig
 	if rel == "" {
-		parentConfig = getWalkConfig(w.rootConfig)
+		parentConfig = getWalkConfig(c.rootConfig)
 	} else {
 		parentRel := path.Dir(rel)
 		if parentRel == "." {
 			parentRel = ""
 		}
-		parentInfo, _ := w.cache.getLoaded(parentRel)
+		parentInfo, _ := c.getLoaded(parentRel)
 		parentConfig = parentInfo.config
 	}
 
-	info.File, err = loadBuildFile(parentConfig, w.rootConfig.ReadBuildFilesDir, rel, dir, entries)
+	info.File, err = loadBuildFile(parentConfig, c.rootConfig.ReadBuildFilesDir, rel, dir, entries)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -73,7 +74,7 @@ func (w *walker) loadDirInfo(rel string) (DirInfo, error) {
 	// directives loaded from external files (including walk directives like
 	// exclude and ignore) are visible to all configurers.
 	if info.File != nil {
-		if err := expandDirectiveFiles(info.File, w.rootConfig.RepoRoot); err != nil {
+		if err := expandDirectiveFiles(info.File, c.rootConfig.RepoRoot); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -99,9 +100,9 @@ func (w *walker) loadDirInfo(rel string) (DirInfo, error) {
 	// Reduce cap of each slice to len, so that if the caller appends, they'll
 	// need to copy to a new backing array. This is defensive: it prevents
 	// multiple callers from overwriting the same backing array.
-	info.RegularFiles = info.RegularFiles[:len(info.RegularFiles):len(info.RegularFiles)]
-	info.Subdirs = info.Subdirs[:len(info.Subdirs):len(info.Subdirs)]
-	info.GenFiles = info.GenFiles[:len(info.GenFiles):len(info.GenFiles)]
+	info.RegularFiles = slices.Clip(info.RegularFiles)
+	info.Subdirs = slices.Clip(info.Subdirs)
+	info.GenFiles = slices.Clip(info.GenFiles)
 
 	return info, errors.Join(errs...)
 }
@@ -175,7 +176,7 @@ func (w *walker) populateCache(mode Mode) {
 
 	var visit func(string)
 	visit = func(rel string) {
-		info, err := w.cache.get(rel, w.loadDirInfo)
+		info, err := w.cache.get(rel)
 		<-sem // release semaphore for self
 		if err != nil {
 			return
