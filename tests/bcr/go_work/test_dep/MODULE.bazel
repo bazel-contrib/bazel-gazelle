@@ -49,4 +49,10 @@ go_deps.module(
     sum = "h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=",
     version = "v1.1.1",
 )
+go_deps.module(
+    indirect = True,
+    path = "github.com/pmezard/go-difflib",
+    sum = "h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=",
+    version = "v1.0.0",
+)
 use_repo(go_deps, "com_github_stretchr_testify")

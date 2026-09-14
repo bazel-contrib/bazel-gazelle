@@ -9,12 +9,11 @@
 <pre>
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 go_deps.archive_override(<a href="#go_deps.archive_override-patch_cmds">patch_cmds</a>, <a href="#go_deps.archive_override-patch_strip">patch_strip</a>, <a href="#go_deps.archive_override-patches">patches</a>, <a href="#go_deps.archive_override-path">path</a>, <a href="#go_deps.archive_override-sha256">sha256</a>, <a href="#go_deps.archive_override-strip_prefix">strip_prefix</a>, <a href="#go_deps.archive_override-urls">urls</a>)
-go_deps.config(<a href="#go_deps.config-check_direct_dependencies">check_direct_dependencies</a>, <a href="#go_deps.config-debug_mode">debug_mode</a>, <a href="#go_deps.config-go_env">go_env</a>, <a href="#go_deps.config-go_env_inherit">go_env_inherit</a>)
+go_deps.config(<a href="#go_deps.config-check_direct_dependencies">check_direct_dependencies</a>, <a href="#go_deps.config-checks">checks</a>, <a href="#go_deps.config-debug_mode">debug_mode</a>, <a href="#go_deps.config-go_env">go_env</a>, <a href="#go_deps.config-go_env_inherit">go_env_inherit</a>)
 go_deps.from_file(<a href="#go_deps.from_file-fail_on_version_conflict">fail_on_version_conflict</a>, <a href="#go_deps.from_file-go_mod">go_mod</a>, <a href="#go_deps.from_file-go_work">go_work</a>)
 go_deps.gazelle_override(<a href="#go_deps.gazelle_override-build_extra_args">build_extra_args</a>, <a href="#go_deps.gazelle_override-build_file_generation">build_file_generation</a>, <a href="#go_deps.gazelle_override-directives">directives</a>, <a href="#go_deps.gazelle_override-path">path</a>)
 go_deps.gazelle_default_attributes(<a href="#go_deps.gazelle_default_attributes-build_extra_args">build_extra_args</a>, <a href="#go_deps.gazelle_default_attributes-build_file_generation">build_file_generation</a>, <a href="#go_deps.gazelle_default_attributes-directives">directives</a>)
-go_deps.module(<a href="#go_deps.module-build_file_proto_mode">build_file_proto_mode</a>, <a href="#go_deps.module-build_naming_convention">build_naming_convention</a>, <a href="#go_deps.module-indirect">indirect</a>, <a href="#go_deps.module-local_path">local_path</a>, <a href="#go_deps.module-path">path</a>, <a href="#go_deps.module-sum">sum</a>,
-               <a href="#go_deps.module-version">version</a>)
+go_deps.module(<a href="#go_deps.module-indirect">indirect</a>, <a href="#go_deps.module-local_path">local_path</a>, <a href="#go_deps.module-path">path</a>, <a href="#go_deps.module-sum">sum</a>, <a href="#go_deps.module-version">version</a>)
 go_deps.module_override(<a href="#go_deps.module_override-patch_cmds">patch_cmds</a>, <a href="#go_deps.module_override-patch_strip">patch_strip</a>, <a href="#go_deps.module_override-patches">patches</a>, <a href="#go_deps.module_override-path">path</a>, <a href="#go_deps.module_override-repo_name">repo_name</a>)
 </pre>
 
@@ -49,7 +48,8 @@ Configures the general behavior of the go_deps extension.
 
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
-| <a id="go_deps.config-check_direct_dependencies"></a>check_direct_dependencies |  The way in which warnings about version mismatches for direct dependencies and Go modules that are also Bazel modules are reported.   | String | optional |  `""`  |
+| <a id="go_deps.config-check_direct_dependencies"></a>check_direct_dependencies |  DEPRECATED: Use `checks` instead.   | String | optional |  `"off"`  |
+| <a id="go_deps.config-checks"></a>checks |  How to handle problems with inconsistent versions, like a Go module being requested at different versions with go_deps.module and go.mod. "error" fails the build when an inconsistency is detected. "warning" prints a message. "off" suppresses these messages.   | String | optional |  `"warning"`  |
 | <a id="go_deps.config-debug_mode"></a>debug_mode |  Whether or not to print stdout and stderr messages from gazelle   | Boolean | optional |  `False`  |
 | <a id="go_deps.config-go_env"></a>go_env |  The environment variables to use when fetching Go dependencies or running the `@rules_go//go` tool.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
 | <a id="go_deps.config-go_env_inherit"></a>go_env_inherit |  Host environment variable names to inherit when fetching Go dependencies or running the `@rules_go//go` tool.   | List of strings | optional |  `[]`  |
@@ -68,7 +68,7 @@ automatically.
 
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
-| <a id="go_deps.from_file-fail_on_version_conflict"></a>fail_on_version_conflict |  Fail if duplicate modules have different versions   | Boolean | optional |  `True`  |
+| <a id="go_deps.from_file-fail_on_version_conflict"></a>fail_on_version_conflict |  DEPRECATED: Use `go_deps.config(checks = "error")` instead.   | Boolean | optional |  `False`  |
 | <a id="go_deps.from_file-go_mod"></a>go_mod |  -   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 | <a id="go_deps.from_file-go_work"></a>go_work |  -   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 
@@ -111,8 +111,6 @@ Declare a single Go module dependency. Prefer using `from_file` instead.
 
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
-| <a id="go_deps.module-build_file_proto_mode"></a>build_file_proto_mode |  Removed, do not use   | String | optional |  `""`  |
-| <a id="go_deps.module-build_naming_convention"></a>build_naming_convention |  Removed, do not use   | String | optional |  `""`  |
 | <a id="go_deps.module-indirect"></a>indirect |  Whether this Go module is an indirect dependency.   | Boolean | optional |  `False`  |
 | <a id="go_deps.module-local_path"></a>local_path |  For when a module is replaced by one residing in a local directory path   | String | optional |  `""`  |
 | <a id="go_deps.module-path"></a>path |  The module path.   | String | required |  |

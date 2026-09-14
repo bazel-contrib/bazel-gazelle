@@ -29,7 +29,7 @@ go_deps.config(
     # Regression test for #2304: the circl bazel_dep (1.3.8) vs pkg/go.mod
     # (1.6.1) version skew calls outdated_direct_dep_printer with multiple
     # args; "off" routes that to _noop, which must accept varargs.
-    check_direct_dependencies = "off",
+    checks = "off",
     go_env = {
         "GOPRIVATE": "example.com/*",
     },
@@ -81,12 +81,12 @@ go_deps.gazelle_override(
 
 # Apply a patch to test the `module_override` tags.
 go_deps.module_override(
+    patch_cmds = [
+        "echo 'const PatchCmdHello = \"patch_cmd_hello\"' >> require/require.go",
+    ],
     patch_strip = 1,
     patches = [
         "//patches:testify.patch",
-    ],
-    patch_cmds = [
-        "echo 'const PatchCmdHello = \"patch_cmd_hello\"' >> require/require.go",
     ],
     path = "github.com/stretchr/testify",
 )
@@ -134,6 +134,7 @@ go_deps.module(
 )
 use_repo(
     go_deps,
+    "bazel_gazelle_go_repository_config",
     "com_github_99designs_gqlgen",
     "com_github_bazelbuild_buildtools",
     "com_github_bmatcuk_doublestar_v4",
@@ -142,11 +143,9 @@ use_repo(
     "com_github_fmeum_dep_on_gazelle",
     "com_github_google_safetext",
     "com_github_stretchr_testify",
+    "org_example_hello",
     "org_golang_google_protobuf",
     "org_golang_x_sys",
-    # Only used for testing.
-    "bazel_gazelle_go_repository_config",
-    "org_example_hello",
 )
 
 # Use an isolated usage to bring in Go tools from the tools package with their own dependency
@@ -164,5 +163,4 @@ use_repo(
     go_tools,
     buildtools = "com_github_bazelbuild_buildtools",
     gqlgen = "com_github_99designs_gqlgen",
-    unused = "bazel_gazelle_go_repository_config",
 )
