@@ -20,7 +20,7 @@ go_library(
     deps = [
         "//internal/wspace",
         "//language",
-        "//language/bazel/visibility",
+        "//language/defaults",
         "//language/go",
         "//language/proto",
         "//repo",

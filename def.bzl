@@ -57,7 +57,7 @@ gazelle_binary = _gazelle_binary
 gazelle_generation_test = _gazelle_generation_test
 
 DEFAULT_LANGUAGES = [
-    Label("//language/bazel/visibility"),
+    Label("//language/defaults"),  # added automatically in v2, still needed in v1
     Label("//language/proto"),
     Label("//language/go"),
 ]

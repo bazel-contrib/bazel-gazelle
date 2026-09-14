@@ -27,7 +27,7 @@ go_library(
     tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
-        "//language/bazel/visibility",
+        "//language/defaults",
         "//language/go",
         "//language/proto",
         "//v2/cmd/gazelle/update",
