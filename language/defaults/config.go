@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package visibility
+package defaults
 
 import (
 	"context"
@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	_extName                 = "visibility"
+	_extName                 = "defaults"
 	_visibilityDirectiveName = "default_visibility"
 	_featureDirectiveName    = "default_features"
 )
@@ -45,7 +45,7 @@ func getVisConfig(c *config.Config) visConfig {
 }
 
 // KnownDirectives returns the only directive this extension operates on.
-func (*visibilityExtension) KnownDirectives() []string {
+func (*defaultsExtension) KnownDirectives() []string {
 	return []string{_featureDirectiveName, _visibilityDirectiveName}
 }
 
@@ -53,7 +53,7 @@ func (*visibilityExtension) KnownDirectives() []string {
 //
 // To set multiple visibility targets, either multiple directives can be used, or a
 // list can be provided with comma-separated values.
-func (*visibilityExtension) Configure(_ context.Context, args config.ConfigureArgs) error {
+func (*defaultsExtension) Configure(_ context.Context, args config.ConfigureArgs) error {
 	c := args.Config
 	f := args.File
 	cfg := getVisConfig(c)

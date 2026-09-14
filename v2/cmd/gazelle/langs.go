@@ -17,14 +17,14 @@ package main
 
 import (
 	"github.com/bazel-contrib/bazel-gazelle/v2/language"
-	"github.com/bazelbuild/bazel-gazelle/language/bazel/visibility"
+	"github.com/bazelbuild/bazel-gazelle/language/defaults"
 	golang "github.com/bazelbuild/bazel-gazelle/language/go"
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
 )
 
 func init() {
 	languages = []language.Language{
-		visibility.NewV2(),
+		defaults.NewV2(),
 		proto.NewV2(),
 		golang.NewV2(),
 	}
