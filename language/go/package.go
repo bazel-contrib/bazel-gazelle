@@ -23,10 +23,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
-	"github.com/bazelbuild/bazel-gazelle/pathtools"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/pathtools"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 )
 
 // goPackage contains metadata for a set of .go and .proto files that can be

@@ -374,7 +374,7 @@ func Run(
 		for _, kind := range lang.Kinds() {
 			mrslv.AddBuiltin(kind.Name, lang)
 			kinds[kind.Name] = kind
-			loads = addKindToLoadList(c, loads, kind)
+			loads = AddKindToLoadList(c, loads, kind)
 		}
 	}
 	ruleIndex := resolve.NewRuleIndex(mrslv.Indexer, finders)
@@ -915,17 +915,38 @@ func unionKindInfoMaps(a, b map[string]rule.KindInfo) map[string]rule.KindInfo {
 	return result
 }
 
-// addKindToLoadList synthesizes rule.LoadInfo for a kind and adds it to loads
+// legacyWorkspaceRepoNames maps Bazel module names from rule.KindInfo.LoadedFrom to
+// well-known WORKSPACE external repository names. Used only when MODULE.bazel does
+// not define an apparent name.
+var legacyWorkspaceRepoNames = map[string]string{
+	"gazelle":  "bazel_gazelle",
+	"protobuf": "com_google_protobuf",
+	"rules_go": "io_bazel_rules_go",
+}
+
+// AddKindToLoadList synthesizes rule.LoadInfo for a kind and adds it to loads
 // if load information is set in rule.KindInfo. v1 extensions don't need this
 // because they are expected to implement Load or ApparentLoads. v2 extensions
 // do need this because they are expected to populate rule.KindInfo.
-func addKindToLoadList(c *config.Config, loads []rule.LoadInfo, kind rule.KindInfo) []rule.LoadInfo {
+//
+// Exported for use in //cmd/gazelle:update-repos.go and in tests.
+func AddKindToLoadList(c *config.Config, loads []rule.LoadInfo, kind rule.KindInfo) []rule.LoadInfo {
 	if kind.LoadedFrom == label.NoLabel || kind.Name == "" {
 		// Skip if load information is not set. KindInfo only included load information
 		// after v2, so v1 extensions are not expected to set these fields.
 		return loads
 	}
-	kind.LoadedFrom.Repo = c.ModuleToApparentName(kind.LoadedFrom.Name)
+	for i := range loads {
+		if slices.Contains(loads[i].Symbols, kind.Name) {
+			return loads
+		}
+	}
+	moduleName := kind.LoadedFrom.Repo
+	if apparent := c.ModuleToApparentName(moduleName); apparent != "" {
+		kind.LoadedFrom.Repo = apparent
+	} else if legacy, ok := legacyWorkspaceRepoNames[moduleName]; ok {
+		kind.LoadedFrom.Repo = legacy
+	}
 	loadedFrom := kind.LoadedFrom.String()
 	for i := range loads {
 		if loads[i].Name == loadedFrom {

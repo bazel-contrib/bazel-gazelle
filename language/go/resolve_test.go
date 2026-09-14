@@ -21,11 +21,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bazelbuild/bazel-gazelle/label"
-	"github.com/bazelbuild/bazel-gazelle/pathtools"
+	"github.com/bazel-contrib/bazel-gazelle/v2/label"
+	"github.com/bazel-contrib/bazel-gazelle/v2/pathtools"
 	"github.com/bazelbuild/bazel-gazelle/repo"
-	"github.com/bazelbuild/bazel-gazelle/resolve"
-	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
+	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	bzl "github.com/bazelbuild/buildtools/build"
 	"golang.org/x/tools/go/vcs"
 )
@@ -935,15 +935,7 @@ go_proto_library(
 				"-go_prefix=example.com/repo/resolve",
 				fmt.Sprintf("-go_naming_convention=%s", tc.namingConvention),
 				"-external=vendored", fmt.Sprintf("-index=%v", !tc.skipIndex))
-			mrslv := make(mapResolver)
-			exts := make([]interface{}, 0, len(langs))
-			for _, lang := range langs {
-				for kind := range lang.Kinds() {
-					mrslv[kind] = lang
-				}
-				exts = append(exts, lang)
-			}
-			ix := resolve.NewRuleIndex(mrslv.Resolver, exts...)
+			ix := ruleIndexForLangs(langs)
 			rc := testRemoteCache(nil)
 
 			for _, bf := range tc.index {
@@ -954,7 +946,7 @@ go_proto_library(
 				}
 				if bf.rel == "" {
 					for _, cext := range cexts {
-						cext.Configure(c, "", f)
+						configure(t, cext, c, "", f)
 					}
 				}
 				for _, r := range f.Rules {
@@ -972,8 +964,13 @@ go_proto_library(
 				ix.AddRule(c, r, f)
 			}
 			ix.Finish()
+			langByKind := languagesByKind(langs)
 			for i, r := range f.Rules {
-				mrslv.Resolver(r, "").Resolve(c, ix, rc, r, imports[i], label.New("", tc.old.rel, r.Name()))
+				cl, ok := langByKind[r.Kind()]
+				if !ok {
+					continue
+				}
+				resolveRule(t, cl, c, ix, rc, r, imports[i], label.New("", tc.old.rel, r.Name()))
 			}
 			f.Sync()
 			got := strings.TrimSpace(string(bzl.Format(f.File)))
@@ -990,11 +987,7 @@ func TestResolveDisableGlobal(t *testing.T) {
 		t,
 		"-go_prefix=example.com/repo",
 		"-proto=disable_global")
-	exts := make([]interface{}, 0, len(langs))
-	for _, lang := range langs {
-		exts = append(exts, lang)
-	}
-	ix := resolve.NewRuleIndex(nil, exts...)
+	ix := ruleIndexForLangs(langs)
 	ix.Finish()
 	rc := testRemoteCache([]repo.Repo{
 		{
@@ -1038,7 +1031,7 @@ go_library(
 	}
 	for _, r := range f.Rules {
 		imports := convertImportsAttr(r)
-		gl.Resolve(c, ix, rc, r, imports, label.New("", "", r.Name()))
+		resolveGo(t, gl, c, ix, rc, r, imports, label.New("", "", r.Name()))
 	}
 	f.Sync()
 	got := strings.TrimSpace(string(bzl.Format(f.File)))
@@ -1078,7 +1071,7 @@ func TestResolveExternal(t *testing.T) {
 		t,
 		"-go_prefix=example.com/local")
 	gc := getGoConfig(c)
-	ix := resolve.NewRuleIndex(nil)
+	ix := resolve.NewRuleIndex(nil, nil)
 	ix.Finish()
 	gl := langs[1].(*goLang)
 	for _, tc := range []struct {
@@ -1238,7 +1231,7 @@ func TestResolveExternal(t *testing.T) {
 			rc := testRemoteCache(tc.repos)
 			r := rule.NewRule("go_library", "x")
 			imports := rule.PlatformStrings{Generic: []string{tc.importpath}}
-			gl.Resolve(c, ix, rc, r, imports, label.New("", "", "x"))
+			resolveGo(t, gl, c, ix, rc, r, imports, label.New("", "", "x"))
 			deps := r.AttrStrings("deps")
 			if tc.want == "" {
 				if len(deps) != 0 {
@@ -1309,16 +1302,10 @@ func convertImportsAttr(r *rule.Rule) interface{} {
 	kind := r.Kind()
 	value := r.AttrStrings("_imports")
 	r.DelAttr("_imports")
-	if _, ok := goKinds[kind]; ok {
+	if _, ok := goKindsMap[kind]; ok {
 		return rule.PlatformStrings{Generic: value}
 	} else {
 		// proto_library
 		return value
 	}
-}
-
-type mapResolver map[string]resolve.Resolver
-
-func (mr mapResolver) Resolver(r *rule.Rule, f string) resolve.Resolver {
-	return mr[r.Kind()]
 }
