@@ -1,1 +1,0 @@
-gazelle: %WORKSPACEPATH%/BUILD.bazel: cgo_library is deprecated. Run 'gazelle fix' to squash with go_library.

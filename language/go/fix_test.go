@@ -555,44 +555,6 @@ gomock(
 )
 `,
 		},
-		// migrateGrpcCompilers tests
-		{
-			desc: "go_grpc_library migrated to compilers",
-			old: `load("@io_bazel_rules_go//proto:def.bzl", "go_grpc_library")
-
-proto_library(
-    name = "foo_proto",
-    srcs = ["foo.proto"],
-    visibility = ["//visibility:public"],
-)
-
-go_grpc_library(
-    name = "foo_go_proto",
-    importpath = "example.com/repo",
-    proto = ":foo_proto",
-    visibility = ["//visibility:public"],
-)
-`,
-			want: `load("@io_bazel_rules_go//proto:def.bzl", "go_grpc_library")
-
-proto_library(
-    name = "foo_proto",
-    srcs = ["foo.proto"],
-    visibility = ["//visibility:public"],
-)
-
-go_proto_library(
-    name = "foo_go_proto",
-    compilers = [
-        "@io_bazel_rules_go//proto:go_proto",
-        "@io_bazel_rules_go//proto:go_grpc_v2",
-    ],
-    importpath = "example.com/repo",
-    proto = ":foo_proto",
-    visibility = ["//visibility:public"],
-)
-`,
-		},
 		// flattenSrcs tests
 		{
 			desc: "flatten srcs",
@@ -625,156 +587,6 @@ go_library(
         "gen.go",
     ],
 )
-`,
-		},
-		// squashCgoLibrary tests
-		{
-			desc: "no cgo_library",
-			old: `load("@io_bazel_rules_go//go:def.bzl", "go_library")
-
-go_library(
-    name = "go_default_library",
-)
-`,
-			want: `load("@io_bazel_rules_go//go:def.bzl", "go_library")
-
-go_library(
-    name = "go_default_library",
-)
-`,
-		},
-		{
-			desc: "non-default cgo_library not removed",
-			old: `load("@io_bazel_rules_go//go:def.bzl", "cgo_library")
-
-cgo_library(
-    name = "something_else",
-)
-`,
-			want: `load("@io_bazel_rules_go//go:def.bzl", "cgo_library")
-
-cgo_library(
-    name = "something_else",
-)
-`,
-		},
-		{
-			desc: "unlinked cgo_library removed",
-			old: `load("@io_bazel_rules_go//go:def.bzl", "cgo_library", "go_library")
-
-go_library(
-    name = "go_default_library",
-    library = ":something_else",
-)
-
-cgo_library(
-    name = "cgo_default_library",
-)
-`,
-			want: `load("@io_bazel_rules_go//go:def.bzl", "cgo_library", "go_library")
-
-go_library(
-    name = "go_default_library",
-    cgo = True,
-)
-`,
-		},
-		{
-			desc: "cgo_library replaced with go_library",
-			old: `load("@io_bazel_rules_go//go:def.bzl", "cgo_library")
-
-# before comment
-cgo_library(
-    name = "cgo_default_library",
-    cdeps = ["cdeps"],
-    clinkopts = ["clinkopts"],
-    copts = ["copts"],
-    data = ["data"],
-    deps = ["deps"],
-    gc_goopts = ["gc_goopts"],
-    srcs = [
-        "foo.go"  # keep
-    ],
-    visibility = ["//visibility:private"],
-)
-# after comment
-`,
-			want: `load("@io_bazel_rules_go//go:def.bzl", "cgo_library")
-
-# before comment
-go_library(
-    name = "go_default_library",
-    srcs = [
-        "foo.go",  # keep
-    ],
-    cdeps = ["cdeps"],
-    cgo = True,
-    clinkopts = ["clinkopts"],
-    copts = ["copts"],
-    data = ["data"],
-    gc_goopts = ["gc_goopts"],
-    visibility = ["//visibility:private"],
-    deps = ["deps"],
-)
-# after comment
-`,
-		},
-		{
-			desc: "cgo_library merged with go_library",
-			old: `load("@io_bazel_rules_go//go:def.bzl", "go_library")
-
-# before go_library
-go_library(
-    name = "go_default_library",
-    srcs = ["pure.go"],
-    deps = ["pure_deps"],
-    data = ["pure_data"],
-    gc_goopts = ["pure_gc_goopts"],
-    library = ":cgo_default_library",
-    cgo = False,
-)
-# after go_library
-
-# before cgo_library
-cgo_library(
-    name = "cgo_default_library",
-    srcs = ["cgo.go"],
-    deps = ["cgo_deps"],
-    data = ["cgo_data"],
-    gc_goopts = ["cgo_gc_goopts"],
-    copts = ["copts"],
-    cdeps = ["cdeps"],
-)
-# after cgo_library
-`,
-			want: `load("@io_bazel_rules_go//go:def.bzl", "go_library")
-
-# before go_library
-# before cgo_library
-go_library(
-    name = "go_default_library",
-    srcs = [
-        "cgo.go",
-        "pure.go",
-    ],
-    cdeps = ["cdeps"],
-    cgo = True,
-    copts = ["copts"],
-    data = [
-        "cgo_data",
-        "pure_data",
-    ],
-    gc_goopts = [
-        "cgo_gc_goopts",
-        "pure_gc_goopts",
-    ],
-    deps = [
-        "cgo_deps",
-        "pure_deps",
-    ],
-)
-# after go_library
-# after cgo_library
 `,
 		},
 		// squashXtest tests
@@ -973,19 +785,11 @@ go_embed_data(
 			old: `go_proto_library(
     name = "foo_proto",
 )
-
-go_grpc_library(
-    name = "bar_proto",
-)
 `,
-			want: `load("@io_bazel_rules_go//proto:def.bzl", "go_grpc_library", "go_proto_library")
+			want: `load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
 
 go_proto_library(
     name = "foo_proto",
-)
-
-go_grpc_library(
-    name = "bar_proto",
 )
 `,
 		}, {

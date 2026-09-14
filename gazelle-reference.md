@@ -18,7 +18,7 @@ The first argument to Gazelle may be one of the commands below. If no command is
 
 The `update` command is the most common way of running Gazelle. Gazelle scans sources in directories throughout the repository, then creates and updates build files.
 
-The `fix` command does everything `update` does, but it also fixes deprecated usage of rules, analogous to `go fix`. For example, `cgo_library` will be consolidated with `go_library`. This command may delete or rename rules, so it's not used by default. The transformations are documented with each language extension: see [Go](language/go/reference.md#fix-command-transformations) and [proto](language/proto/reference.md#fix-command-transformations) for details.
+The `fix` command does everything `update` does, but it also fixes deprecated usage of rules, analogous to `go fix`. This command may delete or rename rules, so it's not used by default. The transformations are documented with each language extension: see [Go](language/go/reference.md#fix-command-transformations) and [proto](language/proto/reference.md#fix-command-transformations) for details.
 
 Both commands accept a list of directories to process as positional arguments. If no directories are specified, Gazelle will process the current directory. Subdirectories will be processed recursively by default (unless `-r=false`).
 

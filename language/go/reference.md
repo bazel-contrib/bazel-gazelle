@@ -201,11 +201,7 @@ The following transformations are performed:
 
 **Migrate library to embed (fix and update):** Gazelle replaces `library` attributes with `embed` attributes.
 
-**Migrate gRPC compilers (fix and update):** Gazelle converts `go_grpc_library` rules to `go_proto_library` rules with `compilers = ["@io_bazel_rules_go//proto:go_proto", "@io_bazel_rules_go//proto:go_grpc_v2"]`.
-
 **Flatten srcs (fix and update):** Gazelle converts `srcs` attributes that use OS and architecture-specific `select` expressions to flat lists. rules_go filters these sources anyway.
-
-**Squash cgo libraries (fix only)**: Gazelle will remove `cgo_library` rules named `cgo_default_library` and merge their attributes with a `go_library` rule in the same package named `go_default_library`. If no such `go_library` rule exists, a new one will be created. Other `cgo_library` rules will not be removed.
 
 **Squash external tests (fix only)**: Gazelle will squash `go_test` rules named `go_default_xtest` into `go_default_test`. Earlier versions of rules_go required internal and external tests to be built separately, but this is no longer needed.
 
