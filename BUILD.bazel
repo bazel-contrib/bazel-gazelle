@@ -3,6 +3,7 @@ load("@io_bazel_rules_go//go:def.bzl", "nogo")
 load("//:def.bzl", "gazelle", "gazelle_binary")
 
 # gazelle:prefix github.com/bazelbuild/bazel-gazelle
+# gazelle:exclude skills
 # gazelle:exclude vendor
 # gazelle:exclude third_party
 # gazelle:exclude .bazelci
