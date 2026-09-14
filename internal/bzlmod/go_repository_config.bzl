@@ -25,6 +25,10 @@ def _go_repository_config_impl(ctx):
         #
         # TODO(#2413): change to a JSON format after we drop support
         # for WORKSPACE mode.
+        #
+        # BUG: module_name, prefix_dir, and possibly other tokens may
+        # contain spaces, and the gazelle:repository directive does not support
+        # quoting. We ignore this for now; changing to JSON should fix this.
         words = [
             "# gazelle:repository",
             "go_repository",
