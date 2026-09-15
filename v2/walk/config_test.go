@@ -1,7 +1,6 @@
 package walk
 
 import (
-	"context"
 	"flag"
 	"os"
 	"path/filepath"
@@ -75,7 +74,7 @@ func TestConfigurerDirectives(t *testing.T) {
 	if err := cc.CheckFlags(nil, c); err != nil {
 		t.Errorf("CheckFlags: %v", err)
 	}
-	cc.Configure(context.TODO(), config.ConfigureArgs{Config: c, Rel: "", File: f})
+	cc.Configure(t.Context(), config.ConfigureArgs{Config: c, Rel: "", File: f})
 	want := []string{"x", "y"}
 	if !reflect.DeepEqual(c.ValidBuildFileNames, want) {
 		t.Errorf("for ValidBuildFileNames, got %#v, want %#v", c.ValidBuildFileNames, want)

@@ -59,79 +59,9 @@ const (
 	UpdateSubdirsMode
 )
 
-// WalkFunc is a callback called by Walk in each visited directory.
-//
-// dir is the absolute file system path to the directory being visited.
-//
-// rel is the relative slash-separated path to the directory from the
-// repository root. Will be "" for the repository root directory itself.
-//
-// c is the configuration for the current directory. This may have been
-// modified by directives in the directory's build file.
-//
-// update is true when the build file may be updated.
-//
-// f is the existing build file in the directory. Will be nil if there
-// was no file.
-//
-// subdirs is a list of base names of subdirectories within dir, not
-// including excluded files.
-//
-// regularFiles is a list of base names of regular files within dir, not
-// including excluded files or symlinks.
-//
-// genFiles is a list of names of generated files, found by reading
-// "out" and "outs" attributes of rules in f.
-//
-// DEPRECATED: Use Walk2Func with Walk2 instead.
-type WalkFunc func(dir, rel string, c *config.Config, update bool, f *rule.File, subdirs, regularFiles, genFiles []string)
+type WalkFunc func(args WalkFuncArgs) (WalkFuncResult, error)
 
-// Walk traverses the directory tree rooted at c.RepoRoot. Walk visits
-// subdirectories in depth-first post-order.
-//
-// When Walk visits a directory, it lists the files and subdirectories within
-// that directory. If a build file is present, Walk reads the build file and
-// applies any directives to the configuration (a copy of the parent directory's
-// configuration is made, and the copy is modified). After visiting
-// subdirectories, the callback wf may be called, depending on the mode.
-//
-// c is the root configuration to start with. This includes changes made by
-// command line flags, but not by the root build file. This configuration
-// should not be modified.
-//
-// cexts is a list of configuration extensions. When visiting a directory,
-// before visiting subdirectories, Walk makes a copy of the parent configuration
-// and Configure for each extension on the copy. If Walk sees a directive
-// that is not listed in KnownDirectives of any extension, an error will
-// be logged.
-//
-// dirs is a list of absolute, canonical file system paths of directories
-// to visit.
-//
-// mode determines whether subdirectories of dirs should be visited recursively,
-// when the wf callback should be called, and when the "update" argument
-// to the wf callback should be set.
-//
-// wf is a function that may be called in each directory.
-//
-// DEPRECATED: Use Walk2 instead.
-func Walk(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode, wf WalkFunc) {
-	w2f := func(args Walk2FuncArgs) Walk2FuncResult {
-		wf(args.Dir, args.Rel, args.Config, args.Update, args.File, args.Subdirs, args.RegularFiles, args.GenFiles)
-		return Walk2FuncResult{}
-	}
-	err := Walk2(c, cexts, dirs, mode, w2f)
-	if err != nil {
-		log.Print(err)
-		if c.Strict {
-			log.Fatal("Exit as strict mode is on")
-		}
-	}
-}
-
-type Walk2Func func(args Walk2FuncArgs) Walk2FuncResult
-
-type Walk2FuncArgs struct {
+type WalkFuncArgs struct {
 	// Dir is the absolute file system path to the directory being visited.
 	Dir string
 
@@ -170,19 +100,14 @@ type Walk2FuncArgs struct {
 	GenFiles []string
 }
 
-type Walk2FuncResult struct {
-	// Err is an error encountered by the callback function. It's logged to the
-	// console. When Config.Strict is set, setting Err causes Walk2 to return
-	// early.
-	Err error
-
+type WalkFuncResult struct {
 	// RelsToVisit is a list of additional directories to visit. Each directory is
 	// a slash-separated path, relative to the repository root or "" for the root
 	// directory itself.
 	//
 	// These directories will be visited after the directories the walk was
 	// already going to visit. They will not be visited more than once in total.
-	// When one of these directories is visited, the Walk2Args.Update flag will
+	// When one of these directories is visited, the WalkFuncArgs.Update flag will
 	// be false unless the directory was already going to be visited with the
 	// Update flag true as part of the walk.
 	//
@@ -190,13 +115,13 @@ type Walk2FuncResult struct {
 	RelsToVisit []string
 }
 
-// Walk2 traverses a limited part of the directory tree rooted at c.RepoRoot
+// Walk traverses a limited part of the directory tree rooted at c.RepoRoot
 // and calls the function wf in each visited directory.
 //
-// The dirs and mode parameters determine which directories Walk2 visits.
-// Walk2 calls wf in each directory in dirs with the Walk2FuncArgs.Update
+// The dirs and mode parameters determine which directories Walk visits.
+// Walk calls wf in each directory in dirs with the WalkFuncArgs.Update
 // flag set to true. This indicates Gazelle should update build files in that
-// directory. Depending on the mode flag, Walk2 may additionally visit
+// directory. Depending on the mode flag, Walk may additionally visit
 // subdirectories or all directories in the repo, possibly with the Update
 // flag set.
 //
@@ -208,18 +133,30 @@ type Walk2FuncResult struct {
 // that language.Configurer.Configure is called on each extension in cexts in a
 // directory *before* visiting its subdirectories; wf is called in a directory
 // *after* its subdirectories.
-func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode, wf Walk2Func) error {
-	w, err := newWalker(c, cexts, dirs, mode, wf)
+//
+// wf may return an error with its result. In strict mode (c.Strict), this
+// causes Walk to return early.
+func Walk(
+	ctx context.Context,
+	c *config.Config,
+	cexts []config.Configurer,
+	cache *Cache,
+	dirs []string,
+	mode Mode,
+	wf WalkFunc) error {
+
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	w, err := newWalker(c, cexts, cache, dirs, mode, wf)
 	if err != nil {
 		return err
 	}
-	cleanup := setGlobalWalker(w)
-	defer cleanup()
 
 	// Do the main tree walk, visiting directories the user requested.
-	w.visit(mode, c, "", false)
-	if c.Strict && len(w.errs) > 0 {
-		return errors.Join(w.errs...)
+	w.visit(ctx, mode, c, "", false)
+	if err := w.shouldStop(ctx); err != nil {
+		return err
 	}
 
 	// Visit additional directories that extensions requested for indexing.
@@ -237,7 +174,7 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 		if relToVisit != "" && relToVisit != path.Clean(relToVisit) {
 			panic(fmt.Sprintf("relToVisit is not clean: %q", relToVisit))
 		}
-		pathtools.Prefixes(relToVisit)(func(rel string) bool {
+		for rel := range pathtools.Prefixes(relToVisit) {
 			if _, ok := w.visits[rel]; !ok {
 				// Never visited this directory.
 				parentRel := path.Dir(rel)
@@ -246,23 +183,22 @@ func Walk2(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode
 				}
 				parentCfg := w.visits[parentRel].c
 				if getWalkConfig(parentCfg).isExcludedDir(rel) {
-					return false
+					break
 				}
-				if _, err := w.cache.get(rel, w.loadDirInfo); err != nil {
+				if _, err := w.cache.get(rel); err != nil {
 					// Error loading directory. Most commonly, this is because the
 					// directory doesn't exist, but it could actually be a file
 					// or we don't have permission, or some other I/O error.
 					// Skip it.
-					return false
+					break
 				}
 				c := parentCfg.Clone()
-				w.visit(UpdateDirsMode, c, rel, false)
-				if c.Strict && len(w.errs) > 0 {
-					return false
+				w.visit(ctx, UpdateDirsMode, c, rel, false)
+				if err := w.shouldStop(ctx); err != nil {
+					return err
 				}
 			}
-			return true
-		})
+		}
 	}
 	return errors.Join(w.errs...)
 }
@@ -276,7 +212,7 @@ type walker struct {
 	rootConfig *config.Config
 
 	// cache provides access to directory information.
-	cache *cache
+	cache *Cache
 
 	// cexts is a list of configuration extensions, provided by the caller.
 	cexts []config.Configurer
@@ -286,14 +222,14 @@ type walker struct {
 
 	// shouldUpdateRel indicates whether we should update a set of directories
 	// named by slash-separated repo-root-relative paths. The set is generated
-	// from the list of directories passed in to Walk2. This map contains true
+	// from the list of directories passed in to Walk. This map contains true
 	// for explicitly listed directories, and false for ancestor directories
 	// that are not explicitly listed.
 	shouldUpdateRel map[string]bool
 
 	// wf is the callback provided by the caller. It's called in each directory
 	// that needs to be updated or indexed, determined by mode.
-	wf Walk2Func
+	wf WalkFunc
 
 	// visits holds a record of each time visit was called, keyed by
 	// slash-separated repo-root-relative path. It prevents visiting
@@ -303,7 +239,7 @@ type walker struct {
 
 	// relsToVisit is a list of slash-separated repo-root-relative paths to
 	// additional directories to visit. These directories are not visited
-	// recursively. wf is called with Walk2FuncArgs.Update false.
+	// recursively. wf is called with WalkFuncArgs.Update false.
 	relsToVisit []string
 
 	// relsToVisitSeen indicates whether a string was added to relsToVisit.
@@ -326,7 +262,7 @@ type visitInfo struct {
 	regularFiles, subdirs []string
 }
 
-func newWalker(c *config.Config, cexts []config.Configurer, dirs []string, mode Mode, wf Walk2Func) (*walker, error) {
+func newWalker(c *config.Config, cexts []config.Configurer, cache *Cache, dirs []string, mode Mode, wf WalkFunc) (*walker, error) {
 	knownDirectives := make(map[string]bool)
 	for _, cext := range cexts {
 		for _, d := range cext.KnownDirectives() {
@@ -367,7 +303,7 @@ func newWalker(c *config.Config, cexts []config.Configurer, dirs []string, mode 
 	w := &walker{
 		repoRoot:        c.RepoRoot,
 		rootConfig:      c,
-		cache:           new(cache),
+		cache:           cache,
 		cexts:           cexts,
 		knownDirectives: knownDirectives,
 		wf:              wf,
@@ -408,6 +344,21 @@ func (w *walker) shouldUpdate(mode Mode, rel string, updateParent bool) bool {
 	return w.shouldUpdateRel[rel]
 }
 
+// shouldStop must be called after each call to w.visit. It returns an error
+// if we should stop the walk without calling w.visit again. This error may
+// be returned to Walk's caller.
+func (w *walker) shouldStop(ctx context.Context) error {
+	if ctx.Err() != nil && (len(w.errs) == 0 || !errors.Is(w.errs[len(w.errs)-1], ctx.Err())) {
+		// Ensure the context cancellation is the last error so it's clear why the
+		// walk stopped.
+		w.errs = append(w.errs, ctx.Err())
+	}
+	if ctx.Err() != nil || (len(w.errs) > 0 && w.rootConfig.Strict) {
+		return errors.Join(w.errs...)
+	}
+	return nil
+}
+
 // visit is the main recursive function of walker. It visits one directory,
 // possibly recurses into subdirectories, and possible calls the callback.
 //
@@ -415,12 +366,12 @@ func (w *walker) shouldUpdate(mode Mode, rel string, updateParent bool) bool {
 // to call the callback in the parent directory with update = true (see
 // shouldUpdate). The callback may not actually be called if the build file
 // contains syntax errors or a gazelle:ignore directive.
-func (w *walker) visit(mode Mode, c *config.Config, rel string, updateParent bool) {
+func (w *walker) visit(ctx context.Context, mode Mode, c *config.Config, rel string, updateParent bool) {
 	// Absolute path to the directory being visited
 	dir := filepath.Join(c.RepoRoot, rel)
 
 	// Load the build file and directory metadata.
-	info, err := w.cache.get(rel, w.loadDirInfo)
+	info, err := w.cache.get(rel)
 	if err != nil {
 		w.errs = append(w.errs, err)
 	}
@@ -436,7 +387,7 @@ func (w *walker) visit(mode Mode, c *config.Config, rel string, updateParent boo
 	// Configure the directory, if we haven't done so already.
 	_, alreadyConfigured := w.visits[rel]
 	if !containedByParent && !alreadyConfigured {
-		if err := configure(w.cexts, w.knownDirectives, c, rel, info.File, info.config); err != nil {
+		if err := configure(ctx, w.cexts, w.knownDirectives, c, rel, info.File, info.config); err != nil {
 			w.errs = append(w.errs, err)
 		}
 	}
@@ -455,8 +406,8 @@ func (w *walker) visit(mode Mode, c *config.Config, rel string, updateParent boo
 	for _, subdir := range subdirs {
 		subdirRel := path.Join(rel, subdir)
 		if w.shouldVisit(mode, subdirRel, shouldUpdate) {
-			w.visit(mode, c.Clone(), subdirRel, shouldUpdate)
-			if c.Strict && len(w.errs) > 0 {
+			w.visit(ctx, mode, c.Clone(), subdirRel, shouldUpdate)
+			if err := w.shouldStop(ctx); err != nil {
 				return
 			}
 		}
@@ -487,7 +438,7 @@ func (w *walker) visit(mode Mode, c *config.Config, rel string, updateParent boo
 
 		// Call the callback to update this directory.
 		update := !wc.ignore && shouldUpdate && !hasBuildFileError
-		result := w.wf(Walk2FuncArgs{
+		result, err := w.wf(WalkFuncArgs{
 			Dir:          dir,
 			Rel:          rel,
 			Config:       c,
@@ -497,8 +448,8 @@ func (w *walker) visit(mode Mode, c *config.Config, rel string, updateParent boo
 			RegularFiles: regularFiles,
 			GenFiles:     info.GenFiles,
 		})
-		if result.Err != nil {
-			w.errs = append(w.errs, result.Err)
+		if err != nil {
+			w.errs = append(w.errs, err)
 		}
 		for _, relToVisit := range result.RelsToVisit {
 			// Normalize RelsToVisit to clean relative paths and convert root "."
@@ -534,7 +485,14 @@ func loadBuildFile(wc *walkConfig, readBuildFilesDir string, pkg, dir string, en
 	return rule.LoadFile(path, pkg)
 }
 
-func configure(cexts []config.Configurer, knownDirectives map[string]bool, c *config.Config, rel string, f *rule.File, wc *walkConfig) error {
+func configure(
+	ctx context.Context,
+	cexts []config.Configurer,
+	knownDirectives map[string]bool,
+	c *config.Config,
+	rel string,
+	f *rule.File,
+	wc *walkConfig) error {
 	if f != nil {
 		for _, d := range f.Directives {
 			if !knownDirectives[d.Key] {
@@ -550,7 +508,7 @@ func configure(cexts []config.Configurer, knownDirectives map[string]bool, c *co
 	c.Exts[walkNameCached] = wc
 	var errs []error
 	for _, cext := range cexts {
-		if err := cext.Configure(context.TODO(), config.ConfigureArgs{
+		if err := cext.Configure(ctx, config.ConfigureArgs{
 			Config: c,
 			Rel:    rel,
 			File:   f,

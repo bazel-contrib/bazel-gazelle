@@ -13,11 +13,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package walk
+package walk_test
 
 import (
 	"bytes"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -30,6 +31,7 @@ import (
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"github.com/bazel-contrib/bazel-gazelle/v2/testtools"
+	"github.com/bazel-contrib/bazel-gazelle/v2/walk"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -48,33 +50,19 @@ func TestConfigureCallbackOrder(t *testing.T) {
 		}
 	}
 
-	t.Run("Walk", func(t *testing.T) {
-		var configureRels, callbackRels []string
-		c, cexts := testConfig(t, dir)
-		cexts = append(cexts, &testConfigurer{func(_ *config.Config, rel string, _ *rule.File) {
-			configureRels = append(configureRels, rel)
-		}})
-		Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, rel string, _ *config.Config, _ bool, _ *rule.File, _, _, _ []string) {
-			callbackRels = append(callbackRels, rel)
-		})
-		check(t, configureRels, callbackRels)
+	var configureRels, callbackRels []string
+	c, cexts := testConfig(t, dir)
+	cexts = append(cexts, &testConfigurer{func(_ *config.Config, rel string, _ *rule.File) {
+		configureRels = append(configureRels, rel)
+	}})
+	err := walk.Walk(t.Context(), c, cexts, walk.NewCache(c), []string{dir}, walk.VisitAllUpdateSubdirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		callbackRels = append(callbackRels, args.Rel)
+		return walk.WalkFuncResult{}, nil
 	})
-
-	t.Run("Walk2", func(t *testing.T) {
-		var configureRels, callbackRels []string
-		c, cexts := testConfig(t, dir)
-		cexts = append(cexts, &testConfigurer{func(_ *config.Config, rel string, _ *rule.File) {
-			configureRels = append(configureRels, rel)
-		}})
-		err := Walk2(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
-			callbackRels = append(callbackRels, args.Rel)
-			return Walk2FuncResult{}
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		check(t, configureRels, callbackRels)
-	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	check(t, configureRels, callbackRels)
 }
 
 func TestUpdateDirs(t *testing.T) {
@@ -101,14 +89,14 @@ func TestUpdateDirs(t *testing.T) {
 	for _, tc := range []struct {
 		desc    string
 		rels    []string
-		mode    Mode
+		mode    walk.Mode
 		want    []visitSpec
 		wantErr bool
 	}{
 		{
 			desc: "visit_all_update_subdirs",
 			rels: []string{"update"},
-			mode: VisitAllUpdateSubdirsMode,
+			mode: walk.VisitAllUpdateSubdirsMode,
 			want: []visitSpec{
 				{"update/error/sub", true},
 				{"update/error", false},
@@ -123,7 +111,7 @@ func TestUpdateDirs(t *testing.T) {
 		}, {
 			desc: "visit_all_update_dirs",
 			rels: []string{"update", "update/ignore/sub"},
-			mode: VisitAllUpdateDirsMode,
+			mode: walk.VisitAllUpdateDirsMode,
 			want: []visitSpec{
 				{"update/error/sub", false},
 				{"update/error", false},
@@ -138,7 +126,7 @@ func TestUpdateDirs(t *testing.T) {
 		}, {
 			desc: "update_dirs",
 			rels: []string{"update", "update/ignore/sub"},
-			mode: UpdateDirsMode,
+			mode: walk.UpdateDirsMode,
 			want: []visitSpec{
 				{"update/ignore/sub", true},
 				{"update/ignore", false},
@@ -148,7 +136,7 @@ func TestUpdateDirs(t *testing.T) {
 		}, {
 			desc: "update_subdirs",
 			rels: []string{"update/ignore", "update/sub"},
-			mode: UpdateSubdirsMode,
+			mode: walk.UpdateSubdirsMode,
 			want: []visitSpec{
 				{"update/ignore/sub", true},
 				{"update/ignore", false},
@@ -166,34 +154,22 @@ func TestUpdateDirs(t *testing.T) {
 				dirs[i] = filepath.Join(dir, filepath.FromSlash(rel))
 			}
 
-			t.Run("Walk", func(t *testing.T) {
-				var visits []visitSpec
-				Walk(c, cexts, dirs, tc.mode, func(_ string, rel string, _ *config.Config, update bool, _ *rule.File, _, _, _ []string) {
-					visits = append(visits, visitSpec{rel, update})
-				})
+			var visits []visitSpec
+			err := walk.Walk(t.Context(), c, cexts, walk.NewCache(c), dirs, tc.mode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+				visits = append(visits, visitSpec{args.Rel, args.Update})
+				return walk.WalkFuncResult{}, nil
+			})
+			if tc.wantErr && err == nil {
+				t.Fatal("unexpected success")
+			}
+			if !tc.wantErr {
+				if err != nil {
+					t.Fatal(err)
+				}
 				if diff := cmp.Diff(tc.want, visits); diff != "" {
 					t.Errorf("Walk visits (-want +got):\n%s", diff)
 				}
-			})
-
-			t.Run("Walk2", func(t *testing.T) {
-				var visits []visitSpec
-				err := Walk2(c, cexts, dirs, tc.mode, func(args Walk2FuncArgs) Walk2FuncResult {
-					visits = append(visits, visitSpec{args.Rel, args.Update})
-					return Walk2FuncResult{}
-				})
-				if tc.wantErr && err == nil {
-					t.Fatal("unexpected success")
-				}
-				if !tc.wantErr {
-					if !tc.wantErr && err != nil {
-						t.Fatal(err)
-					}
-					if diff := cmp.Diff(tc.want, visits); diff != "" {
-						t.Errorf("Walk visits (-want +got):\n%s", diff)
-					}
-				}
-			})
+			}
 		})
 	}
 }
@@ -272,35 +248,20 @@ func TestGenMode(t *testing.T) {
 		}
 	}
 
-	t.Run("Walk generation_mode create vs update", func(t *testing.T) {
-		c, cexts := testConfig(t, dir)
-		var visits []visitSpec
-		Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, rel string, _ *config.Config, update bool, _ *rule.File, subdirs, regularFiles, _ []string) {
-			visits = append(visits, visitSpec{
-				rel:     rel,
-				subdirs: subdirs,
-				files:   regularFiles,
-			})
+	c, cexts := testConfig(t, dir)
+	var visits []visitSpec
+	err := walk.Walk(t.Context(), c, cexts, walk.NewCache(c), []string{dir}, walk.VisitAllUpdateSubdirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		visits = append(visits, visitSpec{
+			rel:     args.Rel,
+			subdirs: args.Subdirs,
+			files:   args.RegularFiles,
 		})
-		check(t, visits)
+		return walk.WalkFuncResult{}, nil
 	})
-
-	t.Run("Walk2 generation_mode create vs update", func(t *testing.T) {
-		c, cexts := testConfig(t, dir)
-		var visits []visitSpec
-		err := Walk2(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
-			visits = append(visits, visitSpec{
-				rel:     args.Rel,
-				subdirs: args.Subdirs,
-				files:   args.RegularFiles,
-			})
-			return Walk2FuncResult{}
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		check(t, visits)
-	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	check(t, visits)
 }
 
 func TestCustomBuildName(t *testing.T) {
@@ -329,37 +290,21 @@ func TestCustomBuildName(t *testing.T) {
 		}
 	}
 
-	t.Run("Walk", func(t *testing.T) {
-		c, cexts := testConfig(t, dir)
-		var rels []string
-		Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, _ string, _ *config.Config, _ bool, f *rule.File, _, _, _ []string) {
-			rel, err := filepath.Rel(c.RepoRoot, f.Path)
-			if err != nil {
-				t.Error(err)
-			} else {
-				rels = append(rels, filepath.ToSlash(rel))
-			}
-		})
-		check(t, rels)
-	})
-
-	t.Run("Walk2", func(t *testing.T) {
-		c, cexts := testConfig(t, dir)
-		var rels []string
-		err := Walk2(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
-			rel, err := filepath.Rel(c.RepoRoot, args.File.Path)
-			if err != nil {
-				t.Error(err)
-			} else {
-				rels = append(rels, filepath.ToSlash(rel))
-			}
-			return Walk2FuncResult{}
-		})
+	c, cexts := testConfig(t, dir)
+	var rels []string
+	err := walk.Walk(t.Context(), c, cexts, walk.NewCache(c), []string{dir}, walk.VisitAllUpdateSubdirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		rel, err := filepath.Rel(c.RepoRoot, args.File.Path)
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
+		} else {
+			rels = append(rels, filepath.ToSlash(rel))
 		}
-		check(t, rels)
+		return walk.WalkFuncResult{}, nil
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	check(t, rels)
 }
 
 func TestExcludeFiles(t *testing.T) {
@@ -432,37 +377,21 @@ a.file
 		}
 	}
 
-	t.Run("Walk", func(t *testing.T) {
-		c, cexts := testConfig(t, dir)
-		var files []string
-		Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, rel string, _ *config.Config, _ bool, _ *rule.File, _, regularFiles, genFiles []string) {
-			for _, f := range regularFiles {
-				files = append(files, path.Join(rel, f))
-			}
-			for _, f := range genFiles {
-				files = append(files, path.Join(rel, f))
-			}
-		})
-		check(t, files)
-	})
-
-	t.Run("Walk2", func(t *testing.T) {
-		c, cexts := testConfig(t, dir)
-		var files []string
-		err := Walk2(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
-			for _, f := range args.RegularFiles {
-				files = append(files, path.Join(args.Rel, f))
-			}
-			for _, f := range args.GenFiles {
-				files = append(files, path.Join(args.Rel, f))
-			}
-			return Walk2FuncResult{}
-		})
-		if err != nil {
-			t.Fatal(err)
+	c, cexts := testConfig(t, dir)
+	var files []string
+	err := walk.Walk(t.Context(), c, cexts, walk.NewCache(c), []string{dir}, walk.VisitAllUpdateSubdirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		for _, f := range args.RegularFiles {
+			files = append(files, path.Join(args.Rel, f))
 		}
-		check(t, files)
+		for _, f := range args.GenFiles {
+			files = append(files, path.Join(args.Rel, f))
+		}
+		return walk.WalkFuncResult{}, nil
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	check(t, files)
 }
 
 func TestExcludeSelf(t *testing.T) {
@@ -486,27 +415,16 @@ func TestExcludeSelf(t *testing.T) {
 		}
 	}
 
-	t.Run("Walk", func(t *testing.T) {
-		c, cexts := testConfig(t, dir)
-		var rels []string
-		Walk(c, cexts, []string{dir}, VisitAllUpdateDirsMode, func(_ string, rel string, _ *config.Config, _ bool, f *rule.File, _, _, _ []string) {
-			rels = append(rels, rel)
-		})
-		check(t, rels)
+	c, cexts := testConfig(t, dir)
+	var rels []string
+	err := walk.Walk(t.Context(), c, cexts, walk.NewCache(c), []string{dir}, walk.VisitAllUpdateDirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		rels = append(rels, args.Rel)
+		return walk.WalkFuncResult{}, nil
 	})
-
-	t.Run("Walk2", func(t *testing.T) {
-		c, cexts := testConfig(t, dir)
-		var rels []string
-		err := Walk2(c, cexts, []string{dir}, VisitAllUpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
-			rels = append(rels, args.Rel)
-			return Walk2FuncResult{}
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		check(t, rels)
-	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	check(t, rels)
 }
 
 func TestGeneratedFiles(t *testing.T) {
@@ -545,37 +463,21 @@ unknown_rule(
 		}
 	}
 
-	t.Run("Walk", func(t *testing.T) {
-		c, cexts := testConfig(t, dir)
-		var regularFiles, genFiles []string
-		Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, rel string, _ *config.Config, _ bool, _ *rule.File, _, reg, gen []string) {
-			for _, f := range reg {
-				regularFiles = append(regularFiles, path.Join(rel, f))
-			}
-			for _, f := range gen {
-				genFiles = append(genFiles, path.Join(rel, f))
-			}
-		})
-		check(t, regularFiles, genFiles)
-	})
-
-	t.Run("Walk2", func(t *testing.T) {
-		c, cexts := testConfig(t, dir)
-		var regularFiles, genFiles []string
-		err := Walk2(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
-			for _, f := range args.RegularFiles {
-				regularFiles = append(regularFiles, path.Join(args.Rel, f))
-			}
-			for _, f := range args.GenFiles {
-				genFiles = append(genFiles, path.Join(args.Rel, f))
-			}
-			return Walk2FuncResult{}
-		})
-		if err != nil {
-			t.Fatal(err)
+	c, cexts := testConfig(t, dir)
+	var regularFiles, genFiles []string
+	err := walk.Walk(t.Context(), c, cexts, walk.NewCache(c), []string{dir}, walk.VisitAllUpdateSubdirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		for _, f := range args.RegularFiles {
+			regularFiles = append(regularFiles, path.Join(args.Rel, f))
 		}
-		check(t, regularFiles, genFiles)
+		for _, f := range args.GenFiles {
+			genFiles = append(genFiles, path.Join(args.Rel, f))
+		}
+		return walk.WalkFuncResult{}, nil
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	check(t, regularFiles, genFiles)
 }
 
 func TestFollow(t *testing.T) {
@@ -617,29 +519,17 @@ func TestFollow(t *testing.T) {
 		}
 	}
 
-	t.Run("Walk", func(t *testing.T) {
-		c, cexts := testConfig(t, dir)
-		var gotRegularFiles, gotSubdirs []string
-		Walk(c, cexts, []string{dir}, UpdateDirsMode, func(_, _ string, _ *config.Config, _ bool, _ *rule.File, subdirs, regularFiles, _ []string) {
-			gotRegularFiles = regularFiles
-			gotSubdirs = subdirs
-		})
-		check(t, gotRegularFiles, gotSubdirs)
+	c, cexts := testConfig(t, dir)
+	var gotRegularFiles, gotSubdirs []string
+	err := walk.Walk(t.Context(), c, cexts, walk.NewCache(c), []string{dir}, walk.UpdateDirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		gotRegularFiles = args.RegularFiles
+		gotSubdirs = args.Subdirs
+		return walk.WalkFuncResult{}, nil
 	})
-
-	t.Run("Walk2", func(t *testing.T) {
-		c, cexts := testConfig(t, dir)
-		var gotRegularFiles, gotSubdirs []string
-		err := Walk2(c, cexts, []string{dir}, UpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
-			gotRegularFiles = args.RegularFiles
-			gotSubdirs = args.Subdirs
-			return Walk2FuncResult{}
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		check(t, gotRegularFiles, gotSubdirs)
-	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	check(t, gotRegularFiles, gotSubdirs)
 }
 
 func TestSubdirsContained(t *testing.T) {
@@ -683,33 +573,19 @@ func TestSubdirsContained(t *testing.T) {
 		}
 	}
 
-	t.Run("Walk", func(t *testing.T) {
-		c, cexts := testConfig(t, dir)
-		var rootRegularFiles, rootSubdirs []string
-		Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_, rel string, _ *config.Config, _ bool, _ *rule.File, subdirs, regularFiles, _ []string) {
-			if rel == "" {
-				rootRegularFiles = regularFiles
-				rootSubdirs = subdirs
-			}
-		})
-		check(t, rootRegularFiles, rootSubdirs)
-	})
-
-	t.Run("Walk2", func(t *testing.T) {
-		c, cexts := testConfig(t, dir)
-		var rootRegularFiles, rootSubdirs []string
-		err := Walk2(c, cexts, []string{dir}, VisitAllUpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
-			if args.Rel == "" {
-				rootRegularFiles = args.RegularFiles
-				rootSubdirs = args.Subdirs
-			}
-			return Walk2FuncResult{}
-		})
-		if err != nil {
-			t.Fatal(err)
+	c, cexts := testConfig(t, dir)
+	var rootRegularFiles, rootSubdirs []string
+	err := walk.Walk(t.Context(), c, cexts, walk.NewCache(c), []string{dir}, walk.VisitAllUpdateDirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		if args.Rel == "" {
+			rootRegularFiles = args.RegularFiles
+			rootSubdirs = args.Subdirs
 		}
-		check(t, rootRegularFiles, rootSubdirs)
+		return walk.WalkFuncResult{}, nil
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	check(t, rootRegularFiles, rootSubdirs)
 }
 
 func TestRelsToVisit(t *testing.T) {
@@ -731,12 +607,13 @@ func TestRelsToVisit(t *testing.T) {
 		},
 	})
 	updateDir := filepath.Join(dir, "update")
-	err := Walk2(c, cexts, []string{updateDir}, UpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
+	cache := walk.NewCache(c)
+	err := walk.Walk(t.Context(), c, cexts, cache, []string{updateDir}, walk.UpdateDirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
 		visitedRels = append(visitedRels, args.Rel)
 		if args.Update {
 			updatedRels = append(updatedRels, args.Rel)
 		}
-		res := Walk2FuncResult{}
+		res := walk.WalkFuncResult{}
 		switch args.Rel {
 		case "update":
 			res.RelsToVisit = []string{"update", "extra/a"}
@@ -747,7 +624,7 @@ func TestRelsToVisit(t *testing.T) {
 		case "extra/b":
 			res.RelsToVisit = []string{"extra/does/not/exist"}
 		}
-		return res
+		return res, nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -801,8 +678,9 @@ genrule(
 	wantGenFiles := []string{"gen.txt"}
 
 	c, cexts := testConfig(t, dir)
-	err := Walk2(c, cexts, []string{dir}, VisitAllUpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
-		di, err := GetDirInfo("")
+	cache := walk.NewCache(c)
+	err := walk.Walk(t.Context(), c, cexts, cache, []string{dir}, walk.VisitAllUpdateDirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		di, err := cache.GetDirInfo("")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -815,7 +693,7 @@ genrule(
 		if diff := cmp.Diff(wantGenFiles, di.GenFiles); diff != "" {
 			t.Errorf("gen files (-want, +got):\n%s", diff)
 		}
-		return Walk2FuncResult{}
+		return walk.WalkFuncResult{}, nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -838,8 +716,9 @@ func TestGetDirInfoSubdir(t *testing.T) {
 	defer cleanup()
 
 	c, cexts := testConfig(t, dir)
-	err := Walk2(c, cexts, []string{dir}, UpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
-		bInfo, err := GetDirInfo("a/b")
+	cache := walk.NewCache(c)
+	err := walk.Walk(t.Context(), c, cexts, cache, []string{dir}, walk.UpdateDirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		bInfo, err := cache.GetDirInfo("a/b")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -847,10 +726,10 @@ func TestGetDirInfoSubdir(t *testing.T) {
 			t.Errorf("a/b: regular files (-want, +got):\n%s", diff)
 		}
 
-		if _, err := GetDirInfo("x/y"); err == nil {
+		if _, err := cache.GetDirInfo("x/y"); err == nil {
 			t.Errorf("x/y: unexpected success")
 		}
-		return Walk2FuncResult{}
+		return walk.WalkFuncResult{}, nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -870,19 +749,20 @@ func TestGetDirInfoErrorOnParent(t *testing.T) {
 	defer cleanup()
 
 	c, cexts := testConfig(t, dir)
-	err := Walk2(c, cexts, []string{dir}, UpdateDirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
-		di, err := GetDirInfo("parent/child")
+	cache := walk.NewCache(c)
+	err := walk.Walk(t.Context(), c, cexts, cache, []string{dir}, walk.UpdateDirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		di, err := cache.GetDirInfo("parent/child")
 		if err == nil {
 			t.Error("expected error due to error in parent")
 		}
 
 		// Verify that the returned DirInfo when an error was returned
-		if di.config != nil || di.File != nil || len(di.RegularFiles) != 0 || len(di.Subdirs) != 0 || len(di.GenFiles) != 0 {
+		if di.File != nil || len(di.RegularFiles) != 0 || len(di.Subdirs) != 0 || len(di.GenFiles) != 0 {
 			t.Errorf("expected empty DirInfo when parent is excluded, got RegularFiles=%v, Subdirs=%v, GenFiles=%v",
 				di.RegularFiles, di.Subdirs, di.GenFiles)
 		}
 
-		return Walk2FuncResult{}
+		return walk.WalkFuncResult{}, nil
 	})
 	if err == nil {
 		t.Error("expected error due to error in parent")
@@ -891,7 +771,7 @@ func TestGetDirInfoErrorOnParent(t *testing.T) {
 
 func testConfig(t *testing.T, dir string) (*config.Config, []config.Configurer) {
 	args := []string{"-repo_root", dir}
-	cexts := []config.Configurer{&config.CommonConfigurer{}, &Configurer{}}
+	cexts := []config.Configurer{&config.CommonConfigurer{}, &walk.Configurer{}}
 	c := testtools.NewTestConfig(t, cexts, nil, args)
 	return c, cexts
 }
@@ -932,9 +812,13 @@ func TestDirectiveFile(t *testing.T) {
 	// external_excluded should be excluded.
 	var visited []string
 	c, cexts := testConfig(t, dir)
-	Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, rel string, _ *config.Config, _ bool, _ *rule.File, _, _, _ []string) {
-		visited = append(visited, rel)
+	err := walk.Walk(t.Context(), c, cexts, walk.NewCache(c), []string{dir}, walk.VisitAllUpdateSubdirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		visited = append(visited, args.Rel)
+		return walk.WalkFuncResult{}, nil
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	want := []string{"kept", ""}
 	if diff := cmp.Diff(want, visited); diff != "" {
@@ -967,8 +851,12 @@ func TestDirectiveFileWithResolve(t *testing.T) {
 			gotDirectives = f.Directives
 		}
 	}})
-	Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, _ string, _ *config.Config, _ bool, _ *rule.File, _, _, _ []string) {
+	err := walk.Walk(t.Context(), c, cexts, walk.NewCache(c), []string{dir}, walk.VisitAllUpdateSubdirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		return walk.WalkFuncResult{}, nil
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	want := []rule.Directive{
 		{Key: "resolve", Value: "go example.com/foo //third_party:foo"},
@@ -1006,8 +894,12 @@ func TestDirectiveFileOrdering(t *testing.T) {
 			gotDirectives = f.Directives
 		}
 	}})
-	Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, _ string, _ *config.Config, _ bool, _ *rule.File, _, _, _ []string) {
+	err := walk.Walk(t.Context(), c, cexts, walk.NewCache(c), []string{dir}, walk.VisitAllUpdateSubdirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		return walk.WalkFuncResult{}, nil
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	want := []rule.Directive{
 		{Key: "resolve", Value: "go example.com/before //before"},
@@ -1049,11 +941,11 @@ func TestDirectiveFileNoRecursion(t *testing.T) {
 			gotDirectives = f.Directives
 		}
 	}})
-	err := Walk2(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(args Walk2FuncArgs) Walk2FuncResult {
-		return Walk2FuncResult{}
+	err := walk.Walk(t.Context(), c, cexts, walk.NewCache(c), []string{dir}, walk.VisitAllUpdateSubdirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		return walk.WalkFuncResult{}, nil
 	})
 
-	// Walk2 should return an error about recursive directive_file.
+	// Walk should return an error about recursive directive_file.
 	if err == nil {
 		t.Fatal("expected error for recursive directive_file, got nil")
 	}
@@ -1097,14 +989,73 @@ func TestDirectiveFileRelativeToPackage(t *testing.T) {
 			gotDirectives = f.Directives
 		}
 	}})
-	Walk(c, cexts, []string{dir}, VisitAllUpdateSubdirsMode, func(_ string, _ string, _ *config.Config, _ bool, _ *rule.File, _, _, _ []string) {
+	err := walk.Walk(t.Context(), c, cexts, walk.NewCache(c), []string{dir}, walk.VisitAllUpdateSubdirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		return walk.WalkFuncResult{}, nil
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	want := []rule.Directive{
 		{Key: "resolve", Value: "go example.com/sub //sub:lib"},
 	}
 	if diff := cmp.Diff(want, gotDirectives); diff != "" {
 		t.Errorf("directives (-want +got):\n%s", diff)
+	}
+}
+
+func TestWalkCanceledBeforeStart(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	dir := t.TempDir()
+	c, cexts := testConfig(t, dir)
+	cache := walk.NewCache(c)
+	wf := func(walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		t.Fatal("wf called unexpectedly")
+		return walk.WalkFuncResult{}, nil
+	}
+	err := walk.Walk(ctx, c, cexts, cache, []string{dir}, walk.VisitAllUpdateSubdirsMode, wf)
+	if !errors.Is(err, ctx.Err()) {
+		t.Fatalf("Walk unexpected error: got %v, want %v", err, ctx.Err())
+	}
+}
+
+func TestWalkCanceledAfterStart(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	dir := t.TempDir()
+	for _, name := range []string{"0_ok", "1_do_not_visit"} {
+		if err := os.Mkdir(filepath.Join(dir, name), 0777); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	visitedC := make(chan string)
+	c, cexts := testConfig(t, dir)
+	cache := walk.NewCache(c)
+	wf := func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		visitedC <- args.Rel
+		<-ctx.Done()
+		return walk.WalkFuncResult{}, nil
+	}
+	go func() {
+		defer close(visitedC)
+		err := walk.Walk(ctx, c, cexts, cache, []string{dir}, walk.VisitAllUpdateSubdirsMode, wf)
+		if !errors.Is(err, ctx.Err()) {
+			t.Fatalf("Walk unexpected error: got %v, want %v", err, ctx.Err())
+		}
+	}()
+
+	got := <-visitedC
+	if got != "0_ok" {
+		t.Fatalf(`visiting root directory: got %q, want "0_ok"`, got)
+	}
+	cancel()
+	got, ok := <-visitedC
+	if ok {
+		t.Fatalf("subdirectory visited after cancellation: %q", got)
 	}
 }
 
@@ -1161,29 +1112,32 @@ func BenchmarkWalk(b *testing.B) {
 	}
 	createDir(rootDir, 0)
 
-	cexts := []config.Configurer{&Configurer{}}
+	cexts := []config.Configurer{&walk.Configurer{}}
 	c := config.New()
 	c.RepoRoot = rootDir
 	c.RepoRoot = rootDir
 	c.IndexLibraries = true
 	fs := flag.NewFlagSet("gazelle", flag.ContinueOnError)
 	for _, cext := range cexts {
-		cext.(*Configurer).RegisterFlags(fs, "update", c)
+		cext.(*walk.Configurer).RegisterFlags(fs, "update", c)
 	}
 	args := []string{rootDir}
 	if err := fs.Parse(args); err != nil {
 		b.Fatal(err)
 	}
 	for _, cext := range cexts {
-		cext.(*Configurer).CheckFlags(fs, c)
+		cext.(*walk.Configurer).CheckFlags(fs, c)
 	}
 
 	// Benchmark calling Walk with a trivial callback function.
-	wf := func(dir, rel string, c *config.Config, update bool, f *rule.File, subdirs, regularFiles, genFiles []string) {
+	wf := func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		return walk.WalkFuncResult{}, nil
 	}
+	cache := walk.NewCache(c)
 
-	b.ResetTimer()
-	for range b.N {
-		Walk(c, nil, fs.Args(), VisitAllUpdateSubdirsMode, wf)
+	for b.Loop() {
+		if err := walk.Walk(b.Context(), c, nil, cache, fs.Args(), walk.VisitAllUpdateSubdirsMode, wf); err != nil {
+			b.Fatal(err)
+		}
 	}
 }

@@ -26,10 +26,10 @@ import (
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 	"github.com/bazel-contrib/bazel-gazelle/v2/language"
-	"github.com/bazelbuild/bazel-gazelle/language/proto"
 	"github.com/bazel-contrib/bazel-gazelle/v2/merger"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"github.com/bazel-contrib/bazel-gazelle/v2/walk"
+	"github.com/bazelbuild/bazel-gazelle/language/proto"
 	bzl "github.com/bazelbuild/buildtools/build"
 	"github.com/bazelbuild/rules_go/go/tools/bazel"
 	"github.com/google/go-cmp/cmp"
@@ -84,7 +84,15 @@ func TestGenerateRules(t *testing.T) {
 
 	loads := loadsForTest(c, langs)
 	var testsFound int
-	walk.Walk(c, cexts, []string{testdataDir}, walk.VisitAllUpdateSubdirsMode, func(dir, rel string, c *config.Config, update bool, oldFile *rule.File, subdirs, regularFiles, genFiles []string) {
+	cache := walk.NewCache(c)
+	err = walk.Walk(t.Context(), c, cexts, cache, []string{testdataDir}, walk.VisitAllUpdateSubdirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
+		dir := args.Dir
+		rel := args.Rel
+		c := args.Config
+		oldFile := args.File
+		subdirs := args.Subdirs
+		regularFiles := args.RegularFiles
+		genFiles := args.GenFiles
 		t.Run(rel, func(t *testing.T) {
 			var empty, gen []*rule.Rule
 			for _, lang := range langs {
@@ -98,6 +106,7 @@ func TestGenerateRules(t *testing.T) {
 					GenFiles:     genFiles,
 					OtherEmpty:   empty,
 					OtherGen:     gen,
+					Cache:        cache,
 				})
 				empty = append(empty, res.Empty...)
 				gen = append(gen, res.Gen...)
@@ -134,7 +143,11 @@ func TestGenerateRules(t *testing.T) {
 				t.Errorf("(-want, +got): %s", diff)
 			}
 		})
+		return walk.WalkFuncResult{}, nil
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	// Avoid spurious success if we fail to find any tests.
 	if testsFound == 0 {
 		t.Error("No rule generation tests were found")
@@ -144,10 +157,12 @@ func TestGenerateRules(t *testing.T) {
 func TestGenerateRulesEmpty(t *testing.T) {
 	c, langs, _ := testConfig(t, "-go_prefix=example.com/repo")
 	goLang := langs[1].(*goLang)
+	cache := walk.NewCache(c)
 	res, err := goLang.Generate(t.Context(), language.GenerateArgs{
 		Config: c,
 		Dir:    "./foo",
 		Rel:    "foo",
+		Cache:  cache,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -177,7 +192,6 @@ go_test(name = "foo_test")
 	}
 }
 
-
 // Test that no data attribute is added for an empty testdata subdirectory
 func TestGenerateRulesEmptyTestdata(t *testing.T) {
 	dir, err := bazel.NewTmpDir("example")
@@ -205,16 +219,18 @@ func TestExample(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c, langs, cexts := testConfig(t, "-go_prefix=example.com/repo")
+	c, langs, cexts := testConfig(t, "-go_prefix=example.com/repo", "-repo_root="+dir)
 	goLang := langs[1].(*goLang)
 
-	walk.Walk(c, cexts, []string{dir}, walk.VisitAllUpdateSubdirsMode, func(dir, rel string, c *config.Config, update bool, oldFile *rule.File, subdirs, regularFiles, genFiles []string) {
+	cache := walk.NewCache(c)
+	err = walk.Walk(t.Context(), c, cexts, cache, []string{dir}, walk.VisitAllUpdateSubdirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
 		res, err := goLang.Generate(t.Context(), language.GenerateArgs{
 			Config:       c,
 			Dir:          dir,
-			Rel:          "example",
+			Rel:          "",
 			Subdirs:      []string{"testdata"},
 			RegularFiles: []string{"example_test.go"},
+			Cache:        cache,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -237,16 +253,22 @@ func TestExample(t *testing.T) {
 		if data := testRule.Attr("data"); data != nil {
 			t.Errorf("expected no data attribute for empty testdata subdirectory, but got: %v", data)
 		}
+		return walk.WalkFuncResult{}, nil
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestGenerateRulesEmptyLegacyProto(t *testing.T) {
 	c, langs, _ := testConfig(t, "-proto=legacy")
 	goLang := langs[len(langs)-1].(*goLang)
+	cache := walk.NewCache(c)
 	res, err := goLang.Generate(t.Context(), language.GenerateArgs{
 		Config: c,
 		Dir:    "./foo",
 		Rel:    "foo",
+		Cache:  cache,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -260,6 +282,7 @@ func TestGenerateRulesEmptyLegacyProto(t *testing.T) {
 
 func TestGenerateRulesEmptyPackageProto(t *testing.T) {
 	c, langs, _ := testConfig(t, "-proto=package", "-go_prefix=example.com/repo")
+	cache := walk.NewCache(c)
 	oldContent := []byte(`
 proto_library(
     name = "dead_proto",
@@ -278,6 +301,7 @@ proto_library(
 			Rel:        "foo",
 			File:       old,
 			OtherEmpty: empty,
+			Cache:      cache,
 		})
 		empty = append(empty, res.Empty...)
 	}
@@ -314,6 +338,7 @@ func TestGenerateRulesPrebuiltGoProtoRules(t *testing.T) {
 	} {
 		t.Run("with flag: "+protoFlag, func(t *testing.T) {
 			c, langs, _ := testConfig(t, protoFlag)
+			cache := walk.NewCache(c)
 			goLang := langs[len(langs)-1].(*goLang)
 
 			res, err := goLang.Generate(t.Context(), language.GenerateArgs{
@@ -321,6 +346,7 @@ func TestGenerateRulesPrebuiltGoProtoRules(t *testing.T) {
 				Dir:      "./foo",
 				Rel:      "foo",
 				OtherGen: prebuiltProtoRules(),
+				Cache:    cache,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -347,12 +373,14 @@ func TestGenerateRulesPrebuiltGoProtoRules(t *testing.T) {
 // Test generated files that have been consumed by other rules should not be
 // added to the go_default_library rule
 func TestConsumedGenFiles(t *testing.T) {
+	c := &config.Config{
+		Exts: make(map[string]interface{}),
+	}
 	args := language.GenerateArgs{
 		RegularFiles: []string{"regular.go"},
 		GenFiles:     []string{"mocks.go"},
-		Config: &config.Config{
-			Exts: make(map[string]interface{}),
-		},
+		Config:       c,
+		Cache:        walk.NewCache(c),
 	}
 	otherRule := rule.NewRule("go_library", "go_mock_library")
 	otherRule.SetAttr("srcs", []string{"mocks.go"})
@@ -451,16 +479,16 @@ func TestProtoLibraryCompilers(t *testing.T) {
 			rulesGoName: "io_bazel_rules_go",
 		},
 		{
-			desc:          "bzlmod_default_apparent_name",
+			desc: "bzlmod_default_apparent_name",
 			moduleContent: `bazel_dep(name = "rules_go", version = "0.60.0")
 `,
-			rulesGoName:   "rules_go",
+			rulesGoName: "rules_go",
 		},
 		{
-			desc:          "bzlmod_custom_repo_name",
+			desc: "bzlmod_custom_repo_name",
 			moduleContent: `bazel_dep(name = "rules_go", version = "0.60.0", repo_name = "my_rules_go")
 `,
-			rulesGoName:   "my_rules_go",
+			rulesGoName: "my_rules_go",
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -490,19 +518,21 @@ service S {}
 			}
 
 			var got []string
-			walk.Walk(c, cexts, []string{dir}, walk.VisitAllUpdateSubdirsMode, func(walkDir, rel string, walkC *config.Config, _ bool, oldFile *rule.File, subdirs, regularFiles, genFiles []string) {
+			cache := walk.NewCache(c)
+			err := walk.Walk(t.Context(), c, cexts, cache, []string{dir}, walk.VisitAllUpdateSubdirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
 				var empty, gen []*rule.Rule
 				for _, lang := range langs {
 					res := generate(t, lang, language.GenerateArgs{
-						Config:       walkC,
-						Dir:          walkDir,
-						Rel:          rel,
-						File:         oldFile,
-						Subdirs:      subdirs,
-						RegularFiles: regularFiles,
-						GenFiles:     genFiles,
+						Config:       args.Config,
+						Dir:          args.Dir,
+						Rel:          args.Rel,
+						File:         args.File,
+						Subdirs:      args.Subdirs,
+						RegularFiles: args.RegularFiles,
+						GenFiles:     args.GenFiles,
 						OtherEmpty:   empty,
 						OtherGen:     gen,
+						Cache:        cache,
 					})
 					empty = append(empty, res.Empty...)
 					gen = append(gen, res.Gen...)
@@ -512,7 +542,11 @@ service S {}
 						got = r.AttrStrings("compilers")
 					}
 				}
+				return walk.WalkFuncResult{}, nil
 			})
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			want := []string{
 				fmt.Sprintf("@%s//proto:go_proto", tc.rulesGoName),
