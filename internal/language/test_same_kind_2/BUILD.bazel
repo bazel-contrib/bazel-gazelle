@@ -1,0 +1,30 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "test_same_kind_2",
+    srcs = ["lang.go"],
+    importpath = "github.com/bazelbuild/bazel-gazelle/internal/language/test_same_kind_2",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//v2/label",
+        "//v2/language",
+        "//v2/resolve",
+        "//v2/rule",
+    ],
+)
+
+alias(
+    name = "go_default_library",
+    actual = ":test_same_kind_2",
+    visibility = ["//:__subpackages__"],
+)
+
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "lang.go",
+    ],
+    visibility = ["//visibility:public"],
+)
