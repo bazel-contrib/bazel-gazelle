@@ -91,7 +91,7 @@ type remoteCacheEntry struct {
 }
 
 type rootValue struct {
-	root, name string
+	root, name, prefixDir string
 }
 
 type remoteValue struct {
@@ -103,8 +103,8 @@ type headValue struct {
 }
 
 type modValue struct {
-	path, name string
-	known      bool
+	path, name, prefixDir string
+	known                 bool
 }
 
 type modVersionValue struct {
@@ -118,7 +118,7 @@ type modVersionValue struct {
 // lookup logic should be moved to language/go. This means RemoteCache will
 // need to be initialized in a different way.
 type Repo struct {
-	Name, GoPrefix, Remote, VCS string
+	Name, GoPrefix, PrefixDir, Remote, VCS string
 }
 
 // NewRemoteCache creates a new RemoteCache with a set of known repositories.
@@ -149,8 +149,9 @@ func NewRemoteCache(knownRepos []Repo) (r *RemoteCache, cleanup func() error) {
 	for _, repo := range knownRepos {
 		r.root.cache[repo.GoPrefix] = &remoteCacheEntry{
 			value: rootValue{
-				root: repo.GoPrefix,
-				name: repo.Name,
+				root:      repo.GoPrefix,
+				name:      repo.Name,
+				prefixDir: repo.PrefixDir,
 			},
 		}
 		if repo.Remote != "" {
@@ -163,9 +164,10 @@ func NewRemoteCache(knownRepos []Repo) (r *RemoteCache, cleanup func() error) {
 		}
 		r.mod.cache[repo.GoPrefix] = &remoteCacheEntry{
 			value: modValue{
-				path:  repo.GoPrefix,
-				name:  repo.Name,
-				known: true,
+				path:      repo.GoPrefix,
+				name:      repo.Name,
+				prefixDir: repo.PrefixDir,
+				known:     true,
 			},
 		}
 	}
@@ -260,18 +262,22 @@ var knownPrefixes = []struct {
 // RootStatic checks the cache to see if the provided importpath matches any known roots.
 // If no matches are found, rather than going out to the network to determine the root,
 // nothing is returned.
-func (r *RemoteCache) RootStatic(importPath string) (root, name string, err error) {
+//
+// When RootStatic finds a match, it returns the import path of the root (a prefix
+// of importPath), the repo name of the root, and a subdirectory of the Go module
+// root within the Bazel module (usually "").
+func (r *RemoteCache) RootStatic(importPath string) (root, name, prefixDir string, err error) {
 	for prefix := importPath; prefix != "." && prefix != "/"; prefix = path.Dir(prefix) {
 		v, ok, err := r.root.get(prefix)
 		if ok {
 			if err != nil {
-				return "", "", err
+				return "", "", "", err
 			}
 			value := v.(rootValue)
-			return value.root, value.name, nil
+			return value.root, value.name, value.prefixDir, nil
 		}
 	}
-	return "", "", nil
+	return "", "", "", nil
 }
 
 // Root returns the portion of an import path that corresponds to the root
@@ -279,7 +285,11 @@ func (r *RemoteCache) RootStatic(importPath string) (root, name string, err erro
 // given "golang.org/x/tools/go/loader", this will return "golang.org/x/tools".
 // The workspace name of the repository is also returned. This may be a custom
 // name set in WORKSPACE, or it may be a generated name based on the root path.
-func (r *RemoteCache) Root(importPath string) (root, name string, err error) {
+//
+// Root returns the import path of the root (a prefix of importPath), the
+// repo name of the root, and a subdirectory of the Go module root within the
+// Bazel module (usually "").
+func (r *RemoteCache) Root(importPath string) (root, name, prefixDir string, err error) {
 	// Try prefixes of the import path in the cache, but don't actually go out
 	// to vcs yet. We do this before handling known special cases because
 	// the cache is pre-populated with repository rules, and we want to use their
@@ -289,10 +299,10 @@ func (r *RemoteCache) Root(importPath string) (root, name string, err error) {
 		v, ok, err := r.root.get(prefix)
 		if ok {
 			if err != nil {
-				return "", "", err
+				return "", "", "", err
 			}
 			value := v.(rootValue)
-			return value.root, value.name, nil
+			return value.root, value.name, value.prefixDir, nil
 		}
 
 		prefix = path.Dir(prefix)
@@ -310,14 +320,14 @@ func (r *RemoteCache) Root(importPath string) (root, name string, err error) {
 				components = strings.Split(rest, "/")
 			}
 			if len(components) < p.missing {
-				return "", "", fmt.Errorf("import path %q is shorter than the known prefix %q", importPath, p.prefix)
+				return "", "", "", fmt.Errorf("import path %q is shorter than the known prefix %q", importPath, p.prefix)
 			}
 			root = p.prefix
 			for _, c := range components[:p.missing] {
 				root = path.Join(root, c)
 			}
 			name = label.ImportPathToBazelRepoName(root)
-			return root, name, nil
+			return root, name, "", nil
 		}
 	}
 
@@ -326,7 +336,7 @@ func (r *RemoteCache) Root(importPath string) (root, name string, err error) {
 	if match := gopkginPattern.FindStringSubmatch(importPath); len(match) > 0 {
 		root = match[1]
 		name = label.ImportPathToBazelRepoName(root)
-		return root, name, nil
+		return root, name, "", nil
 	}
 
 	// Find the prefix using vcs and cache the result.
@@ -335,13 +345,13 @@ func (r *RemoteCache) Root(importPath string) (root, name string, err error) {
 		if err != nil {
 			return nil, err
 		}
-		return rootValue{res.Root, label.ImportPathToBazelRepoName(res.Root)}, nil
+		return rootValue{root: res.Root, name: label.ImportPathToBazelRepoName(res.Root)}, nil
 	})
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	value := v.(rootValue)
-	return value.root, value.name, nil
+	return value.root, value.name, value.prefixDir, nil
 }
 
 // Remote returns the VCS name and the remote URL for a repository with the
@@ -427,18 +437,18 @@ func defaultHeadCmd(remote, vcs string) (string, error) {
 // If no known repository could provide importPath, Mod will run "go list" to
 // find the module. The special patterns that Root uses are ignored. Results are
 // cached. Use GOPROXY for faster results.
-func (r *RemoteCache) Mod(importPath string) (modPath, name string, err error) {
+func (r *RemoteCache) Mod(importPath string) (modPath, name, _ string, err error) {
 	// Check if any of the known repositories is a prefix.
 	prefix := importPath
 	for {
 		v, ok, err := r.mod.get(prefix)
 		if ok {
 			if err != nil {
-				return "", "", err
+				return "", "", "", err
 			}
 			value := v.(modValue)
 			if value.known {
-				return value.path, value.name, nil
+				return value.path, value.name, value.prefixDir, nil
 			} else {
 				break
 			}
@@ -462,10 +472,10 @@ func (r *RemoteCache) Mod(importPath string) (modPath, name string, err error) {
 		}, nil
 	})
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	value := v.(modValue)
-	return value.path, value.name, nil
+	return value.path, value.name, "", nil
 }
 
 func defaultModInfo(rc *RemoteCache, importPath string) (modPath string, err error) {
