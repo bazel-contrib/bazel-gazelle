@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package visibility
+package defaults
 
 import (
 	"fmt"
@@ -24,11 +24,11 @@ import (
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 )
 
-func newExt(t *testing.T) *visibilityExtension {
+func newExt(t *testing.T) *defaultsExtension {
 	t.Helper()
-	ext, ok := NewV2().(*visibilityExtension)
+	ext, ok := NewV2().(*defaultsExtension)
 	if !ok {
-		t.Fatal("NewV2() must return *visibilityExtension")
+		t.Fatal("NewV2() must return *defaultsExtension")
 	}
 	return ext
 }
@@ -39,8 +39,8 @@ func TestExtensionMetadata(t *testing.T) {
 	if ext.KnownDirectives() == nil {
 		t.Fatal("expected not nil")
 	}
-	if ext.Name() != "visibility" {
-		t.Fatalf("Name() = %q, want %q", ext.Name(), "visibility")
+	if ext.Name() != "defaults" {
+		t.Fatalf("Name() = %q, want %q", ext.Name(), "defaults")
 	}
 	if len(ext.Kinds()) != 1 {
 		t.Fatal("expected one kind")

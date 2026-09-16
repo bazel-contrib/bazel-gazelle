@@ -1,0 +1,46 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "defaults",
+    srcs = [
+        "config.go",
+        "lang.go",
+    ],
+    importpath = "github.com/bazelbuild/bazel-gazelle/language/defaults",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//v2/config",
+        "//v2/language",
+        "//v2/merger",
+        "//v2/rule",
+    ],
+)
+
+go_test(
+    name = "defaults_test",
+    srcs = ["lang_test.go"],
+    embed = [":defaults"],
+    deps = [
+        "//v2/config",
+        "//v2/language",
+        "//v2/rule",
+    ],
+)
+
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "config.go",
+        "lang.go",
+        "lang_test.go",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "go_default_library",
+    actual = ":defaults",
+    visibility = ["//visibility:public"],
+)

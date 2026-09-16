@@ -68,6 +68,8 @@ def gazelle_binary(name, languages, version = 0, **kwargs):
     if version == 0:
         version = _get_gazelle_major_version()
 
+    languages = languages_for_version(languages, version)
+
     main_name = name + "_main"
     gazelle_main(
         name = main_name,
@@ -110,3 +112,39 @@ def _get_gazelle_major_version():
         return 2
     else:
         fail("Unsupported Gazelle major version: {}. Only versions 0, 1, and 2 are supported.".format(major))
+
+def languages_for_version(languages, version):
+    """Adds //language/defaults and ignores //language/bazel/visibility in v2"""
+    if version != 2:
+        return languages
+    result = []
+    has_defaults = False
+    for lang in languages:
+        lang_package = language_package(lang)
+        if lang_package == "language/bazel/visibility":
+            # Replaced by //language/defaults in v2
+            continue
+        if lang_package == "language/defaults":
+            # defaults requested explicitly.
+            has_defaults = True
+        result.append(lang)
+    if not has_defaults:
+        # Add defaults to the front of the list if it wasn't requested.
+        result = ["//language/defaults"] + result
+    return result
+
+def language_package(name):
+    """Returns the package path for a language label without resolving it.
+
+    Callers pass label strings from their own repository; we must not call
+    Label() on those strings inside macros.
+    """
+    if type(name) == "Label":
+        return name.package
+
+    path = name
+    if path.startswith("@") and "//" in path:
+        path = path.split("//", 1)[1]
+    elif path.startswith("//"):
+        path = path[2:]
+    return path.split(":", 1)[0]
