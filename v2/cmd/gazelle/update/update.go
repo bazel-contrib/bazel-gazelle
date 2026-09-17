@@ -82,11 +82,6 @@ type updateConfig struct {
 	printVersion           bool
 }
 
-func (uc *updateConfig) handleError(err error) {
-	// TODO(#499): add a -strict flag. When enabled, print the error and exit non-zero.
-	log.Print(err)
-}
-
 type emitFunc func(c *config.Config, f *rule.File) error
 
 var modeFromName = map[string]emitFunc{
@@ -312,6 +307,11 @@ var genericLoads = []rule.LoadInfo{
 	},
 }
 
+// ExitError is returned when gazelle should exit non-zero without printing an
+// error message. This avoids redundancy, since errors are generally logged
+// as they happen.
+var ExitError = errors.New("exit 1 due to errors")
+
 func Run(
 	ctx context.Context,
 	languagesRaw []language.Language,
@@ -361,6 +361,28 @@ func Run(
 	}
 	uc := getUpdateConfig(c)
 
+	var errs []error
+	handleError := func(lang any, err error) {
+		var langName string
+		if withName, ok := lang.(language.Language); ok {
+			langName = withName.Name()
+		}
+		var errsToHandle []error
+		if joinedErrs, ok := err.(interface{ Unwrap() []error }); ok {
+			errsToHandle = joinedErrs.Unwrap()
+		} else {
+			errsToHandle = []error{err}
+		}
+		for _, err := range errsToHandle {
+			if langName != "" {
+				log.Printf("language %s: %v", langName, err)
+			} else {
+				log.Print(err)
+			}
+		}
+		errs = append(errs, errsToHandle...)
+	}
+
 	mrslv := newMetaResolver()
 	kinds := make(map[string]rule.KindInfo)
 	for kind, info := range rule.GenericKinds {
@@ -388,7 +410,7 @@ func Run(
 	defer cancel()
 	for _, lang := range languages {
 		if err := lang.OnStart(ctx); err != nil {
-			uc.handleError(err)
+			handleError(lang, err)
 		}
 	}
 
@@ -444,7 +466,7 @@ func Run(
 					File:   f,
 					Cache:  cache,
 				}); err != nil {
-					uc.handleError(err)
+					handleError(lang, err)
 				}
 			}
 		}
@@ -590,12 +612,12 @@ func Run(
 
 	for _, lang := range languages {
 		if err := lang.OnResolve(ctx); err != nil {
-			uc.handleError(err)
+			handleError(lang, err)
 		}
 	}
 
 	if walkErr != nil {
-		return walkErr
+		handleError(nil, walkErr)
 	}
 
 	// Finish building the index for dependency resolution.
@@ -609,7 +631,7 @@ func Run(
 		}
 	}()
 	if err = maybePopulateRemoteCacheFromGoMod(c, rc); err != nil {
-		uc.handleError(err)
+		handleError(nil, err)
 	}
 	for _, v := range visits {
 		for i, r := range v.rules {
@@ -624,7 +646,7 @@ func Run(
 					Imports:     v.imports[i],
 				})
 				if err != nil {
-					uc.handleError(err)
+					handleError(rslv, err)
 				}
 			}
 		}
@@ -635,7 +657,7 @@ func Run(
 	}
 
 	// Emit merged files.
-	var exit error
+	var exitErr error
 	loadFixer := merger.NewLoadFixer(loads)
 	for _, v := range visits {
 		if len(v.mappedKinds) == 0 {
@@ -644,26 +666,32 @@ func Run(
 			merger.NewLoadFixer(applyKindMappings(v.mappedKinds, loads)).Fix(v.file)
 		}
 		if err := uc.emit(v.c, v.file); err != nil {
-			if err == ErrDiff {
-				exit = err
+			if errors.Is(err, ExitError) {
+				exitErr = err
 			} else {
-				uc.handleError(err)
+				handleError(nil, err)
 			}
 		}
 	}
 	if uc.patchPath != "" {
 		if err := os.WriteFile(uc.patchPath, uc.patchBuffer.Bytes(), 0o666); err != nil {
-			uc.handleError(err)
+			handleError(nil, err)
 		}
 	}
 
 	for _, lang := range languages {
 		if err := lang.OnFinish(ctx); err != nil {
-			uc.handleError(err)
+			handleError(nil, err)
 		}
 	}
 
-	return exit
+	if exitErr != nil {
+		return exitErr
+	} else if c.Strict && len(errs) > 0 {
+		return ExitError
+	} else {
+		return nil
+	}
 }
 
 // lookupMapKindReplacement finds a mapped replacement for rule kind `kind`, resolving transitively.
