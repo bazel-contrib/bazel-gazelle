@@ -80,8 +80,7 @@ func (*testLoadsFromFlag) Generate(ctx context.Context, args language.GenerateAr
 	load := args.Config.Exts[testLoadsFromFlagName].(Load)
 	r := rule.NewRule(load.symbol, "gen")
 	return language.GenerateResult{
-		Gen:     []*rule.Rule{r},
-		Imports: []any{nil},
+		Gen: []*rule.Rule{r},
 	}, nil
 }
 

@@ -49,8 +49,7 @@ func (lang) Generate(ctx context.Context, args language.GenerateArgs) (language.
 	r.SetAttr("match_attr_1", "match_r1")
 	r.SetAttr("merge_attr_1", "merge_r1")
 	return language.GenerateResult{
-		Gen:     []*rule.Rule{r},
-		Imports: []any{nil},
+		Gen: []*rule.Rule{r},
 	}, nil
 }
 
