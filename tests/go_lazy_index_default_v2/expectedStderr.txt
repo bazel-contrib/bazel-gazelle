@@ -1,0 +1,1 @@
+gazelle: unrecognized import path "example.com/m/c"

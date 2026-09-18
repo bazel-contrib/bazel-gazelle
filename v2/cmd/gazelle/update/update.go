@@ -33,7 +33,6 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 	"syscall"
 
@@ -51,19 +50,6 @@ import (
 	walkv1 "github.com/bazelbuild/bazel-gazelle/walk"
 	"github.com/bazelbuild/buildtools/build"
 )
-
-// BazelModuleVersion is the version of the Gazelle Bazel module. It may be used
-// to change behavior across versions built from the same code.
-var BazelModuleVersion string
-
-// IsBazelModule is set to a value that parses to "true" if Gazelle was built by
-// Bazel in module mode.
-var IsBazelModule string
-
-// errVersion is a special value indicating the -version flag was set, and the
-// version was printed. Run recovers from this by doing nothing and
-// returning nil.
-var errVersion = errors.New("version printed")
 
 // updateConfig holds configuration information needed to run the fix and
 // update commands. This includes everything in config.Config, but it also
@@ -106,11 +92,55 @@ var _ config.Configurer = (*updateConfigurer)(nil)
 type updateConfigurer struct {
 	knownLanguages []string
 	mode           string
-	recursive      bool
+	recurse        recurseMode
 	knownImports   []string
 	repoConfigPath string
 	cpuProfile     string
 	memProfile     string
+}
+
+type recurseMode int
+
+const (
+	// Visit directories recursively only if there are no positional arguments.
+	recurseAuto recurseMode = iota
+	recurseAlways
+	recurseNever
+)
+
+type recurseFlag struct {
+	mode *recurseMode
+}
+
+func (f recurseFlag) Set(s string) error {
+	switch s {
+	case "auto":
+		*f.mode = recurseAuto
+	case "true":
+		*f.mode = recurseAlways
+	case "false":
+		*f.mode = recurseNever
+	default:
+		return fmt.Errorf("invalid value for -r=%s; valid values are 'auto', 'true', 'false'", s)
+	}
+	return nil
+}
+
+func (f recurseFlag) String() string {
+	switch *f.mode {
+	case recurseAuto:
+		return "auto"
+	case recurseAlways:
+		return "true"
+	case recurseNever:
+		return "false"
+	default:
+		return "unknown"
+	}
+}
+
+func (f recurseFlag) IsBoolFlag() bool {
+	return true
 }
 
 func (ucr *updateConfigurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
@@ -119,8 +149,20 @@ func (ucr *updateConfigurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *conf
 
 	c.ShouldFix = cmd == "fix"
 
+	ucr.recurse = recurseAuto
+	if MajorVersion <= 1 {
+		ucr.recurse = recurseAlways
+		// HACK: set -index=true by default in v1. Ideally, -index would be
+		// registered here and not by config.Configurer so we could set its default
+		// directly. But extensions may rely on config.Configurer in unit tests,
+		// and they can't use updateConfigurer at all.
+		if indexFlag := fs.Lookup("index"); indexFlag != nil {
+			indexFlag.Value.Set("true")
+		}
+	}
+
 	fs.StringVar(&ucr.mode, "mode", "fix", "print: prints all of the updated BUILD files\n\tfix: rewrites all of the BUILD files in place\n\tdiff: computes the rewrite but then just does a diff")
-	fs.BoolVar(&ucr.recursive, "r", true, "when true, gazelle will update subdirectories recursively")
+	fs.Var(recurseFlag{mode: &ucr.recurse}, "r", "when true, gazelle will update subdirectories recursively")
 	fs.StringVar(&uc.patchPath, "patch", "", "when set with -mode=diff, gazelle will write to a file instead of stdout")
 	fs.BoolVar(&uc.print0, "print0", false, "when set with -mode=fix, gazelle will print the names of rewritten files separated with \\0 (NULL)")
 	fs.StringVar(&ucr.cpuProfile, "cpuprofile", "", "write cpu profile to `file`")
@@ -135,17 +177,7 @@ func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) erro
 	uc := getUpdateConfig(c)
 
 	if uc.printVersion {
-		if BazelModuleVersion == "" {
-			fmt.Printf("gazelle version unknown\n")
-		} else {
-			fmt.Printf("gazelle %s\n", BazelModuleVersion)
-		}
-		if moduleMode, _ := strconv.ParseBool(IsBazelModule); moduleMode {
-			fmt.Printf("built in module mode\n")
-		} else {
-			fmt.Printf("built in workspace mode\n")
-		}
-		fmt.Printf("supported languages: %s\n", strings.Join(ucr.knownLanguages, ", "))
+		printVersion(ucr.knownLanguages)
 		return errVersion
 	}
 
@@ -187,14 +219,15 @@ func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) erro
 	}
 
 	indexAll := c.IndexLibraries && !c.IndexLazy
+	recurse := ucr.recurse == recurseAlways || (ucr.recurse == recurseAuto && len(fs.Args()) == 0)
 	switch {
-	case ucr.recursive && indexAll:
+	case recurse && indexAll:
 		uc.walkMode = walk.VisitAllUpdateSubdirsMode
-	case !ucr.recursive && indexAll:
+	case !recurse && indexAll:
 		uc.walkMode = walk.VisitAllUpdateDirsMode
-	case ucr.recursive && !indexAll:
+	case recurse && !indexAll:
 		uc.walkMode = walk.UpdateSubdirsMode
-	case !ucr.recursive && !indexAll:
+	case !recurse && !indexAll:
 		uc.walkMode = walk.UpdateDirsMode
 	}
 
