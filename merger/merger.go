@@ -37,6 +37,8 @@ limitations under the License.
 package merger
 
 import (
+	"log"
+
 	v2 "github.com/bazel-contrib/bazel-gazelle/v2/merger"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
@@ -113,8 +115,16 @@ const UnstableInsertIndexKey = v2.UnstableInsertIndexKey
 //
 //go:fix inline
 func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phase, kinds map[string]rule.KindInfo, aliasedKinds map[string]string) {
-	getKindInfo := func(r *rule.Rule) rule.KindInfo { return kinds[r.Kind()] }
-	v2.MergeFile(oldFile, emptyRules, genRules, phase, getKindInfo, aliasedKinds)
+	if err := v2.MergeFile(v2.MergeFileArgs{
+		File:         oldFile,
+		Empty:        emptyRules,
+		Gen:          genRules,
+		Phase:        phase,
+		GetKindInfo:  func(r *rule.Rule) rule.KindInfo { return kinds[r.Kind()] },
+		AliasedKinds: aliasedKinds,
+	}); err != nil {
+		log.Print(err)
+	}
 }
 
 // Match searches for a rule that can be merged with x in rules.

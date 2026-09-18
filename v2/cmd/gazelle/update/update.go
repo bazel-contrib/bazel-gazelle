@@ -617,10 +617,16 @@ func Run(
 				r.Insert(f)
 			}
 		} else {
-			merger.MergeFile(f, empty, gen, merger.PreResolve,
-				makeGetKindInfo(unionKindInfoMaps(kinds, mappedKindInfo)),
-				aliasedKinds,
-			)
+			if err := merger.MergeFile(merger.MergeFileArgs{
+				File:         f,
+				Empty:        empty,
+				Gen:          gen,
+				Phase:        merger.PreResolve,
+				GetKindInfo:  makeGetKindInfo(unionKindInfoMaps(kinds, mappedKindInfo)),
+				AliasedKinds: aliasedKinds,
+			}); err != nil {
+				uc.handleError(nil, err)
+			}
 		}
 		visits = append(visits, visitRecord{
 			pkgRel:         rel,
@@ -685,10 +691,16 @@ func Run(
 				}
 			}
 		}
-		merger.MergeFile(v.file, v.empty, v.rules, merger.PostResolve,
-			makeGetKindInfo(unionKindInfoMaps(kinds, v.mappedKindInfo)),
-			v.aliasedKinds,
-		)
+		if err := merger.MergeFile(merger.MergeFileArgs{
+			File:         v.file,
+			Empty:        v.empty,
+			Gen:          v.rules,
+			Phase:        merger.PostResolve,
+			GetKindInfo:  makeGetKindInfo(unionKindInfoMaps(kinds, v.mappedKindInfo)),
+			AliasedKinds: v.aliasedKinds,
+		}); err != nil {
+			uc.handleError(nil, err)
+		}
 	}
 
 	// Emit merged files.
