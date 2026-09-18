@@ -383,6 +383,7 @@ def _go_repository_impl(ctx):
             ctx.path(""),
             "-repo_config",
             repo_config,
+            "-r=true",
         ]
         if ctx.attr.version or ctx.attr.local_path:
             cmd.append("-go_repository_module_mode")
