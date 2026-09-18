@@ -162,6 +162,11 @@ func (ucr *updateConfigurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *conf
 	}
 
 	fs.StringVar(&ucr.mode, "mode", "fix", "print: prints all of the updated BUILD files\n\tfix: rewrites all of the BUILD files in place\n\tdiff: computes the rewrite but then just does a diff")
+	if cmd == "fix" {
+		c.ShouldFix = true
+	} else if MajorVersion >= 2 {
+		fs.BoolVar(&c.ShouldFix, "fix", false, "when true, clean up deprecated usages of rules with potentially destructive transformations")
+	}
 	fs.Var(recurseFlag{mode: &ucr.recurse}, "r", "when true, gazelle will update subdirectories recursively")
 	fs.StringVar(&uc.patchPath, "patch", "", "when set with -mode=diff, gazelle will write to a file instead of stdout")
 	fs.BoolVar(&uc.print0, "print0", false, "when set with -mode=fix, gazelle will print the names of rewritten files separated with \\0 (NULL)")
