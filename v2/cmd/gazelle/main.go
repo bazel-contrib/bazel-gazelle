@@ -53,16 +53,13 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	if err := run(ctx, wd, os.Args[1:]); err != nil {
-		if !errors.Is(err, update.ErrDiff) {
-			fmt.Fprintf(os.Stderr, "gazelle: %v\n", err)
+	if err := update.Run(ctx, languages, wd, os.Args[1:]); err != nil {
+		if errors.Is(err, update.ExitError) {
+			os.Exit(1)
 		}
+		fmt.Fprintf(os.Stderr, "gazelle: %v\n", err)
 		if !errors.Is(err, flag.ErrHelp) {
 			os.Exit(1)
 		}
 	}
-}
-
-func run(ctx context.Context, wd string, args []string) error {
-	return update.Run(ctx, languages, wd, args)
 }
