@@ -130,6 +130,8 @@ These methods were squashed into `Kinds`. Populate the `KindInfo.Load` and `Name
 - Old: `GenerateRules(args GenerateArgs) GenerateResult`
 - New: `Generate(context.Context, GenerateArgs) (GenerateResult, error)` — method was renamed.
 
+If `GenerateResult.Imports` is set to a list of `nil` values, it may be dropped. In v2, this list is optional.
+
 #### `language.Fixer`
 
 In v1, this was part of `language.Language`.

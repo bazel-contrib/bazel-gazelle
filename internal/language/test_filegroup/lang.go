@@ -86,8 +86,7 @@ func (l *testFilegroupLang) Generate(ctx context.Context, args language.Generate
 		r.SetAttr("visibility", []string{"//visibility:public"})
 	}
 	return language.GenerateResult{
-		Gen:     []*rule.Rule{r},
-		Imports: []any{nil},
+		Gen: []*rule.Rule{r},
 	}, nil
 }
 

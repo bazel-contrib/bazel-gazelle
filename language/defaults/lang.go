@@ -98,7 +98,5 @@ func (*defaultsExtension) Generate(ctx context.Context, args language.GenerateAr
 	r.SetPrivateAttr(merger.UnstableInsertIndexKey, insertIndex)
 
 	res.Gen = append(res.Gen, r)
-	// we have to add a nil to Imports because there is length-matching validation with Gen.
-	res.Imports = append(res.Imports, nil)
 	return res, nil
 }

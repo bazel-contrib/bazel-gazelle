@@ -114,11 +114,10 @@ type GenerateResult struct {
 	Empty []*rule.Rule
 
 	// Imports contains information about the imported libraries for each
-	// rule in Gen. Gen and Imports must have the same length, since they
-	// correspond. These values are passed to Resolve after merge. The type
-	// is opaque since different languages may use different representations.
-	//
-	// TODO(v2): make this optional or eliminate it
+	// rule in Gen. If Imports is set, it must have the same number of elements
+	// as Gen. When Resolve.Resolver is called later, this value is passed
+	// as ResolveArgs.Imports. The type is opaque so different extensions can
+	// represent imports however they want.
 	Imports []any
 
 	// RelsToIndex is a list of additional directories to index for dependency

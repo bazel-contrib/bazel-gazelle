@@ -64,9 +64,6 @@ func TestNoDirective(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(res.Imports) != 0 {
-		t.Fatal("expected empty array")
-	}
 	if len(res.Gen) != 0 {
 		t.Fatal("expected empty array")
 	}
@@ -94,9 +91,6 @@ func TestNewDirective(t *testing.T) {
 	}
 
 	if len(res.Gen) != 1 {
-		t.Fatal("expected array of length 1")
-	}
-	if len(res.Imports) != 1 {
 		t.Fatal("expected array of length 1")
 	}
 	if len(res.Gen[0].AttrStrings("default_visibility")) != 1 {
@@ -135,9 +129,6 @@ package(default_visibility = "//not-src:__subpackages__")
 	if len(res.Gen) != 1 {
 		t.Fatal("expected array of length 1")
 	}
-	if len(res.Imports) != 1 {
-		t.Fatal("expected array of length 1")
-	}
 	if len(res.Gen[0].AttrStrings("default_visibility")) != 1 {
 		t.Fatal("expected array of length 1")
 	}
@@ -172,9 +163,6 @@ func TestMultipleDirectives(t *testing.T) {
 	}
 
 	if len(res.Gen) != 1 {
-		t.Fatal("expected array of length 1")
-	}
-	if len(res.Imports) != 1 {
 		t.Fatal("expected array of length 1")
 	}
 	if len(res.Gen[0].AttrStrings("default_visibility")) != 2 {
@@ -215,9 +203,6 @@ func TestMultipleDefaultsSingleDirective(t *testing.T) {
 	if len(res.Gen) != 1 {
 		t.Fatal("expected array of length 1")
 	}
-	if len(res.Imports) != 1 {
-		t.Fatal("expected array of length 1")
-	}
 	if len(res.Gen[0].AttrStrings("default_visibility")) != 2 {
 		t.Fatal("expected array of length 2")
 	}
@@ -255,9 +240,6 @@ func TestNoRuleIfNoBuildFile(t *testing.T) {
 
 	if len(res.Gen) != 0 {
 		t.Fatal("expected array of length 0, no rules generated for missing BUILD.bazel file")
-	}
-	if len(res.Imports) != 0 {
-		t.Fatal("expected array of length 0")
 	}
 }
 
@@ -301,9 +283,6 @@ func TestMultipleDirectivesAcrossFilesSupercede(t *testing.T) {
 	if len(res2.Gen) != 1 {
 		t.Fatal("expected array of length 1")
 	}
-	if len(res2.Imports) != 1 {
-		t.Fatal("expected array of length 1")
-	}
 	if len(res2.Gen[0].AttrStrings("default_visibility")) != 1 {
 		t.Fatal("expected array of length 1")
 	}
@@ -320,9 +299,6 @@ func TestMultipleDirectivesAcrossFilesSupercede(t *testing.T) {
 	}
 
 	if len(res1.Gen) != 1 {
-		t.Fatal("expected array of length 1")
-	}
-	if len(res1.Imports) != 1 {
 		t.Fatal("expected array of length 1")
 	}
 	if len(res1.Gen[0].AttrStrings("default_visibility")) != 1 {

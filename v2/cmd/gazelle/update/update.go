@@ -291,9 +291,6 @@ type visitRecord struct {
 	// rules is a list of generated rules.
 	rules []*rule.Rule
 
-	// imports contains opaque import information for each rule in rules.
-	imports []interface{}
-
 	// empty is a list of empty rules that may be deleted.
 	empty []*rule.Rule
 
@@ -463,7 +460,6 @@ func Run(
 
 		// Generate rules.
 		var empty, gen []*rule.Rule
-		var imports []interface{}
 		var relsToVisit []string
 		for lang := range filterLanguages(c, languages) {
 			res, err := lang.Generate(ctx, language.GenerateArgs{
@@ -481,8 +477,15 @@ func Run(
 			if err != nil {
 				uc.handleError(lang, err)
 			}
-			if len(res.Gen) != len(res.Imports) {
-				return walk.WalkFuncResult{}, fmt.Errorf("%s: language %s: generated %d rules but returned %d imports", rel, lang.Name(), len(res.Gen), len(res.Imports))
+			if len(res.Imports) > 0 {
+				if len(res.Gen) != len(res.Imports) {
+					uc.handleError(lang, fmt.Errorf("%s: generated %d rules but returned %d imports", rel, len(res.Gen), len(res.Imports)))
+					// Ignore res.Gen if res.Imports was set incorrectly.
+					continue
+				}
+				for i := range res.Gen {
+					res.Gen[i].SetPrivateAttr(importsPrivateAttr, res.Imports[i])
+				}
 			}
 			langName := lang.Name()
 			for _, rs := range [][]*rule.Rule{res.Empty, res.Gen} {
@@ -495,7 +498,6 @@ func Run(
 			}
 			empty = append(empty, res.Empty...)
 			gen = append(gen, res.Gen...)
-			imports = append(imports, res.Imports...)
 			if c.IndexLibraries {
 				relsToVisit = append(relsToVisit, res.RelsToIndex...)
 			}
@@ -591,7 +593,6 @@ func Run(
 			pkgRel:         rel,
 			c:              c,
 			rules:          gen,
-			imports:        imports,
 			empty:          empty,
 			file:           f,
 			mappedKinds:    mappedKinds,
@@ -635,7 +636,7 @@ func Run(
 		uc.handleError(nil, err)
 	}
 	for _, v := range visits {
-		for i, r := range v.rules {
+		for _, r := range v.rules {
 			from := label.New(c.RepoName, v.pkgRel, r.Name())
 			if rslv := mrslv.Resolver(r, v.pkgRel); rslv != nil {
 				err := rslv.Resolve(ctx, resolve.ResolveArgs{
@@ -644,7 +645,7 @@ func Run(
 					Rule:        r,
 					From:        from,
 					RemoteCache: rc,
-					Imports:     v.imports[i],
+					Imports:     r.PrivateAttr(importsPrivateAttr),
 				})
 				if err != nil {
 					uc.handleError(rslv, err)
@@ -936,6 +937,13 @@ const (
 	// or empty rule, pointing to the rule.KindInfo returned by its extension's
 	// Kinds() method, if any.
 	kindPrivateAttr = "_gazelle_kind"
+
+	// importsPrivateAttr is the name of a private attribute set on a generated
+	// rule with the corresponding value from GenerateResult.Imports, if set.
+	// Not named "_gazelle_imports" because that name is exposed in v1
+	// config/constants.go, and language/go and language/proto both use it
+	// heavily. Other languages probably do, too.
+	importsPrivateAttr = "_gazelle_update_imports"
 )
 
 func unionKindInfoMaps(a, b map[string]rule.KindInfo) map[string]rule.KindInfo {

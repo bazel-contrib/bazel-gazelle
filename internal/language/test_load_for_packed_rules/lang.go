@@ -50,7 +50,7 @@ func NewV2() language.Language {
 }
 
 var kinds = []rule.KindInfo{{
-	Name: "selects.config_setting_group",
+	Name:          "selects.config_setting_group",
 	NonEmptyAttrs: map[string]bool{"name": true},
 	MergeableAttrs: map[string]bool{
 		"match_all": true,
@@ -96,8 +96,7 @@ func (l *testLoadForPackedRulesLang) Generate(ctx context.Context, args language
 	r.SetAttr("match_all", match)
 
 	return language.GenerateResult{
-		Gen:     []*rule.Rule{r},
-		Imports: []any{nil},
+		Gen: []*rule.Rule{r},
 	}, nil
 }
 
