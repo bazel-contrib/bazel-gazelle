@@ -24,9 +24,9 @@ import (
 	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 	"github.com/bazel-contrib/bazel-gazelle/v2/label"
-	"github.com/bazelbuild/bazel-gazelle/repo"
 	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
+	"github.com/bazelbuild/bazel-gazelle/repo"
 	bzl "github.com/bazelbuild/buildtools/build"
 )
 
@@ -406,7 +406,9 @@ proto_library(
 					}
 				}
 				for _, r := range f.Rules {
-					ix.AddRule(c, r, f)
+					if err := ix.AddRule(t.Context(), c, r, f); err != nil {
+						t.Fatal(err)
+					}
 				}
 			}
 			f, err := rule.LoadData("test/BUILD.bazel", "test", []byte(tc.old))
@@ -416,7 +418,9 @@ proto_library(
 			imports := make([]interface{}, len(f.Rules))
 			for i, r := range f.Rules {
 				imports[i] = convertImportsAttr(r)
-				ix.AddRule(c, r, f)
+				if err := ix.AddRule(t.Context(), c, r, f); err != nil {
+					t.Fatal(err)
+				}
 			}
 			ix.Finish()
 			for i, r := range f.Rules {

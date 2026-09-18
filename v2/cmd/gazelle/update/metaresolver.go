@@ -88,6 +88,7 @@ func (mr *metaResolver) Resolver(r *rule.Rule, pkgRel string) resolve.Resolver {
 }
 
 func (mr *metaResolver) find(r *rule.Rule, pkgRel string) indexResolver {
+	// Track down the original kind the rule had when it was generated.
 	ruleKind := r.Kind()
 
 	if wrappedKind, ok := mr.aliasedKinds[pkgRel][ruleKind]; ok {
@@ -106,21 +107,30 @@ func (mr *metaResolver) find(r *rule.Rule, pkgRel string) indexResolver {
 		}
 	}
 
+	// Find the extension responsible for indexing or resolving this rule.
+	// For generated rules, this is attached as a private attribute.
+	// For existing rules being indexed, we look it up.
+	var resolver indexResolver
+	if lang, ok := r.PrivateAttr(langPrivateAttr).(indexResolver); ok {
+		resolver = lang
+	} else {
+		resolver = mr.builtins[ruleKind]
+	}
+	if resolver == nil {
+		return nil
+	}
+
 	// If the underlying kind is different, we need to apply the inverse map_kind operation so that
 	// we get the Resolver for the underlying kind, not the mapped or aliased one that we see in the
 	// existing BUILD file.
 	if ruleKind != r.Kind() {
-		fromKindResolver := mr.builtins[ruleKind]
-		if fromKindResolver == nil {
-			return nil
-		}
 		return inverseMapKindResolver{
 			fromKind: ruleKind,
-			delegate: fromKindResolver,
+			delegate: resolver,
 		}
 	}
 
-	return mr.builtins[ruleKind]
+	return resolver
 }
 
 // inverseMapKindResolver applies an inverse of the map_kind
