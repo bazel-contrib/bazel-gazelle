@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -217,7 +218,9 @@ func TestGazelleGenerationOnPath(t *testing.T, args *TestGazelleGenerationArgs) 
 
 			// Read in expected stdout, stderr, and exit code files.
 			if d.Name() == argumentsFilename {
-				config.Args = strings.Split(normalizeSpace(string(content)), "\n")
+				config.Args = slices.DeleteFunc(
+					strings.Split(normalizeSpace(string(content)), "\n"),
+					func(arg string) bool { return arg == "" })
 				return nil
 			}
 			if d.Name() == expectedStdoutFilename {

@@ -28,6 +28,8 @@ import (
 	"github.com/bazel-contrib/bazel-gazelle/v2/language"
 )
 
+func init() { update.MajorVersion = 2 }
+
 var languages []language.Language
 
 func main() {
