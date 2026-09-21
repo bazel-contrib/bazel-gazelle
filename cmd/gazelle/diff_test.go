@@ -16,10 +16,12 @@ limitations under the License.
 package main
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"testing"
 
+	"github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update"
 	"github.com/bazelbuild/bazel-gazelle/testtools"
 )
 
@@ -40,9 +42,8 @@ func TestDiffExisting(t *testing.T) {
 	dir, cleanup := testtools.CreateFiles(t, files)
 	defer cleanup()
 
-	wantError := "encountered changes while running diff"
-	if err := runGazelle(dir, []string{"-mode=diff", "-patch=p"}); err.Error() != wantError {
-		t.Fatalf("got %q; want %q", err, wantError)
+	if err := runGazelle(dir, []string{"-mode=diff", "-patch=p"}); !errors.Is(err, update.ExitError) {
+		t.Fatalf("got %q; want ExitError", err)
 	}
 
 	want := append(files, testtools.FileSpec{
@@ -77,9 +78,8 @@ func TestDiffNew(t *testing.T) {
 	dir, cleanup := testtools.CreateFiles(t, files)
 	defer cleanup()
 
-	wantError := "encountered changes while running diff"
-	if err := runGazelle(dir, []string{"-go_prefix=example.com/hello", "-mode=diff", "-patch=p"}); err.Error() != wantError {
-		t.Fatalf("got %q; want %q", err, wantError)
+	if err := runGazelle(dir, []string{"-go_prefix=example.com/hello", "-mode=diff", "-patch=p"}); !errors.Is(err, update.ExitError) {
+		t.Fatalf("got %q; want ExitError", err)
 	}
 
 	want := append(files, testtools.FileSpec{
@@ -150,9 +150,8 @@ func TestDiffReadWriteDir(t *testing.T) {
 		"repo",
 	}
 
-	wantError := "encountered changes while running diff"
-	if err := runGazelle(dir, args); err.Error() != wantError {
-		t.Fatalf("got %q; want %q", err, wantError)
+	if err := runGazelle(dir, args); !errors.Is(err, update.ExitError) {
+		t.Fatalf("got %q; want ExitError", err)
 	}
 
 	wantPatch := fmt.Sprintf(`
@@ -226,8 +225,7 @@ go_library(
 	noNewline_dir, cleanup := testtools.CreateFiles(t, noNewlineFiles)
 	defer cleanup()
 
-	wantError := "encountered changes while running diff"
-	if err := runGazelle(noNewline_dir, []string{"-mode=diff"}); err == nil || err.Error() != wantError {
-		t.Fatalf("got %q; want %q", err, wantError)
+	if err := runGazelle(noNewline_dir, []string{"-mode=diff"}); err == nil || !errors.Is(err, update.ExitError) {
+		t.Fatalf("got %q; want ExitError", err)
 	}
 }

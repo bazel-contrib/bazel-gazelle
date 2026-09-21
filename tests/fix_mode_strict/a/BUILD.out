@@ -1,0 +1,4 @@
+go_library(
+    name = "syntax_error_no_comma"
+    visibility = ["//visibility:public"],
+)

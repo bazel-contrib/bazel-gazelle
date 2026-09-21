@@ -68,6 +68,12 @@ When recursion is disabled, Gazelle only visits specific named directories. This
 **Default:** inferred<br>
 The root directory of the repository. Gazelle normally infers this to be the directory containing the WORKSPACE file. Gazelle will not process packages outside this directory.
 
+**Flag:** `-strict`<br>
+**Default:** `false`<br>
+When enabled, Gazelle exits with a non-zero status if any errors occurred during the run. Gazelle always logs errors and continues processing other directories when it can, regardless of this flag. Use this in CI to fail when Gazelle encounters problems (for example, syntax errors in BUILD files, unknown directives, or errors returned from language extensions).
+
+Without `-strict`, Gazelle may still exit non-zero in some cases (for example, `-mode=diff` when changes are detected).
+
 **Flag:** `-remove_noop_keep_comments`<br>
 **Default:** `false`<br>
 Whether Gazelle will remove `# keep` comments when the thing being kept would have been kept without the comment. This is always enabled when run with the `fix` command, and for the `update` command must be specified. This will only remove `# keep` comments targeting list items, e.g. not rules, entire lists/dicts, or dict items.

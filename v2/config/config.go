@@ -78,8 +78,8 @@ type Config struct {
 	// usage of deprecated rules.
 	ShouldFix bool
 
-	// Strict determines how Gazelle handles build file and directive errors. When
-	// set, Gazelle will exit with non-zero value after logging such errors.
+	// Strict causes Gazelle to exit non-zero after logging errors. Gazelle always
+	// logs errors and recovers when possible, regardless of this flag.
 	Strict bool
 
 	// IndexLibraries determines whether Gazelle should build an index of
@@ -221,7 +221,7 @@ func (cc *CommonConfigurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *Confi
 	cc.indexLazy = true
 	fs.StringVar(&cc.repoRoot, "repo_root", "", "path to a directory which corresponds to go_prefix, otherwise gazelle searches for it.")
 	fs.Var(indexFlag{indexLibraries: &cc.indexLibraries, indexLazy: &cc.indexLazy}, "index", "determines how Gazelle indexes library rules. 'all' means index all libraries in all repo directories. 'lazy' means specific directories, determined by extensions. 'none' means indexing is disabled.")
-	fs.BoolVar(&cc.strict, "strict", false, "when true, gazelle will exit with none-zero value for build file syntax errors or unknown directives")
+	fs.BoolVar(&cc.strict, "strict", false, "when true, gazelle will update as much as it can but will exit non-zero after errors")
 	fs.StringVar(&cc.langCsv, "lang", "", "if non-empty, process only these languages (e.g. \"go,proto\")")
 	fs.BoolVar(&cc.bzlmod, "bzlmod", false, "for internal usage only")
 }

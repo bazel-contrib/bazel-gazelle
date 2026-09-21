@@ -29,6 +29,7 @@ import (
 	"testing"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"github.com/bazel-contrib/bazel-gazelle/v2/testtools"
 	"github.com/bazel-contrib/bazel-gazelle/v2/walk"
@@ -771,7 +772,7 @@ func TestGetDirInfoErrorOnParent(t *testing.T) {
 
 func testConfig(t *testing.T, dir string) (*config.Config, []config.Configurer) {
 	args := []string{"-repo_root", dir}
-	cexts := []config.Configurer{&config.CommonConfigurer{}, &walk.Configurer{}}
+	cexts := []config.Configurer{&config.CommonConfigurer{}, &walk.Configurer{}, &resolve.Configurer{}}
 	c := testtools.NewTestConfig(t, cexts, nil, args)
 	return c, cexts
 }
