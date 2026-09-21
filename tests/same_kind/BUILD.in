@@ -1,0 +1,18 @@
+load("//:same_kind_1.bzl", "same_kind")
+
+same_kind(
+    name = "r1",
+    match_attr_1 = "match_r1",
+    merge_attr_1 = "replace",
+)
+
+same_kind(
+    name = "r2",
+    match_attr_2 = "match_r2",
+    merge_attr_2 = "replace",
+)
+
+same_kind(
+    name = "e2",
+    match_attr_2 = "match_e2",
+)

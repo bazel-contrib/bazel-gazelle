@@ -82,7 +82,11 @@ type updateConfig struct {
 	printVersion           bool
 }
 
-func (uc *updateConfig) handleError(err error) {
+func (uc *updateConfig) handleError(lang any, err error) {
+	if withName, ok := lang.(language.Language); ok {
+		err = fmt.Errorf("language %s: %w", withName.Name(), err)
+	}
+
 	// TODO(#499): add a -strict flag. When enabled, print the error and exit non-zero.
 	log.Print(err)
 }
@@ -363,11 +367,16 @@ func Run(
 
 	mrslv := newMetaResolver()
 	kinds := make(map[string]rule.KindInfo)
+	type languageKind struct {
+		lang, kind string
+	}
+	kindsByLanguage := make(map[languageKind]rule.KindInfo)
 	for kind, info := range rule.GenericKinds {
 		kinds[kind] = info
 	}
 	loads := genericLoads
 	for _, lang := range languages {
+		langName := lang.Name()
 		for _, load := range lang.ApparentLoads(c.ModuleToApparentName) {
 			load.Symbols = slices.Clone(load.Symbols)
 			loads = append(loads, load)
@@ -375,6 +384,7 @@ func Run(
 		for _, kind := range lang.Kinds() {
 			mrslv.AddBuiltin(kind.Name, lang)
 			kinds[kind.Name] = kind
+			kindsByLanguage[languageKind{lang: langName, kind: kind.Name}] = kind
 			loads = AddKindToLoadList(c, loads, kind)
 		}
 	}
@@ -388,7 +398,7 @@ func Run(
 	defer cancel()
 	for _, lang := range languages {
 		if err := lang.OnStart(ctx); err != nil {
-			uc.handleError(err)
+			uc.handleError(lang, err)
 		}
 	}
 
@@ -429,7 +439,9 @@ func Run(
 		if !update {
 			if c.IndexLibraries && f != nil {
 				for _, r := range f.Rules {
-					ruleIndex.AddRule(c, r, f)
+					if err := ruleIndex.AddRule(ctx, c, r, f); err != nil {
+						uc.handleError(nil, err)
+					}
 				}
 			}
 			return walk.WalkFuncResult{}, nil
@@ -444,7 +456,7 @@ func Run(
 					File:   f,
 					Cache:  cache,
 				}); err != nil {
-					uc.handleError(err)
+					uc.handleError(lang, err)
 				}
 			}
 		}
@@ -467,10 +479,19 @@ func Run(
 				Cache:        cache,
 			})
 			if err != nil {
-				return walk.WalkFuncResult{}, fmt.Errorf("%s: language %s: %w", rel, lang.Name(), err)
+				uc.handleError(lang, err)
 			}
 			if len(res.Gen) != len(res.Imports) {
 				return walk.WalkFuncResult{}, fmt.Errorf("%s: language %s: generated %d rules but returned %d imports", rel, lang.Name(), len(res.Gen), len(res.Imports))
+			}
+			langName := lang.Name()
+			for _, rs := range [][]*rule.Rule{res.Empty, res.Gen} {
+				for _, r := range rs {
+					r.SetPrivateAttr(langPrivateAttr, lang)
+					if kind, ok := kindsByLanguage[languageKind{lang: langName, kind: r.Kind()}]; ok {
+						r.SetPrivateAttr(kindPrivateAttr, kind)
+					}
+				}
 			}
 			empty = append(empty, res.Empty...)
 			gen = append(gen, res.Gen...)
@@ -562,7 +583,7 @@ func Run(
 			}
 		} else {
 			merger.MergeFile(f, empty, gen, merger.PreResolve,
-				unionKindInfoMaps(kinds, mappedKindInfo),
+				makeGetKindInfo(unionKindInfoMaps(kinds, mappedKindInfo)),
 				aliasedKinds,
 			)
 		}
@@ -581,7 +602,9 @@ func Run(
 		// Add library rules to the dependency resolution table.
 		if c.IndexLibraries {
 			for _, r := range f.Rules {
-				ruleIndex.AddRule(c, r, f)
+				if err := ruleIndex.AddRule(ctx, c, r, f); err != nil {
+					uc.handleError(nil, err)
+				}
 			}
 		}
 
@@ -590,7 +613,7 @@ func Run(
 
 	for _, lang := range languages {
 		if err := lang.OnResolve(ctx); err != nil {
-			uc.handleError(err)
+			uc.handleError(lang, err)
 		}
 	}
 
@@ -609,7 +632,7 @@ func Run(
 		}
 	}()
 	if err = maybePopulateRemoteCacheFromGoMod(c, rc); err != nil {
-		uc.handleError(err)
+		uc.handleError(nil, err)
 	}
 	for _, v := range visits {
 		for i, r := range v.rules {
@@ -624,12 +647,12 @@ func Run(
 					Imports:     v.imports[i],
 				})
 				if err != nil {
-					uc.handleError(err)
+					uc.handleError(rslv, err)
 				}
 			}
 		}
 		merger.MergeFile(v.file, v.empty, v.rules, merger.PostResolve,
-			unionKindInfoMaps(kinds, v.mappedKindInfo),
+			makeGetKindInfo(unionKindInfoMaps(kinds, v.mappedKindInfo)),
 			v.aliasedKinds,
 		)
 	}
@@ -647,19 +670,19 @@ func Run(
 			if err == ErrDiff {
 				exit = err
 			} else {
-				uc.handleError(err)
+				uc.handleError(nil, err)
 			}
 		}
 	}
 	if uc.patchPath != "" {
 		if err := os.WriteFile(uc.patchPath, uc.patchBuffer.Bytes(), 0o666); err != nil {
-			uc.handleError(err)
+			uc.handleError(nil, err)
 		}
 	}
 
 	for _, lang := range languages {
 		if err := lang.OnFinish(ctx); err != nil {
-			uc.handleError(err)
+			uc.handleError(lang, err)
 		}
 	}
 
@@ -903,6 +926,18 @@ func maybePopulateRemoteCacheFromGoMod(c *config.Config, rc *repo.RemoteCache) e
 	return rc.PopulateFromGoMod(goModPath)
 }
 
+const (
+	// langPrivateAttr is the name of a private attribute set on each generated
+	// or empty rule, pointing to the language.Lanugage extension that
+	// generated it.
+	langPrivateAttr = "_gazelle_lang"
+
+	// kindPrivateAttr is the name of a private attribute set of each generated
+	// or empty rule, pointing to the rule.KindInfo returned by its extension's
+	// Kinds() method, if any.
+	kindPrivateAttr = "_gazelle_kind"
+)
+
 func unionKindInfoMaps(a, b map[string]rule.KindInfo) map[string]rule.KindInfo {
 	if len(a) == 0 {
 		return b
@@ -918,6 +953,21 @@ func unionKindInfoMaps(a, b map[string]rule.KindInfo) map[string]rule.KindInfo {
 		result[k] = v
 	}
 	return result
+}
+
+// makeGetKindInfo returns a function that may be used with merger.MergeFile
+// for retrieving KindInfo for a rule. If the rule is generated, the function
+// returns KindInfo that was attached to a private attribute. If the rule
+// already existed, the function returns info based on the given kind map.
+// This allows multiple extensions to generate rules of the same kind.
+func makeGetKindInfo(kinds map[string]rule.KindInfo) func(*rule.Rule) rule.KindInfo {
+	return func(r *rule.Rule) rule.KindInfo {
+		kind, ok := r.PrivateAttr(kindPrivateAttr).(rule.KindInfo)
+		if ok {
+			return kind
+		}
+		return kinds[r.Kind()]
+	}
 }
 
 // legacyWorkspaceRepoNames maps Bazel module names from rule.KindInfo.LoadedFrom to

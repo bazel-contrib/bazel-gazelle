@@ -106,18 +106,19 @@ const UnstableInsertIndexKey = "_gazelle_insert_index"
 // If an attribute is marked with a "# keep" comment, it will not be merged.
 // If a rule is marked with a "# keep" comment, the whole rule will not
 // be modified.
-func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phase, kinds map[string]rule.KindInfo, aliasedKinds map[string]string) {
+func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phase, getKindInfo func(*rule.Rule) rule.KindInfo, aliasedKinds map[string]string) {
 	getMergeAttrs := func(r *rule.Rule) map[string]bool {
 		if phase == PreResolve {
-			return kinds[r.Kind()].MergeableAttrs
+			return getKindInfo(r).MergeableAttrs
 		} else {
-			return kinds[r.Kind()].ResolveAttrs
+			return getKindInfo(r).ResolveAttrs
 		}
 	}
 
 	// Merge empty rules into the file and delete any rules which become empty.
 	for _, emptyRule := range emptyRules {
-		if oldRule, _ := match(oldFile.Rules, emptyRule, kinds[emptyRule.Kind()], false, aliasedKinds); oldRule != nil {
+		emptyRuleKindInfo := getKindInfo(emptyRule)
+		if oldRule, _ := match(oldFile.Rules, emptyRule, emptyRuleKindInfo, false, aliasedKinds); oldRule != nil {
 			if oldRule.ShouldKeep() {
 				continue
 			}
@@ -125,11 +126,7 @@ func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phas
 			// Resolve aliased kinds to look up the correct KindInfo.
 			// e.g., if oldRule is "my_py_library" aliased to "py_library",
 			// use KindInfo for "py_library" to determine emptiness.
-			kindForInfo := oldRule.Kind()
-			if underlying, ok := aliasedKinds[kindForInfo]; ok {
-				kindForInfo = underlying
-			}
-			if oldRule.IsEmpty(kinds[kindForInfo]) {
+			if oldRule.IsEmpty(emptyRuleKindInfo) {
 				oldRule.Delete()
 			}
 		}
@@ -142,7 +139,7 @@ func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phas
 	matchErrors := make([]error, len(genRules))
 	substitutions := make(map[string]string)
 	for i, genRule := range genRules {
-		oldRule, err := Match(oldFile.Rules, genRule, kinds[genRule.Kind()], aliasedKinds)
+		oldRule, err := Match(oldFile.Rules, genRule, getKindInfo(genRule), aliasedKinds)
 		if err != nil {
 			// TODO(jayconrod): add a verbose mode and log errors. They are too chatty
 			// to print by default.
@@ -160,7 +157,7 @@ func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phas
 	// Rename labels in generated rules that refer to other generated rules.
 	if len(substitutions) > 0 {
 		for _, genRule := range genRules {
-			substituteRule(genRule, substitutions, kinds[genRule.Kind()])
+			substituteRule(genRule, substitutions, getKindInfo(genRule))
 		}
 	}
 
