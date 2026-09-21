@@ -17,6 +17,7 @@ package resolve
 
 import (
 	"context"
+	"log"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/label"
 	v2 "github.com/bazel-contrib/bazel-gazelle/v2/resolve"
@@ -153,7 +154,9 @@ func (a crossResolverAdapter) Find(ctx context.Context, args v2.FindArgs) ([]v2.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/resolve.RuleIndex.AddRule instead.
 func (ix *RuleIndex) AddRule(c *config.Config, r *rule.Rule, f *rule.File) {
-	ix.v2.AddRule(c, r, f)
+	if err := ix.v2.AddRule(context.Background(), c, r, f); err != nil {
+		log.Print(err)
+	}
 }
 
 // Finish constructs the import index and performs any other necessary indexing

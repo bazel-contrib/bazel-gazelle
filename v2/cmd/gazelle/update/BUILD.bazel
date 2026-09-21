@@ -10,6 +10,7 @@ go_library(
         "print.go",
         "profiler.go",
         "update.go",
+        "version.go",
     ],
     importpath = "github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update",
     visibility = ["//visibility:public"],
@@ -68,6 +69,7 @@ filegroup(
         "profiler_test.go",
         "update.go",
         "update_test.go",
+        "version.go",
     ],
     visibility = ["//visibility:public"],
 )

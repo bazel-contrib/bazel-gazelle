@@ -218,7 +218,7 @@ var _ Configurer = (*CommonConfigurer)(nil)
 
 func (cc *CommonConfigurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *Config) {
 	cc.indexLibraries = true
-	cc.indexLazy = false
+	cc.indexLazy = true
 	fs.StringVar(&cc.repoRoot, "repo_root", "", "path to a directory which corresponds to go_prefix, otherwise gazelle searches for it.")
 	fs.Var(indexFlag{indexLibraries: &cc.indexLibraries, indexLazy: &cc.indexLazy}, "index", "determines how Gazelle indexes library rules. 'all' means index all libraries in all repo directories. 'lazy' means specific directories, determined by extensions. 'none' means indexing is disabled.")
 	fs.BoolVar(&cc.strict, "strict", false, "when true, gazelle will update as much as it can but will exit non-zero after errors")

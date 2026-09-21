@@ -17,6 +17,7 @@ package resolve
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
@@ -212,7 +213,7 @@ func NewRuleIndex(mrslv func(r *rule.Rule, pkgRel string) Indexer, finders []Fin
 // non-nil slice.
 //
 // AddRule may only be called before Finish.
-func (ix *RuleIndex) AddRule(c *config.Config, r *rule.Rule, f *rule.File) {
+func (ix *RuleIndex) AddRule(ctx context.Context, c *config.Config, r *rule.Rule, f *rule.File) error {
 	if ix.indexed {
 		log.Fatal("AddRule called after Finish")
 	}
@@ -226,16 +227,14 @@ func (ix *RuleIndex) AddRule(c *config.Config, r *rule.Rule, f *rule.File) {
 	if rslv := ix.mrslv(r, f.Pkg); rslv != nil {
 		lang = rslv.Name()
 		if passesLanguageFilter(c.Langs, lang) {
-			result, err := rslv.Imports(context.TODO(), ImportsArgs{
+			result, err := rslv.Imports(ctx, ImportsArgs{
 				Config: c,
 				Rule:   r,
 				File:   f,
 				From:   l,
 			})
 			if err != nil {
-				// TODO(v2): return
-				log.Print(err)
-				return
+				return fmt.Errorf("language %s: %w", lang, err)
 			}
 			imps = result.Imports
 			for _, e := range result.Embeds {
@@ -246,7 +245,7 @@ func (ix *RuleIndex) AddRule(c *config.Config, r *rule.Rule, f *rule.File) {
 	// If imps == nil, the rule is not importable. If imps is the empty slice,
 	// it may still be importable if it embeds importable libraries.
 	if imps == nil {
-		return
+		return nil
 	}
 
 	record := &ruleRecord{
@@ -259,6 +258,7 @@ func (ix *RuleIndex) AddRule(c *config.Config, r *rule.Rule, f *rule.File) {
 		Lang:       lang,
 	}
 	ix.rules = append(ix.rules, record)
+	return nil
 }
 
 // Finish constructs the import index and performs any other necessary indexing
