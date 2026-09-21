@@ -530,7 +530,7 @@ func Run(
 			}
 			if len(res.Imports) > 0 {
 				if len(res.Gen) != len(res.Imports) {
-					uc.handleError(lang, fmt.Errorf("%s: generated %d rules but returned %d imports", rel, len(res.Gen), len(res.Imports)))
+					handleError(lang, fmt.Errorf("%s: generated %d rules but returned %d imports", rel, len(res.Gen), len(res.Imports)))
 					// Ignore res.Gen if res.Imports was set incorrectly.
 					continue
 				}
@@ -643,7 +643,7 @@ func Run(
 				GetKindInfo:  makeGetKindInfo(unionKindInfoMaps(kinds, mappedKindInfo)),
 				AliasedKinds: aliasedKinds,
 			}); err != nil {
-				uc.handleError(nil, err)
+				handleError(nil, err)
 			}
 		}
 		visits = append(visits, visitRecord{
@@ -717,7 +717,7 @@ func Run(
 			GetKindInfo:  makeGetKindInfo(unionKindInfoMaps(kinds, v.mappedKindInfo)),
 			AliasedKinds: v.aliasedKinds,
 		}); err != nil {
-			uc.handleError(nil, err)
+			handleError(nil, err)
 		}
 	}
 

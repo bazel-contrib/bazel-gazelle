@@ -1035,7 +1035,7 @@ go_library(
 	}
 	for _, r := range f.Rules {
 		imports := convertImportsAttr(r)
-		resolveGo(t, gl, c, ix, rc, r, imports, label.New("", "", r.Name()))
+		resolveGoForTest(t, gl, c, ix, rc, r, imports, label.New("", "", r.Name()))
 	}
 	f.Sync()
 	got := strings.TrimSpace(string(bzl.Format(f.File)))
@@ -1235,7 +1235,7 @@ func TestResolveExternal(t *testing.T) {
 			rc := testRemoteCache(tc.repos)
 			r := rule.NewRule("go_library", "x")
 			imports := rule.PlatformStrings{Generic: []string{tc.importpath}}
-			resolveGo(t, gl, c, ix, rc, r, imports, label.New("", "", "x"))
+			resolveGoForTest(t, gl, c, ix, rc, r, imports, label.New("", "", "x"))
 			deps := r.AttrStrings("deps")
 			if tc.want == "" {
 				if len(deps) != 0 {
