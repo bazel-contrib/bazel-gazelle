@@ -132,8 +132,9 @@ type ResolveArgs struct {
 	// TODO(v2): definitely remove usage of this and refactor it out.
 	RemoteCache *repo.RemoteCache
 
-	// Imports is returned by GenerateRules.
-	// TODO(v2): try to remove all usage of this, then refactor it out.
+	// Imports contains information about imported libraries, returned in
+	// GenerateResult.Imports. If GenerateResult.Imports was nil, then
+	// Imports here is nil, too.
 	Imports any
 }
 

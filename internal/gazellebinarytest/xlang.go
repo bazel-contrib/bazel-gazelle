@@ -44,7 +44,6 @@ func (x *xlang) Kinds() []rule.KindInfo {
 
 func (x *xlang) Generate(ctx context.Context, args language.GenerateArgs) (language.GenerateResult, error) {
 	return language.GenerateResult{
-		Gen:     []*rule.Rule{rule.NewRule("x_library", "x_default_library")},
-		Imports: []any{nil},
+		Gen: []*rule.Rule{rule.NewRule("x_library", "x_default_library")},
 	}, nil
 }
