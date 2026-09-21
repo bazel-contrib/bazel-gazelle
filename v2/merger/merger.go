@@ -70,28 +70,42 @@ const (
 // TODO(jayconrod): make this stable *or* find a better way to express it.
 const UnstableInsertIndexKey = "_gazelle_insert_index"
 
+type MergeFileArgs struct {
+	// File is the file to merge. It must not be nil.
+	File *rule.File
+
+	// Empty is a list of stub rules (with no attributes other than name)
+	// which were not generated. These are merged with matching rules. The merged
+	// rules are deleted if they contain no attributes that make them buildable
+	// (e.g., srcs, deps, anything in rule.KindInfo.NonEmptyAttrs).
+	Empty []*rule.Rule
+
+	// Gen is a list of newly generated rules. These are merged with
+	// matching rules. A rule matches if it has the same kind and name or if
+	// some other attribute in rule.KindInfo.MatchAttrs matches (e.g.,
+	// "importpath" in go_library). Elements of Gen that don't match
+	// any existing rule are appended to the end of File.
+	Gen []*rule.Rule
+
+	// Phase indicates whether this is a pre- or post-resolve merge. Different
+	// attributes (rule.KindInfo.MergeableAttrs or ResolveAttrs) will be merged.
+	Phase Phase
+
+	// GetKindInfo returns metadata that describes which attributes are mergeable,
+	// when a merged rule is empty, and so on. GetKindInfo must not be nil.
+	// GetKindInfo will only be called on rules in Gen and Empty.
+	GetKindInfo func(*rule.Rule) rule.KindInfo
+
+	// AliasedKinds maps original kind names to aliased kind names. For example,
+	// if a BUILD file contains a directive
+	// "# gazelle:alias_kind go_library my_go_library",
+	// then this map would contain a key "go_library" and value "my_go_library".
+	AliasedKinds map[string]string
+}
+
 // MergeFile combines information from newly generated rules with matching
 // rules in an existing build file. MergeFile can also delete rules which
 // are empty after merging.
-//
-// oldFile is the file to merge. It must not be nil.
-//
-// emptyRules is a list of stub rules (with no attributes other than name)
-// which were not generated. These are merged with matching rules. The merged
-// rules are deleted if they contain no attributes that make them buildable
-// (e.g., srcs, deps, anything in rule.KindInfo.NonEmptyAttrs).
-//
-// genRules is a list of newly generated rules. These are merged with
-// matching rules. A rule matches if it has the same kind and name or if
-// some other attribute in rule.KindInfo.MatchAttrs matches (e.g.,
-// "importpath" in go_library). Elements of genRules that don't match
-// any existing rule are appended to the end of oldFile.
-//
-// phase indicates whether this is a pre- or post-resolve merge. Different
-// attributes (rule.KindInfo.MergeableAttrs or ResolveAttrs) will be merged.
-//
-// kinds maps rule kinds (e.g., "go_library") to metadata that helps merge
-// rules of that kind.
 //
 // When a generated and existing rule are merged, each attribute is merged
 // separately. If an attribute is mergeable (according to KindInfo), values
@@ -106,7 +120,14 @@ const UnstableInsertIndexKey = "_gazelle_insert_index"
 // If an attribute is marked with a "# keep" comment, it will not be merged.
 // If a rule is marked with a "# keep" comment, the whole rule will not
 // be modified.
-func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phase, getKindInfo func(*rule.Rule) rule.KindInfo, aliasedKinds map[string]string) {
+func MergeFile(args MergeFileArgs) error {
+	file := args.File
+	emptyRules := args.Empty
+	genRules := args.Gen
+	phase := args.Phase
+	getKindInfo := args.GetKindInfo
+	aliasedKinds := args.AliasedKinds
+
 	getMergeAttrs := func(r *rule.Rule) map[string]bool {
 		if phase == PreResolve {
 			return getKindInfo(r).MergeableAttrs
@@ -118,11 +139,11 @@ func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phas
 	// Merge empty rules into the file and delete any rules which become empty.
 	for _, emptyRule := range emptyRules {
 		emptyRuleKindInfo := getKindInfo(emptyRule)
-		if oldRule, _ := match(oldFile.Rules, emptyRule, emptyRuleKindInfo, false, aliasedKinds); oldRule != nil {
+		if oldRule, _ := match(file.Rules, emptyRule, emptyRuleKindInfo, false, aliasedKinds); oldRule != nil {
 			if oldRule.ShouldKeep() {
 				continue
 			}
-			rule.MergeRules(emptyRule, oldRule, getMergeAttrs(emptyRule), oldFile.Path)
+			rule.MergeRules(emptyRule, oldRule, getMergeAttrs(emptyRule), file.Path)
 			// Resolve aliased kinds to look up the correct KindInfo.
 			// e.g., if oldRule is "my_py_library" aliased to "py_library",
 			// use KindInfo for "py_library" to determine emptiness.
@@ -131,7 +152,7 @@ func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phas
 			}
 		}
 	}
-	oldFile.Sync()
+	file.Sync()
 
 	// Match generated rules with existing rules in the file. Keep track of
 	// rules with non-standard names.
@@ -139,7 +160,7 @@ func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phas
 	matchErrors := make([]error, len(genRules))
 	substitutions := make(map[string]string)
 	for i, genRule := range genRules {
-		oldRule, err := Match(oldFile.Rules, genRule, getKindInfo(genRule), aliasedKinds)
+		oldRule, err := Match(file.Rules, genRule, getKindInfo(genRule), aliasedKinds)
 		if err != nil {
 			// TODO(jayconrod): add a verbose mode and log errors. They are too chatty
 			// to print by default.
@@ -168,14 +189,15 @@ func MergeFile(oldFile *rule.File, emptyRules, genRules []*rule.Rule, phase Phas
 		}
 		if matchRules[i] == nil {
 			if index, ok := genRule.PrivateAttr(UnstableInsertIndexKey).(int); ok {
-				genRule.InsertAt(oldFile, index)
+				genRule.InsertAt(file, index)
 			} else {
-				genRule.Insert(oldFile)
+				genRule.Insert(file)
 			}
 		} else {
-			rule.MergeRules(genRule, matchRules[i], getMergeAttrs(genRule), oldFile.Path)
+			rule.MergeRules(genRule, matchRules[i], getMergeAttrs(genRule), file.Path)
 		}
 	}
+	return nil
 }
 
 // substituteRule replaces local labels (those beginning with ":", referring to
