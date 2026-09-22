@@ -36,6 +36,13 @@ _GAZELLE_BINARY_CONFIGS = [
         "gazelle_with_visibility",
         ["//language/bazel/visibility"],
     ],
+    [
+        "gazelle_test_same_kind",
+        [
+            "//internal/language/test_same_kind_1",
+            "//internal/language/test_same_kind_2",
+        ],
+    ],
 ]
 
 [gazelle_binary(

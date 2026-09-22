@@ -29,4 +29,7 @@ def get_binary(target):
     if "package_at_top" in target or "package_rule" in target:
         return ":gazelle_with_visibility"
 
+    if "same_kind" in target:
+        return ":gazelle_test_same_kind"
+
     return ":gazelle"

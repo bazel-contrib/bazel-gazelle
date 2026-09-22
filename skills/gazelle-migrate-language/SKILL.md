@@ -25,11 +25,12 @@ For reference, the v2 proposal is [discussion #2207](https://github.com/bazel-co
 3. **Update Go imports.** Change import paths from `github.com/bazelbuild/bazel-gazelle/...` to `github.com/bazel-contrib/bazel-gazelle/v2/...`.
 4. **Rename the constructor.** Change `NewLanguage()` to `NewV2()`.
 5. **Migrate methods.** Update each method to its v2 signature (see [Methods](#methods) below). Drop `language.BaseLang` embedding, remove no-op methods, and add v2 static interface assertions.
-6. **Update `gazelle_binary`.** Set `version = 2` in the root `BUILD.bazel`.
-7. **Update Bazel deps.** Change Gazelle `deps` from `@gazelle//...` to `@gazelle//v2/...` (run `bazel run //:gazelle` after updating Go imports).
-8. **Update tests.** Migrate unit tests to v2 types; add `gazelle_generation_test` integration tests where appropriate.
-9. **Verify.** Build and run tests for the extension and any `gazelle_binary` that includes it.
-10. **Clean up.** Run Gazelle (`bazel run //:gazelle`) to clean up any `BUILD.bazel` files that need it, especially after deleting files or imports.
+6. **Plumb context.** Most methods now accept `context.Context`. Pass this to anything that executes a command or sends a network request. Check for cancellation before and during long-running operations.
+7. **Update `gazelle_binary`.** Set `version = 2` in the root `BUILD.bazel`.
+8. **Update Bazel deps.** Change Gazelle `deps` from `@gazelle//...` to `@gazelle//v2/...` (run `bazel run //:gazelle` after updating Go imports).
+9. **Update tests.** Migrate unit tests to v2 types; add `gazelle_generation_test` integration tests where appropriate.
+10. **Verify.** Build and run tests for the extension and any `gazelle_binary` that includes it.
+11. **Clean up.** Run Gazelle (`bazel run //:gazelle`) to clean up any `BUILD.bazel` files that need it, especially after deleting files or imports.
 
 ## Changes
 
@@ -129,6 +130,8 @@ These methods were squashed into `Kinds`. Populate the `KindInfo.Load` and `Name
 
 - Old: `GenerateRules(args GenerateArgs) GenerateResult`
 - New: `Generate(context.Context, GenerateArgs) (GenerateResult, error)` — method was renamed.
+
+If `GenerateResult.Imports` is set to a list of `nil` values, it may be dropped. In v2, this list is optional.
 
 #### `language.Fixer`
 

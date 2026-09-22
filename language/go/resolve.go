@@ -27,18 +27,17 @@ import (
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 	"github.com/bazel-contrib/bazel-gazelle/v2/label"
 	"github.com/bazel-contrib/bazel-gazelle/v2/pathtools"
-	"github.com/bazelbuild/bazel-gazelle/repo"
 	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
+	"github.com/bazelbuild/bazel-gazelle/repo"
 )
 
 func (*goLang) Imports(_ context.Context, args resolve.ImportsArgs) (resolve.ImportsResult, error) {
 	r := args.Rule
-	from := args.From
 	if !isGoLibrary(r.Kind()) || isExtraLibrary(r) {
 		return resolve.ImportsResult{NotImportable: true}, nil
 	}
-	embeds := embedLabels(r, from)
+	embeds := embedLabels(r, args.Config.RepoName, args.File.Pkg)
 	importPath := r.AttrString("importpath")
 	if importPath == "" {
 		return resolve.ImportsResult{
@@ -55,7 +54,7 @@ func (*goLang) Imports(_ context.Context, args resolve.ImportsArgs) (resolve.Imp
 	}, nil
 }
 
-func embedLabels(r *rule.Rule, from label.Label) []label.Label {
+func embedLabels(r *rule.Rule, repoName, pkgName string) []label.Label {
 	embedStrings := r.AttrStrings("embed")
 	if isGoProtoLibrary(r.Kind()) {
 		embedStrings = append(embedStrings, r.AttrString("proto"))
@@ -67,13 +66,13 @@ func embedLabels(r *rule.Rule, from label.Label) []label.Label {
 		if err != nil {
 			continue
 		}
-		l = l.Abs(from.Repo, from.Pkg)
+		l = l.Abs(repoName, pkgName)
 		embedLabels = append(embedLabels, l)
 	}
 	return embedLabels
 }
 
-func (gl *goLang) Resolve(_ context.Context, args resolve.ResolveArgs) error {
+func (gl *goLang) Resolve(ctx context.Context, args resolve.ResolveArgs) error {
 	c := args.Config
 	ix := args.Index
 	rc := args.RemoteCache
@@ -86,16 +85,16 @@ func (gl *goLang) Resolve(_ context.Context, args resolve.ResolveArgs) error {
 	}
 	imports := importsRaw.(rule.PlatformStrings)
 	r.DelAttr("deps")
-	var resolveFn func(*config.Config, *resolve.RuleIndex, *repo.RemoteCache, string, label.Label) (label.Label, error)
+	var resolveFn func(context.Context, *config.Config, *resolve.RuleIndex, *repo.RemoteCache, string, label.Label) (label.Label, error)
 	switch r.Kind() {
 	case "go_proto_library":
 		resolveFn = resolveProto
 	default:
-		resolveFn = ResolveGo
+		resolveFn = resolveGo
 	}
-	embeds := embedLabels(r, from)
+	embeds := embedLabels(r, args.From.Repo, args.From.Pkg)
 	deps, errs := imports.Map(func(imp string) (string, error) {
-		l, err := resolveFn(c, ix, rc, imp, from)
+		l, err := resolveFn(ctx, c, ix, rc, imp, from)
 		if err == errSkipImport {
 			return "", nil
 		} else if err != nil {
@@ -140,6 +139,10 @@ var (
 // This may be used directly by other language extensions related to Go
 // (gomock). Gazelle calls Language.Resolve instead.
 func ResolveGo(c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, imp string, from label.Label) (label.Label, error) {
+	return resolveGo(context.TODO(), c, ix, rc, imp, from)
+}
+
+func resolveGo(ctx context.Context, c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, imp string, from label.Label) (label.Label, error) {
 	gc := getGoConfig(c)
 	if build.IsLocalImport(imp) {
 		cleanRel := path.Clean(path.Join(from.Pkg, imp))
@@ -157,7 +160,7 @@ func ResolveGo(c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, im
 		return l, nil
 	}
 
-	if l, err := resolveWithIndexGo(c, ix, imp, from); err == nil || err == errSkipImport {
+	if l, err := resolveWithIndexGo(ctx, c, ix, imp, from); err == nil || err == errSkipImport {
 		return l, err
 	} else if err != errNotFound {
 		return label.NoLabel, err
@@ -190,7 +193,7 @@ func ResolveGo(c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, im
 	if gc.depMode == vendorMode {
 		return resolveVendored(gc, imp)
 	}
-	var resolveFn func(string) (string, string, error)
+	var resolveFn resolveRootFunc
 	if gc.depMode == staticMode {
 		resolveFn = rc.RootStatic
 	} else if gc.moduleMode || pathWithoutSemver(imp) != "" {
@@ -206,8 +209,11 @@ func IsStandard(imp string) bool {
 	return stdPackages[imp]
 }
 
-func resolveWithIndexGo(c *config.Config, ix *resolve.RuleIndex, imp string, from label.Label) (label.Label, error) {
-	matches := ix.FindRulesByImportWithConfig(c, resolve.ImportSpec{Lang: "go", Imp: imp}, "go")
+func resolveWithIndexGo(ctx context.Context, c *config.Config, ix *resolve.RuleIndex, imp string, from label.Label) (label.Label, error) {
+	matches, err := ix.Find(ctx, c, resolve.ImportSpec{Lang: "go", Imp: imp}, "go")
+	if err != nil {
+		return label.NoLabel, err
+	}
 	var bestMatch resolve.FindResult
 	var bestMatchIsVendored bool
 	var bestMatchVendorRoot string
@@ -278,8 +284,10 @@ func resolveWithIndexGo(c *config.Config, ix *resolve.RuleIndex, imp string, fro
 	return bestMatch.Label, nil
 }
 
-func resolveToExternalLabel(c *config.Config, resolveFn func(string) (string, string, error), imp string) (label.Label, error) {
-	prefix, repo, err := resolveFn(imp)
+type resolveRootFunc func(importPath string) (root, name, prefixDir string, _ error)
+
+func resolveToExternalLabel(c *config.Config, resolveFn resolveRootFunc, imp string) (label.Label, error) {
+	prefix, repo, prefixDir, err := resolveFn(imp)
 	if err != nil {
 		return label.NoLabel, err
 	} else if prefix == "" && repo == "" {
@@ -288,11 +296,11 @@ func resolveToExternalLabel(c *config.Config, resolveFn func(string) (string, st
 
 	var pkg string
 	if pathtools.HasPrefix(imp, prefix) {
-		pkg = pathtools.TrimPrefix(imp, prefix)
+		pkg = path.Join(prefixDir, pathtools.TrimPrefix(imp, prefix))
 	} else if impWithoutSemver := pathWithoutSemver(imp); pathtools.HasPrefix(impWithoutSemver, prefix) {
 		// We may have used minimal module compatibility to resolve a path
 		// without a semantic import version suffix to a repository that has one.
-		pkg = pathtools.TrimPrefix(impWithoutSemver, prefix)
+		pkg = path.Join(prefixDir, pathtools.TrimPrefix(impWithoutSemver, prefix))
 	}
 
 	// Determine what naming convention is used by the repository.
@@ -327,7 +335,7 @@ func resolveVendored(gc *goConfig, imp string) (label.Label, error) {
 	return label.New("", path.Join("vendor", imp), name), nil
 }
 
-func resolveProto(c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, imp string, from label.Label) (label.Label, error) {
+func resolveProto(ctx context.Context, c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, imp string, from label.Label) (label.Label, error) {
 	if wellKnownProtos[imp] {
 		return label.NoLabel, errSkipImport
 	}
@@ -336,7 +344,7 @@ func resolveProto(c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache,
 		return l, nil
 	}
 
-	if l, err := resolveWithIndexProto(c, ix, imp, from); err == nil || err == errSkipImport {
+	if l, err := resolveWithIndexProto(ctx, c, ix, imp, from); err == nil || err == errSkipImport {
 		return l, err
 	} else if err != errNotFound {
 		return label.NoLabel, err
@@ -376,8 +384,11 @@ var wellKnownProtos = map[string]bool{
 	"google/protobuf/wrappers.proto":        true,
 }
 
-func resolveWithIndexProto(c *config.Config, ix *resolve.RuleIndex, imp string, from label.Label) (label.Label, error) {
-	matches := ix.FindRulesByImportWithConfig(c, resolve.ImportSpec{Lang: "proto", Imp: imp}, "go")
+func resolveWithIndexProto(ctx context.Context, c *config.Config, ix *resolve.RuleIndex, imp string, from label.Label) (label.Label, error) {
+	matches, err := ix.Find(ctx, c, resolve.ImportSpec{Lang: "proto", Imp: imp}, "go")
+	if err != nil {
+		return label.NoLabel, err
+	}
 	if len(matches) == 0 {
 		return label.NoLabel, errNotFound
 	}

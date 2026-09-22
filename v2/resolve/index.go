@@ -17,6 +17,8 @@ package resolve
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
@@ -35,7 +37,7 @@ type ImportSpec struct {
 // Indexer is an interface that language extensions can implement to list the
 // names by which a rule can be imported.
 type Indexer interface {
-	// TODO(v2): remove this
+	// Name is the name of the extension, as returned by language.Language.Name.
 	Name() string
 
 	// Imports returns the names by which a rule can be imported. These names are
@@ -52,9 +54,6 @@ type ImportsArgs struct {
 
 	// File is the build file that contains Rule.
 	File *rule.File
-
-	// TODO(v2): try to refactor this out or document it
-	From label.Label
 }
 
 type ImportsResult struct {
@@ -81,6 +80,9 @@ type ImportsResult struct {
 // that it's aware of, but the user may have a custom proto compiler, rule set,
 // and Gazelle extension.
 type Finder interface {
+	// Name is the name of the extension, as returned by language.Language.Name.
+	Name() string
+
 	// Find returns a list of libraries that can be imported with the given
 	// import string. Each extension's Find method is called by RuleIndex if
 	// a rule was not located within the index.
@@ -128,18 +130,23 @@ type ResolveArgs struct {
 	// From is Rule's Bazel label.
 	From label.Label
 
-	// TODO(v2): definitely remove usage of this and refactor it out.
+	// TODO(v2): definitely remove usage of this and refactor it out, after #2458.
 	RemoteCache *repo.RemoteCache
 
-	// Imports is returned by GenerateRules.
-	// TODO(v2): try to remove all usage of this, then refactor it out.
+	// Imports contains information about imported libraries, returned in
+	// GenerateResult.Imports. If GenerateResult.Imports was nil, then
+	// Imports here is nil, too.
 	Imports any
 }
 
 // RuleIndex is a table of rules in a workspace, indexed by label and by
 // import path. Used by Resolver to map import paths to labels.
 type RuleIndex struct {
-	mrslv   func(r *rule.Rule, pkgRel string) Indexer
+	// A function that returns an Indexer for a given rule in pkgRel, a
+	// slash-separated directory path relative to the repository root.
+	indexerForRule func(r *rule.Rule, pkgRel string) Indexer
+
+	// List of extensions implementing the Finder interface.
 	finders []Finder
 
 	// The underlying state of rules. All indexing should be reproducible from this.
@@ -198,12 +205,16 @@ type ruleRecord struct {
 
 // NewRuleIndex creates a new index.
 //
-// kindToResolver is a map from rule kinds (for example, "go_library") to
-// Resolvers that support those kinds.
-func NewRuleIndex(mrslv func(r *rule.Rule, pkgRel string) Indexer, finders []Finder) *RuleIndex {
+// indexerForRule returns an Indexer for a given rule in pkgRel, a
+// slash-separated directory path relative to the repository root. For example,
+// this might return the extension that generated the rule, or the extension
+// responsible for indexing rule of this kind (considering alias_kind).
+//
+// finders is a list of all extensions implementing the Finder interface.
+func NewRuleIndex(indexerForRule func(r *rule.Rule, pkgRel string) Indexer, finders []Finder) *RuleIndex {
 	return &RuleIndex{
-		mrslv:   mrslv,
-		finders: finders,
+		indexerForRule: indexerForRule,
+		finders:        finders,
 	}
 }
 
@@ -212,7 +223,7 @@ func NewRuleIndex(mrslv func(r *rule.Rule, pkgRel string) Indexer, finders []Fin
 // non-nil slice.
 //
 // AddRule may only be called before Finish.
-func (ix *RuleIndex) AddRule(c *config.Config, r *rule.Rule, f *rule.File) {
+func (ix *RuleIndex) AddRule(ctx context.Context, c *config.Config, r *rule.Rule, f *rule.File) error {
 	if ix.indexed {
 		log.Fatal("AddRule called after Finish")
 	}
@@ -223,19 +234,16 @@ func (ix *RuleIndex) AddRule(c *config.Config, r *rule.Rule, f *rule.File) {
 
 	l := label.New(c.RepoName, f.Pkg, r.Name())
 
-	if rslv := ix.mrslv(r, f.Pkg); rslv != nil {
+	if rslv := ix.indexerForRule(r, f.Pkg); rslv != nil {
 		lang = rslv.Name()
 		if passesLanguageFilter(c.Langs, lang) {
-			result, err := rslv.Imports(context.TODO(), ImportsArgs{
+			result, err := rslv.Imports(ctx, ImportsArgs{
 				Config: c,
 				Rule:   r,
 				File:   f,
-				From:   l,
 			})
 			if err != nil {
-				// TODO(v2): return
-				log.Print(err)
-				return
+				return fmt.Errorf("language %s: %w", lang, err)
 			}
 			imps = result.Imports
 			for _, e := range result.Embeds {
@@ -246,7 +254,7 @@ func (ix *RuleIndex) AddRule(c *config.Config, r *rule.Rule, f *rule.File) {
 	// If imps == nil, the rule is not importable. If imps is the empty slice,
 	// it may still be importable if it embeds importable libraries.
 	if imps == nil {
-		return
+		return nil
 	}
 
 	record := &ruleRecord{
@@ -259,14 +267,14 @@ func (ix *RuleIndex) AddRule(c *config.Config, r *rule.Rule, f *rule.File) {
 		Lang:       lang,
 	}
 	ix.rules = append(ix.rules, record)
+	return nil
 }
 
 // Finish constructs the import index and performs any other necessary indexing
 // actions after all rules have been added. This step is necessary because
 // a rule may be indexed differently based on what rules are added later.
 //
-// Finish must be called after all AddRule calls and before any
-// FindRulesByImport calls.
+// Finish must be called after all AddRule calls and before any Find calls.
 func (ix *RuleIndex) Finish() {
 	ix.labelMap = make(map[label.Label]*ruleRecord)
 	ix.imports = make(map[label.Label][]ImportSpec)
@@ -301,7 +309,7 @@ func (ix *RuleIndex) collectRecordEmbeds(r *ruleRecord, didCollectEmbeds map[lab
 	if _, ok := didCollectEmbeds[r.Label]; ok {
 		return
 	}
-	resolver := ix.mrslv(r.rule, r.Pkg)
+	resolver := ix.indexerForRule(r.rule, r.Pkg)
 	didCollectEmbeds[r.Label] = true
 	ix.embeds[r.Label] = r.Embeds
 	for _, e := range r.Embeds {
@@ -310,7 +318,7 @@ func (ix *RuleIndex) collectRecordEmbeds(r *ruleRecord, didCollectEmbeds map[lab
 			continue
 		}
 		ix.collectRecordEmbeds(er, didCollectEmbeds)
-		erResolver := ix.mrslv(er.rule, er.Pkg)
+		erResolver := ix.indexerForRule(er.rule, er.Pkg)
 		if resolver.Name() == erResolver.Name() {
 			ix.embedded[er.Label] = struct{}{}
 			ix.embeds[r.Label] = append(ix.embeds[r.Label], ix.embeds[er.Label]...)
@@ -348,21 +356,20 @@ type FindResult struct {
 	Embeds []label.Label
 }
 
-// FindRulesByImport attempts to resolve an import string to a rule record.
-// imp is the import to resolve (which includes the target language). lang is
-// the language of the rule with the dependency (for example, in
-// go_proto_library, imp will have ProtoLang and lang will be GoLang).
-// from is the rule which is doing the dependency. This is used to check
-// vendoring visibility and to check for self-imports.
+// Find attempts to resolve an import.
 //
-// FindRulesByImport returns a list of rules, since any number of rules may
-// provide the same import. Callers may need to resolve ambiguities using
-// language-specific heuristics.
+// c is the configuration for the directory containing the import.
 //
-// DEPRECATED: use FindRulesByImportWithConfig instead
+// imp describes the import. It contains an import string and language of
+// the thing being imported.
 //
-// TODO(v2): Delete this.
-func (ix *RuleIndex) FindRulesByImport(imp ImportSpec, lang string) []FindResult {
+// lang is the language of the source code where imp was found.
+//
+// If one or more libraries matching imp were previously added to the index with
+// AddRule, then Find returns those libraries. Otherwise, Find calls the Find
+// method of each enabled Finder implementation and returns the combined
+// list of results, along with any returned errors.
+func (ix *RuleIndex) Find(ctx context.Context, c *config.Config, imp ImportSpec, lang string) ([]FindResult, error) {
 	matches := ix.importMap[imp]
 	results := make([]FindResult, 0, len(matches))
 	for _, m := range matches {
@@ -374,33 +381,34 @@ func (ix *RuleIndex) FindRulesByImport(imp ImportSpec, lang string) []FindResult
 			Embeds: ix.embeds[m.Label],
 		})
 	}
-	return results
-}
-
-// FindRulesByImportWithConfig attempts to resolve an import to a rule first by
-// checking the rule index, then if no matches are found any registered
-// CrossResolve implementations are called.
-//
-// TODO(v2): Rename to Find.
-func (ix *RuleIndex) FindRulesByImportWithConfig(c *config.Config, imp ImportSpec, lang string) []FindResult {
-	results := ix.FindRulesByImport(imp, lang)
 	if len(results) > 0 {
-		return results
+		return results, nil
 	}
+
+	if c == nil {
+		// Allow c == nil for compatibility with v1 RuleIndex.FindRulesByImport.
+		// Don't call Finder.Find, since those methods may assume c != nil.
+		return nil, nil
+	}
+
+	var errs []error
 	for _, f := range ix.finders {
-		// TODO(v2): plumb context, handle error
-		rs, err := f.Find(context.TODO(), FindArgs{
+		if !passesLanguageFilter(c.Langs, f.Name()) {
+			continue
+		}
+		rs, err := f.Find(ctx, FindArgs{
 			Config: c,
 			Index:  ix,
 			Import: imp,
 			Lang:   lang,
 		})
 		if err != nil {
-			log.Print(err)
+			errs = append(errs, fmt.Errorf("finder %s: %w", f.Name(), err))
+			// fallthrough
 		}
 		results = append(results, rs...)
 	}
-	return results
+	return results, errors.Join(errs...)
 }
 
 // IsSelfImport returns true if the result's label matches the given label
@@ -419,10 +427,10 @@ func (r FindResult) IsSelfImport(from label.Label) bool {
 	return false
 }
 
-// passesLanguageFilter returns true if the filter is empty (disabled) or if the
-// given language name appears in it.
+// passesLanguageFilter returns whether the language is enabled in the
+// current directory.
 func passesLanguageFilter(langFilter []string, langName string) bool {
-	if len(langFilter) == 0 {
+	if len(langFilter) == 0 || langName == "" {
 		return true
 	}
 	for _, l := range langFilter {

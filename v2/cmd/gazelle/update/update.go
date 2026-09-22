@@ -68,11 +68,6 @@ type updateConfig struct {
 	printVersion           bool
 }
 
-func (uc *updateConfig) handleError(err error) {
-	// TODO(#499): add a -strict flag. When enabled, print the error and exit non-zero.
-	log.Print(err)
-}
-
 type emitFunc func(c *config.Config, f *rule.File) error
 
 var modeFromName = map[string]emitFunc{
@@ -268,8 +263,9 @@ func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) erro
 				name = r.Name()
 			}
 			uc.repos = append(uc.repos, repo.Repo{
-				Name:     name,
-				GoPrefix: r.AttrString("importpath"),
+				Name:      name,
+				GoPrefix:  r.AttrString("importpath"),
+				PrefixDir: r.AttrString("prefix_dir"),
 			})
 		}
 	}
@@ -325,9 +321,6 @@ type visitRecord struct {
 	// rules is a list of generated rules.
 	rules []*rule.Rule
 
-	// imports contains opaque import information for each rule in rules.
-	imports []interface{}
-
 	// empty is a list of empty rules that may be deleted.
 	empty []*rule.Rule
 
@@ -349,6 +342,11 @@ var genericLoads = []rule.LoadInfo{
 		Symbols: []string{"gazelle"},
 	},
 }
+
+// ExitError is returned when gazelle should exit non-zero without printing an
+// error message. This avoids redundancy, since errors are generally logged
+// as they happen.
+var ExitError = errors.New("exit 1 due to errors")
 
 func Run(
 	ctx context.Context,
@@ -399,13 +397,40 @@ func Run(
 	}
 	uc := getUpdateConfig(c)
 
+	var errs []error
+	handleError := func(lang any, err error) {
+		var langName string
+		if withName, ok := lang.(language.Language); ok {
+			langName = withName.Name()
+		}
+		var errsToHandle []error
+		if joinedErrs, ok := err.(interface{ Unwrap() []error }); ok {
+			errsToHandle = joinedErrs.Unwrap()
+		} else {
+			errsToHandle = []error{err}
+		}
+		for _, err := range errsToHandle {
+			if langName != "" {
+				log.Printf("language %s: %v", langName, err)
+			} else {
+				log.Print(err)
+			}
+		}
+		errs = append(errs, errsToHandle...)
+	}
+
 	mrslv := newMetaResolver()
 	kinds := make(map[string]rule.KindInfo)
+	type languageKind struct {
+		lang, kind string
+	}
+	kindsByLanguage := make(map[languageKind]rule.KindInfo)
 	for kind, info := range rule.GenericKinds {
 		kinds[kind] = info
 	}
 	loads := genericLoads
 	for _, lang := range languages {
+		langName := lang.Name()
 		for _, load := range lang.ApparentLoads(c.ModuleToApparentName) {
 			load.Symbols = slices.Clone(load.Symbols)
 			loads = append(loads, load)
@@ -413,6 +438,7 @@ func Run(
 		for _, kind := range lang.Kinds() {
 			mrslv.AddBuiltin(kind.Name, lang)
 			kinds[kind.Name] = kind
+			kindsByLanguage[languageKind{lang: langName, kind: kind.Name}] = kind
 			loads = AddKindToLoadList(c, loads, kind)
 		}
 	}
@@ -426,7 +452,7 @@ func Run(
 	defer cancel()
 	for _, lang := range languages {
 		if err := lang.OnStart(ctx); err != nil {
-			uc.handleError(err)
+			handleError(lang, err)
 		}
 	}
 
@@ -467,7 +493,9 @@ func Run(
 		if !update {
 			if c.IndexLibraries && f != nil {
 				for _, r := range f.Rules {
-					ruleIndex.AddRule(c, r, f)
+					if err := ruleIndex.AddRule(ctx, c, r, f); err != nil {
+						handleError(nil, err)
+					}
 				}
 			}
 			return walk.WalkFuncResult{}, nil
@@ -482,14 +510,13 @@ func Run(
 					File:   f,
 					Cache:  cache,
 				}); err != nil {
-					uc.handleError(err)
+					handleError(lang, err)
 				}
 			}
 		}
 
 		// Generate rules.
 		var empty, gen []*rule.Rule
-		var imports []interface{}
 		var relsToVisit []string
 		for lang := range filterLanguages(c, languages) {
 			res, err := lang.Generate(ctx, language.GenerateArgs{
@@ -505,14 +532,29 @@ func Run(
 				Cache:        cache,
 			})
 			if err != nil {
-				return walk.WalkFuncResult{}, fmt.Errorf("%s: language %s: %w", rel, lang.Name(), err)
+				handleError(lang, err)
 			}
-			if len(res.Gen) != len(res.Imports) {
-				return walk.WalkFuncResult{}, fmt.Errorf("%s: language %s: generated %d rules but returned %d imports", rel, lang.Name(), len(res.Gen), len(res.Imports))
+			if len(res.Imports) > 0 {
+				if len(res.Gen) != len(res.Imports) {
+					handleError(lang, fmt.Errorf("%s: generated %d rules but returned %d imports", rel, len(res.Gen), len(res.Imports)))
+					// Ignore res.Gen if res.Imports was set incorrectly.
+					continue
+				}
+				for i := range res.Gen {
+					res.Gen[i].SetPrivateAttr(importsPrivateAttr, res.Imports[i])
+				}
+			}
+			langName := lang.Name()
+			for _, rs := range [][]*rule.Rule{res.Empty, res.Gen} {
+				for _, r := range rs {
+					r.SetPrivateAttr(langPrivateAttr, lang)
+					if kind, ok := kindsByLanguage[languageKind{lang: langName, kind: r.Kind()}]; ok {
+						r.SetPrivateAttr(kindPrivateAttr, kind)
+					}
+				}
 			}
 			empty = append(empty, res.Empty...)
 			gen = append(gen, res.Gen...)
-			imports = append(imports, res.Imports...)
 			if c.IndexLibraries {
 				relsToVisit = append(relsToVisit, res.RelsToIndex...)
 			}
@@ -599,16 +641,21 @@ func Run(
 				r.Insert(f)
 			}
 		} else {
-			merger.MergeFile(f, empty, gen, merger.PreResolve,
-				unionKindInfoMaps(kinds, mappedKindInfo),
-				aliasedKinds,
-			)
+			if err := merger.MergeFile(merger.MergeFileArgs{
+				File:         f,
+				Empty:        empty,
+				Gen:          gen,
+				Phase:        merger.PreResolve,
+				GetKindInfo:  makeGetKindInfo(unionKindInfoMaps(kinds, mappedKindInfo)),
+				AliasedKinds: aliasedKinds,
+			}); err != nil {
+				handleError(nil, err)
+			}
 		}
 		visits = append(visits, visitRecord{
 			pkgRel:         rel,
 			c:              c,
 			rules:          gen,
-			imports:        imports,
 			empty:          empty,
 			file:           f,
 			mappedKinds:    mappedKinds,
@@ -619,7 +666,9 @@ func Run(
 		// Add library rules to the dependency resolution table.
 		if c.IndexLibraries {
 			for _, r := range f.Rules {
-				ruleIndex.AddRule(c, r, f)
+				if err := ruleIndex.AddRule(ctx, c, r, f); err != nil {
+					handleError(nil, err)
+				}
 			}
 		}
 
@@ -628,12 +677,12 @@ func Run(
 
 	for _, lang := range languages {
 		if err := lang.OnResolve(ctx); err != nil {
-			uc.handleError(err)
+			handleError(lang, err)
 		}
 	}
 
 	if walkErr != nil {
-		return walkErr
+		handleError(nil, walkErr)
 	}
 
 	// Finish building the index for dependency resolution.
@@ -647,10 +696,10 @@ func Run(
 		}
 	}()
 	if err = maybePopulateRemoteCacheFromGoMod(c, rc); err != nil {
-		uc.handleError(err)
+		handleError(nil, err)
 	}
 	for _, v := range visits {
-		for i, r := range v.rules {
+		for _, r := range v.rules {
 			from := label.New(c.RepoName, v.pkgRel, r.Name())
 			if rslv := mrslv.Resolver(r, v.pkgRel); rslv != nil {
 				err := rslv.Resolve(ctx, resolve.ResolveArgs{
@@ -659,21 +708,27 @@ func Run(
 					Rule:        r,
 					From:        from,
 					RemoteCache: rc,
-					Imports:     v.imports[i],
+					Imports:     r.PrivateAttr(importsPrivateAttr),
 				})
 				if err != nil {
-					uc.handleError(err)
+					handleError(rslv, err)
 				}
 			}
 		}
-		merger.MergeFile(v.file, v.empty, v.rules, merger.PostResolve,
-			unionKindInfoMaps(kinds, v.mappedKindInfo),
-			v.aliasedKinds,
-		)
+		if err := merger.MergeFile(merger.MergeFileArgs{
+			File:         v.file,
+			Empty:        v.empty,
+			Gen:          v.rules,
+			Phase:        merger.PostResolve,
+			GetKindInfo:  makeGetKindInfo(unionKindInfoMaps(kinds, v.mappedKindInfo)),
+			AliasedKinds: v.aliasedKinds,
+		}); err != nil {
+			handleError(nil, err)
+		}
 	}
 
 	// Emit merged files.
-	var exit error
+	var exitErr error
 	loadFixer := merger.NewLoadFixer(loads)
 	for _, v := range visits {
 		if len(v.mappedKinds) == 0 {
@@ -682,26 +737,32 @@ func Run(
 			merger.NewLoadFixer(applyKindMappings(v.mappedKinds, loads)).Fix(v.file)
 		}
 		if err := uc.emit(v.c, v.file); err != nil {
-			if err == ErrDiff {
-				exit = err
+			if errors.Is(err, ExitError) {
+				exitErr = err
 			} else {
-				uc.handleError(err)
+				handleError(nil, err)
 			}
 		}
 	}
 	if uc.patchPath != "" {
 		if err := os.WriteFile(uc.patchPath, uc.patchBuffer.Bytes(), 0o666); err != nil {
-			uc.handleError(err)
+			handleError(nil, err)
 		}
 	}
 
 	for _, lang := range languages {
 		if err := lang.OnFinish(ctx); err != nil {
-			uc.handleError(err)
+			handleError(nil, err)
 		}
 	}
 
-	return exit
+	if exitErr != nil {
+		return exitErr
+	} else if c.Strict && len(errs) > 0 {
+		return ExitError
+	} else {
+		return nil
+	}
 }
 
 // lookupMapKindReplacement finds a mapped replacement for rule kind `kind`, resolving transitively.
@@ -941,6 +1002,25 @@ func maybePopulateRemoteCacheFromGoMod(c *config.Config, rc *repo.RemoteCache) e
 	return rc.PopulateFromGoMod(goModPath)
 }
 
+const (
+	// langPrivateAttr is the name of a private attribute set on each generated
+	// or empty rule, pointing to the language.Lanugage extension that
+	// generated it.
+	langPrivateAttr = "_gazelle_lang"
+
+	// kindPrivateAttr is the name of a private attribute set of each generated
+	// or empty rule, pointing to the rule.KindInfo returned by its extension's
+	// Kinds() method, if any.
+	kindPrivateAttr = "_gazelle_kind"
+
+	// importsPrivateAttr is the name of a private attribute set on a generated
+	// rule with the corresponding value from GenerateResult.Imports, if set.
+	// Not named "_gazelle_imports" because that name is exposed in v1
+	// config/constants.go, and language/go and language/proto both use it
+	// heavily. Other languages probably do, too.
+	importsPrivateAttr = "_gazelle_update_imports"
+)
+
 func unionKindInfoMaps(a, b map[string]rule.KindInfo) map[string]rule.KindInfo {
 	if len(a) == 0 {
 		return b
@@ -956,6 +1036,21 @@ func unionKindInfoMaps(a, b map[string]rule.KindInfo) map[string]rule.KindInfo {
 		result[k] = v
 	}
 	return result
+}
+
+// makeGetKindInfo returns a function that may be used with merger.MergeFile
+// for retrieving KindInfo for a rule. If the rule is generated, the function
+// returns KindInfo that was attached to a private attribute. If the rule
+// already existed, the function returns info based on the given kind map.
+// This allows multiple extensions to generate rules of the same kind.
+func makeGetKindInfo(kinds map[string]rule.KindInfo) func(*rule.Rule) rule.KindInfo {
+	return func(r *rule.Rule) rule.KindInfo {
+		kind, ok := r.PrivateAttr(kindPrivateAttr).(rule.KindInfo)
+		if ok {
+			return kind
+		}
+		return kinds[r.Kind()]
+	}
 }
 
 // legacyWorkspaceRepoNames maps Bazel module names from rule.KindInfo.LoadedFrom to

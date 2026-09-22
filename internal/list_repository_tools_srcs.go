@@ -61,14 +61,14 @@ func main() {
 			return err
 		}
 
-		// Skip the tests directory since there is nothing that should be imported from there.
-		if strings.HasPrefix(path, "tests/") {
-			return filepath.SkipDir
-		}
-
+		// Skip directories with no files that should affect integration tests.
 		base := filepath.Base(path)
 		switch base {
 		case "bcr_tests", "docs", "vendor", "third_party", "testdata", "tools", ".ijwb", ".bazelbsp", ".claude":
+			return filepath.SkipDir
+		}
+		switch filepath.ToSlash(path) {
+		case "tests", "internal/language":
 			return filepath.SkipDir
 		}
 		if !info.IsDir() &&

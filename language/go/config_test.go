@@ -117,7 +117,7 @@ func resolveRule(t *testing.T, cl compat.CompleteLanguage, c *config.Config, ix 
 	}
 }
 
-func resolveGo(t *testing.T, gl *goLang, c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, r *rule.Rule, imports interface{}, from label.Label) {
+func resolveGoForTest(t *testing.T, gl *goLang, c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, r *rule.Rule, imports interface{}, from label.Label) {
 	t.Helper()
 	resolveRule(t, compat.LanguageWithDefaults(gl), c, ix, rc, r, imports, from)
 }

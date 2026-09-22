@@ -1058,7 +1058,19 @@ func TestMergeFile(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%s: %v", tc.desc, err)
 			}
-			merger.MergeFile(f, emptyFile.Rules, genFile.Rules, merger.PreResolve, testKinds, tc.aliasedKinds)
+			getKindInfo := func(r *rule.Rule) rule.KindInfo {
+				return testKinds[r.Kind()]
+			}
+			if err := merger.MergeFile(merger.MergeFileArgs{
+				File:         f,
+				Empty:        emptyFile.Rules,
+				Gen:          genFile.Rules,
+				Phase:        merger.PreResolve,
+				GetKindInfo:  getKindInfo,
+				AliasedKinds: tc.aliasedKinds,
+			}); err != nil {
+				t.Fatalf("%s: %v", tc.desc, err)
+			}
 			merger.NewLoadFixer(testLoads).Fix(f)
 
 			want := tc.expected

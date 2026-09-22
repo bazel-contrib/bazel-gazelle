@@ -50,7 +50,7 @@ func (*protoLang) Imports(_ context.Context, args resolve.ImportsArgs) (resolve.
 	return resolve.ImportsResult{Imports: imports}, nil
 }
 
-func (*protoLang) Resolve(_ context.Context, args resolve.ResolveArgs) error {
+func (*protoLang) Resolve(ctx context.Context, args resolve.ResolveArgs) error {
 	c := args.Config
 	ix := args.Index
 	r := args.Rule
@@ -64,7 +64,7 @@ func (*protoLang) Resolve(_ context.Context, args resolve.ResolveArgs) error {
 	r.DelAttr("deps")
 	depSet := make(map[string]bool)
 	for _, imp := range imports {
-		l, err := resolveProto(c, ix, r, imp, from)
+		l, err := resolveProto(ctx, c, ix, r, imp, from)
 		if err == errSkipImport {
 			continue
 		} else if err != nil {
@@ -90,7 +90,7 @@ var (
 	errNotFound   = errors.New("not found")
 )
 
-func resolveProto(c *config.Config, ix *resolve.RuleIndex, r *rule.Rule, imp string, from label.Label) (label.Label, error) {
+func resolveProto(ctx context.Context, c *config.Config, ix *resolve.RuleIndex, r *rule.Rule, imp string, from label.Label) (label.Label, error) {
 	pc := GetProtoConfig(c)
 	if !strings.HasSuffix(imp, ".proto") {
 		return label.NoLabel, fmt.Errorf("can't import non-proto: %q", imp)
@@ -119,7 +119,7 @@ func resolveProto(c *config.Config, ix *resolve.RuleIndex, r *rule.Rule, imp str
 		}
 	}
 
-	if l, err := resolveWithIndex(c, ix, imp, from); err == nil || err == errSkipImport {
+	if l, err := resolveWithIndex(ctx, c, ix, imp, from); err == nil || err == errSkipImport {
 		return l, err
 	} else if err != errNotFound {
 		return label.NoLabel, err
@@ -133,8 +133,11 @@ func resolveProto(c *config.Config, ix *resolve.RuleIndex, r *rule.Rule, imp str
 	return label.New("", rel, name), nil
 }
 
-func resolveWithIndex(c *config.Config, ix *resolve.RuleIndex, imp string, from label.Label) (label.Label, error) {
-	matches := ix.FindRulesByImportWithConfig(c, resolve.ImportSpec{Lang: "proto", Imp: imp}, "proto")
+func resolveWithIndex(ctx context.Context, c *config.Config, ix *resolve.RuleIndex, imp string, from label.Label) (label.Label, error) {
+	matches, err := ix.Find(ctx, c, resolve.ImportSpec{Lang: "proto", Imp: imp}, "proto")
+	if err != nil {
+		return label.NoLabel, err
+	}
 	if len(matches) == 0 {
 		return label.NoLabel, errNotFound
 	}

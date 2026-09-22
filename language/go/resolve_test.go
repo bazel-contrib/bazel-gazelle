@@ -23,9 +23,9 @@ import (
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/label"
 	"github.com/bazel-contrib/bazel-gazelle/v2/pathtools"
-	"github.com/bazelbuild/bazel-gazelle/repo"
 	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
+	"github.com/bazelbuild/bazel-gazelle/repo"
 	bzl "github.com/bazelbuild/buildtools/build"
 	"golang.org/x/tools/go/vcs"
 )
@@ -950,7 +950,9 @@ go_proto_library(
 					}
 				}
 				for _, r := range f.Rules {
-					ix.AddRule(c, r, f)
+					if err := ix.AddRule(t.Context(), c, r, f); err != nil {
+						t.Fatal(err)
+					}
 				}
 			}
 			buildPath := filepath.Join(filepath.FromSlash(tc.old.rel), "BUILD.bazel")
@@ -961,7 +963,9 @@ go_proto_library(
 			imports := make([]interface{}, len(f.Rules))
 			for i, r := range f.Rules {
 				imports[i] = convertImportsAttr(r)
-				ix.AddRule(c, r, f)
+				if err := ix.AddRule(t.Context(), c, r, f); err != nil {
+					t.Fatal(err)
+				}
 			}
 			ix.Finish()
 			langByKind := languagesByKind(langs)
@@ -1031,7 +1035,7 @@ go_library(
 	}
 	for _, r := range f.Rules {
 		imports := convertImportsAttr(r)
-		resolveGo(t, gl, c, ix, rc, r, imports, label.New("", "", r.Name()))
+		resolveGoForTest(t, gl, c, ix, rc, r, imports, label.New("", "", r.Name()))
 	}
 	f.Sync()
 	got := strings.TrimSpace(string(bzl.Format(f.File)))
@@ -1231,7 +1235,7 @@ func TestResolveExternal(t *testing.T) {
 			rc := testRemoteCache(tc.repos)
 			r := rule.NewRule("go_library", "x")
 			imports := rule.PlatformStrings{Generic: []string{tc.importpath}}
-			resolveGo(t, gl, c, ix, rc, r, imports, label.New("", "", "x"))
+			resolveGoForTest(t, gl, c, ix, rc, r, imports, label.New("", "", "x"))
 			deps := r.AttrStrings("deps")
 			if tc.want == "" {
 				if len(deps) != 0 {

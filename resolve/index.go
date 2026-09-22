@@ -17,6 +17,7 @@ package resolve
 
 import (
 	"context"
+	"log"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/label"
 	v2 "github.com/bazel-contrib/bazel-gazelle/v2/resolve"
@@ -122,7 +123,8 @@ func (a resolverAdapter) Name() string {
 
 func (a resolverAdapter) Imports(ctx context.Context, args v2.ImportsArgs) (v2.ImportsResult, error) {
 	imps := a.v1.Imports(args.Config, args.Rule, args.File)
-	embeds := a.v1.Embeds(args.Rule, args.From)
+	from := label.New(args.Config.RepoName, args.File.Pkg, args.Rule.Name())
+	embeds := a.v1.Embeds(args.Rule, from)
 	return v2.ImportsResult{
 		Imports:       imps,
 		Embeds:        embeds,
@@ -141,6 +143,13 @@ type crossResolverAdapter struct {
 
 var _ v2.Finder = crossResolverAdapter{}
 
+func (a crossResolverAdapter) Name() string {
+	if withName, ok := a.v1.(interface{ Name() string }); ok {
+		return withName.Name()
+	}
+	return ""
+}
+
 func (a crossResolverAdapter) Find(ctx context.Context, args v2.FindArgs) ([]v2.FindResult, error) {
 	return a.v1.CrossResolve(args.Config, WrapRuleIndexV2(args.Index), args.Import, args.Lang), nil
 }
@@ -153,7 +162,9 @@ func (a crossResolverAdapter) Find(ctx context.Context, args v2.FindArgs) ([]v2.
 //
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/resolve.RuleIndex.AddRule instead.
 func (ix *RuleIndex) AddRule(c *config.Config, r *rule.Rule, f *rule.File) {
-	ix.v2.AddRule(c, r, f)
+	if err := ix.v2.AddRule(context.Background(), c, r, f); err != nil {
+		log.Print(err)
+	}
 }
 
 // Finish constructs the import index and performs any other necessary indexing
@@ -186,12 +197,16 @@ type FindResult = v2.FindResult
 //
 // DEPRECATED: use FindRulesByImportWithConfig instead
 func (ix *RuleIndex) FindRulesByImport(imp ImportSpec, lang string) []FindResult {
-	return ix.v2.FindRulesByImport(imp, lang)
+	return ix.FindRulesByImportWithConfig(nil, imp, lang)
 }
 
 // FindRulesByImportWithConfig attempts to resolve an import to a rule first by
 // checking the rule index, then if no matches are found any registered
 // CrossResolve implementations are called.
 func (ix *RuleIndex) FindRulesByImportWithConfig(c *config.Config, imp ImportSpec, lang string) []FindResult {
-	return ix.v2.FindRulesByImportWithConfig(c, imp, lang)
+	results, err := ix.v2.Find(context.Background(), c, imp, lang)
+	if err != nil {
+		log.Print(err)
+	}
+	return results
 }

@@ -80,8 +80,7 @@ func (mapKindTestLanguage) GenerateRules(args languagev1.GenerateArgs) languagev
 		return languagev1.GenerateResult{}
 	}
 	return languagev1.GenerateResult{
-		Gen:     []*rule.Rule{rule.NewRule("mapped_library", "generated")},
-		Imports: []any{nil},
+		Gen: []*rule.Rule{rule.NewRule("mapped_library", "generated")},
 	}
 }
 

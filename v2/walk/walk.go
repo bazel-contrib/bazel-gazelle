@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -134,8 +133,9 @@ type WalkFuncResult struct {
 // directory *before* visiting its subdirectories; wf is called in a directory
 // *after* its subdirectories.
 //
-// wf may return an error with its result. In strict mode (c.Strict), this
-// causes Walk to return early.
+// wf may return an error with its result. Walk continues visiting other
+// directories and returns all accumulated errors at the end, unless the
+// context is cancelled.
 func Walk(
 	ctx context.Context,
 	c *config.Config,
@@ -247,8 +247,7 @@ type walker struct {
 	relsToVisitSeen map[string]struct{}
 
 	// errs is a list of errors encountered while walking the directory tree.
-	// If the Config.Strict flag is set in the root configuration, we return
-	// quickly after the first error.
+	// Walk returns these joined at the end.
 	errs []error
 }
 
@@ -353,7 +352,7 @@ func (w *walker) shouldStop(ctx context.Context) error {
 		// walk stopped.
 		w.errs = append(w.errs, ctx.Err())
 	}
-	if ctx.Err() != nil || (len(w.errs) > 0 && w.rootConfig.Strict) {
+	if ctx.Err() != nil {
 		return errors.Join(w.errs...)
 	}
 	return nil
@@ -493,20 +492,16 @@ func configure(
 	rel string,
 	f *rule.File,
 	wc *walkConfig) error {
+
+	var errs []error
 	if f != nil {
 		for _, d := range f.Directives {
 			if !knownDirectives[d.Key] {
-				log.Printf("%s: unknown directive: gazelle:%s", f.Path, d.Key)
-				if c.Strict {
-					// TODO(https://github.com/bazelbuild/bazel-gazelle/issues/1029):
-					// Refactor to accumulate and propagate errors to main.
-					log.Fatal("Exit as strict mode is on")
-				}
+				errs = append(errs, fmt.Errorf("%s: unknown directive: gazelle:%s", f.Path, d.Key))
 			}
 		}
 	}
 	c.Exts[walkNameCached] = wc
-	var errs []error
 	for _, cext := range cexts {
 		if err := cext.Configure(ctx, config.ConfigureArgs{
 			Config: c,
