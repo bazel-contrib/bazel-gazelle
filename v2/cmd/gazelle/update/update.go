@@ -122,6 +122,9 @@ func (f recurseFlag) Set(s string) error {
 }
 
 func (f recurseFlag) String() string {
+	if f.mode == nil {
+		return "auto"
+	}
 	switch *f.mode {
 	case recurseAuto:
 		return "auto"
@@ -170,7 +173,7 @@ func (ucr *updateConfigurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *conf
 	fs.Var(&gzflag.MultiFlag{Values: &ucr.knownImports}, "known_import", "import path for which external resolution is skipped (can specify multiple times)")
 	fs.StringVar(&ucr.repoConfigPath, "repo_config", "", "file where Gazelle should load repository configuration. Defaults to WORKSPACE.")
 	fs.BoolVar(&uc.removeNoopKeepComments, "remove_noop_keep_comments", false, "when set, gazelle will remove noop keep comments from BUILD files")
-	fs.BoolVar(&uc.printVersion, "version", false, "print gazelle's version and exit")
+	fs.BoolVar(&uc.printVersion, "version", false, "print gazelle's version and a list of extensions, then exit")
 }
 
 func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
@@ -390,7 +393,7 @@ func Run(
 
 	c, err := newFixUpdateConfiguration(wd, args, flagExts)
 	if errors.Is(err, errVersion) {
-		// sentinel error; we already printed the version so just exit
+		// sentinel error; we printed the version, and nothing went wrong.
 		return nil
 	} else if err != nil {
 		return err
@@ -834,15 +837,21 @@ func newFixUpdateConfiguration(
 	// -h or -help were passed explicitly.
 	fs.Usage = func() {}
 
-	// TODO(v2): introduce a -fix flag so that we don't need subcommands
+	// TODO(v2): stop accepting subcommands. We could check MajorVersion here,
+	// but then the gazelle macro and gazelle_binary rule need to know whether
+	// to pass subcommands or not, which requires a change in user interface.
+	// It's better to remove the functionality after v1 is branched.
 	cmdName := "update"
+	isSubCommand := false
 	if len(args) > 0 {
 		switch args[0] {
 		case "fix":
 			cmdName = "fix"
 			args = args[1:]
+			isSubCommand = true
 		case "update":
 			args = args[1:]
+			isSubCommand = true
 		}
 	}
 
@@ -852,7 +861,11 @@ func newFixUpdateConfiguration(
 
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
-			fixUpdateUsage(fs)
+			if isSubCommand {
+				printFixUpdateUsage(fs)
+			} else {
+				printUsage(fs)
+			}
 			return nil, err
 		}
 		// flag already prints the error; don't print it again.
@@ -868,11 +881,51 @@ func newFixUpdateConfiguration(
 	return c, nil
 }
 
-// TODO(v2): Revise help text and all flag descriptions. This can mostly be
-// shared between v1 and v2, though we may need to change it in a few cases:
-// some flags may not be available or may have different defaults in v2,
-// and there are no subcommands in v2, so "the update command" won't make sense.
-func fixUpdateUsage(fs *flag.FlagSet) {
+// printUsage prints the main help text for gazelle v2.
+func printUsage(fs *flag.FlagSet) {
+	fmt.Fprint(os.Stderr, `usage: gazelle [flags...] [dirs...]
+
+Gazelle generates and updates Bazel BUILD files. It can be extended to support
+various languages and rule sets like Go, JavaScript, C++, Python and more.
+For information on setting up Gazelle, visit
+https://github.com/bazel-contrib/bazel-gazelle/blob/master/README.md.
+
+Gazelle is usually built and executed with 'bazel run'. These instructions
+assume the 'gazelle' target is '//:gazelle'.
+
+To run Gazelle across all directories in a Bazel project:
+
+    bazel run //:gazelle
+
+Gazelle's command line arguments are directories where BUILD files should be
+generated. When run without arguments, Gazelle starts at the repository root
+and recurses into subdirectories by default (-r=auto). When directories are
+specified, Gazelle updates those directories only and does not recurse into
+subdirectories by default. Gazelle may still read files in other directories
+to load configuration or search for libraries.
+
+To run Gazelle in specific directories, for example, after source files changed:
+
+    bazel run //:gazelle -- path/to/dir1 path/to/dir2
+
+To make Gazelle print changes it would make without actually updating files:
+
+    bazel run //:gazelle -- -mode=diff
+
+FLAGS:
+
+Most flags can also be written as directives (top-level BUILD file comments
+starting with '# gazelle:'). Use directives instead of flags when possible.
+For a list of directives, refer to
+https://github.com/bazel-contrib/bazel-gazelle/blob/master/gazelle-reference.md#directives.
+
+`)
+	fs.PrintDefaults()
+}
+
+// printFixUpdateUsage prints the help text for the gazelle v1 'fix' and
+// 'update' subcommands.
+func printFixUpdateUsage(fs *flag.FlagSet) {
 	fmt.Fprint(os.Stderr, `usage: gazelle [fix|update] [flags...] [package-dirs...]
 
 The update command creates new build files and update existing BUILD files

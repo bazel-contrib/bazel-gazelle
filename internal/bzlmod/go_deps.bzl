@@ -1607,4 +1607,23 @@ go_deps = module_extension(
         "module": _module_tag,
         "module_override": _module_override_tag,
     },
+    doc = """go_deps downloads Go modules at the same versions that Go uses,
+automatically generating build files for non-Bazel modules with Gazelle.
+
+In most cases, you can import your dependencies directly from `go.mod` or
+`go.work` with the `from_file` tag:
+
+    go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
+
+    go_deps.from_file(go_mod = "//:go.mod")
+
+You can specify other tags to override specific downloads or change Gazelle
+settings.
+
+go_deps tries to match `go list -m` behavior as much as possible. If a Go
+module is provided by Bazel though (with `bazel_dep`), that version is always
+selected and cannot be overridden. `replace` directives, `config` tags,
+and similar mechanisms are only effective in the root Bazel module; using
+override tags in other Bazel modules is an error.
+""",
 )

@@ -50,5 +50,5 @@ func printVersion(knownLanguages []string) {
 	} else {
 		fmt.Printf("built in workspace mode\n")
 	}
-	fmt.Printf("supported languages: %s\n", strings.Join(knownLanguages, ", "))
+	fmt.Printf("language extensions: %s\n", strings.Join(knownLanguages, ", "))
 }
