@@ -10,6 +10,7 @@ go_library(
         "//language",
         "//resolve",
         "//v2/config",
+        "//v2/label",
         "//v2/language",
         "//v2/resolve",
         "//v2/rule",

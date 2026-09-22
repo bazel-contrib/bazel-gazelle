@@ -24,6 +24,7 @@ import (
 	"slices"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	"github.com/bazel-contrib/bazel-gazelle/v2/label"
 	"github.com/bazel-contrib/bazel-gazelle/v2/language"
 	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
@@ -107,14 +108,14 @@ type indexerAdapter struct {
 
 var _ resolve.Indexer = indexerAdapter{}
 
-// TODO(v2): remove
 func (i indexerAdapter) Name() string {
 	return i.v1.Name()
 }
 
 func (i indexerAdapter) Imports(ctx context.Context, args resolve.ImportsArgs) (resolve.ImportsResult, error) {
 	imps := i.v1.Imports(args.Config, args.Rule, args.File)
-	embeds := i.v1.Embeds(args.Rule, args.From)
+	from := label.New(args.Config.RepoName, args.File.Pkg, args.Rule.Name())
+	embeds := i.v1.Embeds(args.Rule, from)
 	return resolve.ImportsResult{
 		Imports:       imps,
 		Embeds:        embeds,
@@ -143,6 +144,13 @@ func FinderV2(v1 resolvev1.CrossResolver) resolve.Finder {
 
 type finderAdapter struct {
 	v1 resolvev1.CrossResolver
+}
+
+func (a finderAdapter) Name() string {
+	if withName, ok := a.v1.(interface{ Name() string }); ok {
+		return withName.Name()
+	}
+	return ""
 }
 
 func (a finderAdapter) Find(ctx context.Context, args resolve.FindArgs) ([]resolve.FindResult, error) {
@@ -307,13 +315,9 @@ func LanguageWithDefaults(v language.Language) CompleteLanguage {
 	}
 	if cfg, ok := v.(config.Configurer); ok {
 		adapter.Configurer = cfg
-	} else if cfg, ok := v.(configv1.Configurer); ok {
-		// TODO(v2): migrate internal configurers and stop supporting this.
-		adapter.Configurer = configurerAdapter{v1: cfg}
 	} else {
 		adapter.Configurer = noopConfigurer{}
 	}
-	// TODO(v2): ignore a v2 implementation that sets this.
 	if flag, ok := v.(FlagConfigurer); ok {
 		adapter.FlagConfigurer = flag
 	} else {
@@ -440,6 +444,10 @@ func (noopResolver) Resolve(_ context.Context, _ resolve.ResolveArgs) error {
 }
 
 type noopFinder struct{}
+
+func (noopFinder) Name() string {
+	return ""
+}
 
 func (noopFinder) Find(_ context.Context, _ resolve.FindArgs) ([]resolve.FindResult, error) {
 	return nil, nil
