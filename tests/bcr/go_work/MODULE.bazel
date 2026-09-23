@@ -146,6 +146,8 @@ use_repo(
     "org_example_hello",
     "org_golang_google_protobuf",
     "org_golang_x_sys",
+    # Only used for testing.
+    "org_example_consumer",
 )
 
 # Use an isolated usage to bring in Go tools from the tools package with their own dependency
