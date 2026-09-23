@@ -29,6 +29,8 @@ import (
 	"github.com/bazel-contrib/bazel-gazelle/v2/language"
 )
 
+func init() { update.MajorVersion = 1 }
+
 var languages []language.Language
 
 type command int
@@ -78,7 +80,7 @@ func main() {
 		}
 	}
 
-	if err := run(wd, os.Args[1:]); err != nil && err != flag.ErrHelp {
+	if err := run(wd, os.Args[1:]); err != nil && !errors.Is(err, flag.ErrHelp) {
 		if errors.Is(err, update.ExitError) {
 			os.Exit(1)
 		} else {
@@ -110,11 +112,10 @@ func run(wd string, args []string) error {
 func help() error {
 	fmt.Fprint(os.Stderr, `usage: gazelle <command> [args...]
 
-Gazelle is a BUILD file generator for Go projects. It can create new BUILD files
-for a project that follows "go build" conventions, and it can update BUILD files
-if they already exist. It can be invoked directly in a project workspace, or
-it can be run on an external dependency during the build as part of the
-go_repository rule.
+Gazelle generates and updates Bazel BUILD files. It can be extended to support
+various languages and rule sets like Go, JavaScript, C++, Python and more.
+For information on setting up Gazelle, visit
+https://github.com/bazel-contrib/bazel-gazelle/blob/master/README.md.
 
 Gazelle may be run with one of the commands below. If no command is given,
 Gazelle defaults to "update".
@@ -132,9 +133,6 @@ For usage information for a specific command, run the command with the -h flag.
 For example:
 
   gazelle update -h
-
-Gazelle is under active development, and its interface may change
-without notice.
 
 `)
 	return flag.ErrHelp
