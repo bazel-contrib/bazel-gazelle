@@ -412,9 +412,6 @@ def _repo_name(importpath):
     candidate_name = "_".join(segments).replace("-", "_")
     return "".join([c.lower() if c.isalnum() else "_" for c in candidate_name.elems()])
 
-def _bazel_module_repo_name(module, go_mod_label):
-    return go_mod_label.repo_name if go_mod_label.repo_name else module.name
-
 def _get_repo_name(importpath, bazel_go_modules, module_overrides):
     """Returns the Bazel repo name for a Go module path.
 
@@ -753,7 +750,7 @@ To correct this:
             info = _bazel_go_mod_info(
                 importpath = go_mod_json["Module"]["Path"],
                 go_mod_label = go_mod_label,
-                repo_name = _bazel_module_repo_name(module, go_mod_label),
+                repo_name = go_mod_label.repo_name,
                 bazel_dep_name = module.name,
                 bazel_dep_version = module.version,
                 is_root = acts_as_root,
@@ -836,14 +833,14 @@ To correct this:
                 if module_ctx.failed():
                     return None
                 for u in go_work_json.get("Use"):
-                    if u["DiskPath"] == "." or u["DiskPath"].startswith("./") or u["DiskPath"].startswith("../"):
+                    if paths.is_absolute(u["DiskPath"]):
+                        go_work_lines.append("use {}".format(u["DiskPath"]))
+                    else:
                         go_mod_package = paths.normalize(paths.join(tag.go_work.package, u["DiskPath"]))
                         if go_mod_package == ".":
                             go_mod_package = ""
                         go_mod_label = Label("@@{}//{}:go.mod".format(tag.go_work.repo_name, go_mod_package))
                         visit_go_mod(go_mod_label)
-                    else:
-                        go_work_lines.append("use {}".format(u["DiskPath"]))
 
                 if _module_acts_as_root(module_ctx, module):
                     _fix_replace_paths(go_work_path, go_work_json)
