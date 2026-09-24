@@ -794,7 +794,9 @@ func processGoWorkFromFileTag(dirPath string, tc *testCase, m *module, goWorkLab
 	}
 
 	for _, u := range wf.Use {
-		if isRelativeUsePath(u.Path) {
+		if filepath.IsAbs(u.Path) {
+			addUse(u.Path)
+		} else {
 			goModLabel, err := goModLabelFromGoWork(goWorkLabel, u.Path)
 			if err != nil {
 				return err
@@ -810,8 +812,6 @@ func processGoWorkFromFileTag(dirPath string, tc *testCase, m *module, goWorkLab
 			if err := visitGoMod(ref); err != nil {
 				return err
 			}
-		} else {
-			addUse(u.Path)
 		}
 	}
 
@@ -874,17 +874,6 @@ func fixReplacePaths(mf *modfile.File, absGoModDir string) error {
 		}
 	}
 	return nil
-}
-
-// isRelativeUsePath reports whether a go.work use path is resolved relative to
-// the go.work file (like go_deps does for all non-absolute paths). Like
-// go_deps, treat both POSIX and Windows absolute paths as absolute on every
-// platform, since test cases are shared between platforms.
-func isRelativeUsePath(path string) bool {
-	if strings.HasPrefix(path, "/") || filepath.IsAbs(path) {
-		return false
-	}
-	return !(len(path) > 1 && path[1] == ':')
 }
 
 // escapesModule reports whether a go.mod label computed from a go.work use
