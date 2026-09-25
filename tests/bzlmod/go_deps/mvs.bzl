@@ -45,6 +45,16 @@ TEST = r"""
     "./mvs_test/go.mod": "module example.com/mvs_test\n\ngo 1.24.12\n\nrequire golang.org/x/sync v0.3.0\n",
     "./mvs_test/go.sum": "golang.org/x/sync v0.3.0 h1:ftCYgMx6zT/asHUrPw8BLLscYtGznsLAnjq5RH9P66E=\ngolang.org/x/sync v0.3.0/go.mod h1:FU7BRWz2tNW+3quACPkgCx/L+uEAv1htQ0V83Z9Rj+Y=\n"
   },
+  "downloads": {
+    "https://proxy.golang.org/golang.org/x/sync/@v/v0.11.0.mod": {
+      "content": "module golang.org/x/sync\n\ngo 1.18\n",
+      "sha256": "700e5db00dd26aa19a17dce5fc552436d60f68c5606c85b821f24c3d6072a151"
+    },
+    "https://proxy.golang.org/golang.org/x/sync/@v/v0.3.0.mod": {
+      "content": "module golang.org/x/sync\n\ngo 1.17\n",
+      "sha256": "ed0ff0c5081a754cfcbe768cbcf60c63975b35d76e7d7b99c5ac9bfa6d982851"
+    }
+  },
   "executions": {
     "main": {
       "go list -m -json all": "{\n\t\"Path\": \"example.com/mvs_test\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps/mod/mvs_test\",\n\t\"GoMod\": \"/test/go_deps/mod/mvs_test/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"golang.org/x/sync\",\n\t\"Version\": \"v0.11.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/sync/@v/v0.11.0.mod\",\n\t\"GoVersion\": \"1.18\",\n\t\"Sum\": \"h1:GGz8+XQP4FvTTrjZPzNKTMFtSXH80RAzG+5ghFPgK9w=\"\n}\n",
