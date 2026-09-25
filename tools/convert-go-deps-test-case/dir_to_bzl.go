@@ -691,7 +691,7 @@ func expandFromFileRefs(files map[string]string, fromFileRefs []fromFileRef) ([]
 			return nil, fmt.Errorf("parse %s: %w", fileKey, err)
 		}
 		for _, u := range wf.Use {
-			if !isRelativeUsePath(u.Path) {
+			if filepath.IsAbs(u.Path) {
 				continue
 			}
 			goModLabel, err := goModLabelFromGoWork(goWork, u.Path)

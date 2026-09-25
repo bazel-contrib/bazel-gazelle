@@ -519,11 +519,11 @@ type replaceDirective struct {
 }
 
 type goDepsWorkspace struct {
-	usePaths        []string
-	replaces        []replaceDirective
-	goWorkSum       []string
-	moduleTags      []map[string]any
-	bazelGoModDirs  map[string]string // Go module path => directory in synthetic workspace
+	usePaths       []string
+	replaces       []replaceDirective
+	goWorkSum      []string
+	moduleTags     []map[string]any
+	bazelGoModDirs map[string]string // Go module path => directory in synthetic workspace
 }
 
 func writeGoDepsWorkFiles(dirPath string, tc *testCase) error {
@@ -747,7 +747,9 @@ func processGoWorkFromFileTag(dirPath string, tc *testCase, m *module, goWorkLab
 	}
 
 	for _, u := range wf.Use {
-		if isRelativeUsePath(u.Path) {
+		if filepath.IsAbs(u.Path) {
+			addUse(u.Path)
+		} else {
 			goModLabel, err := goModLabelFromGoWork(goWorkLabel, u.Path)
 			if err != nil {
 				return err
@@ -759,8 +761,6 @@ func processGoWorkFromFileTag(dirPath string, tc *testCase, m *module, goWorkLab
 			if err := visitGoMod(ref); err != nil {
 				return err
 			}
-		} else {
-			addUse(u.Path)
 		}
 	}
 
@@ -822,10 +822,6 @@ func fixReplacePaths(mf *modfile.File, absGoModDir string) error {
 		}
 	}
 	return nil
-}
-
-func isRelativeUsePath(path string) bool {
-	return path == "." || strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../")
 }
 
 func isRelativeReplacePath(path string) bool {

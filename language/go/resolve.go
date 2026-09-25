@@ -327,7 +327,13 @@ func resolveToExternalLabel(c *config.Config, resolveFn resolveRootFunc, imp str
 	}
 
 	name := libNameByConvention(nc, imp, "")
-	return label.New(repo, pkg, name), nil
+	// Format and parse the label instead of trying to construct it.
+	// This is the easiest way to handle corner cases around canonical repo names.
+	l, err := label.Parse(fmt.Sprintf("@%s//%s:%s", repo, pkg, name))
+	if err != nil {
+		return label.NoLabel, fmt.Errorf("resolving external label for %s: %w", imp, err)
+	}
+	return l, nil
 }
 
 func resolveVendored(gc *goConfig, imp string) (label.Label, error) {
