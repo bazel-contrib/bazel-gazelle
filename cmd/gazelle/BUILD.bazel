@@ -4,6 +4,7 @@ load("//:def.bzl", "DEFAULT_LANGUAGES", "gazelle_binary")
 gazelle_binary(
     name = "gazelle",
     languages = DEFAULT_LANGUAGES,
+    version = 1,
     visibility = ["//visibility:public"],
 )
 

@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+# gazelle:prefix example.com/a
+# gazelle:go_naming_convention go_default_library
+
+go_library(
+    name = "go_default_library",
+    srcs = ["a.go"],
+    importpath = "example.com/a",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = ["a_i_test.go"],
+    embed = [":go_default_library"],
+)
+
+go_test(
+    name = "go_default_xtest",
+    srcs = ["a_x_test.go"],
+)
