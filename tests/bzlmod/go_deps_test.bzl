@@ -1,3 +1,4 @@
+load("@bazel_gazelle_is_bazel_module//:defs.bzl", "GAZELLE_IS_BAZEL_MODULE")
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load("@rules_testing//lib:truth.bzl", "matching", "subjects", "truth")
 load("//internal/bzlmod:go_deps.bzl", "go_deps_impl")
@@ -12,17 +13,21 @@ load("//tests/bzlmod/go_deps:default_gazelle_overrides.bzl", DEFAULT_GAZELLE_OVE
 load("//tests/bzlmod/go_deps:dep_files.bzl", DEP_FILES_TEST = "TEST")
 load("//tests/bzlmod/go_deps:duplicate_module_tag.bzl", DUPLICATE_MODULE_TAG_TEST = "TEST")
 load("//tests/bzlmod/go_deps:empty.bzl", EMPTY_TEST = "TEST")
+load("//tests/bzlmod/go_deps:from_file_dev_deps.bzl", FROM_FILE_DEV_DEPS_TEST = "TEST")
 load("//tests/bzlmod/go_deps:gazelle_default_attributes.bzl", GAZELLE_DEFAULT_ATTRIBUTES_TEST = "TEST")
 load("//tests/bzlmod/go_deps:gazelle_override.bzl", GAZELLE_OVERRIDE_TEST = "TEST")
+load("//tests/bzlmod/go_deps:go_mod_no_go_directive.bzl", GO_MOD_NO_GO_DIRECTIVE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:go_version_low.bzl", GO_VERSION_LOW_TEST = "TEST")
 load("//tests/bzlmod/go_deps:isolate.bzl", ISOLATE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:missing_sum.bzl", MISSING_SUM_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module.bzl", MODULE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module_dev_deps.bzl", MODULE_DEV_DEPS_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module_local_path.bzl", MODULE_LOCAL_PATH_TEST = "TEST")
+load("//tests/bzlmod/go_deps:module_local_path_conflict.bzl", MODULE_LOCAL_PATH_CONFLICT_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module_override.bzl", MODULE_OVERRIDE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module_tag_version_normalize.bzl", MODULE_TAG_VERSION_NORMALIZE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:mvs.bzl", MVS_TEST = "TEST")
+load("//tests/bzlmod/go_deps:no_root_usage.bzl", NO_ROOT_USAGE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_dir_mod.bzl", REPLACE_DIR_MOD_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_dir_work.bzl", REPLACE_DIR_WORK_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_ignore_not_root.bzl", REPLACE_IGNORE_NOT_ROOT_TEST = "TEST")
@@ -33,6 +38,9 @@ load("//tests/bzlmod/go_deps:rules_proto_compat.bzl", RULES_PROTO_COMPAT_TEST = 
 load("//tests/bzlmod/go_deps:tool.bzl", TOOL_TEST = "TEST")
 load("//tests/bzlmod/go_deps:version_conflict_checks.bzl", VERSION_CONFLICT_CHECKS_TEST = "TEST")
 load("//tests/bzlmod/go_deps:work_mixed_direct.bzl", WORK_MIXED_DIRECT_TEST = "TEST")
+load("//tests/bzlmod/go_deps:work_no_use.bzl", WORK_NO_USE_TEST = "TEST")
+load("//tests/bzlmod/go_deps:work_use_absolute.bzl", WORK_USE_ABSOLUTE_TEST = "TEST")
+load("//tests/bzlmod/go_deps:work_use_escape.bzl", WORK_USE_ESCAPE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:workspace_mvs_pruning.bzl", WORKSPACE_MVS_PRUNING_TEST = "TEST")
 
 # Keep sorted
@@ -47,17 +55,21 @@ _GO_DEPS_TEST_CASES = [
     DEP_FILES_TEST,
     DUPLICATE_MODULE_TAG_TEST,
     EMPTY_TEST,
+    FROM_FILE_DEV_DEPS_TEST,
     GAZELLE_DEFAULT_ATTRIBUTES_TEST,
     GAZELLE_OVERRIDE_TEST,
+    GO_MOD_NO_GO_DIRECTIVE_TEST,
     GO_VERSION_LOW_TEST,
     ISOLATE_TEST,
     MODULE_DEV_DEPS_TEST,
     MODULE_LOCAL_PATH_TEST,
+    MODULE_LOCAL_PATH_CONFLICT_TEST,
     MODULE_OVERRIDE_TEST,
     MODULE_TAG_VERSION_NORMALIZE_TEST,
     MODULE_TEST,
     MISSING_SUM_TEST,
     MVS_TEST,
+    NO_ROOT_USAGE_TEST,
     REPLACE_DIR_MOD_TEST,
     REPLACE_DIR_WORK_TEST,
     REPLACE_IGNORE_NOT_ROOT_TEST,
@@ -68,6 +80,9 @@ _GO_DEPS_TEST_CASES = [
     TOOL_TEST,
     VERSION_CONFLICT_CHECKS_TEST,
     WORK_MIXED_DIRECT_TEST,
+    WORK_NO_USE_TEST,
+    WORK_USE_ABSOLUTE_TEST,
+    WORK_USE_ESCAPE_TEST,
     WORKSPACE_MVS_PRUNING_TEST,
 ]
 
@@ -115,12 +130,25 @@ def _run_go_deps_instance(env, expect, case, instance_name, isolated, isolate_mo
         if metadata == None:
             fail("test case {} ({}): go_deps_impl did not return extension metadata".format(case.name, instance_name))
 
-    if want.print:
-        _assert_messages_contain_substrings(
-            case_expect,
-            module_ctx._state.printed_messages,
-            want.print,
-            "printed_messages",
+    # Every printed message must be expected by the test case so that
+    # spurious warnings don't go unnoticed.
+    _assert_messages_contain_substrings(
+        case_expect,
+        module_ctx._state.printed_messages,
+        want.print,
+        "printed_messages",
+    )
+
+    for filename, want_content in want.files.items():
+        asserts.equals(
+            env,
+            want_content,
+            module_ctx._state.files.get(filename),
+            "test case {} ({}): content of file '{}' written by go_deps".format(
+                case.name,
+                instance_name,
+                filename,
+            ),
         )
 
     if metadata == None:
@@ -156,9 +184,18 @@ def _run_go_deps_instance(env, expect, case, instance_name, isolated, isolate_mo
 go_deps_test = unittest.make(_go_deps_test_impl)
 
 def go_deps_test_suite(name):
-    unittest.suite(
-        name,
-        go_deps_test,
+    # go_deps is a module extension, so its tests only run with Bzlmod. Labels
+    # in test cases and messages use Bzlmod's canonical form.
+    tags = [] if GAZELLE_IS_BAZEL_MODULE else ["manual"]
+    test_name = name + "_test_0"
+    go_deps_test(
+        name = test_name,
+        tags = tags,
+    )
+    native.test_suite(
+        name = name,
+        tags = tags,
+        tests = [":" + test_name],
     )
 
 def _mock_module_ctx(case, executions, isolated, isolate_module = None):
@@ -175,7 +212,8 @@ def _mock_module_ctx(case, executions, isolated, isolate_module = None):
     if isolated:
         modules = [_mock_isolated_module(isolate_module)]
     else:
-        modules = [_mock_module(m) for m in case.modules]
+        # Like Bazel, only pass modules that use the extension.
+        modules = [_mock_module(m) for m in case.modules if not m.no_go_deps_usage]
     return struct(
         modules = modules,
         is_isolated = isolated,
@@ -265,10 +303,10 @@ def _mock_module_ctx_execute(state, arguments, environment):
     cmd = " ".join(env_arguments + arguments)
     if cmd_without_env == "go version":
         # Test cases don't need to include this command, since it would be
-        # the same for every one.
+        # the same for every one, but they can override its output.
         return struct(
             return_code = 0,
-            stdout = "go version go1.27rc3 darwin/arm64",
+            stdout = state.case.go_version_output or "go version go1.27rc3 darwin/arm64",
             stderr = "",
         )
     if cmd in state.executions:
@@ -293,6 +331,8 @@ def _mock_module_ctx_file(state, path, content):
         filename = path
     else:
         fail("test case {}: can't read from file with value {} of unknown type {}".format(state.case.name, path, type(path)))
+    if filename.startswith("./"):
+        filename = filename[len("./"):]
     state.files[filename] = content
 
 def _mock_module_ctx_path(case, v):
@@ -327,9 +367,9 @@ def _mock_module_ctx_read(state, path):
         # We'll get a label with mangled repo name, but we don't want to simulate
         # the mangling, so only match go.env here.
         return "GOROOT=@go_sdk//:ROOT"
-    if filename in state.files:
+    if filename.startswith("./") and filename[len("./"):] in state.files:
         # file written with module_ctx.file
-        return state.files[filename]
+        return state.files[filename[len("./"):]]
     if filename in state.case.files:
         # file from test case
         return state.case.files[filename]

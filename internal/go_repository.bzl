@@ -14,7 +14,7 @@
 
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "patch", "read_user_netrc", "use_netrc")
 load("//internal:common.bzl", "env_execute", "executable_extension", "watch")
-load("//internal:env.bzl", "read_go_env_file")
+load("//internal:env.bzl", "host_env", "read_go_env_file")
 
 _DOC = """
 `go_repository` downloads a Go project and generates build files with Gazelle
@@ -242,64 +242,7 @@ def _go_repository_impl(ctx):
         )
     else:
         env = read_go_env_file(ctx, go_env_cache)
-    env_keys = [
-        # keep sorted
-
-        # Respect user proxy and sumdb settings for privacy.
-        # TODO(jayconrod): gazelle in go_repository mode should probably
-        # not go out to the network at all. This means *the build*
-        # goes out to the network. We tolerate this for downloading
-        # archives, but finding module roots is a bit much.
-        "GOAUTH",
-        "GONOPROXY",
-        "GONOSUMDB",
-        "GOPRIVATE",
-        "GOPROXY",
-        "GOSUMDB",
-
-        # PATH is needed to locate git and other vcs tools.
-        "PATH",
-
-        # HOME is needed to locate vcs configuration files (.gitconfig).
-        "HOME",
-
-        # Settings below are used by vcs tools.
-        "GIT_CONFIG",
-        "GIT_CONFIG_COUNT",
-        "GIT_CONFIG_GLOBAL",
-        "GIT_CONFIG_NOSYSTEM",
-        "GIT_CONFIG_SYSTEM",
-        "GIT_SSH",
-        "GIT_SSH_COMMAND",
-        "GIT_SSL_CAINFO",
-        "HTTPS_PROXY",
-        "HTTP_PROXY",
-        "NO_PROXY",
-        "SSH_AUTH_SOCK",
-        "SSL_CERT_DIR",
-        "SSL_CERT_FILE",
-        "http_proxy",
-        "https_proxy",
-        "no_proxy",
-    ]
-
-    # Git allows passing configuration through environmental variables, this will be picked
-    # by go get properly: https://www.git-scm.com/docs/git-config/#Documentation/git-config.txt-GITCONFIGCOUNT
-    if "GIT_CONFIG_COUNT" in ctx.os.environ:
-        count = ctx.os.environ["GIT_CONFIG_COUNT"]
-        if count:
-            if not count.isdigit or int(count) < 1:
-                fail("GIT_CONFIG_COUNT has to be a positive integer")
-            count = int(count)
-            for i in range(count):
-                key = "GIT_CONFIG_KEY_%d" % i
-                value = "GIT_CONFIG_VALUE_%d" % i
-                for j in [key, value]:
-                    if j not in ctx.os.environ:
-                        fail("%s is not defined as an environment variable, but you asked for GIT_COUNT_COUNT=%d" % (j, count))
-                env_keys = env_keys + [key, value]
-
-    env.update({k: ctx.os.environ[k] for k in env_keys if k in ctx.os.environ})
+    env.update(host_env(ctx.os.environ))
 
     # Clean existing build files if requested
     if ctx.attr.build_file_generation == "clean":

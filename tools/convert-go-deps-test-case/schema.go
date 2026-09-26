@@ -12,16 +12,20 @@ type testCase struct {
 	Modules    []module                     `json:"modules"`
 	Files      map[string]string            `json:"files,omitempty"`
 	Executions map[string]map[string]string `json:"executions,omitempty"`
-	Want       map[string]json.RawMessage   `json:"want,omitempty"`
+	// GoVersionOutput is the mocked output of 'go version'; stored in
+	// go_version.txt in a test directory.
+	GoVersionOutput string                     `json:"go_version_output,omitempty"`
+	Want            map[string]json.RawMessage `json:"want,omitempty"`
 }
 
 type module struct {
-	Name         string `json:"name"`
-	IsRoot       bool   `json:"is_root,omitempty"`
-	Version      string `json:"version,omitempty"`
-	Tags         *tags  `json:"tags,omitempty"`
-	TagsDev      *tags  `json:"tags_dev,omitempty"`
-	TagsIsolate  *tags  `json:"tags_isolate,omitempty"`
+	Name          string `json:"name"`
+	IsRoot        bool   `json:"is_root,omitempty"`
+	NoGoDepsUsage bool   `json:"no_go_deps_usage,omitempty"`
+	Version       string `json:"version,omitempty"`
+	Tags          *tags  `json:"tags,omitempty"`
+	TagsDev       *tags  `json:"tags_dev,omitempty"`
+	TagsIsolate   *tags  `json:"tags_isolate,omitempty"`
 }
 
 type tags struct {

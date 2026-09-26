@@ -3,7 +3,9 @@
 
 """
 Test that a module version can be replaced with a directory
-using a replace directive in go.work.
+using a replace directive in go.work. The second replacement points at
+a directory whose name contains a space, which must be quoted in the
+synthetic go.work file.
 """
 
 TEST = r"""
@@ -23,21 +25,30 @@ TEST = r"""
     }
   ],
   "files": {
-    "./replace_dir_work/go.mod": "module example.com/replace_dir_mod\n\ngo 1.24.12\n\nrequire golang.org/x/mod v0.40.0 // indirect\n",
+    "./replace_dir_work/dir with space/go.mod": "module example.com/spaced\n\ngo 1.24.12\n",
+    "./replace_dir_work/go.mod": "module example.com/replace_dir_mod\n\ngo 1.24.12\n\nrequire (\n\texample.com/spaced v1.0.0 // indirect\n\tgolang.org/x/mod v0.40.0 // indirect\n)\n",
     "./replace_dir_work/go.sum": "golang.org/x/mod v0.39.0 h1:UF5zwQdCRRUpHfyPwr7d4UrGiVeldIsogtzWVnczL74=\ngolang.org/x/mod v0.39.0/go.mod h1:bvIbwjQ0HUFFf5AKukeeYQG4ZBUG9yxQbR9aEweIwYY=\ngolang.org/x/mod v0.40.0 h1:hUv+3cXcdRHz08UmSiOob7sadHig73uo5bkXxQ/tvUs=\ngolang.org/x/mod v0.40.0/go.mod h1:0/weTWkPWGBikyTWAX3dkjVztMmBA5hM0DH6BElSupE=\ngolang.org/x/tools v0.48.0 h1:3+hClM1aLL5mjMKm5ovokw9epgRXPuu2tILgismM6RE=\ngolang.org/x/tools v0.48.0/go.mod h1:08xX0orndb/F7jJxGDicx061tyd5pcMto75YMAXr6lk=\n",
-    "./replace_dir_work/go.work": "go 1.24.12\n\nuse .\n\nreplace golang.org/x/mod v0.40.0 =\u003e ./mod_replaced\n",
+    "./replace_dir_work/go.work": "go 1.24.12\n\nuse .\n\nreplace golang.org/x/mod v0.40.0 =\u003e ./mod_replaced\n\nreplace example.com/spaced v1.0.0 =\u003e \"./dir with space\"\n",
     "./replace_dir_work/mod_replaced/go.mod": "module golang.org/x/mod\n\ngo 1.24.12\n"
   },
   "executions": {
     "main": {
-      "go list -m -json all": "{\n\t\"Path\": \"example.com/replace_dir_mod\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps/mod/replace_dir_work\",\n\t\"GoMod\": \"/test/go_deps/mod/replace_dir_work/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.40.0\",\n\t\"Replace\": {\n\t\t\"Path\": \"/test/replace_dir_work/mod_replaced\",\n\t\t\"Dir\": \"/test/replace_dir_work/mod_replaced\",\n\t\t\"GoMod\": \"/test/replace_dir_work/mod_replaced/go.mod\",\n\t\t\"GoVersion\": \"1.24.12\"\n\t},\n\t\"Indirect\": true,\n\t\"Dir\": \"/test/replace_dir_work/mod_replaced\",\n\t\"GoMod\": \"/test/replace_dir_work/mod_replaced/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n",
-      "go mod edit -json -- ./replace_dir_work/go.mod": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/replace_dir_mod\"\n\t},\n\t\"Go\": \"1.24.12\",\n\t\"Require\": [\n\t\t{\n\t\t\t\"Path\": \"golang.org/x/mod\",\n\t\t\t\"Version\": \"v0.40.0\",\n\t\t\t\"Indirect\": true\n\t\t}\n\t],\n\t\"Exclude\": null,\n\t\"Replace\": null,\n\t\"Retract\": null,\n\t\"Tool\": null,\n\t\"Ignore\": null\n}\n",
-      "go work edit -json -- ./replace_dir_work/go.work": "{\n\t\"Go\": \"1.24.12\",\n\t\"Use\": [\n\t\t{\n\t\t\t\"DiskPath\": \".\"\n\t\t}\n\t],\n\t\"Replace\": [\n\t\t{\n\t\t\t\"Old\": {\n\t\t\t\t\"Path\": \"golang.org/x/mod\",\n\t\t\t\t\"Version\": \"v0.40.0\"\n\t\t\t},\n\t\t\t\"New\": {\n\t\t\t\t\"Path\": \"./mod_replaced\"\n\t\t\t}\n\t\t}\n\t]\n}\n"
+      "go list -m -json all": "{\n\t\"Path\": \"example.com/replace_dir_mod\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps/mod/replace_dir_work\",\n\t\"GoMod\": \"/test/go_deps/mod/replace_dir_work/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"example.com/spaced\",\n\t\"Version\": \"v1.0.0\",\n\t\"Replace\": {\n\t\t\"Path\": \"/test/replace_dir_work/dir with space\",\n\t\t\"Dir\": \"/test/replace_dir_work/dir with space\",\n\t\t\"GoMod\": \"/test/replace_dir_work/dir with space/go.mod\",\n\t\t\"GoVersion\": \"1.24.12\"\n\t},\n\t\"Indirect\": true,\n\t\"Dir\": \"/test/replace_dir_work/dir with space\",\n\t\"GoMod\": \"/test/replace_dir_work/dir with space/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.40.0\",\n\t\"Replace\": {\n\t\t\"Path\": \"/test/replace_dir_work/mod_replaced\",\n\t\t\"Dir\": \"/test/replace_dir_work/mod_replaced\",\n\t\t\"GoMod\": \"/test/replace_dir_work/mod_replaced/go.mod\",\n\t\t\"GoVersion\": \"1.24.12\"\n\t},\n\t\"Indirect\": true,\n\t\"Dir\": \"/test/replace_dir_work/mod_replaced\",\n\t\"GoMod\": \"/test/replace_dir_work/mod_replaced/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n",
+      "go mod edit -json -- ./replace_dir_work/go.mod": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/replace_dir_mod\"\n\t},\n\t\"Go\": \"1.24.12\",\n\t\"Require\": [\n\t\t{\n\t\t\t\"Path\": \"example.com/spaced\",\n\t\t\t\"Version\": \"v1.0.0\",\n\t\t\t\"Indirect\": true\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"golang.org/x/mod\",\n\t\t\t\"Version\": \"v0.40.0\",\n\t\t\t\"Indirect\": true\n\t\t}\n\t],\n\t\"Exclude\": null,\n\t\"Replace\": null,\n\t\"Retract\": null,\n\t\"Tool\": null,\n\t\"Ignore\": null\n}\n",
+      "go work edit -json -- ./replace_dir_work/go.work": "{\n\t\"Go\": \"1.24.12\",\n\t\"Use\": [\n\t\t{\n\t\t\t\"DiskPath\": \".\"\n\t\t}\n\t],\n\t\"Replace\": [\n\t\t{\n\t\t\t\"Old\": {\n\t\t\t\t\"Path\": \"golang.org/x/mod\",\n\t\t\t\t\"Version\": \"v0.40.0\"\n\t\t\t},\n\t\t\t\"New\": {\n\t\t\t\t\"Path\": \"./mod_replaced\"\n\t\t\t}\n\t\t},\n\t\t{\n\t\t\t\"Old\": {\n\t\t\t\t\"Path\": \"example.com/spaced\",\n\t\t\t\t\"Version\": \"v1.0.0\"\n\t\t\t},\n\t\t\t\"New\": {\n\t\t\t\t\"Path\": \"./dir with space\"\n\t\t\t}\n\t\t}\n\t]\n}\n"
     }
   },
   "want": {
     "main": {
+      "files": {
+        "go.work": "go 1.27rc3\nuse .\nuse ./replace_dir_work\nreplace golang.org/x/mod v0.40.0 =\u003e ./replace_dir_work/./mod_replaced\nreplace example.com/spaced v1.0.0 =\u003e \"./replace_dir_work/./dir with space\""
+      },
       "repos": [
+        {
+          "importpath": "example.com/spaced",
+          "local_path": "/test/replace_dir_work/dir with space",
+          "name": "com_example_spaced"
+        },
         {
           "importpath": "golang.org/x/mod",
           "local_path": "/test/replace_dir_work/mod_replaced",
