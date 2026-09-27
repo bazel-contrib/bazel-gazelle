@@ -5,6 +5,10 @@ module(
 
 bazel_dep(name = "rules_go", version = "0.61.1", repo_name = "io_bazel_rules_go")
 bazel_dep(name = "gazelle", version = "0.52.2", repo_name = "bazel_gazelle")
+local_path_override(
+    module_name = "gazelle",
+    path = "../../..",
+)
 
 go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.download(version = "1.24.12")
