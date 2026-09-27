@@ -39,6 +39,14 @@ func convertBzlToDir(bzlPath, dirPath string, force bool, repoRoot string) error
 		return err
 	}
 
+	if err := writeJSONFile(dirPath, downloadsFileName, tc.Downloads); err != nil {
+		return err
+	}
+
+	if err := writeJSONFile(dirPath, factsFileName, tc.Facts); err != nil {
+		return err
+	}
+
 	if err := writeFiles(dirPath, tc.Files); err != nil {
 		return err
 	}
@@ -87,15 +95,22 @@ func convertBzlToDir(bzlPath, dirPath string, force bool, repoRoot string) error
 }
 
 func writeWantJSON(dirPath string, want map[string]json.RawMessage) error {
-	if len(want) == 0 {
+	return writeJSONFile(dirPath, "want.json", want)
+}
+
+// writeJSONFile writes value to a file in dirPath, or writes nothing if value
+// is empty. Test case fields that these files hold are optional, so an empty
+// file and a missing file must round trip the same way.
+func writeJSONFile[V any](dirPath, name string, value map[string]V) error {
+	if len(value) == 0 {
 		return nil
 	}
-	data, err := json.MarshalIndent(want, "", "  ")
+	data, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
-		return fmt.Errorf("encode want.json: %w", err)
+		return fmt.Errorf("encode %s: %w", name, err)
 	}
 	data = append(data, '\n')
-	return os.WriteFile(filepath.Join(dirPath, "want.json"), data, 0666)
+	return os.WriteFile(filepath.Join(dirPath, name), data, 0666)
 }
 
 func parseTestCaseFile(path string) (*testCase, string, error) {
@@ -504,11 +519,11 @@ type replaceDirective struct {
 }
 
 type goDepsWorkspace struct {
-	usePaths        []string
-	replaces        []replaceDirective
-	goWorkSum       []string
-	moduleTags      []map[string]any
-	bazelGoModDirs  map[string]string // Go module path => directory in synthetic workspace
+	usePaths       []string
+	replaces       []replaceDirective
+	goWorkSum      []string
+	moduleTags     []map[string]any
+	bazelGoModDirs map[string]string // Go module path => directory in synthetic workspace
 }
 
 func writeGoDepsWorkFiles(dirPath string, tc *testCase) error {
@@ -732,7 +747,9 @@ func processGoWorkFromFileTag(dirPath string, tc *testCase, m *module, goWorkLab
 	}
 
 	for _, u := range wf.Use {
-		if isRelativeUsePath(u.Path) {
+		if filepath.IsAbs(u.Path) {
+			addUse(u.Path)
+		} else {
 			goModLabel, err := goModLabelFromGoWork(goWorkLabel, u.Path)
 			if err != nil {
 				return err
@@ -744,8 +761,6 @@ func processGoWorkFromFileTag(dirPath string, tc *testCase, m *module, goWorkLab
 			if err := visitGoMod(ref); err != nil {
 				return err
 			}
-		} else {
-			addUse(u.Path)
 		}
 	}
 
@@ -807,10 +822,6 @@ func fixReplacePaths(mf *modfile.File, absGoModDir string) error {
 		}
 	}
 	return nil
-}
-
-func isRelativeUsePath(path string) bool {
-	return path == "." || strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../")
 }
 
 func isRelativeReplacePath(path string) bool {

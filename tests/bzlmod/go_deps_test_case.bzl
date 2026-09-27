@@ -21,6 +21,11 @@ Each test case has the following fields:
     used when go_deps is loaded with 'isolate = True'.
 - files: a dict of files. Keys are paths of the form "./module_name/file".
   Values are file contents.
+- downloads: optional dict mapping URLs that go_deps may download to objects with
+  "content" (file body) and "sha256" (hex SHA-256 of the content). Downloads of
+  other URLs fail, as they would for a module version that the proxy doesn't have.
+- facts: optional dict of facts recorded by a previous evaluation of go_deps,
+  as passed to module_ctx.facts.
 - executions: optional dict mapping go_deps instance names to dicts of command
   strings to expected stdout from mocked module_ctx.execute calls. The "main"
   key is for the un-isolated go_deps instance. Additional keys have the form
@@ -37,6 +42,10 @@ Each test case has the following fields:
     root_module_direct_deps.
   - root_module_direct_dev_deps: list of repo names passed to extension metadata
     as root_module_direct_dev_deps.
+  - downloads: optional list of URLs that go_deps is expected to download,
+    in any order. Omit to allow any downloads.
+  - facts: optional dict of facts expected to be passed to extension metadata.
+    Omit to allow any facts.
   - print: optional list of substrings expected to appear in messages passed to
     module_ctx.print, in order.
   - fail: optional list of substrings expected to appear in messages passed to
@@ -59,6 +68,11 @@ def parse_go_deps_test_case(s):
         name = d["name"],
         modules = [_parse_module(m) for m in d["modules"]],
         files = d.get("files", {}),
+        downloads = {
+            url: _parse_download_entry(entry)
+            for url, entry in d.get("downloads", {}).items()
+        },
+        facts = d.get("facts", {}),
         executions = d.get("executions", {}),
         want = {
             key: _parse_want(value)
@@ -66,11 +80,19 @@ def parse_go_deps_test_case(s):
         },
     )
 
+def _parse_download_entry(d):
+    return struct(
+        content = d["content"],
+        sha256 = d["sha256"],
+    )
+
 def _parse_want(d):
     return struct(
         repos = [_parse_want_repo(w) for w in d.get("repos", [])],
         root_module_direct_deps = d.get("root_module_direct_deps", []),
         root_module_direct_dev_deps = d.get("root_module_direct_dev_deps", []),
+        downloads = d.get("downloads"),
+        facts = d.get("facts"),
         print = d.get("print", []),
         fail = d.get("fail", []),
     )

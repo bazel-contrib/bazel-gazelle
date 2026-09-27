@@ -27,6 +27,16 @@ TEST = r"""
     "./replace_version_work/go.sum": "golang.org/x/mod v0.39.0 h1:UF5zwQdCRRUpHfyPwr7d4UrGiVeldIsogtzWVnczL74=\ngolang.org/x/mod v0.39.0/go.mod h1:bvIbwjQ0HUFFf5AKukeeYQG4ZBUG9yxQbR9aEweIwYY=\ngolang.org/x/mod v0.40.0 h1:hUv+3cXcdRHz08UmSiOob7sadHig73uo5bkXxQ/tvUs=\ngolang.org/x/mod v0.40.0/go.mod h1:0/weTWkPWGBikyTWAX3dkjVztMmBA5hM0DH6BElSupE=\ngolang.org/x/tools v0.48.0 h1:3+hClM1aLL5mjMKm5ovokw9epgRXPuu2tILgismM6RE=\ngolang.org/x/tools v0.48.0/go.mod h1:08xX0orndb/F7jJxGDicx061tyd5pcMto75YMAXr6lk=\n",
     "./replace_version_work/go.work": "go 1.24.12\n\nuse .\n\nreplace golang.org/x/mod =\u003e golang.org/x/mod v0.39.0\n"
   },
+  "downloads": {
+    "https://proxy.golang.org/golang.org/x/mod/@v/v0.39.0.mod": {
+      "content": "module golang.org/x/mod\n\ngo 1.25.0\n\nrequire golang.org/x/tools v0.48.0 // tagx:ignore\n",
+      "sha256": "703a6d7f3f0211742e81ad77b09a66d0a500de85855af65b09cb7691ac2aeb5c"
+    },
+    "https://proxy.golang.org/golang.org/x/tools/@v/v0.48.0.mod": {
+      "content": "module golang.org/x/tools\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/google/go-cmp v0.6.0\n\tgithub.com/yuin/goldmark v1.4.13\n\tgolang.org/x/mod v0.38.0\n\tgolang.org/x/net v0.57.0\n\tgolang.org/x/sync v0.22.0\n\tgolang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959\n)\n\nrequire golang.org/x/sys v0.47.0 // indirect\n",
+      "sha256": "e6b55566a172ecfd21e5f4a8750f2d25665287288b24ff8d4e6cea5d5078c608"
+    }
+  },
   "executions": {
     "main": {
       "go list -m -json all": "{\n\t\"Path\": \"example.com/replace_version_work\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps/mod/replace_version_work\",\n\t\"GoMod\": \"/test/go_deps/mod/replace_version_work/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.40.0\",\n\t\"Replace\": {\n\t\t\"Path\": \"golang.org/x/mod\",\n\t\t\"Version\": \"v0.39.0\",\n\t\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.39.0.mod\",\n\t\t\"GoVersion\": \"1.25.0\",\n\t\t\"Sum\": \"h1:UF5zwQdCRRUpHfyPwr7d4UrGiVeldIsogtzWVnczL74=\",\n\t\t\"GoModSum\": \"h1:bvIbwjQ0HUFFf5AKukeeYQG4ZBUG9yxQbR9aEweIwYY=\"\n\t},\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.39.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"golang.org/x/tools\",\n\t\"Version\": \"v0.48.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/tools/@v/v0.48.0.mod\",\n\t\"GoVersion\": \"1.25.0\",\n\t\"Sum\": \"h1:3+hClM1aLL5mjMKm5ovokw9epgRXPuu2tILgismM6RE=\",\n\t\"GoModSum\": \"h1:08xX0orndb/F7jJxGDicx061tyd5pcMto75YMAXr6lk=\"\n}\n",
