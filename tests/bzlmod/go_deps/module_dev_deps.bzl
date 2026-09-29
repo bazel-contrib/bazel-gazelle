@@ -33,6 +33,28 @@ TEST = r"""
       }
     }
   ],
+  "downloads": {
+    "https://proxy.golang.org/golang.org/x/mod/@v/v0.38.0.mod": {
+      "content": "module golang.org/x/mod\n\ngo 1.25.0\n\nrequire golang.org/x/tools v0.47.0 // tagx:ignore\n",
+      "sha256": "c584b29967a2cf46a7b8eacd85cb34d5bb0ab2d61a7a46ebc0a1ee362516e410"
+    },
+    "https://proxy.golang.org/golang.org/x/text/@v/v0.0.0-20170915032832-14c0d48ead0c.mod": {
+      "content": "module golang.org/x/text\n",
+      "sha256": "36879d586fd8001e84da8787190a11e4f78749e2a81dfe8b9b6931899fff31cf"
+    },
+    "https://proxy.golang.org/golang.org/x/tools/@v/v0.47.0.mod": {
+      "content": "module golang.org/x/tools\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/google/go-cmp v0.6.0\n\tgithub.com/yuin/goldmark v1.4.13\n\tgolang.org/x/mod v0.37.0\n\tgolang.org/x/net v0.56.0\n\tgolang.org/x/sync v0.21.0\n\tgolang.org/x/telemetry v0.0.0-20260625142307-59b4966ccb57\n)\n\nrequire golang.org/x/sys v0.46.0 // indirect\n",
+      "sha256": "eb46e44850fb4dca48f7b680cac5177682cb0e302b307d4d3dbd7ed9df05fc0f"
+    },
+    "https://proxy.golang.org/rsc.io/quote/@v/v1.5.2.mod": {
+      "content": "module \"rsc.io/quote\"\n\nrequire \"rsc.io/sampler\" v1.3.0\n",
+      "sha256": "b167e79090d79e4b5738995c62a2186548fc33c919d6b4da1d36cc8c7c1e40c1"
+    },
+    "https://proxy.golang.org/rsc.io/sampler/@v/v1.3.0.mod": {
+      "content": "module \"rsc.io/sampler\"\n\nrequire \"golang.org/x/text\" v0.0.0-20170915032832-14c0d48ead0c\n",
+      "sha256": "a2ae6e8540a40b85e57703cc618b99c5b1075386d958e8999a0e2d4c02f3a705"
+    }
+  },
   "executions": {
     "main": {
       "go list -m -json all": "{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.38.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.38.0.mod\",\n\t\"GoVersion\": \"1.25.0\",\n\t\"Sum\": \"h1:MECBjubtXD7yj4HrhIUcywNaGeNVUdfVnxmPajOk4yk=\"\n}\n{\n\t\"Path\": \"golang.org/x/text\",\n\t\"Version\": \"v0.0.0-20170915032832-14c0d48ead0c\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/text/@v/v0.0.0-20170915032832-14c0d48ead0c.mod\"\n}\n{\n\t\"Path\": \"golang.org/x/tools\",\n\t\"Version\": \"v0.47.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/tools/@v/v0.47.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"rsc.io/quote\",\n\t\"Version\": \"v1.5.2\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/rsc.io/quote/@v/v1.5.2.mod\",\n\t\"Sum\": \"h1:w5fcysjrx7yqtD/aO+QwRjYZOKnaM9Uh2b40tElTs3Y=\"\n}\n{\n\t\"Path\": \"rsc.io/sampler\",\n\t\"Version\": \"v1.3.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/rsc.io/sampler/@v/v1.3.0.mod\"\n}\n"

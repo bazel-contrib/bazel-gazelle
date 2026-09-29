@@ -36,6 +36,40 @@ TEST = r"""
       }
     }
   ],
+  "downloads": {
+    "https://proxy.golang.org/github.com/google/go-cmp/@v/v0.6.0.mod": {
+      "content": "module github.com/google/go-cmp\n\ngo 1.13\n",
+      "sha256": "e7c7669d4a1dd589ba3e024ba27f43f293db611fe075ce20d7b884370d63febd"
+    },
+    "https://proxy.golang.org/github.com/yuin/goldmark/@v/v1.4.13.mod": {
+      "content": "module github.com/yuin/goldmark\n\ngo 1.18\n",
+      "sha256": "ee7fe4466203a01d3ac19adc134cdec99bc6de71992c28f3dd9a74480bff0603"
+    },
+    "https://proxy.golang.org/golang.org/x/mod/@v/v0.40.0.mod": {
+      "content": "module golang.org/x/mod\n\ngo 1.25.0\n\nrequire golang.org/x/tools v0.49.0 // tagx:ignore\n",
+      "sha256": "7458cd1a66875b76fb962428ffb61aee84acfd871a32e56b4efb43b3b8d2a70d"
+    },
+    "https://proxy.golang.org/golang.org/x/net/@v/v0.58.0.mod": {
+      "content": "module golang.org/x/net\n\ngo 1.25.0\n\nrequire (\n\tgolang.org/x/crypto v0.55.0\n\tgolang.org/x/sys v0.47.0\n\tgolang.org/x/term v0.45.0\n\tgolang.org/x/text v0.41.0\n)\n",
+      "sha256": "7527ef545bf4e1ec8e38b4afddcc46480d75d3c2ae38a80cff1831d3152fabfe"
+    },
+    "https://proxy.golang.org/golang.org/x/sync/@v/v0.22.0.mod": {
+      "content": "module golang.org/x/sync\n\ngo 1.25.0\n",
+      "sha256": "a3e29e76060bd561060454b1fa2bdcd66674f60c9ca93833b8106355e34c603c"
+    },
+    "https://proxy.golang.org/golang.org/x/sys/@v/v0.47.0.mod": {
+      "content": "module golang.org/x/sys\n\ngo 1.25.0\n",
+      "sha256": "57f4393ea18d5446a12363b35c23a616d843fa1669c7121a70a2bc3a9677d665"
+    },
+    "https://proxy.golang.org/golang.org/x/telemetry/@v/v0.0.0-20260811182544-a038080d80e5.mod": {
+      "content": "module golang.org/x/telemetry\n\ngo 1.25.0\n\nrequire (\n\tgolang.org/x/mod v0.39.0\n\tgolang.org/x/sync v0.22.0\n\tgolang.org/x/sys v0.47.0\n)\n",
+      "sha256": "139c387e79b1a7e8ba5ff6985cc1beb1031e2d044603b91ec59c8b29988a8f8a"
+    },
+    "https://proxy.golang.org/golang.org/x/tools/@v/v0.49.0.mod": {
+      "content": "module golang.org/x/tools\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/google/go-cmp v0.6.0\n\tgithub.com/yuin/goldmark v1.4.13\n\tgolang.org/x/mod v0.39.0\n\tgolang.org/x/net v0.58.0\n\tgolang.org/x/sync v0.22.0\n\tgolang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5\n)\n\nrequire golang.org/x/sys v0.47.0 // indirect\n",
+      "sha256": "86e34efea35b8aa52aabff0ea18c0ef217f074dff67ef7b4c700ae833968cf62"
+    }
+  },
   "executions": {
     "main": {
       "go list -m -json all": "{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"github.com/google/go-cmp\",\n\t\"Version\": \"v0.6.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/github.com/google/go-cmp/@v/v0.6.0.mod\",\n\t\"GoVersion\": \"1.13\"\n}\n{\n\t\"Path\": \"github.com/yuin/goldmark\",\n\t\"Version\": \"v1.4.13\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/github.com/yuin/goldmark/@v/v1.4.13.mod\",\n\t\"GoVersion\": \"1.18\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.40.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.40.0.mod\",\n\t\"GoVersion\": \"1.25.0\",\n\t\"Sum\": \"h1:hUv+3cXcdRHz08UmSiOob7sadHig73uo5bkXxQ/tvUs=\"\n}\n{\n\t\"Path\": \"golang.org/x/net\",\n\t\"Version\": \"v0.58.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/net/@v/v0.58.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"golang.org/x/sync\",\n\t\"Version\": \"v0.22.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/sync/@v/v0.22.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"golang.org/x/sys\",\n\t\"Version\": \"v0.47.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/sys/@v/v0.47.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"golang.org/x/telemetry\",\n\t\"Version\": \"v0.0.0-20260811182544-a038080d80e5\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/telemetry/@v/v0.0.0-20260811182544-a038080d80e5.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"golang.org/x/tools\",\n\t\"Version\": \"v0.49.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/tools/@v/v0.49.0.mod\",\n\t\"GoVersion\": \"1.25.0\",\n\t\"Sum\": \"h1:3NI7VXzL9+1WZD52Dx2ttoPwD5DWrFGpl9mFZDlmisI=\"\n}\n"
