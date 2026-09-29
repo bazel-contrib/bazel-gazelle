@@ -39,6 +39,12 @@ func convertBzlToDir(bzlPath, dirPath string, force bool, repoRoot string) error
 		return err
 	}
 
+	if tc.GoVersionOutput != "" {
+		if err := os.WriteFile(filepath.Join(dirPath, "go_version.txt"), []byte(tc.GoVersionOutput), 0666); err != nil {
+			return err
+		}
+	}
+
 	if err := writeFiles(dirPath, tc.Files); err != nil {
 		return err
 	}
@@ -218,6 +224,14 @@ func buildModuleBazelFile(m *module, deps []module, gazelleRoot string) (*build.
 		)
 	}
 
+	if m.NoGoDepsUsage {
+		// The module depends on gazelle but does not use go_deps.
+		return &build.File{
+			Path: "MODULE.bazel",
+			Type: build.TypeModule,
+			Stmt: stmts,
+		}, nil
+	}
 	stmts = append(stmts, &build.AssignExpr{
 		LHS: bazelIdent("go_deps"),
 		Op:  "=",
@@ -503,12 +517,36 @@ type replaceDirective struct {
 	newVers string
 }
 
+type requiredVersion struct {
+	path    string
+	version string
+}
+
 type goDepsWorkspace struct {
-	usePaths        []string
-	replaces        []replaceDirective
-	goWorkSum       []string
-	moduleTags      []map[string]any
-	bazelGoModDirs  map[string]string // Go module path => directory in synthetic workspace
+	usePaths         []string
+	replaces         []replaceDirective
+	goWorkSum        []string
+	moduleTags       []map[string]any
+	bazelGoModDirs   map[string]string // Go module path => directory in synthetic workspace
+	requiredVersions []requiredVersion // versions required by any go.mod file or module tag
+	rootReplaced     map[string]bool   // Go module paths replaced by the root module's go.mod or go.work
+	localPathDirs    map[string]string // Go module path => absolute directory from go_deps.module.local_path
+}
+
+func (ws *goDepsWorkspace) addRequiredVersion(path, version string) {
+	for _, rv := range ws.requiredVersions {
+		if rv.path == path && rv.version == version {
+			return
+		}
+	}
+	ws.requiredVersions = append(ws.requiredVersions, requiredVersion{path: path, version: version})
+}
+
+func (ws *goDepsWorkspace) addRootReplaced(path string) {
+	if ws.rootReplaced == nil {
+		ws.rootReplaced = map[string]bool{}
+	}
+	ws.rootReplaced[path] = true
 }
 
 func writeGoDepsWorkFiles(dirPath string, tc *testCase) error {
@@ -563,6 +601,7 @@ func buildGoDepsWorkspace(dirPath string, tc *testCase, isolateModuleName string
 	if isolated && len(ws.moduleTags) == 0 && !hasFromFileTags(tc, isolateModuleName, isolated) {
 		return nil, nil
 	}
+	ws.localPathDirs = collectLocalPathDirs(dirPath, tc, isolateModuleName, isolated)
 
 	seenGoMod := map[string]bool{}
 	seenUse := map[string]bool{}
@@ -623,6 +662,14 @@ func buildGoDepsWorkspace(dirPath string, tc *testCase, isolateModuleName string
 				ws.bazelGoModDirs = map[string]string{}
 			}
 			ws.bazelGoModDirs[mf.Module.Mod.Path] = usePath
+		}
+		for _, r := range mf.Require {
+			ws.addRequiredVersion(r.Mod.Path, r.Mod.Version)
+		}
+		if actsAsRoot {
+			for _, r := range mf.Replace {
+				ws.addRootReplaced(r.Old.Path)
+			}
 		}
 		return nil
 	}
@@ -737,6 +784,10 @@ func processGoWorkFromFileTag(dirPath string, tc *testCase, m *module, goWorkLab
 			if err != nil {
 				return err
 			}
+			if escapesModule(goModLabel) {
+				addUse(u.Path)
+				continue
+			}
 			ref, err := goModRefFromLabel(goModLabel, m.Name, m.IsRoot)
 			if err != nil {
 				return err
@@ -753,6 +804,7 @@ func processGoWorkFromFileTag(dirPath string, tc *testCase, m *module, goWorkLab
 	if actsAsRoot {
 		absGoWorkDir := filepath.Join(dirPath, filepath.Dir(strings.TrimPrefix(fileKey, "./")))
 		for _, r := range wf.Replace {
+			ws.addRootReplaced(r.Old.Path)
 			newPath := r.New.Path
 			newVers := r.New.Version
 			if newVers == "" && isRelativeReplacePath(newPath) {
@@ -809,8 +861,27 @@ func fixReplacePaths(mf *modfile.File, absGoModDir string) error {
 	return nil
 }
 
+// isRelativeUsePath reports whether a go.work use path is resolved relative to
+// the go.work file (like go_deps does for all non-absolute paths). Like
+// go_deps, treat both POSIX and Windows absolute paths as absolute on every
+// platform, since test cases are shared between platforms.
 func isRelativeUsePath(path string) bool {
-	return path == "." || strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../")
+	if strings.HasPrefix(path, "/") || filepath.IsAbs(path) {
+		return false
+	}
+	return !(len(path) > 1 && path[1] == ':')
+}
+
+// escapesModule reports whether a go.mod label computed from a go.work use
+// path points outside the Bazel module. go_deps rejects such use directives;
+// the tool skips them so that it can still derive the other executions.
+func escapesModule(goModLabel string) bool {
+	m := bazelLabelRE.FindStringSubmatch(goModLabel)
+	if m == nil {
+		return false
+	}
+	pkg := m[2]
+	return pkg == ".." || strings.HasPrefix(pkg, "../")
 }
 
 func isRelativeReplacePath(path string) bool {
@@ -865,16 +936,41 @@ func renderGoDepsGoMod(ws *goDepsWorkspace) string {
 	b.WriteString("\n\n")
 	for _, tag := range ws.moduleTags {
 		path, _ := tag["path"].(string)
-		version, _ := tag["version"].(string)
+		version := canonicalModuleVersion(tag["version"])
 		fmt.Fprintf(&b, "require %s %s\n", path, version)
-		localPath, _ := tag["local_path"].(string)
-		if localPath == "" {
-			if dir, ok := ws.bazelGoModDirs[path]; ok {
-				fmt.Fprintf(&b, "replace %s %s => %s\n", path, version, localReplacePath(dir))
-			}
+		ws.addRequiredVersion(path, version)
+	}
+	// Like go_deps, replace every required version of a Go module provided by
+	// a Bazel module with its directory in the workspace, unless the root
+	// module replaces it itself.
+	for _, rv := range ws.requiredVersions {
+		dir, ok := ws.bazelGoModDirs[rv.path]
+		if !ok || ws.rootReplaced[rv.path] {
+			continue
 		}
+		fmt.Fprintf(&b, "replace %s %s => %s\n", rv.path, rv.version, modfile.AutoQuote(localReplacePath(dir)))
+	}
+	for _, rv := range ws.requiredVersions {
+		dir, ok := ws.localPathDirs[rv.path]
+		if !ok {
+			continue
+		}
+		if _, bazel := ws.bazelGoModDirs[rv.path]; bazel || ws.rootReplaced[rv.path] {
+			continue
+		}
+		fmt.Fprintf(&b, "replace %s %s => %s\n", rv.path, rv.version, modfile.AutoQuote(dir))
 	}
 	return b.String()
+}
+
+// canonicalModuleVersion adds the leading "v" to a go_deps.module tag version
+// if it is missing, like go_deps does.
+func canonicalModuleVersion(v any) string {
+	version, _ := v.(string)
+	if strings.HasPrefix(version, "v") {
+		return version
+	}
+	return "v" + version
 }
 
 func renderGoDepsGoSum(ws *goDepsWorkspace) string {
@@ -884,7 +980,7 @@ func renderGoDepsGoSum(ws *goDepsWorkspace) string {
 		if sum == "" {
 			continue
 		}
-		fmt.Fprintf(&b, "%s %s %s\n", tag["path"], tag["version"], sum)
+		fmt.Fprintf(&b, "%s %s %s\n", tag["path"], canonicalModuleVersion(tag["version"]), sum)
 	}
 	return b.String()
 }
@@ -896,7 +992,7 @@ func renderGoDepsGoWork(ws *goDepsWorkspace) string {
 	b.WriteString("\n\nuse .\n")
 	for _, usePath := range ws.usePaths {
 		b.WriteString("use ")
-		b.WriteString(usePath)
+		b.WriteString(modfile.AutoQuote(usePath))
 		b.WriteString("\n")
 	}
 	for _, r := range ws.replaces {
@@ -907,7 +1003,7 @@ func renderGoDepsGoWork(ws *goDepsWorkspace) string {
 			b.WriteString(r.oldVers)
 		}
 		b.WriteString(" => ")
-		b.WriteString(r.newPath)
+		b.WriteString(modfile.AutoQuote(r.newPath))
 		if r.newVers != "" {
 			b.WriteString(" ")
 			b.WriteString(r.newVers)
@@ -915,6 +1011,41 @@ func renderGoDepsGoWork(ws *goDepsWorkspace) string {
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+// collectLocalPathDirs maps Go module paths to absolute directories for module
+// tags with local_path in the module acting as root. Like go_deps, relative
+// paths are resolved from that module's directory.
+func collectLocalPathDirs(dirPath string, tc *testCase, isolateModuleName string, isolated bool) map[string]string {
+	dirs := map[string]string{}
+	for i := range tc.Modules {
+		m := &tc.Modules[i]
+		var tagSets []*tags
+		if isolated {
+			if m.Name == isolateModuleName {
+				tagSets = []*tags{m.TagsIsolate}
+			}
+		} else if m.IsRoot {
+			tagSets = []*tags{m.Tags, m.TagsDev}
+		}
+		for _, ts := range tagSets {
+			if ts == nil {
+				continue
+			}
+			for _, tag := range ts.Module {
+				path, _ := tag["path"].(string)
+				localPath, _ := tag["local_path"].(string)
+				if localPath == "" {
+					continue
+				}
+				if !filepath.IsAbs(localPath) {
+					localPath = filepath.Join(dirPath, m.Name, localPath)
+				}
+				dirs[path] = abs(localPath)
+			}
+		}
+	}
+	return dirs
 }
 
 func collectModuleTags(tc *testCase) []map[string]any {

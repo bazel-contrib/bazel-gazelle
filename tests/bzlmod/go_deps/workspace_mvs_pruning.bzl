@@ -53,6 +53,9 @@ TEST = r"""
   },
   "want": {
     "main": {
+      "print": [
+        "Version conflict found for Go module golang.org/x/mod:"
+      ],
       "repos": [
         {
           "importpath": "golang.org/x/mod",

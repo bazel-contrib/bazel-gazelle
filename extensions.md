@@ -131,10 +131,10 @@ Declare a single Go module dependency. Prefer using `from_file` instead.
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="go_deps.module-indirect"></a>indirect |  Whether this Go module is an indirect dependency.   | Boolean | optional |  `False`  |
-| <a id="go_deps.module-local_path"></a>local_path |  For when a module is replaced by one residing in a local directory path   | String | optional |  `""`  |
+| <a id="go_deps.module-local_path"></a>local_path |  Path to a directory containing the Go module's source code, used instead of downloading the module, like a directory replacement in a go.mod file. Relative paths are resolved relative to the workspace. Only allowed in the root Bazel module.   | String | optional |  `""`  |
 | <a id="go_deps.module-path"></a>path |  The module path.   | String | required |  |
-| <a id="go_deps.module-sum"></a>sum |  -   | String | optional |  `""`  |
-| <a id="go_deps.module-version"></a>version |  -   | String | required |  |
+| <a id="go_deps.module-sum"></a>sum |  The go.sum checksum of the module's zip file ("h1:..."). Required unless `local_path` is set or a `go_deps.archive_override` applies to the module.   | String | optional |  `""`  |
+| <a id="go_deps.module-version"></a>version |  The module version, like "v1.2.3".   | String | required |  |
 
 <a id="go_deps.module_override"></a>
 

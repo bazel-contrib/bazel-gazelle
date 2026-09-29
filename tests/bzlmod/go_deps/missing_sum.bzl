@@ -35,6 +35,9 @@ TEST = r"""
   },
   "want": {
     "main": {
+      "print": [
+        "Missing go.sum entry for Go module golang.org/x/exp:"
+      ],
       "repos": [
         {
           "importpath": "golang.org/x/exp",

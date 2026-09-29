@@ -13,6 +13,11 @@ Each test case has the following fields:
   here roughly matches what you'd see in module_ctx.modules.
   - name: the name of the module
   - is_root: true for the first module
+  - no_go_deps_usage: optional, true if the module does not use the go_deps
+    extension at all. Bazel does not include such modules in
+    module_ctx.modules, and neither does the test harness. The module still
+    exists in the test case, for example, as the root module, whose files are
+    referenced by labels like "@@root//:go.mod".
   - tags: a set of go_deps tags. Each field corresponds to a tag like module
     or from_file. Each value is a list of dicts, the attributes for each tag.
   - tags_dev: optional set of go_deps tags with the same schema as tags,
@@ -27,6 +32,8 @@ Each test case has the following fields:
   "<module_name>_isolate" for isolated instances. Command strings omit the
   leading "env -i" wrapper and use "go" instead of the GOROOT path to the go
   binary.
+- go_version_output: optional string returned as the stdout of the mocked
+  'go version' command. Defaults to a release version.
 - want: object mapping go_deps instance names to expected output objects.
   The "main" key is for the un-isolated go_deps instance. Additional keys have
   the form "<module_name>_isolate" for isolated instances. Each value has:
@@ -38,7 +45,7 @@ Each test case has the following fields:
   - root_module_direct_dev_deps: list of repo names passed to extension metadata
     as root_module_direct_dev_deps.
   - print: optional list of substrings expected to appear in messages passed to
-    module_ctx.print, in order.
+    module_ctx.print, in order. Every printed message must be listed here.
   - fail: optional list of substrings expected to appear in messages passed to
     module_ctx.fail, in order. If fail was called and this field is omitted,
     the test fails.
@@ -60,6 +67,7 @@ def parse_go_deps_test_case(s):
         modules = [_parse_module(m) for m in d["modules"]],
         files = d.get("files", {}),
         executions = d.get("executions", {}),
+        go_version_output = d.get("go_version_output", ""),
         want = {
             key: _parse_want(value)
             for key, value in d["want"].items()
@@ -79,6 +87,7 @@ def _parse_module(d):
     return struct(
         name = d["name"],
         is_root = d.get("is_root", False),
+        no_go_deps_usage = d.get("no_go_deps_usage", False),
         version = d.get("version", ""),
         tags = _parse_tags(d.get("tags", {})),
         tags_dev = _parse_tags(d.get("tags_dev", {})),
