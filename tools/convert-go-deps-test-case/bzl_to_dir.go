@@ -794,24 +794,24 @@ func processGoWorkFromFileTag(dirPath string, tc *testCase, m *module, goWorkLab
 	}
 
 	for _, u := range wf.Use {
-		if isRelativeUsePath(u.Path) {
-			goModLabel, err := goModLabelFromGoWork(goWorkLabel, u.Path)
-			if err != nil {
-				return err
-			}
-			if escapesModule(goModLabel) {
-				addUse(u.Path)
-				continue
-			}
-			ref, err := goModRefFromLabel(goModLabel, m.Name, m.IsRoot)
-			if err != nil {
-				return err
-			}
-			if err := visitGoMod(ref); err != nil {
-				return err
-			}
-		} else {
+		if !isRelativeUsePath(u.Path) {
 			addUse(u.Path)
+			continue
+		}
+		goModLabel, err := goModLabelFromGoWork(goWorkLabel, u.Path)
+		if err != nil {
+			return err
+		}
+		if escapesModule(goModLabel) {
+			addUse(u.Path)
+			continue
+		}
+		ref, err := goModRefFromLabel(goModLabel, m.Name, m.IsRoot)
+		if err != nil {
+			return err
+		}
+		if err := visitGoMod(ref); err != nil {
+			return err
 		}
 	}
 
@@ -877,9 +877,8 @@ func fixReplacePaths(mf *modfile.File, absGoModDir string) error {
 }
 
 // isRelativeUsePath reports whether a go.work use path is resolved relative to
-// the go.work file (like go_deps does for all non-absolute paths). Like
-// go_deps, treat both POSIX and Windows absolute paths as absolute on every
-// platform, since test cases are shared between platforms.
+// the go.work file (like go_deps). POSIX absolute paths (/foo) are treated as
+// absolute on every GOOS, since test cases are shared between platforms.
 func isRelativeUsePath(path string) bool {
 	if strings.HasPrefix(path, "/") || filepath.IsAbs(path) {
 		return false

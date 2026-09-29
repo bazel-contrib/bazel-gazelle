@@ -411,9 +411,6 @@ def _repo_name(importpath):
     candidate_name = "_".join(segments).replace("-", "_")
     return "".join([c.lower() if c.isalnum() else "_" for c in candidate_name.elems()])
 
-def _bazel_module_repo_name(module, go_mod_label):
-    return go_mod_label.repo_name if go_mod_label.repo_name else module.name
-
 def _get_repo_name(importpath, bazel_go_modules, module_overrides):
     """Returns the Bazel repo name for a Go module path.
 
@@ -807,7 +804,7 @@ To correct this:
             info = _bazel_go_mod_info(
                 importpath = go_mod_json["Module"]["Path"],
                 go_mod_label = go_mod_label,
-                repo_name = _bazel_module_repo_name(module, go_mod_label),
+                repo_name = go_mod_label.repo_name,
                 bazel_dep_name = module.name,
                 bazel_dep_version = module.version,
                 is_root = acts_as_root,

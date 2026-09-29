@@ -1224,6 +1224,27 @@ func TestResolveExternal(t *testing.T) {
 			importpath: "example.com/repo/v2/foo",
 			depMode:    staticMode,
 			want:       "",
+		}, {
+			desc:       "canonical_main",
+			importpath: "example.com/pkg/foo",
+			repos: []repo.Repo{{
+				Name:     "@",
+				GoPrefix: "example.com",
+			}},
+			depMode:                  staticMode,
+			namingConventionExternal: importNamingConvention,
+			want:                     "@@//pkg/foo",
+		}, {
+			desc:       "canonical_gazelle",
+			importpath: "github.com/bazel-contrib/bazel-gazelle/v2/label",
+			repos: []repo.Repo{{
+				Name:      "@gazelle+",
+				PrefixDir: "v2",
+				GoPrefix:  "github.com/bazel-contrib/bazel-gazelle/v2",
+			}},
+			depMode:                  staticMode,
+			namingConventionExternal: importNamingConvention,
+			want:                     "@@gazelle+//v2/label",
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {

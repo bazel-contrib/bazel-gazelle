@@ -45,6 +45,7 @@ load("//tests/bzlmod/go_deps:work_mixed_direct.bzl", WORK_MIXED_DIRECT_TEST = "T
 load("//tests/bzlmod/go_deps:work_no_use.bzl", WORK_NO_USE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:work_use_absolute.bzl", WORK_USE_ABSOLUTE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:work_use_escape.bzl", WORK_USE_ESCAPE_TEST = "TEST")
+load("//tests/bzlmod/go_deps:work_use_relative.bzl", WORK_USE_RELATIVE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:workspace_mvs_pruning.bzl", WORKSPACE_MVS_PRUNING_TEST = "TEST")
 
 # Keep sorted
@@ -91,6 +92,7 @@ _GO_DEPS_TEST_CASES = [
     WORK_NO_USE_TEST,
     WORK_USE_ABSOLUTE_TEST,
     WORK_USE_ESCAPE_TEST,
+    WORK_USE_RELATIVE_TEST,
     WORKSPACE_MVS_PRUNING_TEST,
 ]
 
