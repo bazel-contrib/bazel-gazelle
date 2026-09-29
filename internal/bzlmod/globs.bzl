@@ -37,12 +37,14 @@ def match_prefix_patterns(globs, target):
     "a.com, b.com" contains the pattern " b.com", which matches nothing.
 
     Args:
-        globs: comma-separated list of glob patterns, like the value of
-            GOPRIVATE.
+        globs: string containing a comma-separated list of glob patterns, like
+            the value of GOPRIVATE.
         target: a Go module path.
 
     Returns:
-        True if any of the patterns matches a prefix of target.
+        A tuple containing:
+        - A bool, whether any of the patterns match a prefix of the target.
+        - None or a string error message if a glob pattern couldn't be parsed.
     """
     target_elems = target.split("/")
     for glob in globs.split(","):
@@ -52,19 +54,21 @@ def match_prefix_patterns(globs, target):
         if len(glob_elems) > len(target_elems):
             # Not enough prefix elements in target.
             continue
-        if _match_elems(glob_elems, target_elems[:len(glob_elems)]):
-            return True
-    return False
+        matched, err = _match_elems(glob, glob_elems, target_elems[:len(glob_elems)])
+        if err:
+            return False, err
+        if matched:
+            return True, None
+    return False, None
 
-def _match_elems(glob_elems, target_elems):
+def _match_elems(glob, glob_elems, target_elems):
     for i, glob_elem in enumerate(glob_elems):
         tokens = _tokenize(glob_elem)
         if tokens == None:
-            # Malformed pattern.
-            return False
+            return False, "could not parse glob pattern '{}'".format(glob)
         if not _match_tokens(tokens, target_elems[i]):
-            return False
-    return True
+            return False, None
+    return True, None
 
 # Token kinds produced by _tokenize. Each matches at most one character.
 _LITERAL = "literal"  # a single character, in the "chars" field

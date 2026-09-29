@@ -65,30 +65,60 @@ _MATCH_PREFIX_PATTERNS_CASES = [
     # Escaped metacharacters match themselves.
     ("example.com/m\\*", "example.com/m*", True),
     ("example.com/m\\*", "example.com/mn", False),
+]
 
-    # Malformed patterns never match, but don't affect other patterns.
-    ("example.com/[a-z", "example.com/abc", False),
-    ("example.com/m\\", "example.com/m", False),
-    ("example.com/[a-z,other.com", "other.com/m", True),
+# Each case is a (globs, target) pair with a malformed pattern.
+_MATCH_PREFIX_PATTERNS_ERROR_CASES = [
+    ("example.com/[a-z", "example.com/abc"),
+    ("example.com/m\\", "example.com/m"),
 ]
 
 def _match_prefix_patterns_test_impl(ctx):
     env = unittest.begin(ctx)
 
     for globs, target, want in _MATCH_PREFIX_PATTERNS_CASES:
+        got, err = match_prefix_patterns(globs, target)
         asserts.equals(
             env,
             want,
-            match_prefix_patterns(globs, target),
+            got,
             "match_prefix_patterns({}, {})".format(repr(globs), repr(target)),
+        )
+        asserts.equals(
+            env,
+            None,
+            err,
+            "match_prefix_patterns({}, {}) error".format(repr(globs), repr(target)),
         )
 
     return unittest.end(env)
 
 match_prefix_patterns_test = unittest.make(_match_prefix_patterns_test_impl)
 
+def _match_prefix_patterns_error_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    for globs, target in _MATCH_PREFIX_PATTERNS_ERROR_CASES:
+        got, err = match_prefix_patterns(globs, target)
+        asserts.equals(
+            env,
+            False,
+            got,
+            "match_prefix_patterns({}, {})".format(repr(globs), repr(target)),
+        )
+        asserts.true(
+            env,
+            err != None,
+            "match_prefix_patterns({}, {}) expected an error".format(repr(globs), repr(target)),
+        )
+
+    return unittest.end(env)
+
+match_prefix_patterns_error_test = unittest.make(_match_prefix_patterns_error_test_impl)
+
 def globs_test_suite(name):
     unittest.suite(
         name,
         match_prefix_patterns_test,
+        match_prefix_patterns_error_test,
     )
