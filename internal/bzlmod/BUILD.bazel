@@ -9,6 +9,7 @@ filegroup(
         "globs.bzl",
         "go_deps.bzl",
         "go_repository_config.bzl",
+        "goproxy.bzl",
         "non_module_deps.bzl",
         "semver.bzl",
         "utils.bzl",
@@ -49,6 +50,13 @@ bzl_library(
         "//internal:go_repository_tools",
         "//internal:is_bazel_module",
     ],
+)
+
+bzl_library(
+    name = "goproxy",
+    srcs = ["goproxy.bzl"],
+    visibility = ["//:__subpackages__"],
+    deps = [":globs"],
 )
 
 bzl_library(

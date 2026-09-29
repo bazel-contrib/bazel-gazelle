@@ -61,24 +61,23 @@ def compute_env(
         go_sdk_label = Label("@" + matches[0] + "//:ROOT")
 
     go_root = path_str(ctx.path(go_sdk_label).dirname)
+    extension = executable_extension(ctx)
+    go_tool = go_root + "/bin/go" + extension
     go_path = ""  # default: the cache repo itself; recomputed by read_go_env_file()
     go_cache = ""  # default: <cache repo>/gocache; recomputed by read_go_env_file()
     go_mod_cache = ""
+    host_env = _run_go_env(ctx, go_tool, ["GOPATH", "GOCACHE", "GOMODCACHE", "GOPROXY", "GONOPROXY", "GOPRIVATE"])
     if ctx.getenv("GO_REPOSITORY_USE_HOST_MODCACHE") == "1":
-        extension = executable_extension(ctx)
-        go_tool = go_root + "/bin/go" + extension
-        go_mod_cache = read_go_env(ctx, go_tool, "GOMODCACHE")
+        go_mod_cache = host_env.get("GOMODCACHE")
         if not go_mod_cache:
             fail("GOMODCACHE must be set when GO_REPOSITORY_USE_HOST_MODCACHE is enabled.")
     if ctx.getenv("GO_REPOSITORY_USE_HOST_CACHE") == "1":
-        extension = executable_extension(ctx)
-        go_tool = go_root + "/bin/go" + extension
-        go_mod_cache = read_go_env(ctx, go_tool, "GOMODCACHE")
-        go_path = read_go_env(ctx, go_tool, "GOPATH")
+        go_mod_cache = host_env.get("GOMODCACHE")
+        go_path = host_env.get("GOPATH")
         if not go_mod_cache and not go_path:
             fail("GOPATH or GOMODCACHE must be set when GO_REPOSITORY_USE_HOST_CACHE is enabled.")
-        go_cache = read_go_env(ctx, go_tool, "GOCACHE")
-        if not go_cache:
+        go_cache = host_env.get("GOCACHE")
+        if not go_cache or go_cache == "off":
             fail("GOCACHE must be set when GO_REPOSITORY_USE_HOST_CACHE is enabled.")
 
     cache_env = {
@@ -87,7 +86,7 @@ def compute_env(
         # when we read a go.env file, GOROOT is computed from GOROOT_LABEL.
         # This avoids a class of staleness issues, both with and without repo
         # content caches.
-        "GOROOT": path_str(ctx.path(go_sdk_label).dirname),
+        "GOROOT": go_root,
         "GOROOT_LABEL": str(go_sdk_label),
 
         # Since Go v1.21.0, set GOTOOLCHAIN to "local" to use the current toolchain
@@ -106,12 +105,14 @@ def compute_env(
         cache_env["GOCACHE"] = go_cache
     if go_mod_cache:
         cache_env["GOMODCACHE"] = go_mod_cache
+    for key in "GOPROXY", "GONOPROXY", "GOPRIVATE":
+        cache_env[key] = host_env[key]
 
     cache_env.update(resolve_env(
         ctx,
         direct = go_env,
         inherit = go_env_inherit,
-        reserved = cache_env.keys() + ["GOCACHE", "GOPATH"],
+        reserved = ["GOPATH", "GOROOT", "GOCACHE", "GOMODCACHE", "GOTOOLCHAIN"],
     ))
 
     return cache_env
@@ -162,28 +163,36 @@ def resolve_env(ctx, direct = {}, inherit = [], reserved = []):
         if value != None:
             env[key] = value
 
+    # If GONOPROXY and GONOSUMDB are not explicitly set, copy them from GOPRIVATE,
+    # as 'go env' does internally. This lets us just look at those variables.
+    for key in "GONOPROXY", "GOPRIVATE":
+        if key not in env and "GOPRIVATE" in env:
+            env[key] = env["GOPRIVATE"]
+
     return env
 
-def read_go_env(ctx, go_tool, var):
+def _run_go_env(ctx, go_tool, vars):
     """
     Runs 'go env' to find Go's opinion on what an environment variable should be
 
     Args:
         ctx: a repository_ctx or module_ctx, giving access to the host environment.
         go_tool: path to the go binary
-        var: the environment variable to check, like GOROOT
+        vars: list of environment variable names to check, like GOROOT
 
     Returns:
-        Go's value for that environment variable
+        A dict mapping environment variable names to values.
     """
-    watch(ctx, go_tool)
 
-    # watch var too if possible.
-    ctx.getenv(var)
-    res = ctx.execute([go_tool, "env", var])
+    # Watch the go_tool and environment variables since they affect the output.
+    watch(ctx, go_tool)
+    for var in vars:
+        ctx.getenv(var)
+
+    res = ctx.execute([go_tool, "env", "-json"] + vars)
     if res.return_code:
         fail("failed to read go environment: " + res.stderr)
-    return res.stdout.strip()
+    return json.decode(res.stdout)
 
 def read_go_env_file(ctx, env_path, cache_dir_file = None):
     """
