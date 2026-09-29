@@ -90,7 +90,11 @@ def download_mod_files(
     downloads = []
     mod_versions = {}  # importpath => list of versions
     for m, sha256 in required_mod_files.items():
-        if match_prefix_patterns(go_env["GONOPROXY"], m.importpath):
+        match, err = match_prefix_patterns(go_env["GONOPROXY"], m.importpath)
+        if err:
+            module_ctx.fail("GONOPROXY: " + err)
+            return None, None
+        if match:
             # Don't disclose private module path to proxy.
             continue
         escaped_importpath = _escape_mod_case(m.importpath)
