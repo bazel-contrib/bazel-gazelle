@@ -14,7 +14,7 @@
 
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "patch", "read_user_netrc", "use_netrc")
 load("//internal:common.bzl", "env_execute", "executable_extension", "watch")
-load("//internal:env.bzl", "read_go_env_file")
+load("//internal:env.bzl", "host_network_env", "read_go_env_file")
 
 _DOC = """
 `go_repository` downloads a Go project and generates build files with Gazelle
@@ -242,20 +242,19 @@ def _go_repository_impl(ctx):
         )
     else:
         env = read_go_env_file(ctx, go_env_cache)
+
+    # Proxy, sumdb, and auth settings come from go.env, which
+    # go_repository_cache computes from 'go env' (see compute_env), so that
+    # go_deps, go_repository, and @rules_go//go use the same values. The host's
+    # HTTP proxy and TLS settings can't be persisted there, so they are read
+    # from the host environment, like the settings needed to run VCS tools for
+    # modules that no proxy serves.
+    # TODO(jayconrod): gazelle in go_repository mode should probably
+    # not go out to the network at all. This means *the build*
+    # goes out to the network. We tolerate this for downloading
+    # archives, but finding module roots is a bit much.
     env_keys = [
         # keep sorted
-
-        # Respect user proxy and sumdb settings for privacy.
-        # TODO(jayconrod): gazelle in go_repository mode should probably
-        # not go out to the network at all. This means *the build*
-        # goes out to the network. We tolerate this for downloading
-        # archives, but finding module roots is a bit much.
-        "GOAUTH",
-        "GONOPROXY",
-        "GONOSUMDB",
-        "GOPRIVATE",
-        "GOPROXY",
-        "GOSUMDB",
 
         # PATH is needed to locate git and other vcs tools.
         "PATH",
@@ -272,15 +271,7 @@ def _go_repository_impl(ctx):
         "GIT_SSH",
         "GIT_SSH_COMMAND",
         "GIT_SSL_CAINFO",
-        "HTTPS_PROXY",
-        "HTTP_PROXY",
-        "NO_PROXY",
         "SSH_AUTH_SOCK",
-        "SSL_CERT_DIR",
-        "SSL_CERT_FILE",
-        "http_proxy",
-        "https_proxy",
-        "no_proxy",
     ]
 
     # Git allows passing configuration through environmental variables, this will be picked
@@ -299,6 +290,7 @@ def _go_repository_impl(ctx):
                         fail("%s is not defined as an environment variable, but you asked for GIT_COUNT_COUNT=%d" % (j, count))
                 env_keys = env_keys + [key, value]
 
+    env.update(host_network_env(ctx.os.environ))
     env.update({k: ctx.os.environ[k] for k in env_keys if k in ctx.os.environ})
 
     # Clean existing build files if requested

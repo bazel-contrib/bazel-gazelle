@@ -2254,6 +2254,7 @@ TEST = r"""
         {
           "go_env": {
             "GONOPROXY": "example.com/*",
+            "GONOSUMDB": "example.com/*",
             "GOPRIVATE": "example.com/*",
             "GOPROXY": "https://proxy.golang.org,direct",
             "GOROOT_LABEL": "@go_sdk//:ROOT"

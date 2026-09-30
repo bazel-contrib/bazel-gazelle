@@ -14,7 +14,7 @@
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("//internal:common.bzl", "env_execute", "executable_extension", "path_str", "watch")
-load("//internal:env.bzl", "parse_go_env_file", "resolve_env", "resolve_go_env")
+load("//internal:env.bzl", "host_network_env", "parse_go_env_file", "resolve_env", "resolve_go_env")
 load("//internal:go_repository.bzl", "go_repository")
 load(
     ":default_gazelle_overrides.bzl",
@@ -103,8 +103,12 @@ def go_deps_impl(module_ctx):
             ],
         )
 
-    # Resolve GOROOT and the cache directories to run the go tool.
-    go_exec_env = resolve_go_env(module_ctx, go_env, cache_go_env_label)
+    # Resolve GOROOT and the cache directories to run the go tool. 'go list -m'
+    # may download go.mod files and verify checksums, so like go_repository,
+    # pass the host's HTTP proxy and TLS settings through. Explicit settings
+    # from the cache repo and go_deps.config take precedence, and only go_env,
+    # which is free of host-specific paths, is persisted.
+    go_exec_env = host_network_env(module_ctx.os.environ) | resolve_go_env(module_ctx, go_env, cache_go_env_label)
     go_tool = go_exec_env["GOROOT"] + "/bin/go" + executable_extension(module_ctx)
     watch(module_ctx, go_tool)
 
@@ -1789,7 +1793,11 @@ _config_tag = tag_class(
             doc = "The environment variables to use when fetching Go dependencies or running the `@rules_go//go` tool.",
         ),
         "go_env_inherit": attr.string_list(
-            doc = "Host environment variable names to inherit when fetching Go dependencies or running the `@rules_go//go` tool.",
+            doc = """\
+            Host environment variable names to inherit when fetching Go dependencies or running the `@rules_go//go` tool.
+            Proxy, sum database, authentication, and TLS settings such as `GOPROXY`, `GOSUMDB`, `GOAUTH`, `HTTPS_PROXY`,
+            and `SSL_CERT_FILE` are always taken from the host, from `go env` where Go manages them.
+            """,
         ),
         "debug_mode": attr.bool(doc = "Whether or not to print stdout and stderr messages from gazelle", default = False),
     },

@@ -21,6 +21,37 @@ load(
     "watch",
 )
 
+# Settings that the go command reads when it downloads modules or verifies
+# their checksums. They may be set in the host environment or, with
+# 'go env -w', in Go's configuration file, so 'go env' is the only reliable
+# source for their effective values.
+GO_DOWNLOAD_SETTINGS = [
+    # keep sorted
+    "GOAUTH",
+    "GONOPROXY",
+    "GONOSUMDB",
+    "GOPRIVATE",
+    "GOPROXY",
+    "GOSUMDB",
+]
+
+# Host environment variables that configure how the go command reaches the
+# module proxy and the checksum database: HTTP proxies and TLS certificates.
+# Go doesn't manage them, so 'go env' can't report them, and they may be
+# absolute paths, so they can't be written to go.env, which must stay
+# relocatable. See host_network_env.
+NETWORK_HOST_SETTINGS = [
+    # keep sorted
+    "HTTPS_PROXY",
+    "HTTP_PROXY",
+    "NO_PROXY",
+    "SSL_CERT_DIR",
+    "SSL_CERT_FILE",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
+]
+
 def compute_env(
         ctx,
         *,
@@ -30,6 +61,10 @@ def compute_env(
         go_env_inherit = []):
     """
     Computes the environment to use for Go toolchain invocations
+
+    Go's own settings that affect module downloads (GO_DOWNLOAD_SETTINGS) are
+    gathered here, in the one repository rule that runs before all others, so
+    that go_deps, go_repository, and @rules_go//go use the same values.
 
     Args:
         ctx: a repository_ctx or module_ctx, giving access to the host environment.
@@ -66,7 +101,7 @@ def compute_env(
     go_path = ""  # default: the cache repo itself; recomputed by read_go_env_file()
     go_cache = ""  # default: <cache repo>/gocache; recomputed by read_go_env_file()
     go_mod_cache = ""
-    host_env = _run_go_env(ctx, go_tool, ["GOPATH", "GOCACHE", "GOMODCACHE", "GOPROXY", "GONOPROXY", "GOPRIVATE"])
+    host_env = _run_go_env(ctx, go_tool, ["GOPATH", "GOCACHE", "GOMODCACHE"] + GO_DOWNLOAD_SETTINGS)
     if ctx.getenv("GO_REPOSITORY_USE_HOST_MODCACHE") == "1":
         go_mod_cache = host_env.get("GOMODCACHE")
         if not go_mod_cache:
@@ -105,7 +140,7 @@ def compute_env(
         cache_env["GOCACHE"] = go_cache
     if go_mod_cache:
         cache_env["GOMODCACHE"] = go_mod_cache
-    for key in "GOPROXY", "GONOPROXY", "GOPRIVATE":
+    for key in GO_DOWNLOAD_SETTINGS:
         cache_env[key] = host_env[key]
 
     cache_env.update(resolve_env(
@@ -116,6 +151,26 @@ def compute_env(
     ))
 
     return cache_env
+
+def host_network_env(environ):
+    """
+    Returns the host's HTTP proxy and TLS settings for running the go command.
+
+    go_deps and go_repository pass these through whenever the go command may
+    download modules or verify checksums. Unlike GO_DOWNLOAD_SETTINGS, they
+    are not persisted in go.env: SSL_CERT_FILE and SSL_CERT_DIR are absolute
+    paths, and go.env must stay relocatable so that it can be shared between
+    users. Reading them from environ rather than ctx.getenv also avoids
+    invalidating every go_repository when a shell sets a different proxy or
+    certificate bundle, which doesn't change what the go command computes.
+
+    Args:
+        environ: the host environment, usually ctx.os.environ.
+
+    Returns:
+        A dict of environment variable settings.
+    """
+    return {k: environ[k] for k in NETWORK_HOST_SETTINGS if k in environ}
 
 def write_go_env_file(ctx, env_dict):
     """Writes a go.env file that can be read by Go or read_go_env_file"""
@@ -165,7 +220,7 @@ def resolve_env(ctx, direct = {}, inherit = [], reserved = []):
 
     # If GONOPROXY and GONOSUMDB are not explicitly set, copy them from GOPRIVATE,
     # as 'go env' does internally. This lets us just look at those variables.
-    for key in "GONOPROXY", "GOPRIVATE":
+    for key in "GONOPROXY", "GONOSUMDB":
         if key not in env and "GOPRIVATE" in env:
             env[key] = env["GOPRIVATE"]
 
