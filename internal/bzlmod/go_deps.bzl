@@ -333,7 +333,7 @@ def _go_module_info(
         importpath,
         repo_name,
         version = None,
-        selected_version = None,
+        pre_replace_version = None,
         sum = None,
         replace_path = None,
         local_path = None,
@@ -351,7 +351,7 @@ def _go_module_info(
         version: the selected version, including the 'v' prefix. For replaced
             modules, this is the replacement version. May be omitted
             for replaced modules with directory replacements or path overrides.
-        selected_version: the version Go selected for importpath before
+        pre_replace_version: the version Go selected for importpath before
             applying replace directives, including the 'v' prefix. This is
             what require directives and go_deps.module tags are compared
             against. None for modules provided by Bazel modules.
@@ -376,7 +376,7 @@ def _go_module_info(
         importpath = importpath,
         repo_name = repo_name,
         version = version,
-        selected_version = selected_version,
+        pre_replace_version = pre_replace_version,
         sum = sum,
         replace_path = replace_path,
         local_path = local_path,
@@ -1355,7 +1355,7 @@ def _select_module_versions(
         go_modules[importpath] = _go_module_info(
             importpath = importpath,
             version = version,
-            selected_version = m.get("Version"),
+            pre_replace_version = m.get("Version"),
             sum = sum,
             replace_path = replace_path,
             local_path = local_path,
@@ -1610,7 +1610,7 @@ To correct this:
         # directive changes the content, not the requested version.
         go_module = go_modules[tag.path]
         tag_version = _canonical_module_version(tag.version)
-        if go_module.selected_version != None and tag_version != go_module.selected_version:
+        if go_module.pre_replace_version != None and tag_version != go_module.pre_replace_version:
             report_error("""\
 Version conflict found for Go module {importpath}:
     requested with go_deps.module: {tag_version}
@@ -1623,7 +1623,7 @@ To correct this:
 """.format(
                 importpath = go_module.importpath,
                 tag_version = tag_version,
-                go_version = go_module.selected_version,
+                go_version = go_module.pre_replace_version,
             ))
 
     root_module_tag_paths = {tag.path: True for tag in root_module_tags}
@@ -1633,7 +1633,7 @@ To correct this:
             path in root_module_tag_paths):
             continue
         go_module = go_modules[path]
-        if go_module.selected_version != None and require.version != go_module.selected_version:
+        if go_module.pre_replace_version != None and require.version != go_module.pre_replace_version:
             report_error("""\
 Version conflict found for Go module {importpath}:
     requested in root module: {require_version}
@@ -1646,7 +1646,7 @@ To correct this:
 """.format(
                 importpath = path,
                 require_version = require.version,
-                go_version = go_module.selected_version,
+                go_version = go_module.pre_replace_version,
             ))
 
     for path, go_module in go_modules.items():
