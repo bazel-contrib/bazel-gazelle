@@ -7,6 +7,7 @@ load("//tests/bzlmod/go_deps:archive_override.bzl", ARCHIVE_OVERRIDE_TEST = "TES
 load("//tests/bzlmod/go_deps:archive_override_unmatched.bzl", ARCHIVE_OVERRIDE_UNMATCHED_TEST = "TEST")
 load("//tests/bzlmod/go_deps:bcr_go_mod.bzl", BCR_GO_MOD_TEST = "TEST")
 load("//tests/bzlmod/go_deps:build_naming_conventions.bzl", BUILD_NAMING_CONVENTIONS_TEST = "TEST")
+load("//tests/bzlmod/go_deps:check_direct_dependencies.bzl", CHECK_DIRECT_DEPENDENCIES_TEST = "TEST")
 load("//tests/bzlmod/go_deps:config_prefix_dirs.bzl", CONFIG_PREFIX_DIRS_TEST = "TEST")
 load("//tests/bzlmod/go_deps:debug_mode.bzl", DEBUG_MODE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:default_gazelle_overrides.bzl", DEFAULT_GAZELLE_OVERRIDES_TEST = "TEST")
@@ -17,8 +18,11 @@ load("//tests/bzlmod/go_deps:facts_all.bzl", FACTS_ALL_TEST = "TEST")
 load("//tests/bzlmod/go_deps:facts_gonoproxy.bzl", FACTS_GONOPROXY_TEST = "TEST")
 load("//tests/bzlmod/go_deps:facts_goprivate.bzl", FACTS_GOPRIVATE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:from_file_dev_deps.bzl", FROM_FILE_DEV_DEPS_TEST = "TEST")
+load("//tests/bzlmod/go_deps:from_file_not_go_mod.bzl", FROM_FILE_NOT_GO_MOD_TEST = "TEST")
 load("//tests/bzlmod/go_deps:gazelle_default_attributes.bzl", GAZELLE_DEFAULT_ATTRIBUTES_TEST = "TEST")
+load("//tests/bzlmod/go_deps:gazelle_default_attributes_not_root.bzl", GAZELLE_DEFAULT_ATTRIBUTES_NOT_ROOT_TEST = "TEST")
 load("//tests/bzlmod/go_deps:gazelle_override.bzl", GAZELLE_OVERRIDE_TEST = "TEST")
+load("//tests/bzlmod/go_deps:gazelle_override_invalid_directive.bzl", GAZELLE_OVERRIDE_INVALID_DIRECTIVE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:go_mod_no_go_directive.bzl", GO_MOD_NO_GO_DIRECTIVE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:go_version_devel.bzl", GO_VERSION_DEVEL_TEST = "TEST")
 load("//tests/bzlmod/go_deps:go_version_low.bzl", GO_VERSION_LOW_TEST = "TEST")
@@ -32,6 +36,8 @@ load("//tests/bzlmod/go_deps:module_override.bzl", MODULE_OVERRIDE_TEST = "TEST"
 load("//tests/bzlmod/go_deps:module_tag_version_normalize.bzl", MODULE_TAG_VERSION_NORMALIZE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:mvs.bzl", MVS_TEST = "TEST")
 load("//tests/bzlmod/go_deps:no_root_usage.bzl", NO_ROOT_USAGE_TEST = "TEST")
+load("//tests/bzlmod/go_deps:override_bazel_module.bzl", OVERRIDE_BAZEL_MODULE_TEST = "TEST")
+load("//tests/bzlmod/go_deps:replace_bazel_module.bzl", REPLACE_BAZEL_MODULE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_dir_mod.bzl", REPLACE_DIR_MOD_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_dir_work.bzl", REPLACE_DIR_WORK_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_ignore_not_root.bzl", REPLACE_IGNORE_NOT_ROOT_TEST = "TEST")
@@ -54,6 +60,7 @@ _GO_DEPS_TEST_CASES = [
     ARCHIVE_OVERRIDE_UNMATCHED_TEST,
     BUILD_NAMING_CONVENTIONS_TEST,
     BCR_GO_MOD_TEST,
+    CHECK_DIRECT_DEPENDENCIES_TEST,
     CONFIG_PREFIX_DIRS_TEST,
     DEBUG_MODE_TEST,
     DEFAULT_GAZELLE_OVERRIDES_TEST,
@@ -64,8 +71,11 @@ _GO_DEPS_TEST_CASES = [
     FACTS_GONOPROXY_TEST,
     FACTS_GOPRIVATE_TEST,
     FROM_FILE_DEV_DEPS_TEST,
+    FROM_FILE_NOT_GO_MOD_TEST,
     GAZELLE_DEFAULT_ATTRIBUTES_TEST,
+    GAZELLE_DEFAULT_ATTRIBUTES_NOT_ROOT_TEST,
     GAZELLE_OVERRIDE_TEST,
+    GAZELLE_OVERRIDE_INVALID_DIRECTIVE_TEST,
     GO_MOD_NO_GO_DIRECTIVE_TEST,
     GO_VERSION_DEVEL_TEST,
     GO_VERSION_LOW_TEST,
@@ -79,6 +89,8 @@ _GO_DEPS_TEST_CASES = [
     MISSING_SUM_TEST,
     MVS_TEST,
     NO_ROOT_USAGE_TEST,
+    OVERRIDE_BAZEL_MODULE_TEST,
+    REPLACE_BAZEL_MODULE_TEST,
     REPLACE_DIR_MOD_TEST,
     REPLACE_DIR_WORK_TEST,
     REPLACE_IGNORE_NOT_ROOT_TEST,

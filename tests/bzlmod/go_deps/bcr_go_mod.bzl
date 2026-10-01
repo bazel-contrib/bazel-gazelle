@@ -1679,10 +1679,9 @@ TEST = r"""
   "want": {
     "main": {
       "print": [
-        "Version conflict found for Go module github.com/bazelbuild/bazel-gazelle:",
         "Version conflict found for Go module github.com/stretchr/testify:",
         "Version conflict found for Go module github.com/davecgh/go-spew:",
-        "Version conflict found for Go module github.com/bmatcuk/doublestar/v4:"
+        "Version conflict found for Go module github.com/bmatcuk/doublestar/v4:\n    requested in root module: v4.6.0\n    selected by Go:           v4.9.1"
       ],
       "repos": [
         {
@@ -2251,6 +2250,16 @@ TEST = r"""
           "build_directives": [
             "gazelle:proto disable"
           ]
+        },
+        {
+          "go_env": {
+            "GONOPROXY": "example.com/*",
+            "GONOSUMDB": "example.com/*",
+            "GOPRIVATE": "example.com/*",
+            "GOPROXY": "https://proxy.golang.org,direct",
+            "GOROOT_LABEL": "@go_sdk//:ROOT"
+          },
+          "name": "bazel_gazelle_go_repository_config"
         }
       ],
       "root_module_direct_deps": [
