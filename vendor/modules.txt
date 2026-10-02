@@ -1,5 +1,5 @@
 ## workspace
-# github.com/bazel-contrib/bazel-gazelle/v2 v2.0.0-3
+# github.com/bazel-contrib/bazel-gazelle/v2 v2.0.0-beta.1
 ## explicit; go 1.24.12
 # github.com/bazelbuild/buildtools v0.0.0-20250930140053-2eb4fccefb52
 ## explicit; go 1.20
@@ -55,6 +55,16 @@ golang.org/x/sys/windows
 ## explicit; go 1.18
 # golang.org/x/tools v0.30.0
 ## explicit; go 1.22.0
+golang.org/x/tools/go/gcexportdata
+golang.org/x/tools/go/types/objectpath
+golang.org/x/tools/go/types/typeutil
+golang.org/x/tools/internal/aliases
+golang.org/x/tools/internal/gcimporter
+golang.org/x/tools/internal/pkgbits
+golang.org/x/tools/internal/stdlib
+golang.org/x/tools/internal/typeparams
+golang.org/x/tools/internal/typesinternal
+golang.org/x/tools/internal/versions
 # golang.org/x/tools/go/vcs v0.1.0-deprecated
 ## explicit; go 1.19
 golang.org/x/tools/go/vcs
