@@ -16,7 +16,10 @@ gazelle_test(
 
 gazelle_binary(
     name = "gazelle_binary",
-    languages = DEFAULT_LANGUAGES,
+    languages = [
+        "@gazelle//language/proto",
+        "@gazelle//language/go",
+    ],
     version = 2,
 )
 

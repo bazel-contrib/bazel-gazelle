@@ -23,7 +23,7 @@ def _languages_for_version_test_impl(ctx):
     env = unittest.begin(ctx)
     go = "//language/go:go"
     visibility = "//language/bazel/visibility:visibility"
-    defaults = "//language/defaults"
+    defaults = Label("//language/defaults")
 
     asserts.equals(env, [go], languages_for_version([go], 1))
 

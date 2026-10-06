@@ -130,7 +130,7 @@ def languages_for_version(languages, version):
         result.append(lang)
     if not has_defaults:
         # Add defaults to the front of the list if it wasn't requested.
-        result = ["//language/defaults"] + result
+        result = [Label("//language/defaults")] + result
     return result
 
 def language_package(name):
