@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "errors",
+    srcs = ["severity.go"],
+    importpath = "github.com/bazel-contrib/bazel-gazelle/v2/errors",
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "severity.go",
+    ],
+    visibility = ["//visibility:public"],
+)

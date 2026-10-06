@@ -38,6 +38,7 @@ import (
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
+	gzerrors "github.com/bazel-contrib/bazel-gazelle/v2/errors"
 	gzflag "github.com/bazel-contrib/bazel-gazelle/v2/flag"
 	"github.com/bazel-contrib/bazel-gazelle/v2/internal/wspace"
 	"github.com/bazel-contrib/bazel-gazelle/v2/label"
@@ -400,27 +401,7 @@ func Run(
 	}
 	uc := getUpdateConfig(c)
 
-	var errs []error
-	handleError := func(lang any, err error) {
-		var langName string
-		if withName, ok := lang.(language.Language); ok {
-			langName = withName.Name()
-		}
-		var errsToHandle []error
-		if joinedErrs, ok := err.(interface{ Unwrap() []error }); ok {
-			errsToHandle = joinedErrs.Unwrap()
-		} else {
-			errsToHandle = []error{err}
-		}
-		for _, err := range errsToHandle {
-			if langName != "" {
-				log.Printf("language %s: %v", langName, err)
-			} else {
-				log.Print(err)
-			}
-		}
-		errs = append(errs, errsToHandle...)
-	}
+	errHandler := &errorHandler{strict: c.Strict}
 
 	mrslv := newMetaResolver()
 	kinds := make(map[string]rule.KindInfo)
@@ -455,7 +436,9 @@ func Run(
 	defer cancel()
 	for _, lang := range languages {
 		if err := lang.OnStart(ctx); err != nil {
-			handleError(lang, err)
+			if !errHandler.handle(lang, err) {
+				return errHandler.exitError()
+			}
 		}
 	}
 
@@ -497,7 +480,9 @@ func Run(
 			if c.IndexLibraries && f != nil {
 				for _, r := range f.Rules {
 					if err := ruleIndex.AddRule(ctx, c, r, f); err != nil {
-						handleError(nil, err)
+						if !errHandler.handle(nil, err) {
+							return walk.WalkFuncResult{}, errHandler.exitError()
+						}
 					}
 				}
 			}
@@ -513,7 +498,9 @@ func Run(
 					File:   f,
 					Cache:  cache,
 				}); err != nil {
-					handleError(lang, err)
+					if !errHandler.handle(lang, err) {
+						return walk.WalkFuncResult{}, errHandler.exitError()
+					}
 				}
 			}
 		}
@@ -535,11 +522,13 @@ func Run(
 				Cache:        cache,
 			})
 			if err != nil {
-				handleError(lang, err)
+				if !errHandler.handle(lang, err) {
+					return walk.WalkFuncResult{}, errHandler.exitError()
+				}
 			}
 			if len(res.Imports) > 0 {
 				if len(res.Gen) != len(res.Imports) {
-					handleError(lang, fmt.Errorf("%s: generated %d rules but returned %d imports", rel, len(res.Gen), len(res.Imports)))
+					errHandler.handle(lang, fmt.Errorf("%s: generated %d rules but returned %d imports", rel, len(res.Gen), len(res.Imports)))
 					// Ignore res.Gen if res.Imports was set incorrectly.
 					continue
 				}
@@ -652,7 +641,9 @@ func Run(
 				GetKindInfo:  makeGetKindInfo(unionKindInfoMaps(kinds, mappedKindInfo)),
 				AliasedKinds: aliasedKinds,
 			}); err != nil {
-				handleError(nil, err)
+				if !errHandler.handle(nil, err) {
+					return walk.WalkFuncResult{}, errHandler.exitError()
+				}
 			}
 		}
 		visits = append(visits, visitRecord{
@@ -670,7 +661,9 @@ func Run(
 		if c.IndexLibraries {
 			for _, r := range f.Rules {
 				if err := ruleIndex.AddRule(ctx, c, r, f); err != nil {
-					handleError(nil, err)
+					if !errHandler.handle(nil, err) {
+						return walk.WalkFuncResult{}, errHandler.exitError()
+					}
 				}
 			}
 		}
@@ -680,12 +673,16 @@ func Run(
 
 	for _, lang := range languages {
 		if err := lang.OnResolve(ctx); err != nil {
-			handleError(lang, err)
+			if !errHandler.handle(lang, err) {
+				return errHandler.exitError()
+			}
 		}
 	}
 
 	if walkErr != nil {
-		handleError(nil, walkErr)
+		if !errHandler.handle(nil, walkErr) {
+			return errHandler.exitError()
+		}
 	}
 
 	// Finish building the index for dependency resolution.
@@ -699,7 +696,9 @@ func Run(
 		}
 	}()
 	if err = maybePopulateRemoteCacheFromGoMod(c, rc); err != nil {
-		handleError(nil, err)
+		if !errHandler.handle(nil, err) {
+			return errHandler.exitError()
+		}
 	}
 	for _, v := range visits {
 		for _, r := range v.rules {
@@ -714,7 +713,9 @@ func Run(
 					Imports:     r.PrivateAttr(importsPrivateAttr),
 				})
 				if err != nil {
-					handleError(rslv, err)
+					if !errHandler.handle(rslv, err) {
+						return errHandler.exitError()
+					}
 				}
 			}
 		}
@@ -726,12 +727,17 @@ func Run(
 			GetKindInfo:  makeGetKindInfo(unionKindInfoMaps(kinds, v.mappedKindInfo)),
 			AliasedKinds: v.aliasedKinds,
 		}); err != nil {
-			handleError(nil, err)
+			if !errHandler.handle(nil, err) {
+				return errHandler.exitError()
+			}
 		}
 	}
 
 	// Emit merged files.
-	var exitErr error
+	if errHandler.failed {
+		return errHandler.exitError()
+	}
+
 	loadFixer := merger.NewLoadFixer(loads)
 	for _, v := range visits {
 		if len(v.mappedKinds) == 0 {
@@ -740,32 +746,28 @@ func Run(
 			merger.NewLoadFixer(applyKindMappings(v.mappedKinds, loads)).Fix(v.file)
 		}
 		if err := uc.emit(v.c, v.file); err != nil {
-			if errors.Is(err, ExitError) {
-				exitErr = err
-			} else {
-				handleError(nil, err)
+			if !errHandler.handle(nil, err) {
+				return errHandler.exitError()
 			}
 		}
 	}
 	if uc.patchPath != "" {
 		if err := os.WriteFile(uc.patchPath, uc.patchBuffer.Bytes(), 0o666); err != nil {
-			handleError(nil, err)
+			if !errHandler.handle(nil, err) {
+				return errHandler.exitError()
+			}
 		}
 	}
 
 	for _, lang := range languages {
 		if err := lang.OnFinish(ctx); err != nil {
-			handleError(nil, err)
+			if !errHandler.handle(nil, err) {
+				return errHandler.exitError()
+			}
 		}
 	}
 
-	if exitErr != nil {
-		return exitErr
-	} else if c.Strict && len(errs) > 0 {
-		return ExitError
-	} else {
-		return nil
-	}
+	return errHandler.exitError()
 }
 
 // lookupMapKindReplacement finds a mapped replacement for rule kind `kind`, resolving transitively.
@@ -1188,6 +1190,70 @@ func appendOrMergeKindMapping(mappedLoads []rule.LoadInfo, mappedKind config.Map
 func isDirErr(err error) bool {
 	var pe *os.PathError
 	return errors.As(err, &pe) && pe.Err == syscall.EISDIR
+}
+
+type errorHandler struct {
+	// If strict is true, errors at the Error level cause the failed flag
+	// to be set.
+	strict bool
+
+	// If failed is set, Gazelle should skip writing BUILD files and exit
+	// with a failed status.
+	failed bool
+}
+
+// handle logs errors and tracks failure.
+//
+// handle returns true if Gazelle can continue working, false if Gazelle should
+// stop immediately.
+func (eh *errorHandler) handle(lang any, err error) bool {
+	var langName string
+	if withName, ok := lang.(language.Language); ok {
+		langName = withName.Name()
+	}
+	var errsToHandle []error
+	if joinedErrs, ok := err.(interface{ Unwrap() []error }); ok {
+		errsToHandle = joinedErrs.Unwrap()
+	} else {
+		errsToHandle = []error{err}
+	}
+	canContinue := true
+	for _, err := range errsToHandle {
+		if errors.Is(err, ExitError) {
+			eh.failed = true
+			continue
+		}
+		severity := gzerrors.Error
+		if sevErr := (*gzerrors.SeverityError)(nil); errors.As(err, &sevErr) {
+			severity = sevErr.Severity
+		}
+		if severity == gzerrors.Critical || (severity == gzerrors.Error && eh.strict) {
+			eh.failed = true
+		}
+		if severity == gzerrors.Critical {
+			canContinue = false
+		}
+		severityPrefix := ""
+		if severity != gzerrors.Error {
+			// Only print severity if not "error".
+			// Most errors are "error", so it's a little noisy. It would also break
+			// lots of overly sensitive integration tests.
+			severityPrefix = ": " + severity.String()
+		}
+		langPrefix := ""
+		if langName != "" {
+			langPrefix = ": " + langName
+		}
+		log.Printf("%s%s%v", severityPrefix, langPrefix, err)
+	}
+	return canContinue
+}
+
+func (eh *errorHandler) exitError() error {
+	if eh.failed {
+		return ExitError
+	}
+	return nil
 }
 
 // filterLanguages returns the subset of input languages that pass the config's

@@ -139,6 +139,8 @@ GO_REPOSITORY_TOOLS_SRCS = [
     Label("//v2/compat:compat.go"),
     Label("//v2/config:BUILD.bazel"),
     Label("//v2/config:config.go"),
+    Label("//v2/errors:BUILD.bazel"),
+    Label("//v2/errors:severity.go"),
     Label("//v2/flag:BUILD.bazel"),
     Label("//v2/flag:flag.go"),
     Label("//v2:go.mod"),
