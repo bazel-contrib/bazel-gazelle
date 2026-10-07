@@ -88,7 +88,7 @@ func languagesByKind(langs []language.Language) map[string]compat.CompleteLangua
 	return langByKind
 }
 
-func ruleIndexForLangs(langs []language.Language) *resolve.RuleIndex {
+func ruleIndexForLangs(c *config.Config, langs []language.Language) *resolve.RuleIndex {
 	langByKind := languagesByKind(langs)
 	var finders []resolve.Finder
 	for _, cl := range langByKind {
@@ -100,7 +100,7 @@ func ruleIndexForLangs(langs []language.Language) *resolve.RuleIndex {
 		}
 		return nil
 	}
-	return resolve.NewRuleIndex(mrslv, finders)
+	return resolve.NewRuleIndex(mrslv, finders, walk.NewCache(c))
 }
 
 func resolveRule(t *testing.T, cl compat.CompleteLanguage, c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, r *rule.Rule, imports interface{}, from label.Label) {

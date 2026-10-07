@@ -26,6 +26,7 @@ import (
 	"github.com/bazel-contrib/bazel-gazelle/v2/label"
 	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/walk"
 	"github.com/bazelbuild/bazel-gazelle/repo"
 	bzl "github.com/bazelbuild/buildtools/build"
 )
@@ -391,7 +392,7 @@ proto_library(
 			c, lang, cexts := testConfig(t, ".")
 			mrslv := make(mapResolver)
 			mrslv["proto_library"] = NewV2().(resolve.Indexer)
-			ix := resolve.NewRuleIndex(mrslv.Resolver, []resolve.Finder{NewV2().(resolve.Finder)})
+			ix := resolve.NewRuleIndex(mrslv.Resolver, []resolve.Finder{NewV2().(resolve.Finder)}, walk.NewCache(c))
 			rc := (*repo.RemoteCache)(nil)
 			for _, bf := range tc.index {
 				f, err := rule.LoadData(filepath.Join(bf.rel, "BUILD.bazel"), bf.rel, []byte(bf.content))

@@ -13,6 +13,7 @@ go_library(
         "//v2/config",
         "//v2/label",
         "//v2/rule",
+        "//v2/walk",
     ],
 )
 

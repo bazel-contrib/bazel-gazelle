@@ -426,7 +426,6 @@ func Run(
 			loads = AddKindToLoadList(c, loads, kind)
 		}
 	}
-	ruleIndex := resolve.NewRuleIndex(mrslv.Indexer, finders)
 
 	if err = fixRepoFiles(c, loads); err != nil {
 		return err
@@ -457,6 +456,7 @@ func Run(
 	// cache.GetDirInfo. The old version relies on this global state.
 	cleanup := walkv1.SetGlobalCache_InternalDoNotCall(cache)
 	defer cleanup()
+	ruleIndex := resolve.NewRuleIndex(mrslv.Indexer, finders, cache)
 	walkErr := walk.Walk(ctx, c, cexts, cache, uc.dirs, uc.walkMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
 		dir := args.Dir
 		rel := args.Rel
@@ -710,6 +710,7 @@ func Run(
 					Rule:        r,
 					From:        from,
 					RemoteCache: rc,
+					Cache:       cache,
 					Imports:     r.PrivateAttr(importsPrivateAttr),
 				})
 				if err != nil {

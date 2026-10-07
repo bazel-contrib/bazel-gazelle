@@ -935,7 +935,7 @@ go_proto_library(
 				"-go_prefix=example.com/repo/resolve",
 				fmt.Sprintf("-go_naming_convention=%s", tc.namingConvention),
 				"-external=vendored", fmt.Sprintf("-index=%v", !tc.skipIndex))
-			ix := ruleIndexForLangs(langs)
+			ix := ruleIndexForLangs(c, langs)
 			rc := testRemoteCache(nil)
 
 			for _, bf := range tc.index {
@@ -991,7 +991,7 @@ func TestResolveDisableGlobal(t *testing.T) {
 		t,
 		"-go_prefix=example.com/repo",
 		"-proto=disable_global")
-	ix := ruleIndexForLangs(langs)
+	ix := ruleIndexForLangs(c, langs)
 	ix.Finish()
 	rc := testRemoteCache([]repo.Repo{
 		{
@@ -1075,7 +1075,7 @@ func TestResolveExternal(t *testing.T) {
 		t,
 		"-go_prefix=example.com/local")
 	gc := getGoConfig(c)
-	ix := resolve.NewRuleIndex(nil, nil)
+	ix := resolve.NewRuleIndex(nil, nil, nil)
 	ix.Finish()
 	gl := langs[1].(*goLang)
 	for _, tc := range []struct {
