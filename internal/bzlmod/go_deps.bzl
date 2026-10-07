@@ -392,6 +392,7 @@ def _bazel_go_mod_info(
         bazel_dep_name,
         bazel_dep_version,
         is_root,
+        from_go_work,
         tool_importpaths):
     """
     Tracks information about a Go module provided by a Bazel module
@@ -407,6 +408,8 @@ def _bazel_go_mod_info(
             prefix, like Go modules have).
         is_root: True for the root module OR for a module loading an isolated
             instance of go_deps.
+        from_go_work: True if this go.mod was registered via
+            go_deps.from_file(go_work = ...).
         tool_importpaths: list of package paths from 'tool' directives in
             a go.mod file in the root Bazel module or isolate. Empty for
             modules where is_root is False.
@@ -421,6 +424,7 @@ def _bazel_go_mod_info(
         bazel_dep_name = bazel_dep_name,
         bazel_dep_version = bazel_dep_version,
         is_root = is_root,
+        from_go_work = from_go_work,
         tool_importpaths = tool_importpaths,
     )
 
@@ -826,7 +830,7 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
                     is_dev_dependency = module_ctx.is_dev_dependency(tag),
                 )
 
-        def visit_go_mod(go_mod_label, is_dev_dependency):
+        def visit_go_mod(go_mod_label, is_dev_dependency, from_go_work = False):
             if go_mod_label.name != "go.mod":
                 # The synthetic go.work references the file's directory, where
                 # Go only reads go.mod.
@@ -877,10 +881,10 @@ To correct this:
                 bazel_dep_name = module.name,
                 bazel_dep_version = module.version,
                 is_root = acts_as_root,
+                from_go_work = from_go_work,
                 tool_importpaths = tool_importpaths,
             )
             bazel_go_modules[info.importpath] = info
-
             for r in go_mod_json.get("Require") or []:
                 add_required_version(r["Path"], r["Version"])
             if acts_as_root:
@@ -982,7 +986,7 @@ To correct this:
                         module_ctx.fail("in {}, use directive '{}' points outside the Bazel module, which is not supported.".format(tag.go_work, disk_path))
                         return None
                     go_mod_label = Label("@@{}//{}:go.mod".format(tag.go_work.repo_name, go_mod_package))
-                    visit_go_mod(go_mod_label, is_dev_dependency)
+                    visit_go_mod(go_mod_label, is_dev_dependency, from_go_work = True)
 
                 if _module_acts_as_root(module_ctx, module):
                     _fix_replace_paths(go_work_path, go_work_json)
@@ -1552,11 +1556,13 @@ for example with local_path_override.
 
     for path, require in root_required_mods.items():
         bazel_dep = bazel_go_modules.get(path)
-        if not bazel_dep or bazel_dep.go_mod_label.package != "":
+        if (not bazel_dep or
+            bazel_dep.go_mod_label.package != "" or
+            bazel_dep.from_go_work):
             # Skip check if the module is not in the root directory, for example,
-            # Gazelle's v2/go.mod. When a Bazel module provides multiple Go
-            # modules, there's not a good correspondence between Bazel module
-            # version and Go module version.
+            # Gazelle's v2/go.mod, or if the Bazel module exposes multiple Go
+            # modules through go.work. In those cases, there's not a good
+            # correspondence between Bazel module version and Go module version.
             continue
         if (not bazel_dep.is_root and
             _bazel_dep_version_conflicts(bazel_dep.bazel_dep_version, require.version, require.indirect)):
