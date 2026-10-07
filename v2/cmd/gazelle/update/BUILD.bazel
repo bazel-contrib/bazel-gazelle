@@ -23,6 +23,7 @@ go_library(
         "//repo",
         "//v2/compat",
         "//v2/config",
+        "//v2/errors",
         "//v2/flag",
         "//v2/internal/wspace",
         "//v2/label",
