@@ -24,6 +24,7 @@ import (
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 	"github.com/bazel-contrib/bazel-gazelle/v2/label"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
+	"github.com/bazel-contrib/bazel-gazelle/v2/walk"
 	"github.com/bazelbuild/bazel-gazelle/repo"
 )
 
@@ -54,6 +55,10 @@ type ImportsArgs struct {
 
 	// File is the build file that contains Rule.
 	File *rule.File
+
+	// Cache is an in-memory cache of file metadata. It may be used instead of
+	// direct I/O to read file metadata from other directories.
+	Cache *walk.Cache
 }
 
 type ImportsResult struct {
@@ -102,6 +107,10 @@ type FindArgs struct {
 
 	// Lang is the language of the source code where Import was found.
 	Lang string
+
+	// Cache is an in-memory cache of file metadata. It may be used instead of
+	// direct I/O to read file metadata from other directories.
+	Cache *walk.Cache
 }
 
 // Resolver is an interface that languages extensions can implement to transform
@@ -132,6 +141,10 @@ type ResolveArgs struct {
 
 	// TODO(v2): definitely remove usage of this and refactor it out, after #2458.
 	RemoteCache *repo.RemoteCache
+
+	// Cache is an in-memory cache of file metadata. It may be used instead of
+	// direct I/O to read file metadata from other directories.
+	Cache *walk.Cache
 
 	// Imports contains information about imported libraries, returned in
 	// GenerateResult.Imports. If GenerateResult.Imports was nil, then
@@ -179,6 +192,10 @@ type RuleIndex struct {
 	// the Embeds method). This may include imports of other languages.
 	// Computed from `rules` when indexing.
 	imports map[label.Label][]ImportSpec
+
+	// cache is passed to Indexer.Imports and Finder.Find when indexing and
+	// resolving imports.
+	cache *walk.Cache
 }
 
 // ruleRecord contains information about a rule relevant to import indexing.
@@ -211,10 +228,13 @@ type ruleRecord struct {
 // responsible for indexing rule of this kind (considering alias_kind).
 //
 // finders is a list of all extensions implementing the Finder interface.
-func NewRuleIndex(indexerForRule func(r *rule.Rule, pkgRel string) Indexer, finders []Finder) *RuleIndex {
+//
+// cache is passed to Indexer.Imports and Finder.Find; it may be nil.
+func NewRuleIndex(indexerForRule func(r *rule.Rule, pkgRel string) Indexer, finders []Finder, cache *walk.Cache) *RuleIndex {
 	return &RuleIndex{
 		indexerForRule: indexerForRule,
 		finders:        finders,
+		cache:          cache,
 	}
 }
 
@@ -241,6 +261,7 @@ func (ix *RuleIndex) AddRule(ctx context.Context, c *config.Config, r *rule.Rule
 				Config: c,
 				Rule:   r,
 				File:   f,
+				Cache:  ix.cache,
 			})
 			if err != nil {
 				return fmt.Errorf("language %s: %w", lang, err)
@@ -401,6 +422,7 @@ func (ix *RuleIndex) Find(ctx context.Context, c *config.Config, imp ImportSpec,
 			Index:  ix,
 			Import: imp,
 			Lang:   lang,
+			Cache:  ix.cache,
 		})
 		if err != nil {
 			errs = append(errs, fmt.Errorf("finder %s: %w", f.Name(), err))

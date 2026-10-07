@@ -102,7 +102,11 @@ func NewRuleIndex(mrslv func(r *rule.Rule, pkgRel string) Resolver, exts ...any)
 			finders = append(finders, crossResolverAdapter{v1: cr})
 		}
 	}
-	indexv2 := v2.NewRuleIndex(mrslvv2, finders)
+	// NOTE: we don't have a way to plumb in a *walk.Cache here, so it's nil.
+	// This may cause nil pointer errors, but ideally nothing is calling the
+	// old version of this constructor AND relying on Cache being set in
+	// Imports, Find, and Resolve.
+	indexv2 := v2.NewRuleIndex(mrslvv2, finders, nil)
 	return WrapRuleIndexV2(indexv2)
 }
 
