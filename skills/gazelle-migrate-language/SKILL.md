@@ -21,7 +21,7 @@ For reference, the v2 proposal is [discussion #2207](https://github.com/bazel-co
 ## Workflow
 
 1. **Check prerequisites.** Confirm the extension builds in Bzlmod mode. If it only works in `WORKSPACE` mode, stop. If it supports both, warn the user and proceed with caution.
-2. **Update `go.mod`.** Switch the module dependency to `github.com/bazel-contrib/bazel-gazelle/v2` using `go get`.
+2. **Update `go.mod`.** Add the module dependency `github.com/bazel-contrib/bazel-gazelle/v2` using `go get`.
 3. **Update Go imports.** Change import paths from `github.com/bazelbuild/bazel-gazelle/...` to `github.com/bazel-contrib/bazel-gazelle/v2/...`.
 4. **Rename the constructor.** Change `NewLanguage()` to `NewV2()`.
 5. **Migrate methods.** Update each method to its v2 signature (see [Methods](#methods) below). Drop `language.BaseLang` embedding, remove no-op methods, and add v2 static interface assertions.
@@ -30,7 +30,7 @@ For reference, the v2 proposal is [discussion #2207](https://github.com/bazel-co
 8. **Update Bazel deps.** Change Gazelle `deps` from `@gazelle//...` to `@gazelle//v2/...` (run `bazel run //:gazelle` after updating Go imports).
 9. **Update tests.** Migrate unit tests to v2 types; add `gazelle_generation_test` integration tests where appropriate.
 10. **Verify.** Build and run tests for the extension and any `gazelle_binary` that includes it.
-11. **Clean up.** Run Gazelle (`bazel run //:gazelle`) to clean up any `BUILD.bazel` files that need it, especially after deleting files or imports.
+11. **Clean up.** Run Gazelle (`bazel run //:gazelle`) to clean up any `BUILD.bazel` files that need it, especially after deleting files or imports. Run `go mod tidy` and `bazel mod tidy` to clean up Go and Bazel dependencies.
 
 ## Changes
 
@@ -71,6 +71,8 @@ In all `BUILD.bazel` files, update `deps` on Gazelle packages from `@gazelle//..
 - New: `github.com/bazel-contrib/bazel-gazelle/v2/...`
 
 Nearly all v1 packages have v2 equivalents. Most v1 definitions like `label.Label` are wrappers or aliases for their v2 equivalents, so they can be used interchangeably. Ideally, a v2 extension only imports v2 packages and does not depend directly on the v1 Go module.
+
+As an exception, `language/go` and `language/proto` are NOT moved to v2. You can continue to import them at their old paths, for `gazelle_binary` or for tests.
 
 ### Constructor
 
@@ -113,7 +115,7 @@ Drop embedding of `language.BaseLang`. This was used to fill in no-op implementa
 
 #### `compat.FlagConfigurer` (deprecated)
 
-In v1, these methods were in `config.Configurer`.
+These methods were moved from `config.Configurer` to `v2/compat.FlagConfigurer`.
 
 - Unchanged: `RegisterFlags(fs *flag.FlagSet, cmd string, c *Config)`
 - Unchanged: `CheckFlags(fs *flag.FlagSet, c *Config) error`
@@ -122,7 +124,9 @@ Extensions are now discouraged from processing command-line flags. Directives sh
 
 #### `language.Generator`
 
-- Unchanged: `Kinds() map[string]rule.KindInfo`
+- Old: `Kinds() map[string]rule.KindInfo`
+- New: `Kinds() []rule.KindInfo`
+
 - Removed: `Loads() []rule.LoadInfo`
 - Removed: `ApparentLoads(func(string) string) []rule.LoadInfo` from `language.ModuleAwareLanguage`
 
@@ -177,6 +181,12 @@ In v1, this was part of `language.LifecycleManager`.
 - Old: `Resolve(*config.Config, *resolve.RuleIndex, *repo.RemoteCache, *rule.Rule, any, label.Label)`
 - New: `Resolve(context.Context, ResolveArgs) error`
 
+## Other changes
+
+- `walk.GetDirInfo` is not available in v2. Instead, a `Cache` field is available in the `Args` structs for `Generate`, `Imports`, `Find`, and `Resolve`. Use `args.Cache.GetDirInfo` instead.
+- `resolve.RuleIndex.FindRulesByImportWithConfig` was renamed to `v2/resolve.RuleIndex.Find` and now returns an error.
+- Return errors instead of calling `os.Exit` or `log.Fatal`. If a test relies on Gazelle exiting non-zero after an error, you may enable `-strict` mode. You may also wrap warnings or critical errors with `v2/errors.WithSeverity`.
+
 ## Testing
 
 Update any unit tests to use the v2 types rather than v1.
@@ -184,3 +194,5 @@ Update any unit tests to use the v2 types rather than v1.
 Where necessary, you may use the `github.com/bazel-contrib/bazel-gazelle/v2/compat` package to adapt a v1 extension to v2 (`LanguageV2`) or to fill in default no-op implementations for unimplemented interfaces (`LanguageWithDefaults`). Exercise caution: the `compat` package is unstable, and its interface may change.
 
 Prefer using `gazelle_generation_test` from `@gazelle//:def.bzl` for any new integration tests.
+
+Use caution when using `UPDATE_SNAPSHOTS=true` to update expected `gazelle_generation_test` output. Some changes in error messages are expected. Labels like `@foo//:foo` may be shortened to `@foo`. Don't hide significant unexpected changes in behavior.
