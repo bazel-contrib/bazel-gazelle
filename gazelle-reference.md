@@ -82,6 +82,10 @@ Whether Gazelle will remove `# keep` comments when the thing being kept would ha
 **Default:** n/a<br>
 Selects languages for which to compose and index rules. By default, all languages that this Gazelle was built with are processed.
 
+**Flag:** `-plugin=path`<br>
+**Default:** n/a<br>
+Path to a language plugin executable. Gazelle runs the plugin as a subprocess and uses it like a language extension built into Gazelle, so plugins can be written in any language. May be repeated. With Bazel, list the plugin in the `data` attribute of the `gazelle` rule and pass `-plugin=$(rlocationpath //label/of:plugin)` in `extra_args`. See [Language plugins in any language](v2/plugin/README.md).
+
 **Flag:** `-cpuprofile=filename`<br>
 **Default:** n/a<br>
 If specified, gazelle uses [runtime/pprof](https://pkg.go.dev/runtime/pprof#StartCPUProfile) to collect CPU profiling information from the command and save it to the given file. By default, this is disabled.
@@ -187,6 +191,10 @@ As a separate step after generating rules, any new rules of kind `from_kind` hav
 Most commonly, this would be used to replace the rules provided by `rules_go` with custom macros. For example, `gazelle:map_kind go_binary go_deployable //tools/go:def.bzl` would configure Gazelle to produce rules of kind `go_deployable` as loaded from `//tools/go:def.bzl` instead of `go_binary`, for this directory or within.
 
 Existing rules of the old kind will be ignored. To switch your codebase from a builtin kind to a mapped kind, use [buildozer](https://github.com/bazelbuild/buildtools/tree/master/buildozer).
+
+**Directive:** `# gazelle:plugin path [args...]`<br>
+**Default:** n/a<br>
+Registers a language plugin: an executable, written in any language, that Gazelle runs as a subprocess and uses like a built-in language extension. `path` is relative to the repository root; any further words are passed to the plugin as command-line arguments. This directive may be repeated, and may only appear in the repository root build file. See the `-plugin` flag and [Language plugins in any language](v2/plugin/README.md).
 
 **Directive:** `# gazelle:resolve source-lang [import-lang] import-string label`<br>
 **Default:** n/a<br>

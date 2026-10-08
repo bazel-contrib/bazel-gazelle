@@ -18,6 +18,7 @@ filegroup(
         "//v2/language:all_files",
         "//v2/merger:all_files",
         "//v2/pathtools:all_files",
+        "//v2/plugin:all_files",
         "//v2/resolve:all_files",
         "//v2/rule:all_files",
         "//v2/testtools:all_files",

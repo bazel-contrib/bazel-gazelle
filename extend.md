@@ -77,6 +77,29 @@ gazelle(
 
 You can run this with `bazel run //:gazelle`.
 
+Plugins in other languages
+--------------------------
+
+Extensions don't have to be written in Go. Gazelle can also run a *plugin*, an
+executable written in any language, as a subprocess, and talk to it with
+JSON-RPC over stdin and stdout. Plugins implement the same operations as the
+interfaces above (configure, generate, index, resolve, and optionally fix and
+find), and they don't require a custom `gazelle_binary`:
+
+```starlark
+load("@bazel_gazelle//:def.bzl", "gazelle")
+
+gazelle(
+    name = "gazelle",
+    data = ["//tools/gazelle:my_plugin"],
+    extra_args = ["-plugin=$(rlocationpath //tools/gazelle:my_plugin)"],
+)
+```
+
+See [Language plugins in any language](v2/plugin/README.md) for the protocol,
+and [v2/plugin/examples/sh](v2/plugin/examples/sh) for reference plugins
+written in Python and Go.
+
 Lazy indexing
 -------------
 

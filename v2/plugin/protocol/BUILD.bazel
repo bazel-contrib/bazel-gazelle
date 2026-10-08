@@ -1,0 +1,29 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "protocol",
+    srcs = [
+        "jsonrpc.go",
+        "protocol.go",
+    ],
+    importpath = "github.com/bazel-contrib/bazel-gazelle/v2/plugin/protocol",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "protocol_test",
+    srcs = ["jsonrpc_test.go"],
+    embed = [":protocol"],
+)
+
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "jsonrpc.go",
+        "jsonrpc_test.go",
+        "protocol.go",
+    ],
+    visibility = ["//visibility:public"],
+)

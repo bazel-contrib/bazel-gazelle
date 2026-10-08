@@ -1,0 +1,28 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "sh_plugin_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/bazel-contrib/bazel-gazelle/v2/plugin/examples/sh/cmd/sh_plugin",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//v2/plugin/examples/sh",
+        "//v2/plugin/server",
+    ],
+)
+
+go_binary(
+    name = "sh_plugin",
+    embed = [":sh_plugin_lib"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "main.go",
+    ],
+    visibility = ["//visibility:public"],
+)

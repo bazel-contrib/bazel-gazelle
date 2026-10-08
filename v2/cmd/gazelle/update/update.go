@@ -44,6 +44,7 @@ import (
 	"github.com/bazel-contrib/bazel-gazelle/v2/label"
 	"github.com/bazel-contrib/bazel-gazelle/v2/language"
 	"github.com/bazel-contrib/bazel-gazelle/v2/merger"
+	"github.com/bazel-contrib/bazel-gazelle/v2/plugin"
 	"github.com/bazel-contrib/bazel-gazelle/v2/resolve"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"github.com/bazel-contrib/bazel-gazelle/v2/walk"
@@ -364,12 +365,14 @@ func Run(
 	}
 	sort.Strings(langNames)
 
-	cexts := make([]config.Configurer, 0, len(languagesRaw)+4)
+	pluginLoader := &plugin.Loader{}
+	cexts := make([]config.Configurer, 0, len(languagesRaw)+5)
 	cexts = append(cexts,
 		&config.CommonConfigurer{},
 		&updateConfigurer{knownLanguages: langNames},
 		&walk.Configurer{},
-		&resolve.Configurer{})
+		&resolve.Configurer{},
+		pluginLoader)
 	flagExts := make([]compat.FlagConfigurer, 0, cap(cexts))
 	for _, cext := range cexts {
 		if flagExt, ok := cext.(compat.FlagConfigurer); ok {
@@ -400,6 +403,25 @@ func Run(
 		return err
 	}
 	uc := getUpdateConfig(c)
+
+	// Start language plugins registered with -plugin or gazelle:plugin. They
+	// run as subprocesses and are used like extensions compiled into Gazelle.
+	plugins, err := pluginLoader.Start(ctx, c, langNames)
+	defer func() {
+		if cerr := pluginLoader.Close(); cerr != nil {
+			log.Print(cerr)
+		}
+	}()
+	if err != nil {
+		return err
+	}
+	for _, p := range plugins {
+		languages = append(languages, compat.LanguageWithDefaults(p))
+		cexts = append(cexts, p)
+		if p.Capabilities().Find {
+			finders = append(finders, p)
+		}
+	}
 
 	errHandler := &errorHandler{strict: c.Strict}
 

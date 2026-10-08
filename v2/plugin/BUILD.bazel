@@ -1,0 +1,65 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "plugin",
+    srcs = [
+        "convert.go",
+        "loader.go",
+        "plugin.go",
+    ],
+    importpath = "github.com/bazel-contrib/bazel-gazelle/v2/plugin",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//v2/config",
+        "//v2/errors",
+        "//v2/flag",
+        "//v2/label",
+        "//v2/language",
+        "//v2/plugin/protocol",
+        "//v2/resolve",
+        "//v2/rule",
+        "@com_github_bazelbuild_buildtools//build",
+        "@io_bazel_rules_go//go/runfiles",
+    ],
+)
+
+go_test(
+    name = "plugin_test",
+    srcs = [
+        "convert_test.go",
+        "loader_test.go",
+        "plugin_test.go",
+    ],
+    data = ["//v2/plugin/examples/sh:sh_plugin.py"],
+    embed = [":plugin"],
+    deps = [
+        "//v2/cmd/gazelle/update",
+        "//v2/config",
+        "//v2/language",
+        "//v2/plugin/examples/sh",
+        "//v2/plugin/protocol",
+        "//v2/plugin/server",
+        "//v2/rule",
+        "//v2/testtools",
+        "@com_github_google_go_cmp//cmp",
+    ],
+)
+
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "README.md",
+        "convert.go",
+        "convert_test.go",
+        "loader.go",
+        "loader_test.go",
+        "plugin.go",
+        "plugin_test.go",
+        "//v2/plugin/examples:all_files",
+        "//v2/plugin/protocol:all_files",
+        "//v2/plugin/server:all_files",
+    ],
+    visibility = ["//visibility:public"],
+)

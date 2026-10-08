@@ -29,6 +29,7 @@ go_library(
         "//v2/label",
         "//v2/language",
         "//v2/merger",
+        "//v2/plugin",
         "//v2/resolve",
         "//v2/rule",
         "//v2/walk",
