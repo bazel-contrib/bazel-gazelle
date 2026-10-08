@@ -18,6 +18,7 @@ package plugin
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -30,7 +31,11 @@ func TestFindFlagPlugin(t *testing.T) {
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	exe := filepath.Join(binDir, "my_plugin")
+	exeName := "my_plugin"
+	if runtime.GOOS == "windows" {
+		exeName += ".exe"
+	}
+	exe := filepath.Join(binDir, exeName)
 	if err := os.WriteFile(exe, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +47,7 @@ func TestFindFlagPlugin(t *testing.T) {
 		desc, value, want, wantErr string
 	}{
 		{desc: "absolute", value: exe, want: exe},
-		{desc: "relative_to_workdir", value: "tools/my_plugin", want: exe},
+		{desc: "relative_to_workdir", value: "tools/" + exeName, want: exe},
 		{desc: "path_lookup", value: "my_plugin", want: exe},
 		{desc: "missing", value: "tools/missing", wantErr: "plugin executable not found"},
 		{desc: "empty", value: "", wantErr: "expected a path"},
