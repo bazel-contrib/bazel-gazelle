@@ -84,10 +84,11 @@ type Options struct {
 // [config.Configurer], [resolve.Indexer], [resolve.Resolver], and
 // [resolve.Finder]. Calls are forwarded to the plugin process one at a time.
 type Language struct {
-	path  string
-	cmd   *exec.Cmd
-	stdin io.WriteCloser
-	conn  *protocol.Conn
+	path   string
+	cmd    *exec.Cmd
+	stdin  io.WriteCloser
+	stdout io.ReadCloser
+	conn   *protocol.Conn
 
 	name            string
 	kinds           []rule.KindInfo
@@ -168,11 +169,12 @@ func Start(ctx context.Context, c *config.Config, opts Options) (_ *Language, er
 		return nil, fmt.Errorf("plugin %s: %w", opts.Path, err)
 	}
 	l := &Language{
-		path:  opts.Path,
-		cmd:   cmd,
-		stdin: stdin,
-		conn:  protocol.NewConn(stdout, stdin),
-		name:  opts.Path,
+		path:   opts.Path,
+		cmd:    cmd,
+		stdin:  stdin,
+		stdout: stdout,
+		conn:   protocol.NewConn(stdout, stdin),
+		name:   opts.Path,
 	}
 	defer func() {
 		if err != nil {
@@ -529,8 +531,14 @@ func (l *Language) Close() error {
 // nil, enables index/find requests from the plugin while the request is in
 // flight.
 func (l *Language) call(ctx context.Context, method string, params, result any, cb *callbackState) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if l.failed != nil {
 		// The failure was already reported as a critical error, so Gazelle
 		// will exit without writing files. Don't report it again for every
@@ -547,7 +555,26 @@ func (l *Language) call(ctx context.Context, method string, params, result any, 
 		l.busy.Store(false)
 	}()
 
+	// Conn uses blocking I/O. Interrupt both directions when this request's
+	// context is canceled, even if the context passed to Start is still live.
+	// Closing stdout also releases a read if a child inherited the pipe.
+	cancelDone := make(chan struct{})
+	stopCancel := context.AfterFunc(ctx, func() {
+		_ = l.stdin.Close()
+		_ = l.stdout.Close()
+		_ = l.cmd.Process.Kill()
+		close(cancelDone)
+	})
 	err := l.conn.Call(ctx, method, params, result, l.handleCallback)
+	if cancelStarted := !stopCancel(); cancelStarted {
+		// Join the callback before Wait or another call can use the process.
+		// If stopping it succeeded, a later cancellation must not discard a
+		// completed response or stop the process during the next request.
+		<-cancelDone
+		l.kill()
+		l.failed = gzerrors.SeverityErrorf(gzerrors.Critical, "plugin %s (%s) canceled during %s: %w", l.name, l.path, method, ctx.Err())
+		return l.failed
+	}
 	if err == nil {
 		return nil
 	}
@@ -636,6 +663,7 @@ func (l *Language) kill() {
 		return
 	}
 	_ = l.stdin.Close()
+	_ = l.stdout.Close()
 	_ = l.cmd.Process.Kill()
 	l.exitErr = l.cmd.Wait()
 	l.waited = true

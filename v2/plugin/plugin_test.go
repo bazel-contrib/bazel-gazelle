@@ -25,9 +25,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/cmd/gazelle/update"
+	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 	"github.com/bazel-contrib/bazel-gazelle/v2/language"
+	"github.com/bazel-contrib/bazel-gazelle/v2/plugin"
 	"github.com/bazel-contrib/bazel-gazelle/v2/plugin/examples/sh"
 	"github.com/bazel-contrib/bazel-gazelle/v2/plugin/protocol"
 	"github.com/bazel-contrib/bazel-gazelle/v2/plugin/server"
@@ -57,6 +60,8 @@ func TestMain(m *testing.M) {
 		server.Main(&badVersionPlugin{})
 	case "crash":
 		server.Main(&crashPlugin{})
+	case "silent":
+		server.Main(&silentPlugin{})
 	default:
 		fmt.Fprintf(os.Stderr, "unknown test plugin %q\n", mode)
 		os.Exit(2)
@@ -346,6 +351,96 @@ func TestPluginCrash(t *testing.T) {
 		t.Fatalf("got error %v; want %v", err, update.ExitError)
 	}
 	testtools.CheckFiles(t, dir, []testtools.FileSpec{{Path: "pkg/BUILD.bazel", NotExist: true}})
+}
+
+func TestRequestCancel(t *testing.T) {
+	exe := testExecutable(t)
+	c := config.New()
+	c.RepoRoot = t.TempDir()
+	c.WorkDir = c.RepoRoot
+	parentCtx, stopParent := context.WithTimeout(context.Background(), 10*time.Second)
+	defer stopParent()
+	l, err := plugin.Start(parentCtx, c, plugin.Options{Path: exe, Args: []string{"silent"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	// An already-canceled request must leave the healthy plugin usable.
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := l.Configure(canceledCtx, config.ConfigureArgs{Config: c}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("already-canceled Configure: got %v, want context.Canceled", err)
+	}
+
+	requestCtx, cancelRequest := context.WithCancel(context.Background())
+	defer cancelRequest()
+	done := make(chan error, 1)
+	go func() { done <- l.Configure(requestCtx, config.ConfigureArgs{Config: c}) }()
+	// Wait until the plugin has read the request and is blocking on its own
+	// work. Canceling only the request must interrupt the pending response.
+	marker := filepath.Join(c.RepoRoot, "configure_started")
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if _, err := os.Stat(marker); err == nil {
+			break
+		} else if !errors.Is(err, os.ErrNotExist) {
+			t.Fatal(err)
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("Configure returned before plugin received request: %v", err)
+		case <-parentCtx.Done():
+			t.Fatal("plugin did not receive Configure")
+		case <-ticker.C:
+		}
+	}
+	cancelRequest()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Configure: got %v, want context.Canceled", err)
+		}
+	case <-time.After(2 * time.Second):
+		stopParent()
+		t.Fatal("Configure did not return after request cancellation")
+	}
+	if err := parentCtx.Err(); err != nil {
+		t.Fatalf("request cancellation needed parent cancellation: %v", err)
+	}
+	closed := make(chan error, 1)
+	go func() { closed <- l.Close() }()
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatalf("Close after request cancellation: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		stopParent()
+		t.Fatal("Close did not return after request cancellation")
+	}
+}
+
+type silentPlugin struct {
+	repoRoot string
+}
+
+func (p *silentPlugin) Initialize(ctx context.Context, params protocol.InitializeParams) (protocol.InitializeResult, error) {
+	p.repoRoot = params.RepoRoot
+	return protocol.InitializeResult{
+		ProtocolVersion: protocol.Version,
+		Name:            "silent",
+		Capabilities:    protocol.Capabilities{Configure: protocol.ConfigureAll},
+	}, nil
+}
+
+func (p *silentPlugin) Configure(ctx context.Context, params protocol.ConfigureParams) (protocol.ConfigureResult, error) {
+	if err := os.WriteFile(filepath.Join(p.repoRoot, "configure_started"), nil, 0o600); err != nil {
+		return protocol.ConfigureResult{}, err
+	}
+	time.Sleep(time.Minute)
+	return protocol.ConfigureResult{}, nil
 }
 
 type namedLanguage string

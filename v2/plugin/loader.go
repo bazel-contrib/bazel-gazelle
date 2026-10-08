@@ -47,8 +47,9 @@ const pluginDirective = "plugin"
 // [Loader.Start] after flags have been parsed and adds the returned languages
 // to the set of extensions for the run.
 type Loader struct {
-	flagValues []string
-	languages  []*Language
+	flagValues       []string
+	languages        []*Language
+	goRepositoryMode bool
 }
 
 var _ config.Configurer = (*Loader)(nil)
@@ -58,8 +59,14 @@ func (ld *Loader) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) 
 	fs.Var(&gzflag.MultiFlag{Values: &ld.flagValues}, "plugin", "path to a language plugin executable that Gazelle runs as a subprocess (may be repeated)")
 }
 
-// CheckFlags does nothing. Plugins are located and started by Start.
-func (ld *Loader) CheckFlags(fs *flag.FlagSet, c *config.Config) error { return nil }
+// CheckFlags records whether Gazelle is processing a fetched Go repository.
+// The Go extension registers this flag; all flags have been parsed by now,
+// even when that extension's CheckFlags has not run yet.
+func (ld *Loader) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
+	f := fs.Lookup("go_repository_mode")
+	ld.goRepositoryMode = f != nil && f.Value.String() == "true"
+	return nil
+}
 
 // KnownDirectives returns the plugin directive.
 func (ld *Loader) KnownDirectives() []string { return []string{pluginDirective} }
@@ -67,7 +74,7 @@ func (ld *Loader) KnownDirectives() []string { return []string{pluginDirective} 
 // Configure reports an error if the plugin directive appears anywhere other
 // than the repository root build file. The directive itself is read by Start.
 func (ld *Loader) Configure(ctx context.Context, args config.ConfigureArgs) error {
-	if args.Rel == "" || args.File == nil {
+	if ld.goRepositoryMode || args.Rel == "" || args.File == nil {
 		return nil
 	}
 	for _, d := range args.File.Directives {
@@ -137,6 +144,12 @@ func (ld *Loader) specs(c *config.Config) ([]spec, error) {
 			return nil, err
 		}
 		specs = append(specs, spec{origin: "-plugin=" + v, path: path})
+	}
+
+	// A fetched dependency's BUILD files must not select executable plugins.
+	// Explicit -plugin arguments still come from the invoking workspace.
+	if ld.goRepositoryMode {
+		return specs, nil
 	}
 
 	f, err := loadRootBuildFile(c)

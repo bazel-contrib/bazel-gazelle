@@ -55,6 +55,11 @@ as arguments:
 # gazelle:plugin tools/gazelle/sh_plugin.py
 ```
 
+Plugin directives are ignored when Gazelle runs with `-go_repository_mode`
+during dependency fetching. A dependency's build files cannot register a
+plugin for that run. Explicit `-plugin` arguments supplied by the invoking
+workspace still apply.
+
 ## Writing a plugin
 
 A plugin is a program that reads JSON-RPC 2.0 requests from stdin and writes
