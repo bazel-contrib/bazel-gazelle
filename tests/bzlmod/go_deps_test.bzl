@@ -26,6 +26,7 @@ load("//tests/bzlmod/go_deps:gazelle_override_invalid_directive.bzl", GAZELLE_OV
 load("//tests/bzlmod/go_deps:go_mod_no_go_directive.bzl", GO_MOD_NO_GO_DIRECTIVE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:go_version_devel.bzl", GO_VERSION_DEVEL_TEST = "TEST")
 load("//tests/bzlmod/go_deps:go_version_low.bzl", GO_VERSION_LOW_TEST = "TEST")
+load("//tests/bzlmod/go_deps:go_work_version_skip.bzl", GO_WORK_VERSION_SKIP_TEST = "TEST")
 load("//tests/bzlmod/go_deps:isolate.bzl", ISOLATE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:missing_sum.bzl", MISSING_SUM_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module.bzl", MODULE_TEST = "TEST")
@@ -79,6 +80,7 @@ _GO_DEPS_TEST_CASES = [
     GO_MOD_NO_GO_DIRECTIVE_TEST,
     GO_VERSION_DEVEL_TEST,
     GO_VERSION_LOW_TEST,
+    GO_WORK_VERSION_SKIP_TEST,
     ISOLATE_TEST,
     MODULE_DEV_DEPS_TEST,
     MODULE_LOCAL_PATH_TEST,
