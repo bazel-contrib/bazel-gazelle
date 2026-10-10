@@ -72,13 +72,14 @@ var (
 	// This was taken from https://github.com/bazelbuild/bazel/blob/71fb1e4188b01e582a308cfe4bcbf1c730eded1b/src/main/java/com/google/devtools/build/lib/cmdline/RepositoryName.java#L159C1-L164
 	// ~ and + are both allowed as the former is used in canonical repo names by Bazel 7 and earlier and the latter in Bazel 8.
 	labelRepoRegexp = regexp.MustCompile(`^@$|^[A-Za-z0-9_.~+-]*$`)
-	// This was taken from https://github.com/bazelbuild/bazel/blob/master/src/main/java/com/google/devtools/build/lib/cmdline/LabelValidator.java
+	// This was taken from https://github.com/bazelbuild/bazel/blob/3c6378c2d3b6aca90fe15bbf6bf46bf470f2ac48/src/main/java/com/google/devtools/build/lib/cmdline/LabelValidator.java#L50-L61
 	// Package names may contain all 7-bit ASCII characters except:
 	// 0-31 (control characters)
 	// 58 ':' (colon) - target name separator
 	// 92 '\' (backslash) - directory separator (on Windows); may be allowed in the future
 	// 127 (delete)
 	labelPkgRegexp = regexp.MustCompile(`^[\x20-\x39\x3B-\x5B\x5D-\x7E]*$`)
+	// This was taken from https://github.com/bazelbuild/bazel/blob/3c6378c2d3b6aca90fe15bbf6bf46bf470f2ac48/src/main/java/com/google/devtools/build/lib/cmdline/LabelValidator.java#L63-L76
 	// Target names may contain the same ASCII characters and any non-ASCII
 	// character.
 	labelNameRegexp = regexp.MustCompile(`^[^\x00-\x1F:\\\x7F]*$`)
