@@ -78,9 +78,10 @@ var (
 	// 58 ':' (colon) - target name separator
 	// 92 '\' (backslash) - directory separator (on Windows); may be allowed in the future
 	// 127 (delete)
-	// Target names may contain the same characters
-	labelPkgRegexp  = regexp.MustCompile(`^[\x20-\x39\x3B-\x5B\x5D-\x7E]*$`)
-	labelNameRegexp = labelPkgRegexp
+	labelPkgRegexp = regexp.MustCompile(`^[\x20-\x39\x3B-\x5B\x5D-\x7E]*$`)
+	// Target names may contain the same ASCII characters and any non-ASCII
+	// character.
+	labelNameRegexp = regexp.MustCompile(`^[^\x00-\x1F:\\\x7F]*$`)
 )
 
 // Parse reads a label from a string.
