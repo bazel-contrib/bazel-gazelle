@@ -232,6 +232,102 @@ x_library(name = "bar")
 	}
 }
 
+func TestDeletePreservesDirectives(t *testing.T) {
+	for _, tc := range []struct {
+		desc, old, want string
+		isMacro         bool
+		del             func(f *File)
+		wantDirectives  []Directive
+	}{
+		{
+			desc: "directive above deleted load",
+			old: `
+# gazelle:exclude generated
+load("//tools:defs.bzl", "unused_macro")
+load("//tools:other.bzl", "used_macro")
+
+used_macro(name = "x")
+`,
+			del: func(f *File) { f.Loads[0].Delete() },
+			want: `
+# gazelle:exclude generated
+
+load("//tools:other.bzl", "used_macro")
+
+used_macro(name = "x")
+`,
+			wantDirectives: []Directive{{"exclude", "generated"}},
+		}, {
+			desc: "other comments of a deleted rule are dropped",
+			old: `
+# Library for foo.
+# gazelle:resolve go example.com/foo //foo
+x_library(name = "foo")
+
+x_library(name = "bar")
+`,
+			del: func(f *File) { f.Rules[0].Delete() },
+			want: `
+# gazelle:resolve go example.com/foo //foo
+
+x_library(name = "bar")
+`,
+			wantDirectives: []Directive{{"resolve", "go example.com/foo //foo"}},
+		}, {
+			desc: "directive after deleted last statement",
+			old: `
+x_library(name = "foo")
+# gazelle:exclude generated
+`,
+			del:            func(f *File) { f.Rules[0].Delete() },
+			want:           `# gazelle:exclude generated`,
+			wantDirectives: []Directive{{"exclude", "generated"}},
+		}, {
+			desc:    "directive above deleted rule in macro",
+			isMacro: true,
+			old: `
+def deps():
+    # gazelle:repository go_repository name=org_golang_x_net importpath=golang.org/x/net
+    go_repository(name = "foo")
+    go_repository(name = "bar")
+`,
+			del: func(f *File) { f.Rules[0].Delete() },
+			want: `
+def deps():
+    # gazelle:repository go_repository name=org_golang_x_net importpath=golang.org/x/net
+
+    go_repository(name = "bar")
+`,
+			wantDirectives: []Directive{{"repository", "go_repository name=org_golang_x_net importpath=golang.org/x/net"}},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			load := func(data []byte) (*File, error) {
+				if tc.isMacro {
+					return LoadMacroData(filepath.Join("old", "deps.bzl"), "", "deps", data)
+				}
+				return LoadData(filepath.Join("old", "BUILD.bazel"), "", data)
+			}
+			f, err := load([]byte(tc.old))
+			if err != nil {
+				t.Fatal(err)
+			}
+			tc.del(f)
+			got := f.Format()
+			if want := strings.TrimSpace(tc.want); strings.TrimSpace(string(got)) != want {
+				t.Errorf("got:\n%s\nwant:\n%s", got, want)
+			}
+			reloaded, err := load(got)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(reloaded.Directives, tc.wantDirectives) {
+				t.Errorf("directives after save: got %v, want %v", reloaded.Directives, tc.wantDirectives)
+			}
+		})
+	}
+}
+
 func TestInsertDeleteSync(t *testing.T) {
 	old := []byte("")
 	f, err := LoadData(filepath.Join("old", "BUILD.bazel"), "", old)

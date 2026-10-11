@@ -382,6 +382,11 @@ func updateStmt(oldStmt *[]bzl.Expr, inserts, deletes, stmts []*stmt) {
 			ii++
 		}
 		if di < len(deletes) && deletes[di].index == i {
+			// Directives in comments attached to a deleted statement still apply
+			// to the file, so keep them in place of the statement.
+			if block := directiveCommentBlock(stmt); block != nil {
+				newStmt = append(newStmt, block)
+			}
 			di++
 			continue
 		}
@@ -397,6 +402,26 @@ func updateStmt(oldStmt *[]bzl.Expr, inserts, deletes, stmts []*stmt) {
 		ii++
 	}
 	*oldStmt = newStmt
+}
+
+// directiveCommentBlock returns a comment block with the directive comments
+// attached to e, or nil if there are none. Other comments are dropped along
+// with e.
+func directiveCommentBlock(e bzl.Expr) *bzl.CommentBlock {
+	var directives []bzl.Comment
+	coms := e.Comment()
+	for _, group := range [][]bzl.Comment{coms.Before, coms.After} {
+		for _, com := range group {
+			if directiveRe.MatchString(com.Token) {
+				directives = append(directives, com)
+			}
+		}
+	}
+	if len(directives) == 0 {
+		return nil
+	}
+	// The parser keeps the comments of a standalone block in After.
+	return &bzl.CommentBlock{Comments: bzl.Comments{After: directives}}
 }
 
 // Format formats the build file in a form that can be written to disk.
