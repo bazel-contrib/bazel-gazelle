@@ -96,10 +96,10 @@ type MergeFileArgs struct {
 	// GetKindInfo will only be called on rules in Gen and Empty.
 	GetKindInfo func(*rule.Rule) rule.KindInfo
 
-	// AliasedKinds maps original kind names to aliased kind names. For example,
-	// if a BUILD file contains a directive
-	// "# gazelle:alias_kind go_library my_go_library",
-	// then this map would contain a key "go_library" and value "my_go_library".
+	// AliasedKinds maps aliased kind names to the kind names they wrap. For
+	// example, if a BUILD file contains a directive
+	// "# gazelle:alias_kind my_go_library go_library",
+	// then this map would contain a key "my_go_library" and value "go_library".
 	AliasedKinds map[string]string
 }
 
