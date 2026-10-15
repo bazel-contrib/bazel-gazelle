@@ -540,7 +540,16 @@ func Run(
 			for _, rs := range [][]*rule.Rule{res.Empty, res.Gen} {
 				for _, r := range rs {
 					r.SetPrivateAttr(langPrivateAttr, lang)
-					if kind, ok := kindsByLanguage[languageKind{lang: langName, kind: r.Kind()}]; ok {
+					kind, ok := kindsByLanguage[languageKind{lang: langName, kind: r.Kind()}]
+					if !ok {
+						// Some languages (e.g. gazelle_cc) set kinds to the
+						// alias, not to the underlying rule. Aliases have no
+						// information, so we resolve them here.
+						if wrappedKind, isAlias := c.AliasMap[r.Kind()]; isAlias {
+							kind, ok = kindsByLanguage[languageKind{lang: langName, kind: wrappedKind}]
+						}
+					}
+					if ok {
 						r.SetPrivateAttr(kindPrivateAttr, kind)
 					}
 				}
