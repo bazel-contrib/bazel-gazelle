@@ -16,6 +16,8 @@ limitations under the License.
 package rule
 
 import (
+	"log"
+
 	v2 "github.com/bazel-contrib/bazel-gazelle/v2/rule"
 
 	bzl "github.com/bazelbuild/buildtools/build"
@@ -42,7 +44,9 @@ import (
 // Deprecated: Use github.com/bazel-contrib/bazel-gazelle/v2/rule.MergeRules instead.
 //go:fix inline
 func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
-	v2.MergeRules(src, dst, mergeable, filename)
+	if err := v2.MergeRules(src, dst, mergeable, filename); err != nil {
+		log.Print(err)
+	}
 }
 
 // RemoveNoopKeepComments controls whether comments with "# keep" are removed when they are not needed.
