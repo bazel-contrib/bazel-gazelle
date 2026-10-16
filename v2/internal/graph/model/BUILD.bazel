@@ -1,0 +1,56 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "model",
+    srcs = [
+        "builder.go",
+        "cycle.go",
+        "doc.go",
+        "edge.go",
+        "encode.go",
+        "errors.go",
+        "facts.go",
+        "graph.go",
+        "key.go",
+        "node.go",
+        "query.go",
+    ],
+    importpath = "github.com/bazel-contrib/bazel-gazelle/v2/internal/graph/model",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//v2/internal/graph/store",
+        "//v2/label",
+        "//v2/resolve",
+    ],
+)
+
+go_test(
+    name = "model_test",
+    srcs = ["graph_test.go"],
+    embed = [":model"],
+    deps = [
+        "//v2/label",
+        "@com_github_google_go_cmp//cmp",
+    ],
+)
+
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "builder.go",
+        "cycle.go",
+        "doc.go",
+        "edge.go",
+        "encode.go",
+        "errors.go",
+        "facts.go",
+        "graph.go",
+        "graph_test.go",
+        "key.go",
+        "node.go",
+        "query.go",
+    ],
+    visibility = ["//visibility:public"],
+)
