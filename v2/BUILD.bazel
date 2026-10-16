@@ -13,6 +13,7 @@ filegroup(
         "//v2/config:all_files",
         "//v2/errors:all_files",
         "//v2/flag:all_files",
+        "//v2/graph:all_files",
         "//v2/internal:all_files",
         "//v2/label:all_files",
         "//v2/language:all_files",
