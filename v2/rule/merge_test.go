@@ -16,6 +16,7 @@ limitations under the License.
 package rule_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
@@ -35,6 +36,29 @@ func TestMergeRules(t *testing.T) {
 				dst.PrivateAttr(privateAttrKey), privateAttrVal)
 		}
 	})
+}
+
+func TestMergeRules_ReturnsMergeError(t *testing.T) {
+	srcFile, err := rule.LoadData("current/BUILD.bazel", "", []byte(`go_library(name = "lib", srcs = ["foo.go"])`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dstFile, err := rule.LoadData("previous/BUILD.bazel", "", []byte(`go_library(name = "lib", srcs = glob(["*.go"]))`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src, dst := srcFile.Rules[0], dstFile.Rules[0]
+
+	err = rule.MergeRules(src, dst, map[string]bool{"srcs": true}, dstFile.Path)
+	if err == nil {
+		t.Fatal("MergeRules returned nil; want merge error")
+	}
+	if !strings.Contains(err.Error(), "previous/BUILD.bazel:") || !strings.Contains(err.Error(), "could not merge expression") {
+		t.Fatalf("MergeRules error = %q; want location and merge error", err)
+	}
+	if got := bzl.FormatString(dst.Attr("srcs")); got != `glob(["*.go"])` {
+		t.Fatalf("dst srcs = %s; want existing glob expression preserved", got)
+	}
 }
 
 func TestMergeRules_WithSortedStringAttr(t *testing.T) {
