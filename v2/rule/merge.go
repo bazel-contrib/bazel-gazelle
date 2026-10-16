@@ -18,7 +18,6 @@ package rule
 import (
 	"errors"
 	"fmt"
-	"log"
 	"sort"
 
 	bzl "github.com/bazelbuild/buildtools/build"
@@ -41,10 +40,14 @@ import (
 // marked with a "# keep" comment, values in the attribute not marked with
 // a "# keep" comment will be dropped. If the attribute is empty afterward,
 // it will be deleted.
-func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
+//
+// Merge errors are returned after all attributes have been processed. An
+// attribute that could not be merged is left unchanged.
+func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) error {
 	if dst.ShouldKeep() {
-		return
+		return nil
 	}
+	var errs []error
 
 	// Process attributes that are in dst but not in src.
 	for key, dstAttr := range dst.attrs {
@@ -53,7 +56,7 @@ func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 		}
 		if mergedValue, err := mergeAttrValues(nil, &dstAttr); err != nil {
 			start, end := dstAttr.expr.RHS.Span()
-			log.Printf("%s:%d.%d-%d.%d: could not merge expression", filename, start.Line, start.LineRune, end.Line, end.LineRune)
+			errs = append(errs, fmt.Errorf("%s:%d.%d-%d.%d: could not merge expression: %w", filename, start.Line, start.LineRune, end.Line, end.LineRune, err))
 		} else if mergedValue == nil {
 			dst.DelAttr(key)
 		} else {
@@ -68,7 +71,7 @@ func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 		} else if mergeable[key] { // Defer the ShouldKeep check to mergeAttrValues
 			if mergedValue, err := mergeAttrValues(&srcAttr, &dstAttr); err != nil {
 				start, end := dstAttr.expr.RHS.Span()
-				log.Printf("%s:%d.%d-%d.%d: could not merge expression", filename, start.Line, start.LineRune, end.Line, end.LineRune)
+				errs = append(errs, fmt.Errorf("%s:%d.%d-%d.%d: could not merge expression: %w", filename, start.Line, start.LineRune, end.Line, end.LineRune, err))
 			} else if mergedValue == nil {
 				dst.DelAttr(key)
 			} else {
@@ -78,6 +81,7 @@ func MergeRules(src, dst *Rule, mergeable map[string]bool, filename string) {
 	}
 
 	dst.private = src.private
+	return errors.Join(errs...)
 }
 
 func areScalarsAndEqual(x, y bzl.Expr) bool {

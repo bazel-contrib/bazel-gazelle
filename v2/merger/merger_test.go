@@ -37,6 +37,7 @@ import (
 type testCase struct {
 	desc, previous, current, empty, expected string
 	aliasedKinds                             map[string]string
+	wantMergeError                           bool
 }
 
 var testCases = []testCase{
@@ -352,6 +353,7 @@ go_library(
 `,
 	}, {
 		desc: "merge error keeps old",
+		wantMergeError: true,
 		previous: `
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
@@ -1061,14 +1063,18 @@ func TestMergeFile(t *testing.T) {
 			getKindInfo := func(r *rule.Rule) rule.KindInfo {
 				return testKinds[r.Kind()]
 			}
-			if err := merger.MergeFile(merger.MergeFileArgs{
+			err = merger.MergeFile(merger.MergeFileArgs{
 				File:         f,
 				Empty:        emptyFile.Rules,
 				Gen:          genFile.Rules,
 				Phase:        merger.PreResolve,
 				GetKindInfo:  getKindInfo,
 				AliasedKinds: tc.aliasedKinds,
-			}); err != nil {
+			})
+			if tc.wantMergeError && err == nil {
+				t.Fatalf("%s: expected merge error", tc.desc)
+			}
+			if !tc.wantMergeError && err != nil {
 				t.Fatalf("%s: %v", tc.desc, err)
 			}
 			merger.NewLoadFixer(testLoads).Fix(f)

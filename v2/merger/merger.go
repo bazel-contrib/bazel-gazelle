@@ -37,6 +37,7 @@ limitations under the License.
 package merger
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -120,6 +121,7 @@ type MergeFileArgs struct {
 // If an attribute is marked with a "# keep" comment, it will not be merged.
 // If a rule is marked with a "# keep" comment, the whole rule will not
 // be modified.
+// Errors merging attributes are returned after all rules have been processed.
 func MergeFile(args MergeFileArgs) error {
 	file := args.File
 	emptyRules := args.Empty
@@ -135,6 +137,7 @@ func MergeFile(args MergeFileArgs) error {
 			return getKindInfo(r).ResolveAttrs
 		}
 	}
+	var errs []error
 
 	// Merge empty rules into the file and delete any rules which become empty.
 	for _, emptyRule := range emptyRules {
@@ -143,7 +146,9 @@ func MergeFile(args MergeFileArgs) error {
 			if oldRule.ShouldKeep() {
 				continue
 			}
-			rule.MergeRules(emptyRule, oldRule, getMergeAttrs(emptyRule), file.Path)
+			if err := rule.MergeRules(emptyRule, oldRule, getMergeAttrs(emptyRule), file.Path); err != nil {
+				errs = append(errs, err)
+			}
 			// Resolve aliased kinds to look up the correct KindInfo.
 			// e.g., if oldRule is "my_py_library" aliased to "py_library",
 			// use KindInfo for "py_library" to determine emptiness.
@@ -194,10 +199,12 @@ func MergeFile(args MergeFileArgs) error {
 				genRule.Insert(file)
 			}
 		} else {
-			rule.MergeRules(genRule, matchRules[i], getMergeAttrs(genRule), file.Path)
+			if err := rule.MergeRules(genRule, matchRules[i], getMergeAttrs(genRule), file.Path); err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // substituteRule replaces local labels (those beginning with ":", referring to
