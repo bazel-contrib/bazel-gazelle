@@ -130,6 +130,7 @@ GO_REPOSITORY_TOOLS_SRCS = [
     Label("//v2/cmd/gazelle/update:BUILD.bazel"),
     Label("//v2/cmd/gazelle/update:diff.go"),
     Label("//v2/cmd/gazelle/update:fix.go"),
+    Label("//v2/cmd/gazelle/update:graph.go"),
     Label("//v2/cmd/gazelle/update:metaresolver.go"),
     Label("//v2/cmd/gazelle/update:print.go"),
     Label("//v2/cmd/gazelle/update:profiler.go"),
