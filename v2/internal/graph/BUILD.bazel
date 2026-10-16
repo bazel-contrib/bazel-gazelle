@@ -3,6 +3,8 @@ filegroup(
     testonly = True,
     srcs = [
         "BUILD.bazel",
+        "//v2/internal/graph/ingest:all_files",
+        "//v2/internal/graph/link:all_files",
         "//v2/internal/graph/model:all_files",
         "//v2/internal/graph/store:all_files",
     ],
