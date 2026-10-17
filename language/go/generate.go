@@ -906,6 +906,7 @@ func (g *generator) commonVisibility(importPath string) []string {
 	} else if importIndex >= 0 {
 		// This entire module is within an internal directory.
 		// Identify other repos which should have access too.
+		getGoConfig(g.c).repoConfigInputs.record(importPath[:importIndex])
 		visibility = append(visibility, "//:__subpackages__")
 		for _, repo := range g.c.Repos {
 			if pathtools.HasPrefix(repo.AttrString("importpath"), importPath[:importIndex]) {

@@ -47,3 +47,11 @@ def watch(ctx, path):
     # explicitly here, duplicate watches are no-ops.
     if hasattr(ctx, "watch"):
         ctx.watch(path)
+
+def repository_config_input_path(prefix):
+    """Returns a case-safe path for a repository configuration input."""
+    if prefix != prefix.lower():
+        prefix = "".join(["!" + c.lower() if c.isupper() else c for c in prefix.elems()])
+
+    # Prefix each component to avoid reserved names and special directories.
+    return "config_inputs/" + "/".join(["p-" + p for p in prefix.split("/")]) + "/input"

@@ -44,6 +44,8 @@ var minimumRulesGoVersion = version.Version{0, 29, 0}
 
 // goConfig contains configuration values related to Go rules.
 type goConfig struct {
+	repoConfigInputs *repositoryConfigInputs
+
 	// The name under which the rules_go repository can be referenced from the
 	// repository in which Gazelle is running.
 	rulesGoRepoName string
@@ -430,10 +432,13 @@ func (*goLang) KnownDirectives() []string {
 	}
 }
 
-func (*goLang) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
+func (gl *goLang) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
 	gc := newGoConfig()
 	switch cmd {
 	case "fix", "update":
+		gl.repoConfigInputs = &repositoryConfigInputs{}
+		gc.repoConfigInputs = gl.repoConfigInputs
+		fs.StringVar(&gl.repoConfigInputs.output, "go_repository_config_inputs", "", "write configuration input prefixes for go_repository")
 		fs.Var(
 			tagsFlag(gc.setBuildTags),
 			"build_tags",
@@ -509,6 +514,10 @@ func (*goLang) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
 	// or when the package name can't be determined.
 	// TODO(jayconrod): deprecate and remove this behavior.
 	gc := getGoConfig(c)
+	if gc.repoConfigInputs != nil && gc.repoConfigInputs.output != "" {
+		gc.repoConfigInputs.init(c.Repos)
+		gc.repoConfigInputs.record(gc.prefix)
+	}
 	if pc := proto.GetProtoConfig(c); pc != nil {
 		pc.GoPrefix = gc.prefix
 	}

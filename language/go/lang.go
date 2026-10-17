@@ -64,6 +64,8 @@ import (
 const goName = "go"
 
 type goLang struct {
+	repoConfigInputs *repositoryConfigInputs
+
 	// goPkgRels is a set of relative paths to directories containing buildable
 	// Go code. If the value is false, it means the directory does not contain
 	// buildable Go code, but it has a subdir which does.

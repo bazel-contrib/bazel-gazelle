@@ -14,7 +14,41 @@
 
 """go_repository_config internal repo rule, used by go_deps"""
 
+load("//internal:common.bzl", "repository_config_input_path")
 load("//internal:env.bzl", "write_go_env_file")
+
+def _prefixes(importpath):
+    parts = importpath.split("/")
+    return ["/".join(parts[:i]) for i in range(1, len(parts) + 1)]
+
+def _module_paths(importpath):
+    paths = [importpath]
+    parts = importpath.split("/")
+    for i in range(1, len(parts)):
+        part = parts[i]
+        if part.startswith("v") and part[1:].isdigit():
+            if not part.startswith("v0") and part != "v1":
+                paths.append("/".join(parts[:i] + parts[i + 1:]))
+            break
+    return paths
+
+def repository_config_inputs(importpaths):
+    """Indexes the entries that may affect resolution below each import prefix."""
+    exact = {}
+    descendants = {}
+    for index, importpath in enumerate(importpaths):
+        for module_path in _module_paths(importpath):
+            exact.setdefault(module_path, {})[index] = None
+            for prefix in _prefixes(module_path):
+                descendants.setdefault(prefix, {})[index] = None
+
+    inputs = {}
+    for prefix, entries in descendants.items():
+        relevant = dict(entries)
+        for ancestor in _prefixes(prefix):
+            relevant.update(exact.get(ancestor, {}))
+        inputs[prefix] = sorted(relevant)
+    return inputs
 
 def _go_repository_config_impl(ctx):
     lines = []
@@ -47,6 +81,8 @@ def _go_repository_config_impl(ctx):
         lines.append(" ".join(words))
 
     ctx.file("WORKSPACE", "\n".join(lines) + "\n")
+    for prefix, indices in repository_config_inputs(ctx.attr.repo_names.keys()).items():
+        ctx.file(repository_config_input_path(prefix), "\n".join([lines[i] for i in indices]) + "\n")
     write_go_env_file(ctx, ctx.attr.go_env)
     ctx.file("BUILD.bazel", "exports_files(['WORKSPACE', 'config.json', 'go.env', 'go_env.bzl', 'go_tools.bzl'])")
     ctx.file("go_env.bzl", content = "GO_ENV = " + repr(ctx.attr.go_env))

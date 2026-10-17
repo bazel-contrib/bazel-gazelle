@@ -74,6 +74,7 @@ GO_REPOSITORY_TOOLS_SRCS = [
     Label("//language/go:platform_info.go"),
     Label("//language/go/platform_info_generator:BUILD.bazel"),
     Label("//language/go/platform_info_generator:main.go"),
+    Label("//language/go:repo_config.go"),
     Label("//language/go:resolve.go"),
     Label("//language/go:std_package_list.go"),
     Label("//language/go:stdlib_links.go"),

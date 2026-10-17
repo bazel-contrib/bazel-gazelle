@@ -13,7 +13,7 @@
 # limitations under the License.
 
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "patch", "read_user_netrc", "use_netrc")
-load("//internal:common.bzl", "env_execute", "executable_extension", "watch")
+load("//internal:common.bzl", "env_execute", "executable_extension", "repository_config_input_path", "watch")
 load("//internal:env.bzl", "host_network_env", "read_go_env_file")
 
 _DOC = """
@@ -362,7 +362,9 @@ def _go_repository_impl(ctx):
             repo_config = ctx.path(ctx.attr.build_config)
 
         watch(ctx, gazelle_path)
-        watch(ctx, repo_config)
+        config_inputs = ctx.path(".gazelle_repo_config_inputs.json") if is_module_extension_repo and hasattr(ctx, "watch") else None
+        if config_inputs == None:
+            watch(ctx, repo_config)
 
         cmd = [
             gazelle_path,
@@ -377,6 +379,8 @@ def _go_repository_impl(ctx):
             repo_config,
             "-r=true",
         ]
+        if config_inputs != None:
+            cmd.extend(["-go_repository_config_inputs", config_inputs])
         if ctx.attr.version or ctx.attr.local_path:
             cmd.append("-go_repository_module_mode")
         if ctx.attr.build_file_name:
@@ -400,6 +404,10 @@ def _go_repository_impl(ctx):
                 ctx.attr.importpath,
                 result.stderr,
             ))
+        if config_inputs != None:
+            for prefix in json.decode(ctx.read(config_inputs)):
+                watch(ctx, repo_config.dirname.get_child(repository_config_input_path(prefix)))
+            ctx.delete(config_inputs)
         if ctx.attr.debug_mode and result.stderr:
             print("%s gazelle.stdout: %s" % (ctx.name, result.stdout))
             print("%s gazelle.stderr: %s" % (ctx.name, result.stderr))
