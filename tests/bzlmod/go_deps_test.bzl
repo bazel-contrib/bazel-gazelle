@@ -17,6 +17,7 @@ load("//tests/bzlmod/go_deps:empty.bzl", EMPTY_TEST = "TEST")
 load("//tests/bzlmod/go_deps:facts_all.bzl", FACTS_ALL_TEST = "TEST")
 load("//tests/bzlmod/go_deps:facts_gonoproxy.bzl", FACTS_GONOPROXY_TEST = "TEST")
 load("//tests/bzlmod/go_deps:facts_goprivate.bzl", FACTS_GOPRIVATE_TEST = "TEST")
+load("//tests/bzlmod/go_deps:facts_stale.bzl", FACTS_STALE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:from_file_dev_deps.bzl", FROM_FILE_DEV_DEPS_TEST = "TEST")
 load("//tests/bzlmod/go_deps:from_file_not_go_mod.bzl", FROM_FILE_NOT_GO_MOD_TEST = "TEST")
 load("//tests/bzlmod/go_deps:gazelle_default_attributes.bzl", GAZELLE_DEFAULT_ATTRIBUTES_TEST = "TEST")
@@ -71,6 +72,7 @@ _GO_DEPS_TEST_CASES = [
     FACTS_ALL_TEST,
     FACTS_GONOPROXY_TEST,
     FACTS_GOPRIVATE_TEST,
+    FACTS_STALE_TEST,
     FROM_FILE_DEV_DEPS_TEST,
     FROM_FILE_NOT_GO_MOD_TEST,
     GAZELLE_DEFAULT_ATTRIBUTES_TEST,

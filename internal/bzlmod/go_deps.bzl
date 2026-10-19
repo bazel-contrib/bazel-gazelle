@@ -319,7 +319,16 @@ def go_deps_impl(module_ctx):
         direct_deps = [dep for dep in direct_deps if dep not in shared_repo_names]
         direct_dev_deps = [dep for dep in direct_dev_deps if dep not in shared_repo_names]
 
-    facts = make_mod_file_facts(required_mod_files)
+    # Only store facts for .mod files needed by this evaluation: those mentioned
+    # in require directives and those 'go list -m' needed. Facts from earlier
+    # evaluations that are no longer needed are dropped, so stale versions
+    # don't accumulate in MODULE.bazel.lock.
+    needed_mod_files = list(required_mod_files_from_workspace) + [
+        required_mod_file(m.importpath, m.version)
+        for m in go_modules.values()
+        if m.need_go_mod
+    ]
+    facts = make_mod_file_facts({m: required_mod_files.get(m) for m in needed_mod_files})
     return extension_metadata(
         module_ctx,
         root_module_direct_deps = direct_deps,
