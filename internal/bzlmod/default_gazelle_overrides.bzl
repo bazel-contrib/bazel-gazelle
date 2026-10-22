@@ -16,6 +16,9 @@ visibility("private")
 
 DEFAULT_BUILD_FILE_GENERATION_BY_PATH = {
     "cel.dev/expr": "on",
+    # The checked-in BUILD files and MODULE.bazel refer to repositories, such as
+    # @protobuf and @rules_go, that are not visible from a go_deps repository.
+    "github.com/bazelbuild/remote-apis": "clean",
     "github.com/bazelbuild/remote-apis-sdks": "on",
     "github.com/cncf/xds/go": "on",
     "github.com/envoyproxy/protoc-gen-validate": "on",
@@ -42,6 +45,10 @@ DEFAULT_DIRECTIVES_BY_PATH = {
         "gazelle:go_naming_convention go_default_library",
     ],
     "github.com/authzed/spicedb": [
+        "gazelle:proto disable",
+    ],
+    "github.com/bazelbuild/remote-apis": [
+        # The generated .pb.go files are checked in.
         "gazelle:proto disable",
     ],
     "github.com/bufbuild/protocompile": [
