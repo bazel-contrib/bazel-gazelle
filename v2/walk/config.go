@@ -27,6 +27,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 	gzflag "github.com/bazel-contrib/bazel-gazelle/v2/flag"
@@ -52,9 +53,19 @@ const (
 // declared generated files, so we can't just stat.
 
 type walkConfig struct {
-	updateOnly          bool
-	ignoreFilter        *ignoreFilter
-	excludes            []string
+	updateOnly   bool
+	ignoreFilter *ignoreFilter
+	// excludes is the canonical list of exclusion patterns, set with
+	// -exclude flags and exclude directives.
+	excludes []string
+	// literalExcludes and globExcludes index excludes for matching:
+	// literalExcludes holds the patterns that are plain ASCII literals and
+	// can be matched with a map lookup; globExcludes holds the patterns
+	// that must be matched with the doublestar matcher. They are built by
+	// indexExcludes, shared between clones, and replaced (never mutated)
+	// when excludes grows.
+	literalExcludes     map[string]struct{}
+	globExcludes        []string
 	ignore              bool
 	follow              []string
 	validBuildFileNames []string // to be copied to config.Config
@@ -74,17 +85,34 @@ func (wc *walkConfig) clone() *walkConfig {
 	// Trim cap of exclude and follow. We may append to these slices in multiple
 	// goroutines. Doing so should allocate a copy of the backing array.
 	// Other slices are either immutable or replaced when written.
+	// literalExcludes and globExcludes are shared between clones: they are
+	// replaced, never mutated, so sharing is safe for concurrent use.
 	wcCopy.excludes = wcCopy.excludes[:len(wcCopy.excludes):len(wcCopy.excludes)]
 	wcCopy.follow = wcCopy.follow[:len(wcCopy.follow):len(wcCopy.follow)]
 	return &wcCopy
 }
 
 func (wc *walkConfig) isExcludedDir(p string) bool {
-	return path.Base(p) == ".git" || wc.ignoreFilter.isDirectoryIgnored(p) || matchAnyGlob(wc.excludes, p)
+	return path.Base(p) == ".git" || wc.ignoreFilter.isDirectoryIgnored(p) || wc.isExcludedByPattern(p)
 }
 
 func (wc *walkConfig) isExcludedFile(p string) bool {
-	return wc.ignoreFilter.isFileIgnored(p) || matchAnyGlob(wc.excludes, p)
+	return wc.ignoreFilter.isFileIgnored(p) || wc.isExcludedByPattern(p)
+}
+
+// isExcludedByPattern reports whether p matches any exclude pattern. Literal
+// patterns are matched with a map lookup when an index has been built; glob
+// patterns fall through to the doublestar matcher. When no index is present
+// (a walkConfig constructed directly), all patterns are matched with the
+// doublestar matcher, as before.
+func (wc *walkConfig) isExcludedByPattern(p string) bool {
+	if wc.literalExcludes == nil {
+		return matchAnyGlob(wc.excludes, p)
+	}
+	if _, ok := wc.literalExcludes[p]; ok {
+		return true
+	}
+	return matchAnyGlob(wc.globExcludes, p)
 }
 
 func (wc *walkConfig) shouldFollow(p string) bool {
@@ -134,6 +162,7 @@ func (cr *Configurer) CheckFlags(_ *flag.FlagSet, c *config.Config) error {
 		excludes:            cr.cliExcludes,
 		validBuildFileNames: c.ValidBuildFileNames,
 	}
+	wc.literalExcludes, wc.globExcludes = indexExcludes(wc.excludes)
 	c.Exts[walkName] = wc
 	return nil
 }
@@ -165,6 +194,7 @@ func (cr *Configurer) Configure(_ context.Context, args config.ConfigureArgs) er
 func configureForWalk(parent *walkConfig, rel string, f *rule.File) *walkConfig {
 	wc := parent.clone()
 	wc.ignore = false
+	excludesAppended := false
 
 	if f != nil {
 		for _, d := range f.Directives {
@@ -187,6 +217,7 @@ func configureForWalk(parent *walkConfig, rel string, f *rule.File) *walkConfig 
 					continue
 				}
 				wc.excludes = append(wc.excludes, path.Join(rel, d.Value))
+				excludesAppended = true
 			case "follow":
 				if err := checkPathMatchPattern(path.Join(rel, d.Value)); err != nil {
 					log.Printf("the follow pattern is not valid %q: %s", path.Join(rel, d.Value), err)
@@ -200,6 +231,12 @@ func configureForWalk(parent *walkConfig, rel string, f *rule.File) *walkConfig 
 				wc.ignore = true
 			}
 		}
+	}
+
+	if excludesAppended {
+		// Build a fresh index for this directory's patterns. The parent's
+		// index is shared with siblings and must not be modified.
+		wc.literalExcludes, wc.globExcludes = indexExcludes(wc.excludes)
 	}
 
 	return wc
@@ -328,6 +365,51 @@ func loadRepoDirectoryIgnore(repoRoot string) ([]string, error) {
 func checkPathMatchPattern(pattern string) error {
 	_, err := doublestar.Match(pattern, "x")
 	return err
+}
+
+// globPatternChars are the bytes that give an exclusion pattern doublestar
+// glob or escape semantics. Patterns containing any of them, or any
+// non-ASCII bytes (which doublestar compares as runes), must stay in
+// globExcludes so their matching semantics are unchanged.
+const globPatternChars = `*?[]{}` + "\\"
+
+// isLiteralExcludePattern reports whether pattern is a plain ASCII literal:
+// no glob metacharacters, no escape sequences, and no non-ASCII bytes. The
+// doublestar matcher compares such patterns with plain string equality, so
+// they can be looked up in a map instead of matched one by one.
+func isLiteralExcludePattern(pattern string) bool {
+	for i := range len(pattern) {
+		if c := pattern[i]; c >= utf8.RuneSelf || strings.IndexByte(globPatternChars, c) >= 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// indexExcludes partitions exclude patterns into a set of literals that can
+// be matched with a map lookup and a list of globs that must be matched with
+// the doublestar matcher.
+//
+// When there are no literal patterns, both return values are nil: callers
+// then fall back to matching the full exclude list, which is equivalent
+// because every pattern is then a glob.
+func indexExcludes(excludes []string) (literalExcludes map[string]struct{}, globExcludes []string) {
+	for _, pattern := range excludes {
+		if !isLiteralExcludePattern(pattern) {
+			globExcludes = append(globExcludes, pattern)
+			continue
+		}
+		if literalExcludes == nil {
+			literalExcludes = make(map[string]struct{}, len(excludes))
+		}
+		literalExcludes[pattern] = struct{}{}
+	}
+	if literalExcludes == nil {
+		// No literal patterns: leave globExcludes unset too. Callers fall back
+		// to matching the full exclude list, which is then all globs.
+		return nil, nil
+	}
+	return literalExcludes, globExcludes
 }
 
 func matchAnyGlob(patterns []string, path string) bool {

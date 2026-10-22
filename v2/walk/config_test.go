@@ -2,6 +2,7 @@ package walk
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -78,5 +79,97 @@ func TestConfigurerDirectives(t *testing.T) {
 	want := []string{"x", "y"}
 	if !reflect.DeepEqual(c.ValidBuildFileNames, want) {
 		t.Errorf("for ValidBuildFileNames, got %#v, want %#v", c.ValidBuildFileNames, want)
+	}
+}
+
+func TestIndexExcludes(t *testing.T) {
+	excludes := []string{
+		"a/b.txt", // plain literal
+		"*.go",    // star
+		"a?b",     // question mark
+		"[abc]",   // character class
+		"{l,r}",   // alternatives
+		`e\.go`,   // escape
+		"caffè",   // non-ASCII
+	}
+
+	literals, globs := indexExcludes(excludes)
+	wantLiterals := map[string]struct{}{"a/b.txt": {}}
+	if !reflect.DeepEqual(literals, wantLiterals) {
+		t.Errorf("for literalExcludes, got %v, want %v", literals, wantLiterals)
+	}
+	wantGlobs := []string{"*.go", "a?b", "[abc]", "{l,r}", `e\.go`, "caffè"}
+	if !reflect.DeepEqual(globs, wantGlobs) {
+		t.Errorf("for globExcludes, got %v, want %v", globs, wantGlobs)
+	}
+
+	// With no literal patterns, no index is built.
+	literals, globs = indexExcludes([]string{"*.go", "a?b"})
+	if literals != nil || globs != nil {
+		t.Errorf("for glob-only excludes, got literals %v globs %v, want nil nil", literals, globs)
+	}
+}
+
+func TestIsExcludedByPattern(t *testing.T) {
+	// Matching must give the same answers with an index as without one,
+	// including for glob, escaped and non-ASCII patterns.
+	excludes := []string{"a/b.txt", "x.gen", "*.pb.go", `e\.go`, "caffè"}
+	indexed := &walkConfig{
+		excludes:        excludes,
+		literalExcludes: map[string]struct{}{"a/b.txt": {}, "x.gen": {}},
+		globExcludes:    []string{"*.pb.go", `e\.go`, "caffè"},
+	}
+	unindexed := &walkConfig{excludes: excludes}
+
+	for path, want := range map[string]bool{
+		"a/b.txt": true, // literal
+		"x.gen":   true, // literal
+		"y.pb.go": true, // glob
+		"e.go":    true, // escaped literal
+		"caffè":   true, // non-ASCII literal via glob matcher
+		"a/b":     false,
+		"y.gen":   false,
+	} {
+		if got := indexed.isExcludedByPattern(path); got != want {
+			t.Errorf("indexed isExcludedByPattern(%q) = %t, want %t", path, got, want)
+		}
+		if got := unindexed.isExcludedByPattern(path); got != want {
+			t.Errorf("unindexed isExcludedByPattern(%q) = %t, want %t", path, got, want)
+		}
+	}
+}
+
+// BenchmarkExclusions measures the cost of checking a path that matches no
+// exclusion, with varying numbers of literal (non-glob) exclude patterns
+// configured through Configurer.CheckFlags, as -exclude flags would.
+func BenchmarkExclusions(b *testing.B) {
+	for _, count := range []int{0, 1, 100, 1000} {
+		b.Run(fmt.Sprintf("literals=%d", count), func(b *testing.B) {
+			args := make([]string, 0, 2*count)
+			for i := range count {
+				args = append(args, "-exclude", fmt.Sprintf("excluded%d", i))
+			}
+
+			c := config.New()
+			c.RepoRoot = b.TempDir()
+			cc := &Configurer{}
+			fs := flag.NewFlagSet("bench", flag.ContinueOnError)
+			cc.RegisterFlags(fs, "update", c)
+			if err := fs.Parse(args); err != nil {
+				b.Fatal(err)
+			}
+			if err := cc.CheckFlags(fs, c); err != nil {
+				b.Fatal(err)
+			}
+			wc := getWalkConfig(c)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				if wc.isExcludedDir("some/unexcluded/dir") {
+					b.Fatal("path unexpectedly excluded")
+				}
+			}
+		})
 	}
 }
