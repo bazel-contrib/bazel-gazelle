@@ -2,6 +2,7 @@ load(":env_test.bzl", "env_test_suite")
 load(":globs_test.bzl", "globs_test_suite")
 load(":go_deps_test.bzl", "go_deps_test_suite")
 load(":goproxy_test.bzl", "goproxy_test_suite")
+load(":repo_config_test.bzl", "repo_config_test")
 load(":semver_test.bzl", "semver_test_suite")
 load(":utils_test.bzl", "utils_test_suite")
 
@@ -12,6 +13,8 @@ globs_test_suite(name = "globs_test")
 go_deps_test_suite(name = "go_deps_test")
 
 goproxy_test_suite(name = "goproxy_test")
+
+repo_config_test(name = "repo_config_test")
 
 semver_test_suite(name = "semver_test")
 

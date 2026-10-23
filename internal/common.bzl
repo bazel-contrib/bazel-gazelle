@@ -42,8 +42,17 @@ def path_str(path):
     return path._name if hasattr(path, "_name") else str(path)
 
 def watch(ctx, path):
-    # Versions of Bazel that have ctx.watch may no longer explicitly watch
-    # labels on which ctx.path is called and/or labels in attributes. Do so
-    # explicitly here, duplicate watches are no-ops.
+    # Bazel 7.0 watches ctx.path(Label(...)) implicitly and lacks ctx.watch.
+    # Newer Bazel versions may require explicit watches.
     if hasattr(ctx, "watch"):
         ctx.watch(path)
+
+def repository_config_input_path(prefix):
+    """Maps a Go import prefix to its go_repository_config input file."""
+
+    # Escape case as golang.org/x/mod does, for case-insensitive filesystems.
+    if prefix != prefix.lower():
+        prefix = "".join(["!" + c.lower() if c.isupper() else c for c in prefix.elems()])
+
+    # Keep the input file distinct from a Go module component named "input".
+    return "config_inputs/p-" + prefix.replace("/", "/p-") + "/input"

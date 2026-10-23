@@ -14,14 +14,64 @@
 
 """go_repository_config internal repo rule, used by go_deps"""
 
+load("//internal:common.bzl", "repository_config_input_path")
 load("//internal:env.bzl", "write_go_env_file")
+
+def _import_path_prefixes(importpath):
+    """Returns importpath and its slash-delimited prefixes, shortest first."""
+    prefixes = []
+    end = -1
+    for _ in range(importpath.count("/")):
+        end = importpath.find("/", end + 1)
+        prefixes.append(importpath[:end])
+    prefixes.append(importpath)
+    return prefixes
+
+def _module_paths(importpath):
+    paths = [importpath]
+    start = 0
+    for _ in range(importpath.count("/v")):
+        start = importpath.find("/v", start)
+        end = importpath.find("/", start + 2)
+        if end == -1:
+            end = len(importpath)
+        version = importpath[start + 2:end]
+        if version.isdigit():
+            # Match repo/remote.go:pathWithoutSemver: only the first numeric
+            # version component counts, even when it is v0 or v1.
+            if version not in ("0", "1"):
+                paths.append(importpath[:start] + importpath[end:])
+            break
+        start = end
+    return paths
+
+def repository_config_inputs(importpaths):
+    """Maps import prefixes to WORKSPACE line indices, in WORKSPACE order."""
+    ancestors = {}
+    inputs = {}
+    for index, importpath in enumerate(importpaths):
+        for module_path in _module_paths(importpath):
+            ancestors.setdefault(module_path, {})[index] = None
+            for prefix in _import_path_prefixes(module_path):
+                inputs.setdefault(prefix, {})[index] = None
+
+    # inputs already includes descendants. Parents must be visited first to
+    # inherit ancestors, which can also change the matching Go repository.
+    for prefix in sorted(inputs):
+        parent, sep, _ = prefix.rpartition("/")
+        parent_indices = ancestors.get(parent) if sep else None
+        if parent_indices:
+            ancestors.setdefault(prefix, {}).update(parent_indices)
+            inputs[prefix].update(parent_indices)
+
+    # RemoteCache resolves versionless aliases in WORKSPACE order.
+    return {prefix: sorted(indices) for prefix, indices in inputs.items()}
 
 def _go_repository_config_impl(ctx):
     lines = []
     for importpath, repo_name in ctx.attr.repo_names.items():
-        # Format as a gazelle:go_repository directive instead of a call.
-        # Gazelle accepts directives with duplicate names but not calls, and we
-        # need duplicate repo names for Bazel modules with multiple Go modules.
+        # gazelle:repository directives allow duplicate names for Bazel modules
+        # that provide multiple Go modules.
         #
         # TODO(#2413): change to a JSON format after we drop support
         # for WORKSPACE mode.
@@ -46,7 +96,9 @@ def _go_repository_config_impl(ctx):
             words.append("build_naming_convention=" + build_naming_convention)
         lines.append(" ".join(words))
 
-    ctx.file("WORKSPACE", "\n".join(lines) + "\n")
+    ctx.file("WORKSPACE", "\n".join(lines))
+    for prefix, indices in repository_config_inputs(ctx.attr.repo_names).items():
+        ctx.file(repository_config_input_path(prefix), "\n".join([lines[i] for i in indices]))
     write_go_env_file(ctx, ctx.attr.go_env)
     ctx.file("BUILD.bazel", "exports_files(['WORKSPACE', 'config.json', 'go.env', 'go_env.bzl', 'go_tools.bzl'])")
     ctx.file("go_env.bzl", content = "GO_ENV = " + repr(ctx.attr.go_env))

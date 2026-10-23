@@ -16,6 +16,8 @@ limitations under the License.
 package golang
 
 import (
+	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -481,6 +483,64 @@ gazelle(
 			}
 			if gc.prefixRel != "x" {
 				t.Errorf("rel: got %q; want %q", gc.prefixRel, "x")
+			}
+		})
+	}
+}
+
+func TestRepositoryConfigInputs(t *testing.T) {
+	for _, tc := range []struct {
+		name, source, importpath, prefix, build string
+		want                                    []string
+	}{
+		{"external", "lib.go", "example.com/dep/pkg", "", "", []string{"example.com/dep/pkg"}},
+		{"unknown", "lib.go", "unknown.dev/pkg", "", "", []string{"unknown.dev/pkg"}},
+		{"no_internal_packages", "lib.go", "fmt", "", "", nil},
+		{"visibility", "internal/lib/lib.go", "fmt", "", "", []string{"example.com/consumer"}},
+		{"prefix_override", "internal/lib/lib.go", "fmt", "", "# gazelle:prefix example.com/consumer/child\n", []string{"example.com/consumer"}},
+		{
+			"internal_module", "lib.go", "fmt", "example.com/consumer/internal/submodule", "",
+			[]string{"example.com/consumer", "example.com/consumer/internal/submodule"},
+		},
+		{
+			"package_visibility", "lib.go", "fmt", "example.com/consumer/internal/submodule",
+			"# gazelle:go_naming_convention go_default_library\npackage(default_visibility = [\"//visibility:public\"])\n",
+			nil,
+		},
+		{
+			"alias_visibility", "lib.go", "fmt", "example.com/consumer/internal/submodule",
+			"# gazelle:go_naming_convention import_alias\npackage(default_visibility = [\"//visibility:public\"])\n",
+			[]string{"example.com/consumer", "example.com/consumer/internal/submodule"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			prefix := tc.prefix
+			if prefix == "" {
+				prefix = "example.com/consumer"
+			}
+			dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
+				{Path: "MODULE.bazel"},
+				{Path: "BUILD.bazel", Content: tc.build},
+				{Path: tc.source, Content: "package lib\nimport _ \"" + tc.importpath + "\"\n"},
+				{Path: "repos.WORKSPACE", Content: fmt.Sprintf(`go_repository(name = "consumer", importpath = %q)
+go_repository(name = "dep", importpath = "example.com/dep")
+go_repository(name = "child", importpath = "example.com/consumer/child")
+`, prefix)},
+			})
+			defer cleanup()
+			inputsPath := filepath.Join(dir, ".config_inputs")
+			if err := gazelleupdate.Run(t.Context(), []language.Language{proto.NewV2(), NewV2()}, dir, []string{
+				"-go_repository_mode", "-go_prefix=" + prefix, "-external=static",
+				"-repo_config=" + filepath.Join(dir, "repos.WORKSPACE"), "-go_repository_config_inputs=" + inputsPath,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(inputsPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if want := strings.Join(tc.want, "\n"); string(data) != want {
+				t.Fatalf("configuration inputs = %q, want %q", data, want)
 			}
 		})
 	}

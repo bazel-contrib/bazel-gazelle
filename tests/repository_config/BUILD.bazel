@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "repository_config_test",
+    srcs = ["repository_config_test.go"],
+    data = ["//:all_files"],
+    rundir = ".",
+    tags = [
+        "exclusive",
+        "local",
+    ],
+    x_defs = {"ruleFiles": "$(rlocationpaths //:all_files)"},
+    deps = ["@io_bazel_rules_go//go/tools/bazel_testing"],
+)
