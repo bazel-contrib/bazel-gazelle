@@ -222,6 +222,8 @@ func configureForWalk(parent *walkConfig, rel string, f *rule.File) *walkConfig 
 		}
 	}
 
+	wc.addExcludes(excludes)
+
 	return wc
 }
 
