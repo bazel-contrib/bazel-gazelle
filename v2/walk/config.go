@@ -23,9 +23,11 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
@@ -52,9 +54,14 @@ const (
 // declared generated files, so we can't just stat.
 
 type walkConfig struct {
-	updateOnly          bool
-	ignoreFilter        *ignoreFilter
-	excludes            []string
+	updateOnly   bool
+	ignoreFilter *ignoreFilter
+	// Exclusion patterns without glob syntax are kept in literalExcludes so
+	// that they can be matched with a single lookup, all others are kept in
+	// globExcludes. literalExcludes may be shared with other configs and
+	// must be copied before it is modified.
+	literalExcludes     map[string]struct{}
+	globExcludes        []string
 	ignore              bool
 	follow              []string
 	validBuildFileNames []string // to be copied to config.Config
@@ -71,20 +78,31 @@ func getWalkConfig(c *config.Config) *walkConfig {
 
 func (wc *walkConfig) clone() *walkConfig {
 	wcCopy := *wc
-	// Trim cap of exclude and follow. We may append to these slices in multiple
-	// goroutines. Doing so should allocate a copy of the backing array.
-	// Other slices are either immutable or replaced when written.
-	wcCopy.excludes = wcCopy.excludes[:len(wcCopy.excludes):len(wcCopy.excludes)]
-	wcCopy.follow = wcCopy.follow[:len(wcCopy.follow):len(wcCopy.follow)]
+	// Clip globExcludes and follow. We may append to these slices in
+	// multiple goroutines. Doing so should allocate a copy of the backing
+	// array. Other slices are either immutable or replaced when written.
+	// literalExcludes is copied by addExcludes before it is modified.
+	wcCopy.globExcludes = slices.Clip(wcCopy.globExcludes)
+	wcCopy.follow = slices.Clip(wcCopy.follow)
 	return &wcCopy
 }
 
 func (wc *walkConfig) isExcludedDir(p string) bool {
-	return path.Base(p) == ".git" || wc.ignoreFilter.isDirectoryIgnored(p) || matchAnyGlob(wc.excludes, p)
+	return path.Base(p) == ".git" || wc.ignoreFilter.isDirectoryIgnored(p) || wc.isExcludedByPattern(p)
 }
 
 func (wc *walkConfig) isExcludedFile(p string) bool {
-	return wc.ignoreFilter.isFileIgnored(p) || matchAnyGlob(wc.excludes, p)
+	return wc.ignoreFilter.isFileIgnored(p) || wc.isExcludedByPattern(p)
+}
+
+// isExcludedByPattern reports whether p matches any exclude pattern, using
+// a map lookup for literal patterns and the doublestar matcher for glob
+// patterns.
+func (wc *walkConfig) isExcludedByPattern(p string) bool {
+	if _, ok := wc.literalExcludes[p]; ok {
+		return true
+	}
+	return matchAnyGlob(wc.globExcludes, p)
 }
 
 func (wc *walkConfig) shouldFollow(p string) bool {
@@ -131,9 +149,9 @@ func (cr *Configurer) CheckFlags(_ *flag.FlagSet, c *config.Config) error {
 
 	wc := &walkConfig{
 		ignoreFilter:        ignoreFilter,
-		excludes:            cr.cliExcludes,
 		validBuildFileNames: c.ValidBuildFileNames,
 	}
+	wc.addExcludes(cr.cliExcludes)
 	c.Exts[walkName] = wc
 	return nil
 }
@@ -165,6 +183,7 @@ func (cr *Configurer) Configure(_ context.Context, args config.ConfigureArgs) er
 func configureForWalk(parent *walkConfig, rel string, f *rule.File) *walkConfig {
 	wc := parent.clone()
 	wc.ignore = false
+	var excludes []string
 
 	if f != nil {
 		for _, d := range f.Directives {
@@ -182,11 +201,12 @@ func configureForWalk(parent *walkConfig, rel string, f *rule.File) *walkConfig 
 					continue
 				}
 			case "exclude":
-				if err := checkPathMatchPattern(path.Join(rel, d.Value)); err != nil {
-					log.Printf("the exclusion pattern is not valid %q: %s", path.Join(rel, d.Value), err)
+				pattern := path.Join(rel, d.Value)
+				if err := checkPathMatchPattern(pattern); err != nil {
+					log.Printf("the exclusion pattern is not valid %q: %s", pattern, err)
 					continue
 				}
-				wc.excludes = append(wc.excludes, path.Join(rel, d.Value))
+				excludes = append(excludes, pattern)
 			case "follow":
 				if err := checkPathMatchPattern(path.Join(rel, d.Value)); err != nil {
 					log.Printf("the follow pattern is not valid %q: %s", path.Join(rel, d.Value), err)
@@ -201,6 +221,8 @@ func configureForWalk(parent *walkConfig, rel string, f *rule.File) *walkConfig 
 			}
 		}
 	}
+
+	wc.addExcludes(excludes)
 
 	return wc
 }
@@ -328,6 +350,26 @@ func loadRepoDirectoryIgnore(repoRoot string) ([]string, error) {
 func checkPathMatchPattern(pattern string) error {
 	_, err := doublestar.Match(pattern, "x")
 	return err
+}
+
+// addExcludes adds exclusion patterns to wc. doublestar matches patterns
+// without glob metacharacters or escapes by string equality, so these are
+// stored in a set instead of being matched one by one.
+func (wc *walkConfig) addExcludes(patterns []string) {
+	var literals map[string]struct{}
+	for _, p := range patterns {
+		if strings.ContainsAny(p, `*?[]{}\`) {
+			wc.globExcludes = append(wc.globExcludes, p)
+			continue
+		}
+		if literals == nil {
+			// literalExcludes may be shared with other configs.
+			literals = make(map[string]struct{}, len(wc.literalExcludes)+len(patterns))
+			maps.Copy(literals, wc.literalExcludes)
+			wc.literalExcludes = literals
+		}
+		literals[p] = struct{}{}
+	}
 }
 
 func matchAnyGlob(patterns []string, path string) bool {
