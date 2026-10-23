@@ -103,38 +103,51 @@ func TestIndexExcludes(t *testing.T) {
 		t.Errorf("for globExcludes, got %v, want %v", globs, wantGlobs)
 	}
 
-	// With no literal patterns, no index is built.
+	// With no literal patterns, the literal set stays nil, which is safe to
+	// read, and the globs keep their order.
 	literals, globs = indexExcludes([]string{"*.go", "a?b"})
-	if literals != nil || globs != nil {
-		t.Errorf("for glob-only excludes, got literals %v globs %v, want nil nil", literals, globs)
+	if literals != nil {
+		t.Errorf("for glob-only excludes, got literals %v, want nil", literals)
+	}
+	if want := []string{"*.go", "a?b"}; !reflect.DeepEqual(globs, want) {
+		t.Errorf("for globExcludes, got %v, want %v", globs, want)
 	}
 }
 
 func TestIsExcludedByPattern(t *testing.T) {
-	// Matching must give the same answers with an index as without one,
-	// including for glob, escaped and non-ASCII patterns.
+	// Excludes are matched through the index: a map lookup for literals, the
+	// doublestar matcher for glob, escaped and non-ASCII patterns, and a nil
+	// literal set for glob-only configurations.
 	excludes := []string{"a/b.txt", "x.gen", "*.pb.go", `e\.go`, "caffè"}
-	indexed := &walkConfig{
+	literals, globs := indexExcludes(excludes)
+	mixed := &walkConfig{
 		excludes:        excludes,
-		literalExcludes: map[string]struct{}{"a/b.txt": {}, "x.gen": {}},
-		globExcludes:    []string{"*.pb.go", `e\.go`, "caffè"},
+		literalExcludes: literals,
+		globExcludes:    globs,
 	}
-	unindexed := &walkConfig{excludes: excludes}
+	_, globOnlyGlobs := indexExcludes([]string{"*.pb.go"})
+	globOnly := &walkConfig{
+		excludes:     []string{"*.pb.go"},
+		globExcludes: globOnlyGlobs,
+	}
 
-	for path, want := range map[string]bool{
-		"a/b.txt": true, // literal
-		"x.gen":   true, // literal
-		"y.pb.go": true, // glob
-		"e.go":    true, // escaped literal
-		"caffè":   true, // non-ASCII literal via glob matcher
-		"a/b":     false,
-		"y.gen":   false,
+	for _, tc := range []struct {
+		wc   *walkConfig
+		path string
+		want bool
+	}{
+		{mixed, "a/b.txt", true}, // literal
+		{mixed, "x.gen", true},   // literal
+		{mixed, "y.pb.go", true}, // glob
+		{mixed, "e.go", true},    // escaped literal
+		{mixed, "caffè", true},   // non-ASCII literal via glob matcher
+		{mixed, "a/b", false},
+		{mixed, "y.gen", false},
+		{globOnly, "y.pb.go", true},
+		{globOnly, "y.go", false},
 	} {
-		if got := indexed.isExcludedByPattern(path); got != want {
-			t.Errorf("indexed isExcludedByPattern(%q) = %t, want %t", path, got, want)
-		}
-		if got := unindexed.isExcludedByPattern(path); got != want {
-			t.Errorf("unindexed isExcludedByPattern(%q) = %t, want %t", path, got, want)
+		if got := tc.wc.isExcludedByPattern(tc.path); got != tc.want {
+			t.Errorf("isExcludedByPattern(%q) = %t, want %t", tc.path, got, tc.want)
 		}
 	}
 }

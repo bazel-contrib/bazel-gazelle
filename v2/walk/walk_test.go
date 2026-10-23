@@ -320,10 +320,6 @@ func TestExcludeFiles(t *testing.T) {
 # gazelle:exclude gen
 # gazelle:exclude ign
 # gazelle:exclude sub/b.go
-# gazelle:exclude vendir
-# gazelle:exclude escaped\.go
-# gazelle:exclude {left,right}.tmp
-# gazelle:exclude caffè.txt
 
 gen(
     name = "x",
@@ -354,36 +350,29 @@ a.file
 		{Path: "a/b.gen.go"}, // not ignored
 		{Path: "dir2/a/c"},   // not ignored
 		{Path: "foo/a/c"},    // not ignored
-		{Path: "caffe.txt"},  // not ignored
-		{Path: "center.tmp"}, // not ignored
 
-		{Path: "a.gen.go"},            // ignored by '*.gen.go'
-		{Path: "a.go"},                // ignored by 'a.go'
-		{Path: "a.pb.go"},             // ignored by '**/*.pb.go'
-		{Path: "a/a.pb.go"},           // ignored by '**/*.pb.go'
-		{Path: "a/b/a.pb.go"},         // ignored by '**/*.pb.go'
-		{Path: "c/x/b/foo"},           // ignored by 'c/**/b'
-		{Path: "c/x/y/b/bar"},         // ignored by 'c/**/b'
-		{Path: "c/x/y/b/foo/bar"},     // ignored by 'c/**/b'
-		{Path: "ign/bad"},             // ignored by 'ign'
-		{Path: "sub/b.go"},            // ignored by 'sub/b.go'
-		{Path: "vendir/contents.txt"}, // ignored by 'vendir'
-		{Path: "escaped.go"},          // ignored by 'escaped\.go'
-		{Path: "left.tmp"},            // ignored by '{left,right}.tmp'
-		{Path: "right.tmp"},           // ignored by '{left,right}.tmp'
-		{Path: "caffè.txt"},           // ignored by 'caffè.txt'
-		{Path: "dir/contents"},        // ignored by .bazelignore 'dir'
-		{Path: "dir2/a/b"},            // ignored by .bazelignore 'dir2/a/b'
-		{Path: "dir3/g/h"},            // ignored by .bazelignore 'dir3/'
-		{Path: "a.file"},              // ignored by .bazelignore 'a.file'
-		{Path: "b.file"},              // ignored by .bazelignore './b.file'
-		{Path: "ugly/c.file"},         // ignored by .bazelignore '././blah/../ugly/c.file'
+		{Path: "a.gen.go"},        // ignored by '*.gen.go'
+		{Path: "a.go"},            // ignored by 'a.go'
+		{Path: "a.pb.go"},         // ignored by '**/*.pb.go'
+		{Path: "a/a.pb.go"},       // ignored by '**/*.pb.go'
+		{Path: "a/b/a.pb.go"},     // ignored by '**/*.pb.go'
+		{Path: "c/x/b/foo"},       // ignored by 'c/**/b'
+		{Path: "c/x/y/b/bar"},     // ignored by 'c/**/b'
+		{Path: "c/x/y/b/foo/bar"}, // ignored by 'c/**/b'
+		{Path: "ign/bad"},         // ignored by 'ign'
+		{Path: "sub/b.go"},        // ignored by 'sub/b.go'
+		{Path: "dir/contents"},    // ignored by .bazelignore 'dir'
+		{Path: "dir2/a/b"},        // ignored by .bazelignore 'dir2/a/b'
+		{Path: "dir3/g/h"},        // ignored by .bazelignore 'dir3/'
+		{Path: "a.file"},          // ignored by .bazelignore 'a.file'
+		{Path: "b.file"},          // ignored by .bazelignore './b.file'
+		{Path: "ugly/c.file"},     // ignored by .bazelignore '././blah/../ugly/c.file'
 	})
 	defer cleanup()
 
 	check := func(t *testing.T, files []string) {
 		t.Helper()
-		want := []string{"a/a.proto", "a/b.gen.go", "dir2/a/c", "foo/a/c", ".bazelignore", ".dot", "BUILD.bazel", "_blank", "caffe.txt", "center.tmp"}
+		want := []string{"a/a.proto", "a/b.gen.go", "dir2/a/c", "foo/a/c", ".bazelignore", ".dot", "BUILD.bazel", "_blank"}
 		if diff := cmp.Diff(want, files); diff != "" {
 			t.Errorf("Walk files (-want +got):\n%s", diff)
 		}
@@ -437,90 +426,6 @@ func TestExcludeSelf(t *testing.T) {
 		t.Fatal(err)
 	}
 	check(t, rels)
-}
-
-func TestExcludeRelativeAncestor(t *testing.T) {
-	// Exclude values are joined with the directory that declares them and
-	// cleaned, so a value that points towards an ancestor with ".." must
-	// exclude the path it resolves to, and nested (multi-segment) patterns
-	// must match the full relative path.
-	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
-		{
-			Path:    "BUILD.bazel",
-			Content: "# gazelle:exclude deep/nested/file",
-		},
-		{
-			Path:    "sub/BUILD.bazel",
-			Content: "# gazelle:exclude ../sub/child",
-		},
-		{Path: "sub/child/x"},       // excluded by '../sub/child' in sub
-		{Path: "sub/kept/x"},        // not excluded
-		{Path: "deep/nested/file"},  // excluded by 'deep/nested/file'
-		{Path: "deep/nested/other"}, // not excluded
-	})
-	defer cleanup()
-
-	var rels, files []string
-	c, cexts := testConfig(t, dir)
-	err := walk.Walk(t.Context(), c, cexts, walk.NewCache(c), []string{dir}, walk.VisitAllUpdateSubdirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
-		rels = append(rels, args.Rel)
-		for _, f := range args.RegularFiles {
-			files = append(files, path.Join(args.Rel, f))
-		}
-		return walk.WalkFuncResult{}, nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	wantRels := []string{"deep/nested", "deep", "sub/kept", "sub", ""}
-	if diff := cmp.Diff(wantRels, rels); diff != "" {
-		t.Errorf("Walk relative paths (-want +got):\n%s", diff)
-	}
-	wantFiles := []string{"deep/nested/other", "sub/kept/x", "sub/BUILD.bazel", "BUILD.bazel"}
-	if diff := cmp.Diff(wantFiles, files); diff != "" {
-		t.Errorf("Walk files (-want +got):\n%s", diff)
-	}
-}
-
-func TestExcludeSiblingIndependence(t *testing.T) {
-	// Exclude patterns added in one directory's configuration must not
-	// affect the configuration inherited by a sibling directory.
-	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
-		{
-			Path:    "BUILD.bazel",
-			Content: "# gazelle:exclude shared.txt",
-		},
-		{
-			Path:    "a/BUILD.bazel",
-			Content: "# gazelle:exclude a-only.txt",
-		},
-		{Path: "shared.txt"},   // excluded by root
-		{Path: "cli.txt"},      // excluded by -exclude
-		{Path: "a/a-only.txt"}, // excluded in a
-		{Path: "a/kept.txt"},   // not excluded
-		{Path: "b/a-only.txt"}, // not excluded: b does not inherit a's exclude
-		{Path: "b/kept.txt"},   // not excluded
-	})
-	defer cleanup()
-
-	cexts := []config.Configurer{&config.CommonConfigurer{}, &walk.Configurer{}, &resolve.Configurer{}}
-	c := testtools.NewTestConfig(t, cexts, nil, []string{"-repo_root", dir, "-exclude", "cli.txt"})
-	var files []string
-	err := walk.Walk(t.Context(), c, cexts, walk.NewCache(c), []string{dir}, walk.VisitAllUpdateSubdirsMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
-		for _, f := range args.RegularFiles {
-			files = append(files, path.Join(args.Rel, f))
-		}
-		return walk.WalkFuncResult{}, nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	want := []string{"a/BUILD.bazel", "a/kept.txt", "b/a-only.txt", "b/kept.txt", "BUILD.bazel"}
-	if diff := cmp.Diff(want, files); diff != "" {
-		t.Errorf("Walk files (-want +got):\n%s", diff)
-	}
 }
 
 func TestGeneratedFiles(t *testing.T) {

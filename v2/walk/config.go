@@ -100,15 +100,11 @@ func (wc *walkConfig) isExcludedFile(p string) bool {
 	return wc.ignoreFilter.isFileIgnored(p) || wc.isExcludedByPattern(p)
 }
 
-// isExcludedByPattern reports whether p matches any exclude pattern. Literal
-// patterns are matched with a map lookup when an index has been built; glob
-// patterns fall through to the doublestar matcher. When no index is present
-// (a walkConfig constructed directly), all patterns are matched with the
-// doublestar matcher, as before.
+// isExcludedByPattern reports whether p matches any exclude pattern, using
+// a map lookup for literal patterns and the doublestar matcher for glob
+// patterns. The literal set is nil when there are no literals; reading from
+// it is safe.
 func (wc *walkConfig) isExcludedByPattern(p string) bool {
-	if wc.literalExcludes == nil {
-		return matchAnyGlob(wc.excludes, p)
-	}
 	if _, ok := wc.literalExcludes[p]; ok {
 		return true
 	}
@@ -388,11 +384,8 @@ func isLiteralExcludePattern(pattern string) bool {
 
 // indexExcludes partitions exclude patterns into a set of literals that can
 // be matched with a map lookup and a list of globs that must be matched with
-// the doublestar matcher.
-//
-// When there are no literal patterns, both return values are nil: callers
-// then fall back to matching the full exclude list, which is equivalent
-// because every pattern is then a glob.
+// the doublestar matcher. When there are no literal patterns, the set is
+// nil, which is safe to read.
 func indexExcludes(excludes []string) (literalExcludes map[string]struct{}, globExcludes []string) {
 	for _, pattern := range excludes {
 		if !isLiteralExcludePattern(pattern) {
@@ -403,11 +396,6 @@ func indexExcludes(excludes []string) (literalExcludes map[string]struct{}, glob
 			literalExcludes = make(map[string]struct{}, len(excludes))
 		}
 		literalExcludes[pattern] = struct{}{}
-	}
-	if literalExcludes == nil {
-		// No literal patterns: leave globExcludes unset too. Callers fall back
-		// to matching the full exclude list, which is then all globs.
-		return nil, nil
 	}
 	return literalExcludes, globExcludes
 }
