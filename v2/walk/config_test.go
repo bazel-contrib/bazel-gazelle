@@ -121,13 +121,11 @@ func TestIsExcludedByPattern(t *testing.T) {
 	excludes := []string{"a/b.txt", "x.gen", "*.pb.go", `e\.go`, "caffè"}
 	literals, globs := indexExcludes(excludes)
 	mixed := &walkConfig{
-		excludes:        excludes,
 		literalExcludes: literals,
 		globExcludes:    globs,
 	}
 	_, globOnlyGlobs := indexExcludes([]string{"*.pb.go"})
 	globOnly := &walkConfig{
-		excludes:     []string{"*.pb.go"},
 		globExcludes: globOnlyGlobs,
 	}
 

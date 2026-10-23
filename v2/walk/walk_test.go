@@ -485,21 +485,43 @@ func TestExcludeRelativeAncestor(t *testing.T) {
 
 func TestExcludeSiblingIndependence(t *testing.T) {
 	// Exclude patterns added in one directory's configuration must not
-	// affect the configuration inherited by a sibling directory.
+	// affect the configuration inherited by a sibling directory. Literals
+	// are copied on write and globs are appended to the clone's own slice.
 	dir, cleanup := testtools.CreateFiles(t, []testtools.FileSpec{
 		{
-			Path:    "BUILD.bazel",
-			Content: "# gazelle:exclude shared.txt",
+			Path: "BUILD.bazel",
+			Content: `
+# gazelle:exclude shared.txt
+# gazelle:exclude *.root-gen
+`,
 		},
 		{
-			Path:    "a/BUILD.bazel",
-			Content: "# gazelle:exclude a-only.txt",
+			Path: "a/BUILD.bazel",
+			Content: `
+# gazelle:exclude a-only.txt
+# gazelle:exclude *.a-gen
+`,
+		},
+		{
+			Path: "b/BUILD.bazel",
+			Content: `
+# gazelle:exclude b-only.txt
+# gazelle:exclude *.b-gen
+`,
 		},
 		{Path: "shared.txt"},   // excluded by root
 		{Path: "cli.txt"},      // excluded by -exclude
+		{Path: "x.root-gen"},   // excluded by root's glob
+		{Path: "kept.txt"},     // not excluded
 		{Path: "a/a-only.txt"}, // excluded in a
+		{Path: "a/x.a-gen"},    // excluded in a
+		{Path: "a/b-only.txt"}, // not excluded: a does not inherit b's exclude
+		{Path: "a/y.b-gen"},    // not excluded in a
 		{Path: "a/kept.txt"},   // not excluded
+		{Path: "b/b-only.txt"}, // excluded in b
+		{Path: "b/y.b-gen"},    // excluded in b
 		{Path: "b/a-only.txt"}, // not excluded: b does not inherit a's exclude
+		{Path: "b/x.a-gen"},    // not excluded in b
 		{Path: "b/kept.txt"},   // not excluded
 	})
 	defer cleanup()
@@ -517,7 +539,11 @@ func TestExcludeSiblingIndependence(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := []string{"a/BUILD.bazel", "a/kept.txt", "b/a-only.txt", "b/kept.txt", "BUILD.bazel"}
+	want := []string{
+		"a/BUILD.bazel", "a/b-only.txt", "a/kept.txt", "a/y.b-gen",
+		"b/BUILD.bazel", "b/a-only.txt", "b/kept.txt", "b/x.a-gen",
+		"BUILD.bazel", "kept.txt",
+	}
 	if diff := cmp.Diff(want, files); diff != "" {
 		t.Errorf("Walk files (-want +got):\n%s", diff)
 	}
