@@ -82,52 +82,41 @@ func TestConfigurerDirectives(t *testing.T) {
 	}
 }
 
-func TestIndexExcludes(t *testing.T) {
-	excludes := []string{
+func TestAddExcludes(t *testing.T) {
+	wc := &walkConfig{}
+	wc.addExcludes([]string{
 		"a/b.txt", // plain literal
+		"caffè",   // non-ASCII literal
 		"*.go",    // star
 		"a?b",     // question mark
 		"[abc]",   // character class
 		"{l,r}",   // alternatives
 		`e\.go`,   // escape
-		"caffè",   // non-ASCII
+	})
+
+	wantLiterals := map[string]struct{}{"a/b.txt": {}, "caffè": {}}
+	if !reflect.DeepEqual(wc.literalExcludes, wantLiterals) {
+		t.Errorf("for literalExcludes, got %v, want %v", wc.literalExcludes, wantLiterals)
+	}
+	wantGlobs := []string{"*.go", "a?b", "[abc]", "{l,r}", `e\.go`}
+	if !reflect.DeepEqual(wc.globExcludes, wantGlobs) {
+		t.Errorf("for globExcludes, got %v, want %v", wc.globExcludes, wantGlobs)
 	}
 
-	literals, globs := indexExcludes(excludes)
-	wantLiterals := map[string]struct{}{"a/b.txt": {}}
-	if !reflect.DeepEqual(literals, wantLiterals) {
-		t.Errorf("for literalExcludes, got %v, want %v", literals, wantLiterals)
-	}
-	wantGlobs := []string{"*.go", "a?b", "[abc]", "{l,r}", `e\.go`, "caffè"}
-	if !reflect.DeepEqual(globs, wantGlobs) {
-		t.Errorf("for globExcludes, got %v, want %v", globs, wantGlobs)
-	}
-
-	// With no literal patterns, the literal set stays nil, which is safe to
-	// read, and the globs keep their order.
-	literals, globs = indexExcludes([]string{"*.go", "a?b"})
-	if literals != nil {
-		t.Errorf("for glob-only excludes, got literals %v, want nil", literals)
-	}
-	if want := []string{"*.go", "a?b"}; !reflect.DeepEqual(globs, want) {
-		t.Errorf("for globExcludes, got %v, want %v", globs, want)
+	// Adding literals to a clone must not modify the shared set.
+	wc.clone().addExcludes([]string{"c.txt"})
+	if !reflect.DeepEqual(wc.literalExcludes, wantLiterals) {
+		t.Errorf("after adding to a clone, got literalExcludes %v, want %v", wc.literalExcludes, wantLiterals)
 	}
 }
 
 func TestIsExcludedByPattern(t *testing.T) {
-	// Excludes are matched through the index: a map lookup for literals, the
-	// doublestar matcher for glob, escaped and non-ASCII patterns, and a nil
-	// literal set for glob-only configurations.
-	excludes := []string{"a/b.txt", "x.gen", "*.pb.go", `e\.go`, "caffè"}
-	literals, globs := indexExcludes(excludes)
-	mixed := &walkConfig{
-		literalExcludes: literals,
-		globExcludes:    globs,
-	}
-	_, globOnlyGlobs := indexExcludes([]string{"*.pb.go"})
-	globOnly := &walkConfig{
-		globExcludes: globOnlyGlobs,
-	}
+	// Literals are matched with a map lookup, glob and escaped patterns with
+	// the doublestar matcher.
+	mixed := &walkConfig{}
+	mixed.addExcludes([]string{"a/b.txt", "x.gen", "*.pb.go", `e\.go`, "caffè"})
+	globOnly := &walkConfig{}
+	globOnly.addExcludes([]string{"*.pb.go"})
 
 	for _, tc := range []struct {
 		wc   *walkConfig
@@ -138,7 +127,7 @@ func TestIsExcludedByPattern(t *testing.T) {
 		{mixed, "x.gen", true},   // literal
 		{mixed, "y.pb.go", true}, // glob
 		{mixed, "e.go", true},    // escaped literal
-		{mixed, "caffè", true},   // non-ASCII literal via glob matcher
+		{mixed, "caffè", true},   // non-ASCII literal
 		{mixed, "a/b", false},
 		{mixed, "y.gen", false},
 		{globOnly, "y.pb.go", true},

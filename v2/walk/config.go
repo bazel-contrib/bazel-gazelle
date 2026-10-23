@@ -27,8 +27,8 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 	gzflag "github.com/bazel-contrib/bazel-gazelle/v2/flag"
@@ -56,13 +56,10 @@ const (
 type walkConfig struct {
 	updateOnly   bool
 	ignoreFilter *ignoreFilter
-	// Exclusion patterns, split by kind when they are configured: plain
-	// ASCII literals in literalExcludes, matched with a map lookup; all
-	// other patterns (glob metacharacters, escapes, non-ASCII) in
-	// globExcludes, matched with the doublestar matcher. literalExcludes is
-	// nil when there are no literals, which is safe to read. Both are shared
-	// between clones: globExcludes may be appended to, but literalExcludes
-	// must be copied before inserting.
+	// Exclusion patterns without glob syntax are kept in literalExcludes so
+	// that they can be matched with a single lookup, all others are kept in
+	// globExcludes. literalExcludes may be shared with other configs and
+	// must be copied before it is modified.
 	literalExcludes     map[string]struct{}
 	globExcludes        []string
 	ignore              bool
@@ -81,13 +78,12 @@ func getWalkConfig(c *config.Config) *walkConfig {
 
 func (wc *walkConfig) clone() *walkConfig {
 	wcCopy := *wc
-	// Trim cap of globExcludes and follow. We may append to these slices in
+	// Clip globExcludes and follow. We may append to these slices in
 	// multiple goroutines. Doing so should allocate a copy of the backing
 	// array. Other slices are either immutable or replaced when written.
-	// literalExcludes is shared between clones; whoever appends to it copies
-	// it first (see copyLiteralExcludes).
-	wcCopy.globExcludes = wcCopy.globExcludes[:len(wcCopy.globExcludes):len(wcCopy.globExcludes)]
-	wcCopy.follow = wcCopy.follow[:len(wcCopy.follow):len(wcCopy.follow)]
+	// literalExcludes is copied by addExcludes before it is modified.
+	wcCopy.globExcludes = slices.Clip(wcCopy.globExcludes)
+	wcCopy.follow = slices.Clip(wcCopy.follow)
 	return &wcCopy
 }
 
@@ -101,8 +97,7 @@ func (wc *walkConfig) isExcludedFile(p string) bool {
 
 // isExcludedByPattern reports whether p matches any exclude pattern, using
 // a map lookup for literal patterns and the doublestar matcher for glob
-// patterns. The literal set is nil when there are no literals; reading from
-// it is safe.
+// patterns.
 func (wc *walkConfig) isExcludedByPattern(p string) bool {
 	if _, ok := wc.literalExcludes[p]; ok {
 		return true
@@ -156,7 +151,7 @@ func (cr *Configurer) CheckFlags(_ *flag.FlagSet, c *config.Config) error {
 		ignoreFilter:        ignoreFilter,
 		validBuildFileNames: c.ValidBuildFileNames,
 	}
-	wc.literalExcludes, wc.globExcludes = indexExcludes(cr.cliExcludes)
+	wc.addExcludes(cr.cliExcludes)
 	c.Exts[walkName] = wc
 	return nil
 }
@@ -188,7 +183,7 @@ func (cr *Configurer) Configure(_ context.Context, args config.ConfigureArgs) er
 func configureForWalk(parent *walkConfig, rel string, f *rule.File) *walkConfig {
 	wc := parent.clone()
 	wc.ignore = false
-	literalsAdded := false
+	var excludes []string
 
 	if f != nil {
 		for _, d := range f.Directives {
@@ -211,17 +206,7 @@ func configureForWalk(parent *walkConfig, rel string, f *rule.File) *walkConfig 
 					log.Printf("the exclusion pattern is not valid %q: %s", pattern, err)
 					continue
 				}
-				if isLiteralExcludePattern(pattern) {
-					if !literalsAdded {
-						// The map is shared with this directory's siblings; copy it
-						// before inserting.
-						literalsAdded = true
-						wc.literalExcludes = copyLiteralExcludes(wc.literalExcludes)
-					}
-					wc.literalExcludes[pattern] = struct{}{}
-				} else {
-					wc.globExcludes = append(wc.globExcludes, pattern)
-				}
+				excludes = append(excludes, pattern)
 			case "follow":
 				if err := checkPathMatchPattern(path.Join(rel, d.Value)); err != nil {
 					log.Printf("the follow pattern is not valid %q: %s", path.Join(rel, d.Value), err)
@@ -365,49 +350,24 @@ func checkPathMatchPattern(pattern string) error {
 	return err
 }
 
-// globPatternChars are the bytes that give an exclusion pattern doublestar
-// glob or escape semantics. Patterns containing any of them, or any
-// non-ASCII bytes (which doublestar compares as runes), must stay in
-// globExcludes so their matching semantics are unchanged.
-const globPatternChars = `*?[]{}` + "\\"
-
-// isLiteralExcludePattern reports whether pattern is a plain ASCII literal:
-// no glob metacharacters, no escape sequences, and no non-ASCII bytes. The
-// doublestar matcher compares such patterns with plain string equality, so
-// they can be looked up in a map instead of matched one by one.
-func isLiteralExcludePattern(pattern string) bool {
-	for i := range len(pattern) {
-		if c := pattern[i]; c >= utf8.RuneSelf || strings.IndexByte(globPatternChars, c) >= 0 {
-			return false
-		}
-	}
-	return true
-}
-
-// indexExcludes partitions exclude patterns into a set of literals that can
-// be matched with a map lookup and a list of globs that must be matched with
-// the doublestar matcher. When there are no literal patterns, the set is
-// nil, which is safe to read.
-func indexExcludes(excludes []string) (literalExcludes map[string]struct{}, globExcludes []string) {
-	for _, pattern := range excludes {
-		if !isLiteralExcludePattern(pattern) {
-			globExcludes = append(globExcludes, pattern)
+// addExcludes adds exclusion patterns to wc. doublestar matches patterns
+// without glob metacharacters or escapes by string equality, so these are
+// stored in a set instead of being matched one by one.
+func (wc *walkConfig) addExcludes(patterns []string) {
+	var literals map[string]struct{}
+	for _, p := range patterns {
+		if strings.ContainsAny(p, `*?[]{}\`) {
+			wc.globExcludes = append(wc.globExcludes, p)
 			continue
 		}
-		if literalExcludes == nil {
-			literalExcludes = make(map[string]struct{}, len(excludes))
+		if literals == nil {
+			// literalExcludes may be shared with other configs.
+			literals = make(map[string]struct{}, len(wc.literalExcludes)+len(patterns))
+			maps.Copy(literals, wc.literalExcludes)
+			wc.literalExcludes = literals
 		}
-		literalExcludes[pattern] = struct{}{}
+		literals[p] = struct{}{}
 	}
-	return literalExcludes, globExcludes
-}
-
-// copyLiteralExcludes returns a private copy of excludes that can be
-// inserted into without mutating the shared original.
-func copyLiteralExcludes(excludes map[string]struct{}) map[string]struct{} {
-	copied := make(map[string]struct{}, len(excludes)+1)
-	maps.Copy(copied, excludes)
-	return copied
 }
 
 func matchAnyGlob(patterns []string, path string) bool {
