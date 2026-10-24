@@ -31,6 +31,7 @@ import (
 	"github.com/bazel-contrib/bazel-gazelle/v2/pathtools"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
+	bzl "github.com/bazelbuild/buildtools/build"
 )
 
 func (gl *goLang) Generate(ctx context.Context, args language.GenerateArgs) (language.GenerateResult, error) {
@@ -205,6 +206,11 @@ func (gl *goLang) Generate(ctx context.Context, args language.GenerateArgs) (lan
 	// Generate rules for proto packages. These should come before the other
 	// Go rules.
 	g := newGenerator(c, gc, args)
+	for _, info := range goFileInfos {
+		if info.isCgo {
+			g.cgoGoFiles[info.name] = true
+		}
+	}
 	var res language.GenerateResult
 	var rules []*rule.Rule
 	var protoEmbeds []string
@@ -526,6 +532,13 @@ type generator struct {
 
 	shouldIndex     bool
 	relsToIndexSeen map[string]struct{}
+
+	// file is the existing build file, or nil if there is none.
+	file *rule.File
+
+	// cgoGoFiles is the set of .go files in the directory that import "C",
+	// whether or not they match a platform.
+	cgoGoFiles map[string]bool
 }
 
 func newGenerator(c *config.Config, gc *goConfig, args language.GenerateArgs) *generator {
@@ -535,6 +548,8 @@ func newGenerator(c *config.Config, gc *goConfig, args language.GenerateArgs) *g
 		rel:                 args.Rel,
 		shouldSetVisibility: shouldSetVisibility(args),
 		shouldIndex:         c.IndexLibraries && len(gc.goSearch) > 0,
+		file:                args.File,
+		cgoGoFiles:          make(map[string]bool),
 	}
 	if g.shouldIndex {
 		g.relsToIndexSeen = make(map[string]struct{})
@@ -799,36 +814,50 @@ func (g *generator) maybeGenerateExtraLib(lib *rule.Rule, pkg *goPackage) *rule.
 func (g *generator) setCommonAttrs(r *rule.Rule, pkgRel string, visibility []string, target goTarget, embeds []string) {
 	gc := getGoConfig(g.c)
 	linksBinary := r.Kind() == "go_binary" || r.Kind() == "go_test"
+	constraintPrefix := "@" + gc.rulesGoRepoName + "//go/platform:"
+
+	// rules_go fails analysis when cgo is False and the rule has cdeps, C
+	// compiler or linker flags, or C and C++ sources. Gazelle does not
+	// generate cdeps, and merge keeps some inputs of the existing rules. Turn
+	// cgo on wherever such inputs remain. Only targets with a .go file that
+	// imports "C" get here. Earlier versions of Gazelle set cgo = True on all
+	// platforms for these targets, so this never turns on cgo where earlier
+	// versions left it off.
+	if si, ok := target.cgoPlatforms.cgoConstraintInfo(); target.cgo && (!ok || si.set != genericSet) {
+		g.addKeptCInputPlatforms(&target.cgoPlatforms, r.Name())
+		target.cgoPlatforms.collapseAllSupportedPlatforms(gc.rulesGoVersion, constraintPrefix)
+	}
 
 	// Merge directive-provided C compiler/linker flags into the flags Gazelle
 	// derived from #cgo comments. These attributes only apply to cgo targets,
 	// which in practice means go_library: cgo is not allowed in _test.go files,
 	// and a cgo main is generated as a cgo go_library plus a go_binary that
-	// embeds it. Injecting the flags as generic strings before build() lets the
-	// existing emission below deduplicate and platform-merge them uniformly.
-	if target.cgo {
+	// embeds it. The flags apply on the platforms where cgo is on. Adding them
+	// before build() lets the emission below deduplicate and platform-merge
+	// them with the flags from #cgo comments.
+	if cgoSI, ok := target.cgoPlatforms.cgoConstraintInfo(); ok {
 		for _, opt := range gc.copts {
-			target.copts.addGenericString(opt)
+			target.copts.addConstrainedString(opt, cgoSI, constraintPrefix)
 		}
 		for _, opt := range gc.cppopts {
-			target.cppopts.addGenericString(opt)
+			target.cppopts.addConstrainedString(opt, cgoSI, constraintPrefix)
 		}
 		for _, opt := range gc.cxxopts {
-			target.cxxopts.addGenericString(opt)
+			target.cxxopts.addConstrainedString(opt, cgoSI, constraintPrefix)
 		}
 		for _, opt := range gc.clinkopts {
-			target.clinkopts.addGenericString(opt)
+			target.clinkopts.addConstrainedString(opt, cgoSI, constraintPrefix)
 		}
 	}
 
 	if !target.sources.isEmpty() {
-		r.SetAttr("srcs", target.sources.buildFlat())
+		r.SetAttr("srcs", target.buildSources(constraintPrefix))
 	}
 	if !target.embedSrcs.isEmpty() {
 		r.SetAttr("embedsrcs", target.embedSrcs.build())
 	}
-	if target.cgo {
-		r.SetAttr("cgo", true)
+	if cgoAttr := target.cgoPlatforms.buildCgoAttr(gc.rulesGoVersion, constraintPrefix); cgoAttr != nil {
+		r.SetAttr("cgo", cgoAttr)
 	}
 	if target.pgoprofile != "" {
 		r.SetAttr("pgoprofile", target.pgoprofile)
@@ -867,6 +896,144 @@ func (g *generator) setCommonAttrs(r *rule.Rule, pkgRel string, visibility []str
 		r.SetAttr("embed", colonEmbeds)
 	}
 	r.SetPrivateAttr(gazelleImportsKey, target.imports.build())
+}
+
+// cInputAttrs are the attributes that rules_go rejects when cgo is False.
+// For srcs, only C and C++ files count.
+var cInputAttrs = []string{"cdeps", "clinkopts", "copts", "cppopts", "cxxopts", "srcs"}
+
+// addKeptCInputPlatforms adds to cgoPlatforms the platforms where C inputs
+// of existing rules remain after the generated rule named name is merged.
+//
+// Two kinds of existing rules count. The first is the rule named name, unless
+// it has a keep comment, because merge does not change such a rule. The
+// second is a rule that embeds the target and does not set cgo itself:
+// rules_go uses the cgo setting of the embedded target for that rule, so all
+// of its C inputs count.
+func (g *generator) addKeptCInputPlatforms(cgoPlatforms *platformStringsBuilder, name string) {
+	if g.file == nil {
+		return
+	}
+	for _, r := range g.file.Rules {
+		switch {
+		case r.Name() == name:
+			if !r.ShouldKeep() {
+				g.addCInputPlatforms(cgoPlatforms, r, false)
+			}
+		case strListAttrContains(r, "embed", ":"+name) && !setsCgo(r):
+			g.addCInputPlatforms(cgoPlatforms, r, true)
+		}
+	}
+}
+
+// addCInputPlatforms adds to cgoPlatforms the platforms of the C inputs of r
+// that remain after a merge. If all is false, only inputs that merge keeps
+// count. cdeps is not mergeable, so merge keeps all of it. Merge also keeps
+// all of an attribute that has a keep comment or that it cannot parse.
+// FlattenExpr returns such an expression unchanged. In other attributes,
+// merge keeps only the values that have a keep comment.
+func (g *generator) addCInputPlatforms(cgoPlatforms *platformStringsBuilder, r *rule.Rule, all bool) {
+	for _, key := range cInputAttrs {
+		value := r.Attr(key)
+		if value == nil {
+			continue
+		}
+		keepAll := all || key == "cdeps" || shouldKeepAttr(r, key) || rule.FlattenExpr(value) == value
+		walkSelectValues(value, "", func(v bzl.Expr, selectKey string) {
+			if !keepAll && !rule.ShouldKeep(v) {
+				return
+			}
+			if key == "srcs" && !g.isCSrc(v) {
+				return
+			}
+			g.addCgoPlatformsForSelectKey(cgoPlatforms, selectKey)
+		})
+	}
+}
+
+// walkSelectValues calls f for each value in e, which may be a list, a
+// select, or a concatenation of these. selectKey is the select key that
+// applies to the value, or "" outside a select. f gets any other expression
+// as one value.
+func walkSelectValues(e bzl.Expr, selectKey string, f func(v bzl.Expr, selectKey string)) {
+	switch e := e.(type) {
+	case *bzl.ListExpr:
+		for _, v := range e.List {
+			f(v, selectKey)
+		}
+		return
+	case *bzl.BinaryExpr:
+		if e.Op == "+" {
+			walkSelectValues(e.X, selectKey, f)
+			walkSelectValues(e.Y, selectKey, f)
+			return
+		}
+	case *bzl.CallExpr:
+		if x, ok := e.X.(*bzl.Ident); ok && x.Name == "select" && len(e.List) == 1 {
+			if dict, ok := e.List[0].(*bzl.DictExpr); ok {
+				for _, kv := range dict.List {
+					key := ""
+					if s, ok := kv.Key.(*bzl.StringExpr); ok {
+						key = s.Value
+					}
+					walkSelectValues(kv.Value, key, f)
+				}
+				return
+			}
+		}
+	}
+	f(e, selectKey)
+}
+
+// isCSrc reports whether a value in srcs names a file that rules_go builds
+// only with cgo: a companion file, or a .go file that imports "C". Gazelle
+// cannot see the files of a value that is not a string, so such a value
+// counts too.
+func (g *generator) isCSrc(v bzl.Expr) bool {
+	s, ok := v.(*bzl.StringExpr)
+	if !ok {
+		return true
+	}
+	if s.Value == "" {
+		return false
+	}
+	return g.cgoGoFiles[s.Value] || isCompanionCgoFile(fileNameInfo(s.Value))
+}
+
+// addCgoPlatformsForSelectKey adds to cgoPlatforms the platform that a select
+// key matches. The key must be the rules_go config_setting of a known OS,
+// architecture, or OS and architecture. Any other key, including
+// "//conditions:default" and "" for values outside a select, counts as all
+// platforms.
+func (g *generator) addCgoPlatformsForSelectKey(cgoPlatforms *platformStringsBuilder, selectKey string) {
+	constraintPrefix := "@" + g.gc.rulesGoRepoName + "//go/platform:"
+	if name, ok := strings.CutPrefix(selectKey, constraintPrefix); ok {
+		if rule.KnownOSSet[name] {
+			cgoPlatforms.addOSString(cgoSentinel, []string{name}, constraintPrefix)
+			return
+		}
+		if rule.KnownArchSet[name] {
+			cgoPlatforms.addArchString(cgoSentinel, []string{name}, constraintPrefix)
+			return
+		}
+		for _, p := range rule.KnownPlatforms {
+			if p.String() == name {
+				cgoPlatforms.addPlatformString(cgoSentinel, []rule.Platform{p}, constraintPrefix)
+				return
+			}
+		}
+	}
+	cgoPlatforms.addGenericString(cgoSentinel)
+}
+
+// setsCgo reports whether r sets cgo to a value other than False.
+func setsCgo(r *rule.Rule) bool {
+	cgo := r.Attr("cgo")
+	if cgo == nil {
+		return false
+	}
+	ident, ok := cgo.(*bzl.Ident)
+	return !ok || ident.Name != "False"
 }
 
 func (g *generator) setImportAttrs(r *rule.Rule, importPath string) {

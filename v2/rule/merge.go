@@ -118,6 +118,10 @@ func areScalarsAndEqual(x, y bzl.Expr) bool {
 //     and the values must be lists of strings.
 //   - a list of strings combined with a select call using +. The list must
 //     be the left operand.
+//   - a call to select whose keys are platform labels and whose values are
+//     scalars, such as a platform-specific cgo attribute. The cases are
+//     merged by key, and cases with a keep comment are preserved. A keep
+//     comment on the select call or on its dict preserves the whole select.
 //   - an attr value that implements the Merger interface.
 //
 // An error is returned if the expressions can't be merged, for example
@@ -129,11 +133,17 @@ func mergeAttrValues(srcAttr, dstAttr *attrValue) (bzl.Expr, error) {
 		mergedScalarDst = dstAttr.expr.RHS
 	}
 	if ShouldKeep(dstAttr.expr.RHS) {
-		return mergedScalarDst, nil
+		return dstAttr.expr.RHS, nil
 	}
 	dst := dstAttr.expr.RHS
 	if srcAttr == nil && (dst == nil || isScalar(dst)) {
 		return mergedScalarDst, nil
+	}
+	if srcAttr == nil && isScalarSelect(dst) {
+		if mergedScalarDst != nil || selectShouldKeep(dst) {
+			return dst, nil
+		}
+		return mergeScalarSelect(nil, dst), nil
 	}
 	if srcAttr != nil && isScalar(srcAttr.expr.RHS) {
 		// Check if the scalars are equal, in which case a keep comment is a noop.
@@ -142,6 +152,35 @@ func mergeAttrValues(srcAttr, dstAttr *attrValue) (bzl.Expr, error) {
 			dstAttr.expr.Comments = removeKeep(dstAttr.expr)
 		} else if mergedScalarDst != nil {
 			return mergedScalarDst, nil
+		}
+		if selectShouldKeep(dst) {
+			return dst, nil
+		}
+		// Kept cases of a platform select survive. The default case takes
+		// the generated value.
+		if isScalarSelect(dst) && hasKeepComment(dst) {
+			return mergeScalarSelect(defaultOnlySelect(srcAttr.expr.RHS), dst), nil
+		}
+		return srcAttr.expr.RHS, nil
+	}
+	if srcAttr != nil && isScalarSelect(srcAttr.expr.RHS) {
+		if mergedScalarDst != nil {
+			if scalarSelectsEqual(srcAttr.expr.RHS, dst) && RemoveNoopKeepComments {
+				dstAttr.expr.Comments = removeKeep(dstAttr.expr)
+			} else {
+				return mergedScalarDst, nil
+			}
+		}
+		if selectShouldKeep(dst) {
+			return dst, nil
+		}
+		if isScalarSelect(dst) {
+			return mergeScalarSelect(srcAttr.expr.RHS, dst), nil
+		}
+		// Merge cannot match the cases of another select to platform keys,
+		// so a keep comment anywhere in it keeps the whole select.
+		if isSelectCall(dst) && hasKeepComment(dst) {
+			return dst, nil
 		}
 		return srcAttr.expr.RHS, nil
 	}
@@ -193,7 +232,82 @@ func mergePlatformStringsExprs(src, dst platformStringsExprs) (platformStringsEx
 	if ps.platform, err = MergeDict(src.platform, dst.platform); err != nil {
 		return platformStringsExprs{}, err
 	}
+	removeGenericStringsFromSelects(&ps)
 	return ps, nil
+}
+
+// removeGenericStringsFromSelects removes strings that are in the generic
+// list from the select dicts. A kept string on one side of a merge can
+// otherwise end up in the list and in a select, and Bazel rejects the
+// duplicate. The generic entry wins: a string lives in only one set, as in
+// the expressions that Gazelle generates. A select is dropped when all of
+// its lists become empty.
+func removeGenericStringsFromSelects(ps *platformStringsExprs) {
+	if ps.generic == nil {
+		return
+	}
+	generic := make(map[string]bool)
+	for _, e := range ps.generic.List {
+		if s := stringValue(e); s != "" {
+			generic[s] = true
+		}
+	}
+	if len(generic) == 0 {
+		return
+	}
+	ps.os = removeStringsFromDict(ps.os, generic)
+	ps.arch = removeStringsFromDict(ps.arch, generic)
+	ps.platform = removeStringsFromDict(ps.platform, generic)
+}
+
+// removeStringsFromDict returns a copy of dict without the strings in
+// remove. Keys keep their order, and a key may keep an empty list. The
+// result is nil when every list in it is empty. dict is not modified.
+func removeStringsFromDict(dict *bzl.DictExpr, remove map[string]bool) *bzl.DictExpr {
+	if dict == nil {
+		return nil
+	}
+	changed := false
+	allEmpty := true
+	entries := make([]*bzl.KeyValueExpr, 0, len(dict.List))
+	for _, kv := range dict.List {
+		list, ok := kv.Value.(*bzl.ListExpr)
+		if !ok {
+			allEmpty = false
+			entries = append(entries, kv)
+			continue
+		}
+		kept := make([]bzl.Expr, 0, len(list.List))
+		for _, e := range list.List {
+			if remove[stringValue(e)] {
+				continue
+			}
+			kept = append(kept, e)
+		}
+		if len(kept) > 0 {
+			allEmpty = false
+		}
+		if len(kept) == len(list.List) {
+			entries = append(entries, kv)
+			continue
+		}
+		changed = true
+		listCopy := *list
+		listCopy.List = kept
+		listCopy.ForceMultiLine = list.ForceMultiLine && len(kept) > 0
+		kvCopy := *kv
+		kvCopy.Value = &listCopy
+		entries = append(entries, &kvCopy)
+	}
+	if !changed {
+		return dict
+	}
+	if allEmpty {
+		return nil
+	}
+	dictCopy := *dict
+	dictCopy.List = entries
+	return &dictCopy
 }
 
 // RemoveNoopKeepComments controls whether comments with "# keep" are removed when they are not needed.
@@ -398,7 +512,7 @@ func squashExprs(src, dst bzl.Expr) (bzl.Expr, error) {
 	if ShouldKeep(dst) {
 		return dst, nil
 	}
-	if isScalar(dst) {
+	if isScalar(dst) || isScalarSelect(dst) {
 		// may lose src, but they should always be the same.
 		return dst, nil
 	}
@@ -415,6 +529,213 @@ func squashExprs(src, dst bzl.Expr) (bzl.Expr, error) {
 		return nil, err
 	}
 	return makePlatformStringsExpr(squashedExprs), nil
+}
+
+// scalarSelectDict returns the dict argument of e if e is a select with
+// scalar values, such as a platform-specific cgo attribute. Every key other
+// than "//conditions:default" must be a platform label, as classified by
+// extractPlatformStringsExprs. Merge does not manage other selects, so they
+// keep their previous behavior.
+func scalarSelectDict(e bzl.Expr) (*bzl.DictExpr, bool) {
+	call, ok := e.(*bzl.CallExpr)
+	if !ok || len(call.List) != 1 {
+		return nil, false
+	}
+	ident, ok := call.X.(*bzl.Ident)
+	if !ok || ident.Name != "select" {
+		return nil, false
+	}
+	dict, ok := call.List[0].(*bzl.DictExpr)
+	if !ok || len(dict.List) == 0 {
+		return nil, false
+	}
+	for _, kv := range dict.List {
+		key, ok := kv.Key.(*bzl.StringExpr)
+		if !ok || !isScalar(kv.Value) {
+			return nil, false
+		}
+		if key.Value == "//conditions:default" {
+			continue
+		}
+		if _, err := platformKeyKindOf(key.Value); err != nil {
+			return nil, false
+		}
+	}
+	return dict, true
+}
+
+func isScalarSelect(e bzl.Expr) bool {
+	_, ok := scalarSelectDict(e)
+	return ok
+}
+
+// defaultOnlySelect returns a select whose only case is the default case,
+// with value v. mergeScalarSelect uses it to merge a scalar into a select.
+func defaultOnlySelect(v bzl.Expr) bzl.Expr {
+	return &bzl.CallExpr{
+		X: &bzl.Ident{Name: "select"},
+		List: []bzl.Expr{&bzl.DictExpr{List: []*bzl.KeyValueExpr{{
+			Key:   &bzl.StringExpr{Value: "//conditions:default"},
+			Value: v,
+		}}}},
+	}
+}
+
+func isSelectCall(e bzl.Expr) bool {
+	call, ok := e.(*bzl.CallExpr)
+	if !ok {
+		return false
+	}
+	ident, ok := call.X.(*bzl.Ident)
+	return ok && ident.Name == "select"
+}
+
+// selectShouldKeep reports whether a keep comment applies to the whole
+// select call e. The comment may be on the call, on its argument, or on the
+// line that opens the dict. The parser attaches a comment written after
+// "select({" to the first case of the dict, so the line number tells it
+// apart from a keep comment on that case.
+func selectShouldKeep(e bzl.Expr) bool {
+	if !isSelectCall(e) {
+		return false
+	}
+	call := e.(*bzl.CallExpr)
+	if ShouldKeep(call) {
+		return true
+	}
+	for _, arg := range call.List {
+		if ShouldKeep(arg) {
+			return true
+		}
+		dict, ok := arg.(*bzl.DictExpr)
+		if !ok || len(dict.List) == 0 || dict.Start.Line == 0 {
+			continue
+		}
+		for _, c := range dict.List[0].Comments.Before {
+			if c.Start.Line == dict.Start.Line && isKeepComment(c) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// hasKeepComment reports whether e or any expression in it has a keep
+// comment.
+func hasKeepComment(e bzl.Expr) bool {
+	found := false
+	bzl.Walk(e, func(x bzl.Expr, _ []bzl.Expr) {
+		found = found || ShouldKeep(x)
+	})
+	return found
+}
+
+func isKeptKeyValue(kv *bzl.KeyValueExpr) bool {
+	return ShouldKeep(kv) || ShouldKeep(kv.Key) || ShouldKeep(kv.Value)
+}
+
+func scalarSelectsEqual(x, y bzl.Expr) bool {
+	xd, ok := scalarSelectDict(x)
+	if !ok {
+		return false
+	}
+	yd, ok := scalarSelectDict(y)
+	if !ok || len(xd.List) != len(yd.List) {
+		return false
+	}
+	ym := make(map[string]bzl.Expr, len(yd.List))
+	for _, kv := range yd.List {
+		ym[kv.Key.(*bzl.StringExpr).Value] = kv.Value
+	}
+	for _, kv := range xd.List {
+		yv, ok := ym[kv.Key.(*bzl.StringExpr).Value]
+		if !ok || !areScalarsAndEqual(kv.Value, yv) {
+			return false
+		}
+	}
+	return true
+}
+
+func mergeScalarSelect(src, dst bzl.Expr) bzl.Expr {
+	dstDict, _ := scalarSelectDict(dst)
+	if dstDict == nil {
+		return src
+	}
+
+	srcByKey := make(map[string]*bzl.KeyValueExpr)
+	if srcDict, ok := scalarSelectDict(src); ok {
+		for _, kv := range srcDict.List {
+			srcByKey[kv.Key.(*bzl.StringExpr).Value] = kv
+		}
+	}
+
+	mergedByKey := make(map[string]*bzl.KeyValueExpr)
+	keptAny := false
+	var dstDefault *bzl.KeyValueExpr
+	for _, dstKV := range dstDict.List {
+		k := dstKV.Key.(*bzl.StringExpr).Value
+		if k == "//conditions:default" {
+			dstDefault = dstKV
+		}
+		keep := isKeptKeyValue(dstKV)
+		srcKV, inSrc := srcByKey[k]
+		if !keep && !inSrc {
+			continue
+		}
+		keptAny = keptAny || keep
+		kvCopy := *dstKV
+		if keep {
+			if inSrc && areScalarsAndEqual(srcKV.Value, dstKV.Value) && RemoveNoopKeepComments {
+				*kvCopy.Comment() = removeKeep(&kvCopy)
+				*kvCopy.Key.Comment() = removeKeep(kvCopy.Key)
+				*kvCopy.Value.Comment() = removeKeep(kvCopy.Value)
+			}
+		} else {
+			kvCopy.Value = srcKV.Value
+		}
+		mergedByKey[k] = &kvCopy
+	}
+
+	for k, srcKV := range srcByKey {
+		if _, exists := mergedByKey[k]; !exists {
+			mergedByKey[k] = srcKV
+		}
+	}
+
+	if src == nil && !keptAny {
+		return nil
+	}
+	if _, hasDefault := mergedByKey["//conditions:default"]; !hasDefault && dstDefault != nil {
+		mergedByKey["//conditions:default"] = dstDefault
+	}
+	if len(mergedByKey) == 0 {
+		return nil
+	}
+
+	keys := make([]string, 0, len(mergedByKey))
+	haveDefault := false
+	for k := range mergedByKey {
+		if k == "//conditions:default" {
+			haveDefault = true
+			continue
+		}
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	if haveDefault {
+		keys = append(keys, "//conditions:default")
+	}
+
+	args := make([]*bzl.KeyValueExpr, 0, len(keys))
+	for _, k := range keys {
+		args = append(args, mergedByKey[k])
+	}
+	callCopy := *dst.(*bzl.CallExpr)
+	dictCopy := *dstDict
+	dictCopy.List = args
+	dictCopy.ForceMultiLine = true
+	callCopy.List = []bzl.Expr{&dictCopy}
+	return &callCopy
 }
 
 func squashPlatformStringsExprs(x, y platformStringsExprs) (platformStringsExprs, error) {

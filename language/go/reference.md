@@ -53,6 +53,8 @@ Sets the `gc_linkopts` attribute (Go linker flags) on generated `go_binary` and 
 **Default:** n/a<br>
 Set the `copts`, `cppopts`, `cxxopts`, and `clinkopts` attributes (C/C++ compiler and linker flags) respectively. These only apply to cgo targets, which in practice means `go_library` (cgo is not allowed in `_test.go` files, and a cgo `main` is generated as a cgo `go_library` embedded by a plain `go_binary`). The flags are merged with those Gazelle derives from `#cgo` comments in the sources. All use the same value syntax and reset behavior as `go_gc_goopts`.
 
+If cgo is on only for some platforms, Gazelle sets these flags only for those platforms. See [Platform-specific cgo](#platform-specific-cgo).
+
 **Directive:** `# gazelle:go_naming_convention mode`<br>
 **Default:** inferred
 Controls the names of generated Go targets. Valid values are:
@@ -120,6 +122,52 @@ The protocol buffers compiler to use for building go bindings. May be repeated. 
 Skips Go import path resolution for a known domain. May be repeated.
 
 When Gazelle resolves an import path to an external dependency, it attempts to discover the remote repository root over HTTP. Gazelle skips this discovery step for a few well-known domains with predictable structure, like golang.org and github.com. This flag specifies additional domains to skip, which is useful in situations where the lookup would fail for some reason.
+
+## Platform-specific cgo
+
+Gazelle sets the `cgo` attribute from the build constraints of the Go files that import "C".
+
+* If these files apply to all platforms, Gazelle sets `cgo = True`.
+* If they apply only to some operating systems or architectures, Gazelle sets `cgo` to a select expression. The expression is true only on those platforms.
+* If cgo is on for more than half of the platforms, the select expression lists the platforms where cgo is off. Its default value is true.
+* If the files apply to no platform, Gazelle does not set `cgo`. This occurs, for example, when each file needs a build tag that Gazelle does not know.
+
+For example, Gazelle generates this rule for a package where only the files for macOS use cgo. Go also builds these files for iOS.
+
+```bzl
+go_library(
+    name = "foo",
+    srcs = [
+        "foo.go",
+        "foo_darwin.go",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "foo_darwin.c",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "foo_darwin.c",
+        ],
+        "//conditions:default": [],
+    }),
+    cgo = select({
+        "@io_bazel_rules_go//go/platform:darwin": True,
+        "@io_bazel_rules_go//go/platform:ios": True,
+        "//conditions:default": False,
+    }),
+    importpath = "example.com/foo",
+)
+```
+
+Some files need cgo: C, C++, and Objective-C sources, C-preprocessed assembly, and C++ headers. If `cgo` is a select expression, `srcs` lists these files only on the platforms where cgo is on. Go files, plain C headers, and Go assembly files stay in the flat list. rules_go filters them at build time. The C compiler and linker flags from `#cgo` comments and from directives also apply only where cgo is on.
+
+rules_go fails analysis when cgo is off but the rule has C dependencies, C flags, or C and C++ sources. Gazelle does not generate `cdeps`, and merge keeps values that have a `# keep` comment. Thus Gazelle turns on cgo for each platform where such inputs remain in the existing rule. Inputs in a rule that embeds the library count too. If the inputs apply to all platforms, Gazelle sets `cgo = True`.
+
+Gazelle ignores files that need a custom build tag, unless you declare the tag. If you build with such a tag, declare it with the `build_tags` directive or the `-build_tags` flag. Gazelle then evaluates the tag as both true and false, so cgo stays on where these files can apply.
+
+Known limitations:
+
+* Gazelle does not treat illumos as an alias of solaris. Go builds files for solaris on illumos, but Gazelle does not turn on cgo for illumos for these files.
+* Gazelle does not know the linux/loong64 platform. A select expression with keys for OS and architecture pairs gives its default value on that platform.
 
 ## `update-repos`
 
@@ -201,7 +249,7 @@ The following transformations are performed:
 
 **Migrate library to embed (fix and update):** Gazelle replaces `library` attributes with `embed` attributes.
 
-**Flatten srcs (fix and update):** Gazelle converts `srcs` attributes that use OS and architecture-specific `select` expressions to flat lists. rules_go filters these sources anyway.
+**Flatten srcs (fix and update):** Gazelle converts `srcs` attributes that use OS and architecture-specific `select` expressions to flat lists. rules_go filters these sources anyway. Gazelle does not flatten `srcs` when `cgo` is a select expression. In that case, the select expression in `srcs` lists only files that need cgo, and rules_go rejects these files when cgo is off. Gazelle also does not flatten rules or `srcs` attributes that have a `# keep` comment. See [Platform-specific cgo](#platform-specific-cgo).
 
 **Squash external tests (fix only)**: Gazelle will squash `go_test` rules named `go_default_xtest` into `go_default_test`. Earlier versions of rules_go required internal and external tests to be built separately, but this is no longer needed.
 
