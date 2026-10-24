@@ -263,23 +263,18 @@ func extractPlatformStringsExprs(expr bzl.Expr) (platformStringsExprs, error) {
 				if k.Value == "//conditions:default" {
 					continue
 				}
-				key, err := label.Parse(k.Value)
+				kind, err := platformKeyKindOf(k.Value)
 				if err != nil {
-					return platformStringsExprs{}, fmt.Errorf("expression could not be matched: dict key is not label: %q", k.Value)
+					return platformStringsExprs{}, err
 				}
-				if KnownOSSet[key.Name] {
+				switch kind {
+				case osKey:
 					dict = &ps.os
-					break
-				}
-				if KnownArchSet[key.Name] {
+				case archKey:
 					dict = &ps.arch
-					break
+				default:
+					dict = &ps.platform
 				}
-				osArch := strings.Split(key.Name, "_")
-				if len(osArch) != 2 || !KnownOSSet[osArch[0]] || !KnownArchSet[osArch[1]] {
-					return platformStringsExprs{}, fmt.Errorf("expression could not be matched: dict key contains unknown platform: %q", k.Value)
-				}
-				dict = &ps.platform
 				break
 			}
 			if dict == nil {
@@ -295,6 +290,38 @@ func extractPlatformStringsExprs(expr bzl.Expr) (platformStringsExprs, error) {
 		}
 	}
 	return ps, nil
+}
+
+// platformKeyKind tells which platformStringsExprs dict a select key
+// belongs to.
+type platformKeyKind int
+
+const (
+	osKey platformKeyKind = iota
+	archKey
+	platformKey
+)
+
+// platformKeyKindOf classifies a select key other than
+// "//conditions:default". The key must be a label whose name is a known OS,
+// a known architecture, or a known OS and architecture joined by "_".
+// An error is returned for any other key.
+func platformKeyKindOf(key string) (platformKeyKind, error) {
+	l, err := label.Parse(key)
+	if err != nil {
+		return 0, fmt.Errorf("expression could not be matched: dict key is not label: %q", key)
+	}
+	if KnownOSSet[l.Name] {
+		return osKey, nil
+	}
+	if KnownArchSet[l.Name] {
+		return archKey, nil
+	}
+	osArch := strings.Split(l.Name, "_")
+	if len(osArch) != 2 || !KnownOSSet[osArch[0]] || !KnownArchSet[osArch[1]] {
+		return 0, fmt.Errorf("expression could not be matched: dict key contains unknown platform: %q", key)
+	}
+	return platformKey, nil
 }
 
 // makePlatformStringsExpr constructs a single expression from the

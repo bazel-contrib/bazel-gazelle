@@ -1,0 +1,28 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cgo_select_nocgo_fallback",
+    srcs = [
+        "cgo_darwin.go",
+        "cgo_tag_helper.go",
+        "nocgo.go",
+        "nocgo_darwin.go",
+        "other.go",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "helper_darwin.c",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "helper_darwin.c",
+        ],
+        "//conditions:default": [],
+    }),
+    _gazelle_imports = [],
+    cgo = select({
+        "@io_bazel_rules_go//go/platform:darwin": True,
+        "@io_bazel_rules_go//go/platform:ios": True,
+        "//conditions:default": False,
+    }),
+    importpath = "example.com/repo/cgo_select_nocgo_fallback",
+    visibility = ["//visibility:public"],
+)
