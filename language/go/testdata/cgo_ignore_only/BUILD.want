@@ -1,0 +1,9 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cgo_ignore_only",
+    srcs = ["lib.go"],
+    _gazelle_imports = [],
+    importpath = "example.com/repo/cgo_ignore_only",
+    visibility = ["//visibility:public"],
+)
