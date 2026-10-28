@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "diff.go",
         "fix.go",
+        "graph.go",
         "metaresolver.go",
         "print.go",
         "profiler.go",
@@ -25,6 +26,10 @@ go_library(
         "//v2/config",
         "//v2/errors",
         "//v2/flag",
+        "//v2/graph",
+        "//v2/internal/graph/ingest",
+        "//v2/internal/graph/link",
+        "//v2/internal/graph/model",
         "//v2/internal/wspace",
         "//v2/label",
         "//v2/language",
@@ -41,6 +46,7 @@ go_library(
 go_test(
     name = "update_test",
     srcs = [
+        "graph_test.go",
         "profiler_test.go",
         "update_test.go",
     ],
@@ -51,9 +57,12 @@ go_test(
         "//repo",
         "//resolve",
         "//v2/compat",
+        "//v2/graph",
         "//v2/label",
         "//v2/language",
+        "//v2/resolve",
         "//v2/rule",
+        "@com_github_google_go_cmp//cmp",
     ],
 )
 
@@ -64,6 +73,8 @@ filegroup(
         "BUILD.bazel",
         "diff.go",
         "fix.go",
+        "graph.go",
+        "graph_test.go",
         "metaresolver.go",
         "print.go",
         "profiler.go",

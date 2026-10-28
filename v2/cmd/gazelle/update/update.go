@@ -67,6 +67,15 @@ type updateConfig struct {
 	profile                Profiler
 	removeNoopKeepComments bool
 	printVersion           bool
+
+	// Experimental build graph settings. See graph.go.
+	buildGraph  bool
+	graphJSON   string
+	graphDOT    string
+	graphCycles cycleMode
+	// graphCyclesFlagSet is true if -graph_cycles was passed explicitly; it
+	// then takes precedence over the "# gazelle:graph_cycles" directive.
+	graphCyclesFlagSet bool
 }
 
 type emitFunc func(c *config.Config, f *rule.File) error
@@ -93,6 +102,7 @@ type updateConfigurer struct {
 	repoConfigPath string
 	cpuProfile     string
 	memProfile     string
+	graphCycles    string
 }
 
 type recurseMode int
@@ -175,6 +185,12 @@ func (ucr *updateConfigurer) RegisterFlags(fs *flag.FlagSet, cmd string, c *conf
 	fs.StringVar(&ucr.repoConfigPath, "repo_config", "", "file where Gazelle should load repository configuration. Defaults to WORKSPACE.")
 	fs.BoolVar(&uc.removeNoopKeepComments, "remove_noop_keep_comments", false, "when set, gazelle will remove noop keep comments from BUILD files")
 	fs.BoolVar(&uc.printVersion, "version", false, "print gazelle's version and a list of extensions, then exit")
+	if MajorVersion >= 2 {
+		fs.BoolVar(&uc.buildGraph, "experimental_build_graph", false, "EXPERIMENTAL: build a dependency graph, link imports through it, and report dependency cycles")
+		fs.StringVar(&uc.graphJSON, "graph_json", "", "with -experimental_build_graph, write the build graph as JSON to `file`")
+		fs.StringVar(&uc.graphDOT, "graph_dot", "", "with -experimental_build_graph, write the build graph in Graphviz DOT format to `file`")
+		fs.StringVar(&ucr.graphCycles, "graph_cycles", string(cyclesWarning), "with -experimental_build_graph, how to report dependency cycles: error, warning, or off; overrides the root \"# gazelle:graph_cycles\" directive")
+	}
 }
 
 func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
@@ -189,6 +205,15 @@ func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) erro
 	uc.emit, ok = modeFromName[ucr.mode]
 	if !ok {
 		return fmt.Errorf("unrecognized emit mode: %q", ucr.mode)
+	}
+
+	if MajorVersion >= 2 {
+		mode, err := parseCycleMode(ucr.graphCycles)
+		if err != nil {
+			return err
+		}
+		uc.graphCycles = mode
+		fs.Visit(func(f *flag.Flag) { uc.graphCyclesFlagSet = uc.graphCyclesFlagSet || f.Name == "graph_cycles" })
 	}
 	if uc.patchPath != "" && ucr.mode != "diff" {
 		return fmt.Errorf("-patch set but -mode is %s, not diff", ucr.mode)
@@ -306,9 +331,34 @@ func (ucr *updateConfigurer) CheckFlags(fs *flag.FlagSet, c *config.Config) erro
 	return nil
 }
 
-func (ucr *updateConfigurer) KnownDirectives() []string { return nil }
+func (ucr *updateConfigurer) KnownDirectives() []string {
+	if MajorVersion >= 2 {
+		return []string{"graph_cycles"}
+	}
+	return nil
+}
 
+// Configure applies "# gazelle:graph_cycles", which is only valid in the root
+// build file. An explicit -graph_cycles flag takes precedence.
 func (ucr *updateConfigurer) Configure(ctx context.Context, args config.ConfigureArgs) error {
+	if MajorVersion < 2 || args.File == nil {
+		return nil
+	}
+	for _, d := range args.File.Directives {
+		if d.Key != "graph_cycles" {
+			continue
+		}
+		if args.Rel != "" {
+			return fmt.Errorf("%s: gazelle:graph_cycles may only be set in the root build file", args.File.Path)
+		}
+		mode, err := parseCycleMode(d.Value)
+		if err != nil {
+			return fmt.Errorf("%s: %w", args.File.Path, err)
+		}
+		if uc := getUpdateConfig(args.Config); !uc.graphCyclesFlagSet {
+			uc.graphCycles = mode
+		}
+	}
 	return nil
 }
 
@@ -456,7 +506,17 @@ func Run(
 	// cache.GetDirInfo. The old version relies on this global state.
 	cleanup := walkv1.SetGlobalCache_InternalDoNotCall(cache)
 	defer cleanup()
-	ruleIndex := resolve.NewRuleIndex(mrslv.Indexer, finders, cache)
+	var gr *graphRun
+	indexerForRule := mrslv.Indexer
+	if uc.buildGraph {
+		gr, err = newGraphRun(ctx, c, languages, mrslv, cache)
+		if err != nil && !errHandler.handle(nil, err) {
+			return errHandler.exitError()
+		}
+		// Share Indexer results between RuleIndex and the graph.
+		indexerForRule = gr.indexer
+	}
+	ruleIndex := resolve.NewRuleIndex(indexerForRule, finders, cache)
 	walkErr := walk.Walk(ctx, c, cexts, cache, uc.dirs, uc.walkMode, func(args walk.WalkFuncArgs) (walk.WalkFuncResult, error) {
 		dir := args.Dir
 		rel := args.Rel
@@ -477,6 +537,11 @@ func Run(
 		// If this file is ignored or if Gazelle was not asked to update this
 		// directory, just index the build file and move on.
 		if !update {
+			if gr != nil && c.IndexLibraries && f != nil {
+				if err := gr.indexPackage(ctx, c, f, kinds); err != nil && !errHandler.handle(nil, err) {
+					return walk.WalkFuncResult{}, errHandler.exitError()
+				}
+			}
 			if c.IndexLibraries && f != nil {
 				for _, r := range f.Rules {
 					if err := ruleIndex.AddRule(ctx, c, r, f); err != nil {
@@ -646,6 +711,19 @@ func Run(
 				}
 			}
 		}
+		if gr != nil {
+			err := gr.collect(ctx, collectArgs{
+				c:            c,
+				f:            f,
+				gen:          gen,
+				getKindInfo:  makeGetKindInfo(unionKindInfoMaps(kinds, mappedKindInfo)),
+				aliasedKinds: aliasedKinds,
+				languages:    slices.Collect(filterLanguages(c, languages)),
+			})
+			if err != nil && !errHandler.handle(nil, err) {
+				return walk.WalkFuncResult{}, errHandler.exitError()
+			}
+		}
 		visits = append(visits, visitRecord{
 			pkgRel:         rel,
 			c:              c,
@@ -700,23 +778,43 @@ func Run(
 			return errHandler.exitError()
 		}
 	}
+	resolveRule := func(v visitRecord, r *rule.Rule) bool {
+		from := label.New(c.RepoName, v.pkgRel, r.Name())
+		if rslv := mrslv.Resolver(r, v.pkgRel); rslv != nil {
+			err := rslv.Resolve(ctx, resolve.ResolveArgs{
+				Config:      v.c,
+				Index:       ruleIndex,
+				Rule:        r,
+				From:        from,
+				RemoteCache: rc,
+				Cache:       cache,
+				Imports:     r.PrivateAttr(importsPrivateAttr),
+			})
+			if err != nil {
+				return errHandler.handle(rslv, err)
+			}
+		}
+		return true
+	}
+	// In graph mode, all rules are resolved or materialized before any file
+	// is merged, since the graph must be complete first. Otherwise, each
+	// directory is resolved and merged in turn, as before the build graph.
+	if gr != nil && !gr.resolve(ctx, graphResolveArgs{
+		visits:      visits,
+		finders:     finders,
+		ruleIndex:   ruleIndex,
+		kinds:       kinds,
+		resolveRule: resolveRule,
+		uc:          uc,
+		eh:          errHandler,
+	}) {
+		return errHandler.exitError()
+	}
 	for _, v := range visits {
-		for _, r := range v.rules {
-			from := label.New(c.RepoName, v.pkgRel, r.Name())
-			if rslv := mrslv.Resolver(r, v.pkgRel); rslv != nil {
-				err := rslv.Resolve(ctx, resolve.ResolveArgs{
-					Config:      v.c,
-					Index:       ruleIndex,
-					Rule:        r,
-					From:        from,
-					RemoteCache: rc,
-					Cache:       cache,
-					Imports:     r.PrivateAttr(importsPrivateAttr),
-				})
-				if err != nil {
-					if !errHandler.handle(rslv, err) {
-						return errHandler.exitError()
-					}
+		if gr == nil {
+			for _, r := range v.rules {
+				if !resolveRule(v, r) {
+					return errHandler.exitError()
 				}
 			}
 		}
