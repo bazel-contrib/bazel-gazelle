@@ -1,20 +1,27 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-load("@io_bazel_rules_go//go/tools/bazel_testing:def.bzl", "go_bazel_test")
+load("@io_bazel_rules_go//go:def.bzl", "go_test")
 load(":gazelle_binary_test.bzl", "gazelle_binary_test_suite")
 
 gazelle_binary_test_suite(name = "gazelle_binary_test")
 
 # gazelle:exclude *_test.go
-go_bazel_test(
+go_test(
     name = "bazel_test",
     srcs = [
         "go_repository_test.go",
         "runner_test.go",
     ],
-    rule_files = [
-        "//:all_files",
+    data = ["//:all_files"],
+    rundir = ".",
+    tags = [
+        "exclusive",
+        "local",
     ],
-    deps = ["//testtools"],
+    x_defs = {"ruleFiles": "$(rlocationpaths //:all_files)"},
+    deps = [
+        "//testtools",
+        "@io_bazel_rules_go//go/tools/bazel_testing",
+    ],
 )
 
 # TODO(jayconrod): test fetch_repo error cases.

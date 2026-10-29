@@ -287,6 +287,8 @@ func resolveWithIndexGo(ctx context.Context, c *config.Config, ix *resolve.RuleI
 type resolveRootFunc func(importPath string) (root, name, prefixDir string, _ error)
 
 func resolveToExternalLabel(c *config.Config, resolveFn resolveRootFunc, imp string) (label.Label, error) {
+	gc := getGoConfig(c)
+	gc.repoConfigInputs.record(imp)
 	prefix, repo, prefixDir, err := resolveFn(imp)
 	if err != nil {
 		return label.NoLabel, err
@@ -310,7 +312,6 @@ func resolveToExternalLabel(c *config.Config, resolveFn resolveRootFunc, imp str
 	// If the repository uses the import_alias convention (default for
 	// go_repository), use the convention from the current directory unless the
 	// user has told us otherwise.
-	gc := getGoConfig(c)
 	nc := gc.repoNamingConvention[repo]
 	if nc == unknownNamingConvention {
 		if gc.goNamingConventionExternal != unknownNamingConvention {

@@ -44,6 +44,8 @@ var minimumRulesGoVersion = version.Version{0, 29, 0}
 
 // goConfig contains configuration values related to Go rules.
 type goConfig struct {
+	repoConfigInputs *repositoryConfigInputs
+
 	// The name under which the rules_go repository can be referenced from the
 	// repository in which Gazelle is running.
 	rulesGoRepoName string
@@ -117,10 +119,11 @@ type goConfig struct {
 	// attribute.
 	repoNamingConvention map[string]namingConvention
 
-	// submodules is a list of modules which have the current module's path
-	// as a prefix of their own path. This affects visibility attributes
-	// in internal packages.
-	submodules []moduleRepo
+	// submodules contains modules whose import path starts with submodulesPrefix + "/".
+	// CheckFlags sets both before Configure applies gazelle:prefix directives.
+	// commonVisibility uses them for internal packages.
+	submodules       []moduleRepo
+	submodulesPrefix string
 
 	// testMode determines how go_test targets are generated.
 	testMode testMode
@@ -430,10 +433,13 @@ func (*goLang) KnownDirectives() []string {
 	}
 }
 
-func (*goLang) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
+func (gl *goLang) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {
 	gc := newGoConfig()
 	switch cmd {
 	case "fix", "update":
+		gl.repoConfigInputs = repositoryConfigInputs{used: make(map[string]bool)}
+		gc.repoConfigInputs = &gl.repoConfigInputs
+		fs.StringVar(&gl.repoConfigInputs.output, "go_repository_config_inputs", "", "write consulted imports and visibility prefixes for go_repository")
 		fs.Var(
 			tagsFlag(gc.setBuildTags),
 			"build_tags",
@@ -514,6 +520,7 @@ func (*goLang) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
 	}
 
 	// List modules that may refer to internal packages in this module.
+	gc.submodulesPrefix = gc.prefix
 	for _, r := range c.Repos {
 		if r.Kind() != "go_repository" {
 			continue

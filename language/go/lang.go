@@ -16,7 +16,7 @@ limitations under the License.
 // Package golang provides support for Go and Go proto rules. It generates
 // go_library, go_binary, go_test, and go_proto_library rules.
 //
-// Configuration
+// # Configuration
 //
 // Go rules support the flags -build_tags, -go_prefix, and -external.
 // They also support the directives # gazelle:build_tags, # gazelle:prefix,
@@ -24,7 +24,7 @@ limitations under the License.
 // https://github.com/bazelbuild/bazel-gazelle/blob/master/README.rst#directives
 // for information on these.
 //
-// Rule generation
+// # Rule generation
 //
 // Currently, Gazelle generates rules for one Go package per directory. In
 // general, we aim to support Go code which is compatible with "go build". If
@@ -40,7 +40,7 @@ limitations under the License.
 // migrate away from this because it's surprising. Libraries should generally
 // be named after their directories.
 //
-// Dependency resolution
+// # Dependency resolution
 //
 // Go libraries are indexed by their importpath attribute. Gazelle attempts to
 // resolve libraries by import path using the index, filtered using the
@@ -54,6 +54,12 @@ limitations under the License.
 package golang
 
 import (
+	"context"
+	"maps"
+	"os"
+	"slices"
+	"strings"
+
 	"github.com/bazel-contrib/bazel-gazelle/v2/compat"
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
 	"github.com/bazel-contrib/bazel-gazelle/v2/language"
@@ -64,17 +70,40 @@ import (
 const goName = "go"
 
 type goLang struct {
+	repoConfigInputs repositoryConfigInputs
+
 	// goPkgRels is a set of relative paths to directories containing buildable
 	// Go code. If the value is false, it means the directory does not contain
 	// buildable Go code, but it has a subdir which does.
 	goPkgRels map[string]bool
 }
 
+// repositoryConfigInputs collects Go imports and internal visibility prefixes
+// across goConfig clones.
+type repositoryConfigInputs struct {
+	output string
+	used   map[string]bool
+}
+
+func (r *repositoryConfigInputs) record(importpath string) {
+	if r != nil && r.output != "" && importpath != "" {
+		r.used[strings.TrimSuffix(importpath, "/")] = true
+	}
+}
+
+func (gl *goLang) OnFinish(context.Context) error {
+	r := &gl.repoConfigInputs
+	if r.output == "" {
+		return nil
+	}
+	return os.WriteFile(r.output, []byte(strings.Join(slices.Sorted(maps.Keys(r.used)), "\n")), 0o666)
+}
+
 var (
 	_ language.Language       = (*goLang)(nil)
 	_ config.Configurer       = (*goLang)(nil)
-	_ compat.FlagConfigurer = (*goLang)(nil)
-	_ language.Generator    = (*goLang)(nil)
+	_ compat.FlagConfigurer   = (*goLang)(nil)
+	_ language.Generator      = (*goLang)(nil)
 	_ language.Fixer          = (*goLang)(nil)
 	_ resolve.Indexer         = (*goLang)(nil)
 	_ resolve.Resolver        = (*goLang)(nil)

@@ -14,14 +14,92 @@
 
 """go_repository_config internal repo rule, used by go_deps"""
 
+load("//internal:common.bzl", "repository_config_input_path")
 load("//internal:env.bzl", "write_go_env_file")
+
+def _import_path_prefixes(importpath):
+    """Returns importpath and its slash-delimited prefixes, shortest first."""
+    prefixes = []
+    end = -1
+    for _ in range(importpath.count("/")):
+        end = importpath.find("/", end + 1)
+        prefixes.append(importpath[:end])
+    prefixes.append(importpath)
+    return prefixes
+
+def _module_paths(importpath):
+    """Returns a declared Go module path and its possible versionless alias.
+
+    For example, "example.com/lib/v2" also returns "example.com/lib".
+    This mirrors repo/remote.go:pathWithoutSemver for repo.NewRemoteCache's
+    minimal module compatibility lookup. It does not infer modules from a
+    package import. repository_config_inputs indexes every slash-delimited
+    prefix of both returned paths via _import_path_prefixes.
+    """
+    paths = [importpath]
+    start = 0
+    for _ in range(importpath.count("/v")):
+        start = importpath.find("/v", start)
+        end = importpath.find("/", start + 2)
+        if end == -1:
+            end = len(importpath)
+        version = importpath[start + 2:end]
+        if version.isdigit():
+            # Match repo/remote.go:pathWithoutSemver: only the first numeric
+            # version component counts, even when it is v0 or v1.
+            if version not in ("0", "1"):
+                paths.append(importpath[:start] + importpath[end:])
+            break
+        start = end
+    return paths
+
+def repository_config_inputs(importpaths):
+    """Finds the repository records that can affect each import prefix.
+
+    Args:
+        importpaths: Iterable of declared Go module paths (strings), in the
+            same order as the repository records written to WORKSPACE.
+            _go_repository_config_impl passes the keys of ctx.attr.repo_names.
+
+    Returns:
+        dict[str, list[int]]: each slash-delimited prefix of a declared module
+        or its versionless alias maps to the zero-based indices of its matching
+        records. The indices are in input order, as required by
+        repo.NewRemoteCache's versionless alias precedence. A record matches
+        if its module or alias is an ancestor or descendant of the prefix.
+        Ancestors may provide an import; descendants may become a more specific
+        provider or need access to an internal package.
+
+        For ["example.com/lib", "example.com/lib/sub", "example.com/other"],
+        both "example.com/lib" and "example.com/lib/sub" map to [0, 1], while
+        "example.com/other" maps to [2]. go_repository watches the nearest
+        indexed prefix of each import or visibility prefix reported by Gazelle.
+    """
+    ancestors = {}
+    inputs = {}
+    for index, importpath in enumerate(importpaths):
+        for module_path in _module_paths(importpath):
+            ancestors.setdefault(module_path, {})[index] = None
+            for prefix in _import_path_prefixes(module_path):
+                inputs.setdefault(prefix, {})[index] = None
+
+    # inputs already includes descendants. Parents must be visited first to
+    # inherit ancestors, which can also change the matching Go repository.
+    for prefix in sorted(inputs):
+        parent, sep, _ = prefix.rpartition("/")
+        parent_indices = ancestors.get(parent) if sep else None
+        if parent_indices:
+            ancestors.setdefault(prefix, {}).update(parent_indices)
+            inputs[prefix].update(parent_indices)
+
+    # RemoteCache resolves versionless aliases in WORKSPACE order.
+    return {prefix: sorted(indices) for prefix, indices in inputs.items()}
 
 def _go_repository_config_impl(ctx):
     lines = []
     for importpath, repo_name in ctx.attr.repo_names.items():
-        # Format as a gazelle:go_repository directive instead of a call.
-        # Gazelle accepts directives with duplicate names but not calls, and we
-        # need duplicate repo names for Bazel modules with multiple Go modules.
+        # gazelle:repository directives allow duplicate names for Bazel modules
+        # that provide multiple Go modules.
         #
         # TODO(#2413): change to a JSON format after we drop support
         # for WORKSPACE mode.
@@ -46,7 +124,16 @@ def _go_repository_config_impl(ctx):
             words.append("build_naming_convention=" + build_naming_convention)
         lines.append(" ".join(words))
 
-    ctx.file("WORKSPACE", "\n".join(lines) + "\n")
+    ctx.file("WORKSPACE", "\n".join(lines))
+
+    # Gazelle reads WORKSPACE, but go_repository must not watch the whole file:
+    # an unrelated module change would refetch every repository. Instead, these
+    # files contain just the records that can affect each indexed prefix.
+    # go_repository watches the files for the imports and visibility prefixes
+    # Gazelle consulted. Their contents are not parsed; they only need to change
+    # when the matching records change, including renames and naming conventions.
+    for prefix, indices in repository_config_inputs(ctx.attr.repo_names).items():
+        ctx.file(repository_config_input_path(prefix), "\n".join([lines[i] for i in indices]))
     write_go_env_file(ctx, ctx.attr.go_env)
     ctx.file("BUILD.bazel", "exports_files(['WORKSPACE', 'config.json', 'go.env', 'go_env.bzl', 'go_tools.bzl'])")
     ctx.file("go_env.bzl", content = "GO_ENV = " + repr(ctx.attr.go_env))

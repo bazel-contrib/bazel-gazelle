@@ -562,7 +562,6 @@ func (g *generator) generateProto(mode proto.Mode, targets []protoTarget, import
 		protoName = proto.RuleName(importPath)
 	}
 	goProtoName := strings.TrimSuffix(protoName, "_proto") + goProtoSuffix
-	visibility := g.commonVisibility(importPath)
 
 	if mode == proto.LegacyMode {
 		filegroup := rule.NewRule("filegroup", filegroupName)
@@ -571,7 +570,7 @@ func (g *generator) generateProto(mode proto.Mode, targets []protoTarget, import
 		}
 		filegroup.SetAttr("srcs", targets[0].sources.build())
 		if g.shouldSetVisibility {
-			filegroup.SetAttr("visibility", visibility)
+			filegroup.SetAttr("visibility", g.commonVisibility(importPath))
 		}
 		return "", []*rule.Rule{filegroup}
 	}
@@ -621,7 +620,7 @@ func (g *generator) generateProto(mode proto.Mode, targets []protoTarget, import
 		goProtoLibrary.SetAttr("compilers", gc.goProtoCompilers)
 	}
 	if g.shouldSetVisibility {
-		goProtoLibrary.SetAttr("visibility", visibility)
+		goProtoLibrary.SetAttr("visibility", g.commonVisibility(importPath))
 	}
 	if len(targets) == 1 {
 		goProtoLibrary.SetPrivateAttr(gazelleImportsKey, targets[0].imports.build())
@@ -669,7 +668,7 @@ func (g *generator) generateLib(pkg *goPackage, embeds []string) *rule.Rule {
 		if len(getGoConfig(g.c).goVisibility) > 0 {
 			visibility = getGoConfig(g.c).goVisibility
 		}
-	} else {
+	} else if g.shouldSetVisibility {
 		visibility = g.commonVisibility(pkg.importPath)
 	}
 	g.setCommonAttrs(goLibrary, pkg.rel, visibility, pkg.library, embeds)
@@ -700,7 +699,10 @@ func (g *generator) generateBin(pkg *goPackage, library string) *rule.Rule {
 	if !pkg.isCommand() || pkg.binary.sources.isEmpty() && library == "" {
 		return goBinary // empty
 	}
-	visibility := g.commonVisibility(pkg.importPath)
+	var visibility []string
+	if g.shouldSetVisibility {
+		visibility = g.commonVisibility(pkg.importPath)
+	}
 	g.setCommonAttrs(goBinary, pkg.rel, visibility, pkg.binary, []string{library})
 	return goBinary
 }
@@ -899,13 +901,15 @@ func (g *generator) commonVisibility(importPath string) []string {
 	// probably an internal submodule. Add visibility for all subpackages.
 	relIndex := pathtools.LastIndex(g.rel, "internal")
 	importIndex := pathtools.LastIndex(importPath, "internal")
-	visibility := getGoConfig(g.c).goVisibility
+	gc := getGoConfig(g.c)
+	visibility := gc.goVisibility
 	if relIndex >= 0 {
 		parent := strings.TrimSuffix(g.rel[:relIndex], "/")
 		visibility = append(visibility, fmt.Sprintf("//%s:__subpackages__", parent))
 	} else if importIndex >= 0 {
-		// This entire module is within an internal directory.
-		// Identify other repos which should have access too.
+		// importPath contains internal outside g.rel. Other repositories
+		// under that prefix may need access.
+		gc.repoConfigInputs.record(importPath[:importIndex])
 		visibility = append(visibility, "//:__subpackages__")
 		for _, repo := range g.c.Repos {
 			if pathtools.HasPrefix(repo.AttrString("importpath"), importPath[:importIndex]) {
@@ -919,7 +923,7 @@ func (g *generator) commonVisibility(importPath string) []string {
 	// Add visibility for any submodules that have the internal parent as
 	// a prefix of their module path.
 	if importIndex >= 0 {
-		gc := getGoConfig(g.c)
+		gc.repoConfigInputs.record(gc.submodulesPrefix)
 		internalRoot := strings.TrimSuffix(importPath[:importIndex], "/")
 		for _, m := range gc.submodules {
 			if strings.HasPrefix(m.modulePath, internalRoot) {
