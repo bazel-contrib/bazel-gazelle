@@ -1,0 +1,35 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cgo_select_copts_directive",
+    srcs = [
+        "cgo_darwin.go",
+        "pure.go",
+    ],
+    _gazelle_imports = [],
+    cgo = select({
+        "@io_bazel_rules_go//go/platform:darwin": True,
+        "@io_bazel_rules_go//go/platform:ios": True,
+        "//conditions:default": False,
+    }),
+    clinkopts = select({
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "-lm",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "-lm",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = select({
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "-Wall",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "-Wall",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "example.com/repo/cgo_select_copts_directive",
+    visibility = ["//visibility:public"],
+)
