@@ -38,7 +38,7 @@ List of Go build tags Gazelle will defer to Bazel for evaluation. Gazelle applie
 
 **Flag:** `-exclude=pattern`<br>
 **Default:** n/a<br>
-Prevents Gazelle from processing a file or directory if the given [`doublestar.Match`](https://github.com/bmatcuk/doublestar#match) pattern matches. If the pattern refers to a source file, Gazelle won't include it in any rules. If the pattern refers to a directory, Gazelle won't recurse into it. This option may be repeated. Patterns must be slash-separated, relative to the repository root. This is equivalent to the `# gazelle:exclude pattern` directive.
+A [`doublestar.Match`](https://github.com/bmatcuk/doublestar#match) pattern that makes Gazelle act as if matching files and directories do not exist. Gazelle will not recurse into an excluded directory or include an excluded file in generated rules. This option may be repeated. Path patterns must be slash-separated, relative to the repository root. This is equivalent to the `# gazelle:exclude pattern` directive.
 
 **Flag:** `-index=none|lazy|all`<br>
 **Default:** `all`<br>
@@ -164,7 +164,7 @@ Gazelle will process the three `resolve` directives as if they were all written 
 
 **Directive:** `# gazelle:exclude pattern`<br>
 **Default:** n/a<br>
-Prevents Gazelle from processing a file or directory if the given [`doublestar.Match`](https://pkg.go.dev/github.com/bmatcuk/doublestar/v4#Match) pattern matches. If the pattern refers to a source file, Gazelle won't include it in any rules. If the pattern refers to a directory, Gazelle won't recurse into it. This directive may be repeated to exclude multiple patterns, one per line.
+A [`doublestar.Match`](https://github.com/bmatcuk/doublestar#match) pattern that makes Gazelle act as if matching files and directories do not exist. Gazelle will not recurse into an excluded directory or include an excluded file in generated rules. This directive may be repeated to exclude multiple patterns, one per line. Path patterns must be slash-separated, relative to the directory containing the `BUILD` file in which they are written. The `-exclude` flag also excludes files, but it's often better to use this directive.
 
 **Directive:** `# gazelle:follow pattern`<br>
 **Default:** n/a<br>
