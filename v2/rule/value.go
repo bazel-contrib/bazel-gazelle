@@ -171,6 +171,9 @@ func (s SortedStrings) Merge(other bzl.Expr) bzl.Expr {
 		return s.BzlExpr()
 	}
 	merged := MergeList(s.BzlExpr(), other)
+	if merged == nil {
+		return nil
+	}
 	sortExprLabels(merged, []bzl.Expr{})
 	return merged
 }
@@ -183,7 +186,14 @@ func (s UnsortedStrings) Merge(other bzl.Expr) bzl.Expr {
 	if other == nil {
 		return ExprFromValue(s)
 	}
-	return MergeList(ExprFromValue(s), other)
+	merged := MergeList(ExprFromValue(s), other)
+	// Returning merged directly would wrap a nil *bzl.ListExpr in a non-nil
+	// bzl.Expr, so MergeRules would set the attribute to a nil list instead of
+	// deleting it, and formatting the file would then panic.
+	if merged == nil {
+		return nil
+	}
+	return merged
 }
 
 // SelectStringListValue is a value that can be translated to a Bazel

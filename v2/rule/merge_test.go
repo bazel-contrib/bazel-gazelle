@@ -121,6 +121,19 @@ func TestMergeRules_WithSortedStringAttr(t *testing.T) {
 				dst.Attr(sortedStringAttrKey))
 		}
 	})
+
+	t.Run("empty sorted strings delete existing sorted strings", func(t *testing.T) {
+		src := rule.NewRule("go_library", "go_default_library")
+		src.SetAttr("deps", rule.SortedStrings{})
+		dst := rule.NewRule("go_library", "go_default_library")
+		dst.SetAttr("deps", rule.SortedStrings{"//foo:bar"})
+		rule.MergeRules(src, dst, map[string]bool{"deps": true}, "")
+
+		if dst.Attr("deps") != nil {
+			t.Fatalf("got %#v; want nil",
+				dst.Attr("deps"))
+		}
+	})
 }
 
 func TestMergeRules_WithUnsortedStringAttr(t *testing.T) {
@@ -168,6 +181,19 @@ func TestMergeRules_WithUnsortedStringAttr(t *testing.T) {
 				t.Fatalf("unsorted string attributes are merged: got %v; want %v",
 					v.(*bzl.StringExpr).Value, expected[i])
 			}
+		}
+	})
+
+	t.Run("empty unsorted strings delete existing unsorted strings", func(t *testing.T) {
+		src := rule.NewRule("go_library", "go_default_library")
+		src.SetAttr("deps", rule.UnsortedStrings{})
+		dst := rule.NewRule("go_library", "go_default_library")
+		dst.SetAttr("deps", rule.UnsortedStrings{"//foo:bar"})
+		rule.MergeRules(src, dst, map[string]bool{"deps": true}, "")
+
+		if dst.Attr("deps") != nil {
+			t.Fatalf("got %#v; want nil",
+				dst.Attr("deps"))
 		}
 	})
 }
