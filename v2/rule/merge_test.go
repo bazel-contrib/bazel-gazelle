@@ -130,7 +130,7 @@ func TestMergeRules_WithSortedStringAttr(t *testing.T) {
 		rule.MergeRules(src, dst, map[string]bool{"deps": true}, "")
 
 		if dst.Attr("deps") != nil {
-			t.Fatalf("empty sorted strings delete existing sorted strings: got %#v; want nil",
+			t.Fatalf("got %#v; want nil",
 				dst.Attr("deps"))
 		}
 	})
@@ -192,7 +192,7 @@ func TestMergeRules_WithUnsortedStringAttr(t *testing.T) {
 		rule.MergeRules(src, dst, map[string]bool{"deps": true}, "")
 
 		if dst.Attr("deps") != nil {
-			t.Fatalf("empty unsorted strings delete existing unsorted strings: got %#v; want nil",
+			t.Fatalf("got %#v; want nil",
 				dst.Attr("deps"))
 		}
 	})
