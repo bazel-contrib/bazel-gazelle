@@ -64,6 +64,21 @@ go_binary(
 			},
 			want: `go_binary(name = "dep")`,
 		}, {
+			desc: "std_go124",
+			old: buildFile{
+				content: `
+go_binary(
+    name = "dep",
+    _imports = [
+        "crypto/hkdf",
+        "testing/synctest",
+        "weak",
+    ],
+)
+`,
+			},
+			want: `go_binary(name = "dep")`,
+		}, {
 			desc: "self_import",
 			old: buildFile{content: `
 go_library(
