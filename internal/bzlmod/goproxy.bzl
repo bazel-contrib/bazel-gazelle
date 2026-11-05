@@ -168,6 +168,55 @@ def read_mod_file_facts(module_ctx):
         for e in mod_file_facts
     }
 
+_MODULE_SUMS_FACTS_KEY = "module_sums_v1"
+
+def make_module_sum_facts(sums):
+    """
+    Returns a MODULE.bazel.lock facts dict with go.sum hashes of module content
+
+    go_deps downloads modules that 'go list -m' selected without a sum in any
+    go.sum file. Plain Go would record these in go.work.sum, but go_deps's
+    go.work is synthetic, so we remember them in facts instead.
+
+    Args:
+        sums: dict mapping (importpath, version) tuples to sums like "h1:...".
+
+    Returns:
+        A dict to merge into the facts passed to extension_metadata. Empty if
+        there are no sums.
+    """
+    if not sums:
+        return {}
+    return {_MODULE_SUMS_FACTS_KEY: [
+        {
+            "importpath": importpath,
+            "version": version,
+            "sum": sum,
+        }
+        for (importpath, version), sum in sums.items()
+    ]}
+
+def read_module_sum_facts(module_ctx):
+    """
+    Reads back facts written with make_module_sum_facts
+
+    Args:
+        module_ctx: the module context.
+
+    Returns:
+        A dict mapping (importpath, version) tuples to sums like "h1:...".
+    """
+    facts = getattr(module_ctx, "facts", None)
+    if not facts:
+        return {}
+    module_sum_facts = facts.get(_MODULE_SUMS_FACTS_KEY)
+    if not module_sum_facts:
+        return {}
+    return {
+        (e["importpath"], e["version"]): e["sum"]
+        for e in module_sum_facts
+    }
+
 def _escape_mod_case(s):
     """
     Escapes a module path or version for use in a module proxy path
