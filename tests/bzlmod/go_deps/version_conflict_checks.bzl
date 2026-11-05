@@ -126,10 +126,6 @@ TEST = r"""
       "content": "module golang.org/x/net\n\ngo 1.18\n\nrequire (\n\tgolang.org/x/crypto v0.25.0\n\tgolang.org/x/sys v0.22.0\n\tgolang.org/x/term v0.22.0\n\tgolang.org/x/text v0.16.0\n)\n",
       "sha256": "2e321fd3cededd8992c5192d1399af4e0900debcadbba27e3a06420617879f17"
     },
-    "https://proxy.golang.org/golang.org/x/sync/@v/v0.7.0.mod": {
-      "content": "module golang.org/x/sync\n\ngo 1.18\n",
-      "sha256": "700e5db00dd26aa19a17dce5fc552436d60f68c5606c85b821f24c3d6072a151"
-    },
     "https://proxy.golang.org/golang.org/x/sys/@v/v0.0.0-20190215142949-d0b11bdaac8a.mod": {
       "content": "module golang.org/x/sys\n",
       "sha256": "8969115e4a39108848324e79a1bd8a8445230e6e3aaccbe9f8057fb50fffc8c1"
