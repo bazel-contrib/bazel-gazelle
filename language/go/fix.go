@@ -223,13 +223,23 @@ func squashXtest(c *config.Config, f *rule.File) {
 // extractPlatformStringsExprs for matching details) into a sorted,
 // de-duplicated list. Comments are accumulated and de-duplicated across
 // duplicate expressions.
+//
+// Rules and srcs attributes with a keep comment are not changed. srcs is also
+// not changed when cgo is a select: srcs then lists companion C and C++ files
+// in a select with the same platforms, and a flat list would break the build
+// on platforms without cgo.
 func flattenSrcs(c *config.Config, f *rule.File) {
 	for _, r := range f.Rules {
-		if !isGoRule(r.Kind()) {
+		if !isGoRule(r.Kind()) || r.ShouldKeep() {
 			continue
 		}
+		if cgo := r.Attr("cgo"); cgo != nil {
+			if _, isIdent := cgo.(*bzl.Ident); !isIdent {
+				continue
+			}
+		}
 		oldSrcs := r.Attr("srcs")
-		if oldSrcs == nil {
+		if oldSrcs == nil || shouldKeepAttr(r, "srcs") {
 			continue
 		}
 		flatSrcs := rule.FlattenExpr(oldSrcs)
@@ -237,6 +247,16 @@ func flattenSrcs(c *config.Config, f *rule.File) {
 			r.SetAttr("srcs", flatSrcs)
 		}
 	}
+}
+
+// shouldKeepAttr reports whether the attribute key of r has a keep comment,
+// on the attribute or on its value. Merge does not change such an attribute.
+func shouldKeepAttr(r *rule.Rule, key string) bool {
+	value := r.Attr(key)
+	if value == nil {
+		return false
+	}
+	return rule.ShouldKeep(value) || rule.ShouldKeep(&bzl.AssignExpr{Comments: *r.AttrComments(key)})
 }
 
 // removeLegacyProto removes uses of the old proto rules. It deletes loads

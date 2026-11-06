@@ -1,0 +1,55 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cgo_select_invert_unix",
+    srcs = [
+        "cgo_unix.go",
+        "pure.go",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:aix": [
+            "helper.c",
+        ],
+        "@io_bazel_rules_go//go/platform:android": [
+            "helper.c",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "helper.c",
+        ],
+        "@io_bazel_rules_go//go/platform:dragonfly": [
+            "helper.c",
+        ],
+        "@io_bazel_rules_go//go/platform:freebsd": [
+            "helper.c",
+        ],
+        "@io_bazel_rules_go//go/platform:illumos": [
+            "helper.c",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "helper.c",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "helper.c",
+        ],
+        "@io_bazel_rules_go//go/platform:netbsd": [
+            "helper.c",
+        ],
+        "@io_bazel_rules_go//go/platform:openbsd": [
+            "helper.c",
+        ],
+        "@io_bazel_rules_go//go/platform:solaris": [
+            "helper.c",
+        ],
+        "//conditions:default": [],
+    }),
+    _gazelle_imports = [],
+    cgo = select({
+        "@io_bazel_rules_go//go/platform:js": False,
+        "@io_bazel_rules_go//go/platform:osx": False,
+        "@io_bazel_rules_go//go/platform:plan9": False,
+        "@io_bazel_rules_go//go/platform:qnx": False,
+        "@io_bazel_rules_go//go/platform:windows": False,
+        "//conditions:default": True,
+    }),
+    importpath = "example.com/repo/cgo_select_invert_unix",
+    visibility = ["//visibility:public"],
+)

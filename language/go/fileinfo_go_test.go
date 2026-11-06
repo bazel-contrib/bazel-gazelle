@@ -462,6 +462,7 @@ import "C"
 		library: goTarget{cgo: true},
 	}
 	want.library.sources.addGenericString("sub.go")
+	want.library.cgoPlatforms.addGenericString(cgoSentinel)
 	want.library.copts.addGenericString("-Isub/..")
 	if diff := cmp.Diff(want, got, goPackageCmpOption); diff != "" {
 		t.Errorf("(-want, +got): %s", diff)
