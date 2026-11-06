@@ -1,7 +1,7 @@
 """Unit tests for //internal:env.bzl"""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//internal:env.bzl", "compute_env", "host_network_env")
+load("//internal:env.bzl", "compute_env", "host_network_env", "resolve_go_env")
 
 # Settings reported by the mocked 'go env', as the go command computes them
 # from the host environment and 'go env -w'.
@@ -25,15 +25,16 @@ _ENVIRON = {
     "SSL_CERT_FILE": "/etc/ssl/ca.pem",
 }
 
-def _mock_ctx(environ, go_env):
-    """Mocks the parts of repository_ctx that compute_env uses.
+def _mock_ctx(environ, go_env, os_name = "linux"):
+    """Mocks the parts of repository_ctx that compute_env and resolve_go_env use.
 
     Args:
         environ: the host environment.
         go_env: the settings reported by 'go env'.
+        os_name: the value of repository_ctx.os.name.
 
     Returns:
-        a struct that can be passed to compute_env.
+        a struct that can be passed to compute_env or resolve_go_env.
     """
 
     def execute(arguments, **_kwargs):
@@ -45,11 +46,16 @@ def _mock_ctx(environ, go_env):
             stderr = "",
         )
 
+    def path(label):
+        if str(label).endswith("go.env"):
+            return struct(_name = "/cache/go.env", dirname = struct(_name = "/cache"))
+        return struct(_name = "/sdk/ROOT", dirname = struct(_name = "/sdk"))
+
     return struct(
-        os = struct(name = "linux", environ = environ),
+        os = struct(name = os_name, environ = environ),
         getenv = lambda name, default = None: environ.get(name, default),
         execute = execute,
-        path = lambda _label: struct(_name = "/sdk/ROOT", dirname = struct(_name = "/sdk")),
+        path = path,
         watch = lambda _path: None,
     )
 
@@ -121,9 +127,57 @@ def _host_network_env_test_impl(ctx):
 
 host_network_env_test = unittest.make(_host_network_env_test_impl)
 
+def _resolve_go_env_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    cache_env = {"GOPROXY": "https://proxy.example.com,direct"}
+    resolved = {
+        "GOCACHE": "/cache/gocache",
+        "GOPATH": "/cache",
+        "GOPROXY": "https://proxy.example.com,direct",
+    }
+
+    # On other platforms, Go falls back to /tmp, so no temporary directory is
+    # needed.
+    asserts.equals(
+        env,
+        resolved,
+        resolve_go_env(_mock_ctx({}, _GO_ENV), cache_env, "/cache/go.env"),
+    )
+
+    # On Windows, the command gets a temporary directory in the cache repo,
+    # like GOCACHE. The host environment must not be consulted.
+    for environ in [{}, {"TMP": "C:/Temp", "TEMP": "C:/Temp"}]:
+        asserts.equals(
+            env,
+            resolved | {"TEMP": "/cache/tmp", "TMP": "/cache/tmp"},
+            resolve_go_env(
+                _mock_ctx(environ, _GO_ENV, os_name = "windows 11"),
+                cache_env,
+                "/cache/go.env",
+            ),
+        )
+
+    # Like GOPATH and GOCACHE, a setting from go.env wins, for both variables.
+    for temp_var in ["TMP", "TEMP"]:
+        asserts.equals(
+            env,
+            resolved | {"TEMP": "D:/tmp", "TMP": "D:/tmp"},
+            resolve_go_env(
+                _mock_ctx({}, _GO_ENV, os_name = "windows 11"),
+                cache_env | {temp_var: "D:/tmp"},
+                "/cache/go.env",
+            ),
+        )
+
+    return unittest.end(env)
+
+resolve_go_env_test = unittest.make(_resolve_go_env_test_impl)
+
 def env_test_suite(name):
     unittest.suite(
         name,
         compute_env_test,
         host_network_env_test,
+        resolve_go_env_test,
     )

@@ -26,6 +26,10 @@ def _go_repository_cache_impl(ctx):
     )
     write_go_env_file(ctx, cache_env)
     ctx.file("BUILD.bazel", 'exports_files(["go.env"])\n')
+    if ctx.os.name.startswith("windows"):
+        # Temporary directory for the go command (see resolve_go_env). Go
+        # creates GOCACHE itself, but os.MkdirTemp needs an existing parent.
+        ctx.file("tmp/empty", "")  # HACK: we want mkdir, but repository_ctx doesn't have it
 
 go_repository_cache = repository_rule(
     _go_repository_cache_impl,
