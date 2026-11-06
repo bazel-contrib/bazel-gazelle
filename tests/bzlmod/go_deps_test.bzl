@@ -6,6 +6,7 @@ load("//tests/bzlmod:go_deps_test_case.bzl", "parse_go_deps_test_case")
 load("//tests/bzlmod/go_deps:archive_override.bzl", ARCHIVE_OVERRIDE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:archive_override_unmatched.bzl", ARCHIVE_OVERRIDE_UNMATCHED_TEST = "TEST")
 load("//tests/bzlmod/go_deps:bcr_go_mod.bzl", BCR_GO_MOD_TEST = "TEST")
+load("//tests/bzlmod/go_deps:bcr_go_mod_fast_imprecise.bzl", BCR_GO_MOD_FAST_IMPRECISE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:build_naming_conventions.bzl", BUILD_NAMING_CONVENTIONS_TEST = "TEST")
 load("//tests/bzlmod/go_deps:check_direct_dependencies.bzl", CHECK_DIRECT_DEPENDENCIES_TEST = "TEST")
 load("//tests/bzlmod/go_deps:config_prefix_dirs.bzl", CONFIG_PREFIX_DIRS_TEST = "TEST")
@@ -19,6 +20,7 @@ load("//tests/bzlmod/go_deps:facts_gonoproxy.bzl", FACTS_GONOPROXY_TEST = "TEST"
 load("//tests/bzlmod/go_deps:facts_goprivate.bzl", FACTS_GOPRIVATE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:facts_stale.bzl", FACTS_STALE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:from_file_dev_deps.bzl", FROM_FILE_DEV_DEPS_TEST = "TEST")
+load("//tests/bzlmod/go_deps:from_file_dev_deps_fast_imprecise.bzl", FROM_FILE_DEV_DEPS_FAST_IMPRECISE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:from_file_not_go_mod.bzl", FROM_FILE_NOT_GO_MOD_TEST = "TEST")
 load("//tests/bzlmod/go_deps:gazelle_default_attributes.bzl", GAZELLE_DEFAULT_ATTRIBUTES_TEST = "TEST")
 load("//tests/bzlmod/go_deps:gazelle_default_attributes_not_root.bzl", GAZELLE_DEFAULT_ATTRIBUTES_NOT_ROOT_TEST = "TEST")
@@ -35,35 +37,44 @@ load("//tests/bzlmod/go_deps:missing_sum_facts.bzl", MISSING_SUM_FACTS_TEST = "T
 load("//tests/bzlmod/go_deps:module.bzl", MODULE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module_dev_deps.bzl", MODULE_DEV_DEPS_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module_local_path.bzl", MODULE_LOCAL_PATH_TEST = "TEST")
+load("//tests/bzlmod/go_deps:module_local_path_fast_imprecise.bzl", MODULE_LOCAL_PATH_FAST_IMPRECISE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module_local_path_conflict.bzl", MODULE_LOCAL_PATH_CONFLICT_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module_override.bzl", MODULE_OVERRIDE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module_tag_version_normalize.bzl", MODULE_TAG_VERSION_NORMALIZE_TEST = "TEST")
+load("//tests/bzlmod/go_deps:module_tag_version_normalize_fast_imprecise.bzl", MODULE_TAG_VERSION_NORMALIZE_FAST_IMPRECISE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:mvs.bzl", MVS_TEST = "TEST")
+load("//tests/bzlmod/go_deps:mvs_fast_imprecise.bzl", MVS_FAST_IMPRECISE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:no_root_usage.bzl", NO_ROOT_USAGE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:override_bazel_module.bzl", OVERRIDE_BAZEL_MODULE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_bazel_module.bzl", REPLACE_BAZEL_MODULE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_dir_mod.bzl", REPLACE_DIR_MOD_TEST = "TEST")
+load("//tests/bzlmod/go_deps:replace_dir_mod_fast_imprecise.bzl", REPLACE_DIR_MOD_FAST_IMPRECISE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_dir_work.bzl", REPLACE_DIR_WORK_TEST = "TEST")
+load("//tests/bzlmod/go_deps:replace_dir_work_fast_imprecise.bzl", REPLACE_DIR_WORK_FAST_IMPRECISE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_ignore_not_root.bzl", REPLACE_IGNORE_NOT_ROOT_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_version_mod.bzl", REPLACE_VERSION_MOD_TEST = "TEST")
 load("//tests/bzlmod/go_deps:replace_version_work.bzl", REPLACE_VERSION_WORK_TEST = "TEST")
+load("//tests/bzlmod/go_deps:replace_version_work_fast_imprecise.bzl", REPLACE_VERSION_WORK_FAST_IMPRECISE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:repo_name_collision.bzl", REPO_NAME_COLLISION_TEST = "TEST")
 load("//tests/bzlmod/go_deps:rules_proto_compat.bzl", RULES_PROTO_COMPAT_TEST = "TEST")
 load("//tests/bzlmod/go_deps:sum_conflict.bzl", SUM_CONFLICT_TEST = "TEST")
 load("//tests/bzlmod/go_deps:tool.bzl", TOOL_TEST = "TEST")
 load("//tests/bzlmod/go_deps:version_conflict_checks.bzl", VERSION_CONFLICT_CHECKS_TEST = "TEST")
 load("//tests/bzlmod/go_deps:work_mixed_direct.bzl", WORK_MIXED_DIRECT_TEST = "TEST")
+load("//tests/bzlmod/go_deps:work_mixed_direct_fast_imprecise.bzl", WORK_MIXED_DIRECT_FAST_IMPRECISE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:work_no_use.bzl", WORK_NO_USE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:work_use_absolute.bzl", WORK_USE_ABSOLUTE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:work_use_escape.bzl", WORK_USE_ESCAPE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:work_use_relative.bzl", WORK_USE_RELATIVE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:workspace_mvs_pruning.bzl", WORKSPACE_MVS_PRUNING_TEST = "TEST")
+load("//tests/bzlmod/go_deps:workspace_mvs_pruning_fast_imprecise.bzl", WORKSPACE_MVS_PRUNING_FAST_IMPRECISE_TEST = "TEST")
 
 # Keep sorted
 _GO_DEPS_TEST_CASES = [
     ARCHIVE_OVERRIDE_TEST,
     ARCHIVE_OVERRIDE_UNMATCHED_TEST,
     BUILD_NAMING_CONVENTIONS_TEST,
+    BCR_GO_MOD_FAST_IMPRECISE_TEST,
     BCR_GO_MOD_TEST,
     CHECK_DIRECT_DEPENDENCIES_TEST,
     CONFIG_PREFIX_DIRS_TEST,
@@ -76,6 +87,7 @@ _GO_DEPS_TEST_CASES = [
     FACTS_GONOPROXY_TEST,
     FACTS_GOPRIVATE_TEST,
     FACTS_STALE_TEST,
+    FROM_FILE_DEV_DEPS_FAST_IMPRECISE_TEST,
     FROM_FILE_DEV_DEPS_TEST,
     FROM_FILE_NOT_GO_MOD_TEST,
     GAZELLE_DEFAULT_ATTRIBUTES_TEST,
@@ -88,33 +100,41 @@ _GO_DEPS_TEST_CASES = [
     GO_WORK_VERSION_SKIP_TEST,
     ISOLATE_TEST,
     MODULE_DEV_DEPS_TEST,
+    MODULE_LOCAL_PATH_FAST_IMPRECISE_TEST,
     MODULE_LOCAL_PATH_TEST,
     MODULE_LOCAL_PATH_CONFLICT_TEST,
     MODULE_OVERRIDE_TEST,
+    MODULE_TAG_VERSION_NORMALIZE_FAST_IMPRECISE_TEST,
     MODULE_TAG_VERSION_NORMALIZE_TEST,
     MODULE_TEST,
     MISSING_SUM_TEST,
     MISSING_SUM_DOWNLOAD_TEST,
     MISSING_SUM_FACTS_TEST,
+    MVS_FAST_IMPRECISE_TEST,
     MVS_TEST,
     NO_ROOT_USAGE_TEST,
     OVERRIDE_BAZEL_MODULE_TEST,
     REPLACE_BAZEL_MODULE_TEST,
+    REPLACE_DIR_MOD_FAST_IMPRECISE_TEST,
     REPLACE_DIR_MOD_TEST,
+    REPLACE_DIR_WORK_FAST_IMPRECISE_TEST,
     REPLACE_DIR_WORK_TEST,
     REPLACE_IGNORE_NOT_ROOT_TEST,
     REPLACE_VERSION_MOD_TEST,
+    REPLACE_VERSION_WORK_FAST_IMPRECISE_TEST,
     REPLACE_VERSION_WORK_TEST,
     REPO_NAME_COLLISION_TEST,
     RULES_PROTO_COMPAT_TEST,
     SUM_CONFLICT_TEST,
     TOOL_TEST,
     VERSION_CONFLICT_CHECKS_TEST,
+    WORK_MIXED_DIRECT_FAST_IMPRECISE_TEST,
     WORK_MIXED_DIRECT_TEST,
     WORK_NO_USE_TEST,
     WORK_USE_ABSOLUTE_TEST,
     WORK_USE_ESCAPE_TEST,
     WORK_USE_RELATIVE_TEST,
+    WORKSPACE_MVS_PRUNING_FAST_IMPRECISE_TEST,
     WORKSPACE_MVS_PRUNING_TEST,
 ]
 
@@ -481,6 +501,11 @@ def _make_mock_path(case, name, basename, dirname, exists, is_dir):
 def _mock_module_ctx_declare_repo(state, rule, *, name, **kwargs):
     if name in state.repos:
         fail("test case {}: repo '{}' declared multiple times".format(state.case.name, name))
+    # Mock paths are relative to the test directory. Match the converter's
+    # /test prefix for absolute paths reported by Go in slow mode.
+    local_path = kwargs.get("local_path")
+    if local_path and not local_path.startswith("/"):
+        kwargs["local_path"] = "/test/" + local_path.removeprefix("./")
     state.repos[name] = struct(name = name, **kwargs)
 
 def _mock_module_ctx_extension_metadata(*, root_module_direct_deps = None, root_module_direct_dev_deps = None, **kwargs):
