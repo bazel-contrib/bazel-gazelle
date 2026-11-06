@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "store",
+    srcs = ["store.go"],
+    importpath = "github.com/bazel-contrib/bazel-gazelle/v2/internal/graph/store",
+    visibility = ["//v2:__subpackages__"],
+)
+
+go_test(
+    name = "store_test",
+    srcs = ["store_test.go"],
+    embed = [":store"],
+)
+
+filegroup(
+    name = "all_files",
+    testonly = True,
+    srcs = [
+        "BUILD.bazel",
+        "store.go",
+        "store_test.go",
+    ],
+    visibility = ["//visibility:public"],
+)
