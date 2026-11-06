@@ -266,7 +266,8 @@ def read_go_env_file(ctx, env_path, cache_dir_file = None):
         env_path: path, label, or string for the go.env file to read.
         cache_dir_file: optional path, label, or string for a file within
             @bazel_gazelle_go_repository_cache. GOPATH and GOCACHE default to
-            this repo's directory when unset in env_path. Defaults to env_path.
+            this repo's directory when unset in env_path, and TMP and TEMP on
+            Windows to its tmp subdirectory. Defaults to env_path.
 
     Returns:
         A dict of environment variables, ready for execution. Do not write to
@@ -314,7 +315,8 @@ def resolve_go_env(ctx, env, cache_dir_file):
             parse_go_env_file. Not modified.
         cache_dir_file: path, label, or string for a file within
             @bazel_gazelle_go_repository_cache. GOPATH and GOCACHE default to
-            this repo's directory when unset in env.
+            this repo's directory when unset in env. On Windows, TMP and TEMP
+            default to its tmp subdirectory.
 
     Returns:
         A dict of environment variables, ready for execution. Do not write to
@@ -329,6 +331,15 @@ def resolve_go_env(ctx, env, cache_dir_file):
     cache_dir = path_str(ctx.path(cache_dir_file).dirname)
     env.setdefault("GOPATH", cache_dir)
     env.setdefault("GOCACHE", cache_dir + "/gocache")
+
+    # Without TMP and TEMP, as under --experimental_strict_repo_env, Go on
+    # Windows falls back to USERPROFILE and then to the Windows directory,
+    # which is not writable. Go reads TMP before TEMP, so one setting goes to
+    # both.
+    if ctx.os.name.startswith("windows"):
+        temp_dir = env.get("TMP") or env.get("TEMP") or cache_dir + "/tmp"
+        env.setdefault("TMP", temp_dir)
+        env.setdefault("TEMP", temp_dir)
     return env
 
 # copied from rules_go. Keep in sync.
