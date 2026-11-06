@@ -9,7 +9,8 @@
 <pre>
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 go_deps.archive_override(<a href="#go_deps.archive_override-patch_cmds">patch_cmds</a>, <a href="#go_deps.archive_override-patch_strip">patch_strip</a>, <a href="#go_deps.archive_override-patches">patches</a>, <a href="#go_deps.archive_override-path">path</a>, <a href="#go_deps.archive_override-sha256">sha256</a>, <a href="#go_deps.archive_override-strip_prefix">strip_prefix</a>, <a href="#go_deps.archive_override-urls">urls</a>)
-go_deps.config(<a href="#go_deps.config-check_direct_dependencies">check_direct_dependencies</a>, <a href="#go_deps.config-checks">checks</a>, <a href="#go_deps.config-debug_mode">debug_mode</a>, <a href="#go_deps.config-go_env">go_env</a>, <a href="#go_deps.config-go_env_inherit">go_env_inherit</a>)
+go_deps.config(<a href="#go_deps.config-check_direct_dependencies">check_direct_dependencies</a>, <a href="#go_deps.config-checks">checks</a>, <a href="#go_deps.config-debug_mode">debug_mode</a>, <a href="#go_deps.config-go_env">go_env</a>, <a href="#go_deps.config-go_env_inherit">go_env_inherit</a>,
+               <a href="#go_deps.config-version_selection">version_selection</a>)
 go_deps.from_file(<a href="#go_deps.from_file-fail_on_version_conflict">fail_on_version_conflict</a>, <a href="#go_deps.from_file-go_mod">go_mod</a>, <a href="#go_deps.from_file-go_work">go_work</a>)
 go_deps.gazelle_override(<a href="#go_deps.gazelle_override-build_extra_args">build_extra_args</a>, <a href="#go_deps.gazelle_override-build_file_generation">build_file_generation</a>, <a href="#go_deps.gazelle_override-directives">directives</a>, <a href="#go_deps.gazelle_override-path">path</a>)
 go_deps.gazelle_default_attributes(<a href="#go_deps.gazelle_default_attributes-build_extra_args">build_extra_args</a>, <a href="#go_deps.gazelle_default_attributes-build_file_generation">build_file_generation</a>, <a href="#go_deps.gazelle_default_attributes-directives">directives</a>)
@@ -72,6 +73,7 @@ Configures the general behavior of the go_deps extension.
 | <a id="go_deps.config-debug_mode"></a>debug_mode |  Whether or not to print stdout and stderr messages from gazelle   | Boolean | optional |  `False`  |
 | <a id="go_deps.config-go_env"></a>go_env |  The environment variables to use when fetching Go dependencies or running the `@rules_go//go` tool.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
 | <a id="go_deps.config-go_env_inherit"></a>go_env_inherit |  Host environment variable names to inherit when fetching Go dependencies or running the `@rules_go//go` tool. Proxy, sum database, authentication, and TLS settings such as `GOPROXY`, `GOSUMDB`, `GOAUTH`, `HTTPS_PROXY`, and `SSL_CERT_FILE` are always taken from the host, from `go env` where Go manages them.   | List of strings | optional |  `[]`  |
+| <a id="go_deps.config-version_selection"></a>version_selection |  How go_deps selects Go module versions. "slow_correct" uses 'go list -m' in a synthetic go.work workspace, which fetches go.mod files for all direct requirements and possibly more (see https://go.dev/ref/mod#graph-pruning). "fast_imprecise" only considers direct requirements from 'module' tags and go.mod files referenced by 'from_file' directives. "fast_imprecise" may select lower versions of modules than Go does.   | String | optional |  `"slow_correct"`  |
 
 <a id="go_deps.from_file"></a>
 
