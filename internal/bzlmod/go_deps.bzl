@@ -830,13 +830,9 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
     root_required_mods = {}
     required_mod_files = {}  # set of required_mod_file structs
     module_tag_requires = {}  # Go module path => go_deps.module tag with highest version
-    required_versions = {}  # Go module path => dict of required versions from all go.mod files
     root_replaced_paths = {}  # Go module paths replaced by the root module's go.mod or go.work files
     module_tag_local_path_dirs = {}  # Go module path => absolute directory from go_deps.module.local_path
     sums = {}  # (Go module path, version) => go_sum_info for module content
-
-    def add_required_version(path, version):
-        required_versions.setdefault(path, {})[version] = True
 
     for module in module_ctx.modules:
         module_tag_paths = {}
@@ -922,8 +918,6 @@ To correct this:
                 tool_importpaths = tool_importpaths,
             )
             bazel_go_modules[info.importpath] = info
-            for r in go_mod_json.get("Require") or []:
-                add_required_version(r["Path"], r["Version"])
             if acts_as_root:
                 # We can use 'replace' and 'exclude' directives in go.mod files from
                 # the Bazel root module without modification.
@@ -1053,13 +1047,11 @@ To correct this:
             add_sums(module_ctx, sums, [((tag.path, version), go_sum_info(sum = tag.sum))])
             if module_ctx.failed():
                 return None
-        add_required_version(tag.path, version)
 
-    for path, versions in required_versions.items():
-        if path not in bazel_go_module_dirs or path in root_replaced_paths:
+    for path, dir_path in bazel_go_module_dirs.items():
+        if path in root_replaced_paths:
             continue
-        for version in versions:
-            go_mod_lines.append("replace {} {} => {}".format(path, version, _local_replace_path(bazel_go_module_dirs[path])))
+        go_mod_lines.append("replace {} => {}".format(path, _local_replace_path(dir_path)))
 
     for path, dir_path in module_tag_local_path_dirs.items():
         if path in bazel_go_module_dirs:
@@ -1069,8 +1061,7 @@ To correct this:
         if path in root_replaced_paths:
             module_ctx.fail("{}: Go module has a local path set by both go_deps.module.local_path and a replace directive in the root module".format(path))
             return None
-        for version in required_versions.get(path, {}):
-            go_mod_lines.append("replace {} {} => {}".format(path, version, _local_replace_path(dir_path)))
+        go_mod_lines.append("replace {} => {}".format(path, _local_replace_path(dir_path)))
 
     module_ctx.file("go.work", "\n".join(go_work_lines))
     module_ctx.file("go.mod", "\n".join(go_mod_lines))
