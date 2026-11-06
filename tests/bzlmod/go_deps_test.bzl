@@ -30,6 +30,8 @@ load("//tests/bzlmod/go_deps:go_version_low.bzl", GO_VERSION_LOW_TEST = "TEST")
 load("//tests/bzlmod/go_deps:go_work_version_skip.bzl", GO_WORK_VERSION_SKIP_TEST = "TEST")
 load("//tests/bzlmod/go_deps:isolate.bzl", ISOLATE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:missing_sum.bzl", MISSING_SUM_TEST = "TEST")
+load("//tests/bzlmod/go_deps:missing_sum_download.bzl", MISSING_SUM_DOWNLOAD_TEST = "TEST")
+load("//tests/bzlmod/go_deps:missing_sum_facts.bzl", MISSING_SUM_FACTS_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module.bzl", MODULE_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module_dev_deps.bzl", MODULE_DEV_DEPS_TEST = "TEST")
 load("//tests/bzlmod/go_deps:module_local_path.bzl", MODULE_LOCAL_PATH_TEST = "TEST")
@@ -47,6 +49,7 @@ load("//tests/bzlmod/go_deps:replace_version_mod.bzl", REPLACE_VERSION_MOD_TEST 
 load("//tests/bzlmod/go_deps:replace_version_work.bzl", REPLACE_VERSION_WORK_TEST = "TEST")
 load("//tests/bzlmod/go_deps:repo_name_collision.bzl", REPO_NAME_COLLISION_TEST = "TEST")
 load("//tests/bzlmod/go_deps:rules_proto_compat.bzl", RULES_PROTO_COMPAT_TEST = "TEST")
+load("//tests/bzlmod/go_deps:sum_conflict.bzl", SUM_CONFLICT_TEST = "TEST")
 load("//tests/bzlmod/go_deps:tool.bzl", TOOL_TEST = "TEST")
 load("//tests/bzlmod/go_deps:version_conflict_checks.bzl", VERSION_CONFLICT_CHECKS_TEST = "TEST")
 load("//tests/bzlmod/go_deps:work_mixed_direct.bzl", WORK_MIXED_DIRECT_TEST = "TEST")
@@ -91,6 +94,8 @@ _GO_DEPS_TEST_CASES = [
     MODULE_TAG_VERSION_NORMALIZE_TEST,
     MODULE_TEST,
     MISSING_SUM_TEST,
+    MISSING_SUM_DOWNLOAD_TEST,
+    MISSING_SUM_FACTS_TEST,
     MVS_TEST,
     NO_ROOT_USAGE_TEST,
     OVERRIDE_BAZEL_MODULE_TEST,
@@ -102,6 +107,7 @@ _GO_DEPS_TEST_CASES = [
     REPLACE_VERSION_WORK_TEST,
     REPO_NAME_COLLISION_TEST,
     RULES_PROTO_COMPAT_TEST,
+    SUM_CONFLICT_TEST,
     TOOL_TEST,
     VERSION_CONFLICT_CHECKS_TEST,
     WORK_MIXED_DIRECT_TEST,
@@ -243,7 +249,7 @@ def _mock_module_ctx(case, executions, isolated, isolate_module = None):
             environ = environ,
             name = "linux",
         ),
-        execute = lambda arguments, environment = {}: _mock_module_ctx_execute(state, arguments, environment),
+        execute = lambda arguments, environment = {}, working_directory = "": _mock_module_ctx_execute(state, arguments, environment),
         declare_repo = lambda rule, *, name, **kwargs: _mock_module_ctx_declare_repo(state, rule, name = name, **kwargs),
         download = lambda url, output, sha256 = "", allow_fail = False, block = True: _mock_module_ctx_download(state, url, output, sha256, block, allow_fail),
         facts = struct(get = lambda key, default = None: case.facts.get(key, default)),

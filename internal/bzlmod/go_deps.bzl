@@ -22,12 +22,15 @@ load(
     "DEFAULT_BUILD_FILE_GENERATION_BY_PATH",
     "DEFAULT_DIRECTIVES_BY_PATH",
 )
+load(":go_mod.bzl", "add_sums", "go_sum_info", "parse_go_sum")
 load(":go_repository_config.bzl", "go_repository_config")
 load(
     ":goproxy.bzl",
     "download_mod_files",
     "make_mod_file_facts",
+    "make_module_sum_facts",
     "read_mod_file_facts",
+    "read_module_sum_facts",
     "required_mod_file",
 )
 load(":semver.bzl", "semver")
@@ -118,7 +121,7 @@ def go_deps_impl(module_ctx):
     workspace = _create_workspace_from_tags(module_ctx, go_tool, go_exec_env)
     if module_ctx.failed() or workspace == None:
         return None
-    bazel_go_modules, root_required_mods, root_replaced_paths, required_mod_files_from_workspace = workspace
+    bazel_go_modules, root_required_mods, root_replaced_paths, required_mod_files_from_workspace, sums = workspace
     required_mod_files = required_mod_files_from_workspace | read_mod_file_facts(module_ctx)
 
     # Download the .mod files that 'go list -m' is likely to need with Bazel's
@@ -152,6 +155,18 @@ def go_deps_impl(module_ctx):
     _, new_sha256 = download_mod_files(module_ctx, go_env, required_mod_files_missing)
     required_mod_files.update(new_sha256)
 
+    # Find sums for selected modules that have a sum at some other version.
+    # Plain Go would record these in go.work.sum.
+    module_ctx.report_progress("downloading modules with missing sums")
+    go_modules, sum_facts = _find_missing_sums(
+        module_ctx,
+        go_tool,
+        list_env,
+        go_modules,
+        sums,
+        archive_overrides,
+    )
+
     # Overrides can't be applied to Go modules provided by Bazel modules, and
     # silently ignoring them would be confusing.
     _fail_on_bazel_module_overrides(module_ctx, archive_overrides.keys(), bazel_go_modules, "archive_override")
@@ -161,10 +176,10 @@ def go_deps_impl(module_ctx):
         return None
 
     # Declare a go_repository for each Go module that wasn't provided by a Bazel
-    # module. We declare go_repository for a module even if we don't have a sum;
-    # That probably means it's an indirect test dependency that's not needed,
-    # but if it's actually needed, go_repository can provide a more targeted
-    # error message.
+    # module. We declare go_repository for a module even if we don't have a sum
+    # after _find_missing_sums. That probably means it's an indirect test
+    # dependency that's not needed, but if it's actually needed, go_repository
+    # can provide a more targeted error message.
     module_ctx.report_progress("declaring repositories")
     reserved_repo_names = _collect_reserved_repo_names(module_ctx, bazel_go_modules)
     _check_for_version_conflict(
@@ -329,6 +344,7 @@ def go_deps_impl(module_ctx):
         if m.need_go_mod
     ]
     facts = make_mod_file_facts({m: required_mod_files.get(m) for m in needed_mod_files})
+    facts |= make_module_sum_facts(sum_facts)
     return extension_metadata(
         module_ctx,
         root_module_direct_deps = direct_deps,
@@ -364,11 +380,13 @@ def _go_module_info(
             applying replace directives, including the 'v' prefix. This is
             what require directives and go_deps.module tags are compared
             against. None for modules provided by Bazel modules.
-        sum: the cryptographic sum from go.sum. For replaced modules, this is
-            the sum of the replacement. May be omitted for replaced modules
-            with directory replacements or various overrides. Also omitted
-            for modules that are in the build list but are not needed to build
-            packages in the root modules (no sum in any go.sum).
+        sum: the cryptographic sum from go.sum, or from facts or a download
+            by _find_missing_sums. For replaced modules, this is the sum of
+            the replacement. May be omitted for replaced modules with
+            directory replacements or various overrides. Also omitted for
+            modules that are in the build list but are probably not needed to
+            build packages in the root modules (no sum at any version in any
+            go.sum), and for modules whose download failed.
         replace_path: Go module path of a versioned replacement. For example,
             in 'replace example.com/a => example.com/b v1.0.0', this is
             'example.com/b'.
@@ -786,6 +804,9 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
           replaced by the root Bazel module's go.mod or go.work files.
         - required_mod_files: a dict mapping required_mod_file structs to None
           for .mod files that 'go list -m' may need to download.
+        - sums: a dict mapping (Go module path, version) tuples to
+          go_sum_info structs for module content sums from go.sum and
+          go.work.sum files and go_deps.module tags.
     """
 
     go_version_info = _go_version(module_ctx, go_tool, go_env)
@@ -812,6 +833,7 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
     required_versions = {}  # Go module path => dict of required versions from all go.mod files
     root_replaced_paths = {}  # Go module paths replaced by the root module's go.mod or go.work files
     module_tag_local_path_dirs = {}  # Go module path => absolute directory from go_deps.module.local_path
+    sums = {}  # (Go module path, version) => go_sum_info for module content
 
     def add_required_version(path, version):
         required_versions.setdefault(path, {})[version] = True
@@ -848,8 +870,14 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
             go_mod_path = module_ctx.path(go_mod_label)
             watch(module_ctx, go_mod_path)
             go_sum_path = go_mod_path.dirname.get_child("go.sum")
+            go_sum_content = None
             if go_sum_path.exists:
                 watch(module_ctx, go_sum_path)
+                go_sum_content = module_ctx.read(go_sum_path)
+                go_sum_label = Label("@@{}//{}:go.sum".format(go_mod_label.repo_name, go_mod_label.package))
+                add_sums(module_ctx, sums, parse_go_sum(go_sum_content, go_sum_label))
+                if module_ctx.failed():
+                    return
             go_mod_json = _parse_go_mod_json(module_ctx, go_tool, go_env, go_mod_path)
             if module_ctx.failed():
                 return
@@ -938,8 +966,7 @@ To correct this:
                 replace_map = {}
                 copied_go_mod_path = module_ctx.path(paths.join("mod", module.name, _label_to_rel(go_mod_label)))
                 module_ctx.file(copied_go_mod_path, _format_go_mod_json(go_mod_json))
-                if go_sum_path.exists:
-                    go_sum_content = module_ctx.read(go_sum_path)
+                if go_sum_content != None:
                     copied_go_sum_path = copied_go_mod_path.dirname.get_child("go.sum")
                     module_ctx.file(copied_go_sum_path, go_sum_content)
                 bazel_go_module_dirs[info.importpath] = path_str(copied_go_mod_path.dirname)
@@ -1013,12 +1040,19 @@ To correct this:
                 if orig_go_sum_path.exists:
                     go_work_sum_content = module_ctx.read(orig_go_sum_path)
                     go_work_sum_lines.append(go_work_sum_content.strip())
+                    go_work_sum_label = Label("@@{}//{}:{}.sum".format(tag.go_work.repo_name, tag.go_work.package, tag.go_work.name))
+                    add_sums(module_ctx, sums, parse_go_sum(go_work_sum_content, go_work_sum_label))
+                    if module_ctx.failed():
+                        return None
 
     for tag in module_tag_requires.values():
         version = _canonical_module_version(tag.version)
         go_mod_lines.append("require {} {}".format(tag.path, version))
         if tag.sum:
             go_sum_lines.append("{} {} {}".format(tag.path, version, tag.sum))
+            add_sums(module_ctx, sums, [((tag.path, version), go_sum_info(sum = tag.sum))])
+            if module_ctx.failed():
+                return None
         add_required_version(tag.path, version)
 
     for path, versions in required_versions.items():
@@ -1044,7 +1078,7 @@ To correct this:
     if go_work_sum_lines:
         module_ctx.file("go.work.sum", "\n".join(go_work_sum_lines))
 
-    return bazel_go_modules, root_required_mods, root_replaced_paths, required_mod_files
+    return bazel_go_modules, root_required_mods, root_replaced_paths, required_mod_files, sums
 
 def _parse_go_mod_json(module_ctx, go_tool, go_env, go_mod_path):
     watch(module_ctx, go_mod_path)
@@ -1328,15 +1362,7 @@ def _select_module_versions(
         module_ctx.fail("selecting Go module versions:\n{}".format(list_result.stderr))
         return None
 
-    # json.decode parses a single JSON value, but `go list -m -json all` prints
-    # one JSON object per module, separated by newlines. Split stdout on the
-    # boundary between objects before decoding each value.
-    sep = "\n}\n"
-    parsed_list_results = [
-        json.decode(part.strip() + sep)
-        for part in list_result.stdout.split(sep)
-        if part.strip() != ""
-    ]
+    parsed_list_results = _decode_json_stream(list_result.stdout)
     go_modules = {}
     for m in parsed_list_results:
         importpath = m["Path"]
@@ -1377,6 +1403,121 @@ def _select_module_versions(
             need_go_mod = bool(m.get("GoModSum", "")),
         )
     return go_modules
+
+def _find_missing_sums(
+        module_ctx,
+        go_tool,
+        go_env,
+        go_modules,
+        sums,
+        archive_overrides):
+    """
+    Download modules to find missing sums for selected Go module versions
+
+    Suppose Bazel modules and A and B both depend on Go module C via go.mod.
+
+    - A requires C v1.0.0 and has a sum in go.sum for its content.
+    - B requires C v1.1.0 and DOES NOT have a sum for its content.
+
+    Go selects C v1.1.0. In a pure go.work project, since the sum is not present
+    in any go.sum file, Go would download the module and store its sum in
+    go.work.sum.
+
+    This function mimics that behavior: we run 'go mod download' for selected
+    module versions that lack sums. We persist these sums in module facts
+    so there's no need to fetch them again in the future. go_repository uses
+    the same module cache, so there's no need to download modules more than
+    once.
+
+    The download is best effort: if it fails, the go_repository is declared
+    without a sum, and it reports an error if it's actually needed. We only
+    attempt a download if some go.sum file has a sum for a version of the module
+    that is not the selected version. We don't attempt to download modules
+    with no sums at all.
+
+    Args:
+        module_ctx: the module context.
+        go_tool: path to the go tool.
+        go_env: the environment to run the go tool with.
+        go_modules: a dict mapping Go module paths to _go_module_info structs,
+            returned by _select_module_versions. Not modified.
+        sums: a dict mapping (Go module path, version) tuples to go_sum_info
+            structs, returned by _create_workspace_from_tags.
+        archive_overrides: a dict mapping Go module paths to archive_override
+            tags. These modules don't need a sum.
+
+    Returns:
+        - go_modules: a copy of the go_modules argument, with sums filled in.
+        - sum_facts: a dict mapping (path, version) tuples to sums that should
+          be stored in module facts.
+    """
+    go_modules = dict(go_modules)
+    summed_paths = {path: None for path, _ in sums}
+    sum_facts = read_module_sum_facts(module_ctx)
+    sum_facts_keys_used = {}
+    to_download = {}  # (download_path, version) => list of importpaths
+    for go_module in go_modules.values():
+        if (go_module.sum != None or
+            go_module.version == None or
+            go_module.local_path != None or
+            go_module.go_mod_label != None or
+            go_module.importpath in archive_overrides):
+            # sum known or not needed
+            continue
+        download_path = go_module.replace_path or go_module.importpath
+        key = (download_path, go_module.version)
+
+        if key in sums:
+            # Sum was present in a go.sum or go.work.sum, but 'go list -m'
+            # didn't report it. This is a fallback, but should be unreachable.
+            go_modules[go_module.importpath] = _with_sum(go_module, sums[key].sum)
+        elif key in sum_facts:
+            # Sum fetched by a previous run of this function, stored in facts.
+            go_modules[go_module.importpath] = _with_sum(go_module, sum_facts[key])
+            sum_facts_keys_used[key] = None
+        elif download_path in summed_paths:
+            # Sum unknown, need to download.
+            to_download.setdefault(key, []).append(go_module.importpath)
+
+    # Drop sum_facts we didn't use.
+    if len(sum_facts_keys_used) < len(sum_facts):
+        sum_facts = {k: v for k, v in sum_facts.items() if k in sum_facts_keys_used}
+
+    if to_download:
+        # Run 'go mod download' in a separate empty module so that we don't need
+        # to worry about 'replace' directives: we want to download the
+        # replacements, not the originally required modules.
+        module_ctx.file("download/go.mod", "module go_deps_download\n")
+        download_args = ["{}@{}".format(*key) for key in to_download]
+        result = env_execute(
+            module_ctx,
+            [go_tool, "mod", "download", "-json", "--"] + download_args,
+            go_env | {"GOWORK": "off"},
+            working_directory = "download",
+        )
+        for m in _decode_json_stream(result.stdout):
+            key = (m.get("Path"), m.get("Version"))
+            if "Error" in m or "Sum" not in m or key not in to_download:
+                continue
+            for importpath in to_download[key]:
+                go_modules[importpath] = _with_sum(go_modules[importpath], m["Sum"])
+                sum_facts[key] = m["Sum"]
+
+    return go_modules, sum_facts
+
+def _with_sum(info, sum):
+    """Returns a copy of a _go_module_info struct with the sum set"""
+    return _go_module_info(
+        importpath = info.importpath,
+        repo_name = info.repo_name,
+        version = info.version,
+        pre_replace_version = info.pre_replace_version,
+        sum = sum,
+        replace_path = info.replace_path,
+        local_path = info.local_path,
+        go_mod_label = info.go_mod_label,
+        need_go_mod = info.need_go_mod,
+    )
 
 def _go_version(module_ctx, go_tool, go_env):
     """
@@ -1718,6 +1859,21 @@ To correct this:
             kind = "go_repository",
             importpath = go_module.importpath,
         )
+
+def _decode_json_stream(s):
+    """
+    Decodes a sequence of JSON objects printed by 'go list -m -json' or 'go mod download -json'
+
+    json.decode parses a single JSON value, but the go command prints one JSON
+    object per module, separated by newlines. Split on the boundary between
+    objects before decoding each value.
+    """
+    sep = "\n}\n"
+    return [
+        json.decode(part.strip() + sep)
+        for part in s.split(sep)
+        if part.strip() != ""
+    ]
 
 _GAZELLE_DEFAULT_ATTRIBUTES = struct(
     build_file_generation = "on",

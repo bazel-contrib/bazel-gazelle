@@ -542,10 +542,24 @@ type goDepsWorkspace struct {
 	replaces         []replaceDirective
 	goWorkSum        []string
 	moduleTags       []map[string]any
-	bazelGoModDirs   map[string]string // Go module path => directory in synthetic workspace
-	requiredVersions []requiredVersion // versions required by any go.mod file or module tag
-	rootReplaced     map[string]bool   // Go module paths replaced by the root module's go.mod or go.work
-	localPathDirs    map[string]string // Go module path => absolute directory from go_deps.module.local_path
+	bazelGoModDirs   map[string]string        // Go module path => directory in synthetic workspace
+	requiredVersions []requiredVersion        // versions required by any go.mod file or module tag
+	rootReplaced     map[string]bool          // Go module paths replaced by the root module's go.mod or go.work
+	localPathDirs    map[string]string        // Go module path => absolute directory from go_deps.module.local_path
+	sums             map[moduleVersion]string // module content sums from go.sum, go.work.sum, and module tags
+}
+
+func (ws *goDepsWorkspace) addSums(goSum string) {
+	if ws.sums == nil {
+		ws.sums = map[moduleVersion]string{}
+	}
+	for _, line := range strings.Split(goSum, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 3 || strings.HasSuffix(fields[1], "/go.mod") {
+			continue
+		}
+		ws.sums[moduleVersion{fields[0], fields[1]}] = fields[2]
+	}
 }
 
 func (ws *goDepsWorkspace) addRequiredVersion(path, version string) {
@@ -617,6 +631,13 @@ func buildGoDepsWorkspace(dirPath string, tc *testCase, isolateModuleName string
 		return nil, nil
 	}
 	ws.localPathDirs = collectLocalPathDirs(dirPath, tc, isolateModuleName, isolated)
+	ws.sums = map[moduleVersion]string{}
+	for _, tag := range ws.moduleTags {
+		if sum, _ := tag["sum"].(string); sum != "" {
+			path, _ := tag["path"].(string)
+			ws.sums[moduleVersion{path, canonicalModuleVersion(tag["version"])}] = sum
+		}
+	}
 
 	seenGoMod := map[string]bool{}
 	seenUse := map[string]bool{}
@@ -659,6 +680,7 @@ func buildGoDepsWorkspace(dirPath string, tc *testCase, isolateModuleName string
 
 		sumKey := strings.TrimSuffix(ref.fileKey, "go.mod") + "go.sum"
 		if sumContent, ok := tc.Files[sumKey]; ok {
+			ws.addSums(sumContent)
 			sumCopyPath := filepath.Join(filepath.Dir(fullCopyPath), "go.sum")
 			if err := os.WriteFile(sumCopyPath, []byte(sumContent), 0666); err != nil {
 				return fmt.Errorf("write %s: %w", sumCopyPath, err)
@@ -837,6 +859,7 @@ func processGoWorkFromFileTag(dirPath string, tc *testCase, m *module, goWorkLab
 	sumKey := strings.TrimSuffix(fileKey, "go.work") + "go.work.sum"
 	if sumContent, ok := tc.Files[sumKey]; ok {
 		ws.goWorkSum = append(ws.goWorkSum, strings.TrimSpace(sumContent))
+		ws.addSums(sumContent)
 	}
 	return nil
 }
