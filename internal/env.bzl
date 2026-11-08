@@ -386,3 +386,27 @@ def _detect_host_platform(ctx):
         fail("Unsupported operating system: " + ctx.os.name)
 
     return host
+
+GoEnvInfo = provider(fields = {"env": "Environment variables for Go tools."})
+
+def _runner_env_impl(ctx):
+    return [GoEnvInfo(env = ctx.attr.env)]
+
+runner_env = rule(
+    implementation = _runner_env_impl,
+    attrs = {"env": attr.string_dict()},
+)
+
+def runner_env_build(files):
+    """Returns the BUILD file exposing the generated environment to a runner."""
+    return """load("{label}", "runner_env")
+load(":go_env.bzl", "GO_ENV")
+
+exports_files({files})
+
+runner_env(
+    name = "runner_env",
+    env = GO_ENV,
+    visibility = ["//visibility:public"],
+)
+""".format(label = str(Label("//internal:env.bzl")), files = repr(files))
