@@ -115,6 +115,10 @@ DEFAULT_DIRECTIVES_BY_PATH = {
     "github.com/lightstep/lightstep-tracer-common/golang/gogo": [
         "gazelle:proto disable",
     ],
+    "github.com/openconfig/grpctunnel": [
+        # The generated .pb.go files are checked in, and .proto go_package options do not match package paths.
+        "gazelle:proto disable",
+    ],
     "github.com/prometheus/alertmanager": [
         "gazelle:proto disable",
     ],
