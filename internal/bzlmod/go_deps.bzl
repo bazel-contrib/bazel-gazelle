@@ -874,7 +874,7 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
             if go_sum_path.exists:
                 watch(module_ctx, go_sum_path)
                 go_sum_content = module_ctx.read(go_sum_path)
-                go_sum_label = Label("@@{}//{}:go.sum".format(go_mod_label.repo_name, go_mod_label.package))
+                go_sum_label = Label(str(go_mod_label)[:-len(".mod")] + ".sum")
                 add_sums(module_ctx, sums, parse_go_sum(go_sum_content, go_sum_label))
                 if module_ctx.failed():
                     return
