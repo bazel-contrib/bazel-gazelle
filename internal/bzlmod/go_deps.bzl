@@ -80,6 +80,10 @@ def go_deps_impl(module_ctx):
     if module_ctx.failed():
         return None
 
+    # TODO(#2512): enable FAST_IMPRECISE_MODE by default if the root Bazel
+    # module does not use go_deps.
+    version_selection_mode = config_tag.version_selection if config_tag else SLOW_CORRECT_MODE
+
     # Bazel only includes modules that use the extension in module_ctx.modules,
     # so the root module may be absent if only dependencies use go_deps. In
     # that case, there are no root requirements, config, or overrides.
@@ -119,7 +123,12 @@ def go_deps_impl(module_ctx):
     # Create a scratch Go workspace (with a synthetic go.work and go.mod file)
     # expressing constraints from go_deps tags, linking with go.mod files
     # provided by go_deps.from_file.
-    workspace = _create_workspace_from_tags(module_ctx, go_tool, go_exec_env)
+    workspace = _create_workspace_from_tags(
+        module_ctx,
+        go_tool,
+        go_exec_env,
+        should_write_files = version_selection_mode == SLOW_CORRECT_MODE,
+    )
     if module_ctx.failed() or workspace == None:
         return None
     bazel_go_modules, required_mods, replacements, sums = workspace
@@ -127,7 +136,7 @@ def go_deps_impl(module_ctx):
     required_mod_files_from_workspace = get_required_mod_files(required_mods, replacements)
     required_mod_files = required_mod_files_from_workspace | read_mod_file_facts(module_ctx)
 
-    if config_tag == None or config_tag.version_selection == SLOW_CORRECT_MODE:
+    if version_selection_mode == SLOW_CORRECT_MODE:
         # Download the .mod files that 'go list -m' is likely to need with Bazel's
         # downloader, so they can be mirrored and cached like other external files.
         download_dir, new_sha256 = download_mod_files(module_ctx, go_env, required_mod_files)
@@ -805,7 +814,7 @@ def _local_replace_path(dir_path):
         return _modfile_token(dir_path)
     return _modfile_token("./" + dir_path)
 
-def _create_workspace_from_tags(module_ctx, go_tool, go_env):
+def _create_workspace_from_tags(module_ctx, go_tool, go_env, should_write_files):
     """
     Create a scratch go.work workspace based on go_deps tags.
 
@@ -840,6 +849,9 @@ def _create_workspace_from_tags(module_ctx, go_tool, go_env):
         go_tool: path to the go tool, needed for 'go mod edit -json',
             'go work edit -json'.
         go_env: environment to run the go tool with.
+        should_write_files: whether to actually write .work, .mod, and .sum
+            files in the synthetic workspace. These are only needed by
+            'go list -m'.
 
     Returns:
         - bazel_go_modules: a dict mapping Go module path to _bazel_go_mod_info
@@ -992,10 +1004,11 @@ To correct this:
                 go_mod_json["Replace"] = None
                 go_mod_json["Exclude"] = None
                 copied_go_mod_path = module_ctx.path(paths.join("mod", module.name, _label_to_rel(go_mod_label)))
-                module_ctx.file(copied_go_mod_path, _format_go_mod_json(go_mod_json))
-                if go_sum_content != None:
-                    copied_go_sum_path = copied_go_mod_path.dirname.get_child("go.sum")
-                    module_ctx.file(copied_go_sum_path, go_sum_content)
+                if should_write_files:
+                    module_ctx.file(copied_go_mod_path, _format_go_mod_json(go_mod_json))
+                    if go_sum_content != None:
+                        copied_go_sum_path = copied_go_mod_path.dirname.get_child("go.sum")
+                        module_ctx.file(copied_go_sum_path, go_sum_content)
                 bazel_go_module_dirs[info.importpath] = path_str(copied_go_mod_path.dirname)
                 go_work_lines.append("use {}".format(_modfile_token(path_str(copied_go_mod_path.dirname))))
 
@@ -1084,9 +1097,10 @@ To correct this:
         go_mod_lines.append("replace {} => {}".format(path, _local_replace_path(dir_path)))
         replacements[(path, None)] = (dir_path, None)
 
-    module_ctx.file("go.work", "\n".join(go_work_lines))
-    module_ctx.file("go.mod", "\n".join(go_mod_lines))
-    module_ctx.file("go.sum", "\n".join(go_sum_lines))
+    if should_write_files:
+        module_ctx.file("go.work", "\n".join(go_work_lines))
+        module_ctx.file("go.mod", "\n".join(go_mod_lines))
+        module_ctx.file("go.sum", "\n".join(go_sum_lines))
     if go_work_sum_lines:
         module_ctx.file("go.work.sum", "\n".join(go_work_sum_lines))
 
