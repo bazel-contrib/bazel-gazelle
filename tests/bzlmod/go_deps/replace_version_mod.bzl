@@ -8,8 +8,8 @@ changes the module's content, not the requested version, so this is
 not a version conflict.
 
 go.sum lacks the checksum of the replacement's zip file, as 'go mod tidy'
-leaves it when no package of the module is needed. go_deps warns about
-the missing sum but does not fail.
+leaves it when no package of the module is needed. go_deps downloads the
+replacement with 'go mod download' to find its sum.
 """
 
 TEST = r"""
@@ -45,20 +45,18 @@ TEST = r"""
   "executions": {
     "main": {
       "go list -m -json all": "{\n\t\"Path\": \"example.com/replace_version_mod\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps/mod/replace_version_mod\",\n\t\"GoMod\": \"/test/go_deps/mod/replace_version_mod/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"go_deps_module_tags\",\n\t\"Main\": true,\n\t\"Dir\": \"/test/go_deps\",\n\t\"GoMod\": \"/test/go_deps/go.mod\",\n\t\"GoVersion\": \"1.24.12\"\n}\n{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.40.0\",\n\t\"Replace\": {\n\t\t\"Path\": \"golang.org/x/mod\",\n\t\t\"Version\": \"v0.39.0\",\n\t\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.39.0.mod\",\n\t\t\"GoVersion\": \"1.25.0\",\n\t\t\"GoModSum\": \"h1:bvIbwjQ0HUFFf5AKukeeYQG4ZBUG9yxQbR9aEweIwYY=\"\n\t},\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.39.0.mod\",\n\t\"GoVersion\": \"1.25.0\"\n}\n{\n\t\"Path\": \"golang.org/x/tools\",\n\t\"Version\": \"v0.48.0\",\n\t\"Time\": \"0001-01-01T00:00:00Z\",\n\t\"Indirect\": true,\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/tools/@v/v0.48.0.mod\",\n\t\"GoVersion\": \"1.25.0\",\n\t\"Sum\": \"h1:3+hClM1aLL5mjMKm5ovokw9epgRXPuu2tILgismM6RE=\",\n\t\"GoModSum\": \"h1:08xX0orndb/F7jJxGDicx061tyd5pcMto75YMAXr6lk=\"\n}\n",
+      "go mod download -json -- golang.org/x/mod@v0.39.0": "{\n\t\"Path\": \"golang.org/x/mod\",\n\t\"Version\": \"v0.39.0\",\n\t\"Info\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.39.0.info\",\n\t\"GoMod\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.39.0.mod\",\n\t\"Zip\": \"/gomodcache/cache/download/golang.org/x/mod/@v/v0.39.0.zip\",\n\t\"Dir\": \"/gomodcache/golang.org/x/mod@v0.39.0\",\n\t\"Sum\": \"h1:UF5zwQdCRRUpHfyPwr7d4UrGiVeldIsogtzWVnczL74=\",\n\t\"GoModSum\": \"h1:bvIbwjQ0HUFFf5AKukeeYQG4ZBUG9yxQbR9aEweIwYY=\"\n}\n",
       "go mod edit -json -- ./replace_version_mod/go.mod": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/replace_version_mod\"\n\t},\n\t\"Go\": \"1.24.12\",\n\t\"Require\": [\n\t\t{\n\t\t\t\"Path\": \"golang.org/x/mod\",\n\t\t\t\"Version\": \"v0.40.0\"\n\t\t}\n\t],\n\t\"Exclude\": null,\n\t\"Replace\": [\n\t\t{\n\t\t\t\"Old\": {\n\t\t\t\t\"Path\": \"golang.org/x/mod\"\n\t\t\t},\n\t\t\t\"New\": {\n\t\t\t\t\"Path\": \"golang.org/x/mod\",\n\t\t\t\t\"Version\": \"v0.39.0\"\n\t\t\t}\n\t\t}\n\t],\n\t\"Retract\": null,\n\t\"Tool\": null,\n\t\"Ignore\": null\n}\n"
     }
   },
   "want": {
     "main": {
-      "print": [
-        "Missing go.sum entry for Go module golang.org/x/mod:\n    selected by Go: v0.39.0\nTo correct this:\n    Run 'go mod download golang.org/x/mod' to update go.sum."
-      ],
       "repos": [
         {
           "importpath": "golang.org/x/mod",
           "name": "org_golang_x_mod",
           "replace": "golang.org/x/mod",
-          "sum": null,
+          "sum": "h1:UF5zwQdCRRUpHfyPwr7d4UrGiVeldIsogtzWVnczL74=",
           "version": "v0.39.0"
         }
       ],

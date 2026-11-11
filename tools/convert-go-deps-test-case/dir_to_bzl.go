@@ -173,8 +173,17 @@ func convertDirToBzlWithGoEnv(dirPath, bzlPath string) error {
 		return fmt.Errorf("write go_deps convenience files: %w", err)
 	}
 
+	factSums, err := parseModuleSumFacts(facts)
+	if err != nil {
+		return err
+	}
+
 	executions := map[string]map[string]string{}
-	mainExecs, err := deriveExecutions(dirPath, files, goDepsWorkDir("", false), collectFromFileTags(parsed, false))
+	mainDownloads, err := newModDownloadInputs(dirPath, tcForWork, factSums, "", false)
+	if err != nil {
+		return err
+	}
+	mainExecs, err := deriveExecutions(dirPath, files, goDepsWorkDir("", false), collectFromFileTags(parsed, false), mainDownloads)
 	if err != nil {
 		return err
 	}
@@ -185,7 +194,11 @@ func convertDirToBzlWithGoEnv(dirPath, bzlPath string) error {
 		if pm.tagsIsolate.isEmpty() {
 			continue
 		}
-		isolateExecs, err := deriveExecutions(dirPath, files, goDepsWorkDir(name, true), collectFromFileTagsForModule(pm))
+		isolateDownloads, err := newModDownloadInputs(dirPath, tcForWork, factSums, name, true)
+		if err != nil {
+			return err
+		}
+		isolateExecs, err := deriveExecutions(dirPath, files, goDepsWorkDir(name, true), collectFromFileTagsForModule(pm), isolateDownloads)
 		if err != nil {
 			return err
 		}
@@ -745,7 +758,7 @@ func expandFromFileRefs(files map[string]string, fromFileRefs []fromFileRef) ([]
 	return expanded, nil
 }
 
-func deriveExecutions(dirPath string, files map[string]string, workSubdir string, fromFileRefs []fromFileRef) (map[string]string, error) {
+func deriveExecutions(dirPath string, files map[string]string, workSubdir string, fromFileRefs []fromFileRef, downloads *modDownloadInputs) (map[string]string, error) {
 	executions := map[string]string{}
 	expandedRefs, err := expandFromFileRefs(files, fromFileRefs)
 	if err != nil {
@@ -758,7 +771,200 @@ func deriveExecutions(dirPath string, files map[string]string, workSubdir string
 	if err := appendGoListExecution(workDir, dirPath, executions); err != nil {
 		return nil, err
 	}
+	if err := appendGoModDownloadExecution(workDir, dirPath, downloads, executions); err != nil {
+		return nil, err
+	}
 	return executions, nil
+}
+
+const moduleSumsFactsKey = "module_sums_v1"
+
+type moduleVersion struct {
+	path    string
+	version string
+}
+
+// modDownloadInputs holds what go_deps needs to decide which modules with
+// missing sums to download with 'go mod download -json'.
+type modDownloadInputs struct {
+	sums             map[moduleVersion]string // module content sums from go.sum, go.work.sum, and module tags
+	summedPaths      map[string]bool          // Go module paths with a content sum at any version
+	bazelGoModules   map[string]bool          // Go module paths provided by Bazel modules
+	archiveOverrides map[string]bool          // Go module paths with a go_deps.archive_override tag
+	factSums         map[moduleVersion]bool
+}
+
+func newModDownloadInputs(dirPath string, tc *testCase, factSums map[moduleVersion]bool, isolateModuleName string, isolated bool) (*modDownloadInputs, error) {
+	ws, err := buildGoDepsWorkspace(dirPath, tc, isolateModuleName, isolated)
+	if err != nil || ws == nil {
+		return nil, err
+	}
+	inputs := &modDownloadInputs{
+		sums:             ws.sums,
+		summedPaths:      map[string]bool{},
+		bazelGoModules:   map[string]bool{},
+		archiveOverrides: map[string]bool{},
+		factSums:         factSums,
+	}
+	for mv := range ws.sums {
+		inputs.summedPaths[mv.path] = true
+	}
+	for path := range ws.bazelGoModDirs {
+		inputs.bazelGoModules[path] = true
+	}
+	for i := range tc.Modules {
+		m := &tc.Modules[i]
+		var tagSets []*tags
+		if isolated {
+			if m.Name == isolateModuleName {
+				tagSets = []*tags{m.TagsIsolate}
+			}
+		} else {
+			tagSets = []*tags{m.Tags, m.TagsDev}
+		}
+		for _, ts := range tagSets {
+			if ts == nil {
+				continue
+			}
+			for _, tag := range ts.ArchiveOverride {
+				if path, ok := tag["path"].(string); ok {
+					inputs.archiveOverrides[path] = true
+				}
+			}
+		}
+	}
+	return inputs, nil
+}
+
+func parseModuleSumFacts(facts map[string]json.RawMessage) (map[moduleVersion]bool, error) {
+	raw, ok := facts[moduleSumsFactsKey]
+	if !ok {
+		return nil, nil
+	}
+	var entries []struct {
+		Importpath string `json:"importpath"`
+		Version    string `json:"version"`
+	}
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return nil, fmt.Errorf("%s: facts[%q]: %w", factsFileName, moduleSumsFactsKey, err)
+	}
+	sums := map[moduleVersion]bool{}
+	for _, e := range entries {
+		sums[moduleVersion{e.Importpath, e.Version}] = true
+	}
+	return sums, nil
+}
+
+// appendGoModDownloadExecution records the output of the 'go mod download'
+// command that go_deps runs to find sums for selected modules that have a sum
+// at some other version, but not at the selected version. The candidates are
+// chosen the same way as in _fill_missing_sums in go_deps.bzl.
+func appendGoModDownloadExecution(workDir, normalizeDir string, inputs *modDownloadInputs, executions map[string]string) error {
+	listOutput, ok := executions[goListCommand]
+	if !ok || inputs == nil {
+		return nil
+	}
+	dec := json.NewDecoder(strings.NewReader(listOutput))
+	var args []string
+	seen := map[moduleVersion]bool{}
+	for dec.More() {
+		var m struct {
+			Path    string
+			Version string
+			Main    bool
+			Sum     string
+			Replace *struct {
+				Path    string
+				Version string
+				Sum     string
+			}
+		}
+		if err := dec.Decode(&m); err != nil {
+			return fmt.Errorf("%s: %w", goListCommand, err)
+		}
+		if m.Main || inputs.bazelGoModules[m.Path] || inputs.archiveOverrides[m.Path] {
+			continue
+		}
+		mv := moduleVersion{m.Path, m.Version}
+		sum := m.Sum
+		if m.Replace != nil {
+			if m.Replace.Version == "" {
+				continue // directory replacement
+			}
+			mv = moduleVersion{m.Replace.Path, m.Replace.Version}
+			sum = m.Replace.Sum
+		}
+		if sum == "" {
+			sum = inputs.sums[mv]
+		}
+		if sum != "" || mv.version == "" || !inputs.summedPaths[mv.path] || inputs.factSums[mv] || seen[mv] {
+			continue
+		}
+		seen[mv] = true
+		args = append(args, mv.path+"@"+mv.version)
+	}
+	if len(args) == 0 {
+		return nil
+	}
+
+	// Like go_deps, run in a separate module so that 'go mod download' doesn't
+	// write go.work.sum in the workspace.
+	downloadDir := filepath.Join(workDir, "download")
+	if err := os.MkdirAll(downloadDir, 0o777); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(downloadDir, "go.mod"), []byte("module go_deps_download\n"), 0o666); err != nil {
+		return err
+	}
+	cmd, err := goCommand(downloadDir, append([]string{"mod", "download", "-json", "--"}, args...)...)
+	if err != nil {
+		return err
+	}
+	cmd.Env = append(os.Environ(), "GOWORK=off")
+	// 'go mod download' exits non-zero if any module fails, but still reports
+	// each module, so the output is useful either way.
+	out, _ := cmd.Output()
+	stdout, err := normalizeGoModDownloadOutput(string(out))
+	if err != nil {
+		return err
+	}
+	command := "go mod download -json -- " + strings.Join(args, " ")
+	executions[command] = normalizeTestDirPaths(normalizeDir, stdout)
+	return nil
+}
+
+// goModDownloadJSON has the fields printed by 'go mod download -json', in the
+// same order, except for Origin and Reuse. Those depend on whether the module
+// was already in the module cache, so the output wouldn't be reproducible.
+type goModDownloadJSON struct {
+	Path     string `json:",omitempty"`
+	Version  string `json:",omitempty"`
+	Query    string `json:",omitempty"`
+	Error    string `json:",omitempty"`
+	Info     string `json:",omitempty"`
+	GoMod    string `json:",omitempty"`
+	Zip      string `json:",omitempty"`
+	Dir      string `json:",omitempty"`
+	Sum      string `json:",omitempty"`
+	GoModSum string `json:",omitempty"`
+}
+
+func normalizeGoModDownloadOutput(stdout string) (string, error) {
+	var b strings.Builder
+	dec := json.NewDecoder(strings.NewReader(stdout))
+	for dec.More() {
+		var m goModDownloadJSON
+		if err := dec.Decode(&m); err != nil {
+			return "", fmt.Errorf("go mod download -json: %w", err)
+		}
+		data, err := json.MarshalIndent(m, "", "\t")
+		if err != nil {
+			return "", err
+		}
+		b.Write(data)
+		b.WriteString("\n")
+	}
+	return b.String(), nil
 }
 
 func appendDerivedGoEditExecutions(dirPath string, files map[string]string, fromFileRefs []fromFileRef, executions map[string]string) error {
