@@ -67,6 +67,10 @@ DEFAULT_DIRECTIVES_BY_PATH = {
         "gazelle:go_naming_convention import_alias",
         "gazelle:proto disable",
     ],
+    # cgroups runs go-fix-acronym after protoc to preserve names such as Metrics.CPU.
+    "github.com/containerd/cgroups/v3": [
+        "gazelle:go_generate_proto false",
+    ],
     "github.com/containerd/containerd": [
         "gazelle:proto disable",
     ],
