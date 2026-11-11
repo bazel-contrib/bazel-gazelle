@@ -23,6 +23,17 @@ import (
 	"github.com/bazelbuild/rules_go/go/tools/bazel_testing"
 )
 
+func TestRunnerLoadFiles(t *testing.T) {
+	out, err := bazel_testing.BazelOutput("query", "--enable_workspace", "loadfiles(//:gazelle)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const goEnv = "bazel_gazelle_go_repository_config//:go_env.bzl"
+	if strings.Contains(string(out), goEnv) {
+		t.Errorf("loading //:gazelle also loaded %s", goEnv)
+	}
+}
+
 func TestRunner(t *testing.T) {
 	origBuildData, err := os.ReadFile("BUILD.bazel")
 	if err != nil {

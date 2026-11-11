@@ -13,7 +13,7 @@
 # limitations under the License.
 
 load("//internal:common.bzl", "env_execute", "executable_extension", "watch")
-load("//internal:env.bzl", "read_go_env_file", "resolve_env")
+load("//internal:env.bzl", "read_go_env_file", "resolve_env", "runner_env_build")
 
 def _go_repository_config_impl(ctx):
     go_env = resolve_env(
@@ -76,10 +76,9 @@ def _go_repository_config_impl(ctx):
         False,
     )
 
-    # add an empty build file so Bazel recognizes the config
     ctx.file(
         "BUILD.bazel",
-        "exports_files([\"go_env.bzl\", \"go_tools.bzl\", \"WORKSPACE\"])",
+        runner_env_build(["go_env.bzl", "go_tools.bzl", "WORKSPACE"]),
         False,
     )
 

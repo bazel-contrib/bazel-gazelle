@@ -13,10 +13,6 @@
 # limitations under the License.
 
 load(
-    "@bazel_gazelle_go_repository_config//:go_env.bzl",
-    "GO_ENV",
-)
-load(
     "@bazel_gazelle_is_bazel_module//:defs.bzl",
     "GAZELLE_IS_BAZEL_MODULE",
 )
@@ -32,6 +28,7 @@ load(
     "@rules_shell//shell:sh_test.bzl",
     "sh_test",
 )
+load("//internal:env.bzl", "GoEnvInfo")
 load(
     "//internal:gazelle_binary.bzl",
     _gazelle_binary = "gazelle_binary",
@@ -84,6 +81,10 @@ def _rlocation_path(ctx, file):
 
 def _gazelle_runner_attr_factory(test_runner = False):
     attrs = {
+        "_go_env": attr.label(
+            default = "@bazel_gazelle_go_repository_config//:runner_env",
+            providers = [GoEnvInfo],
+        ),
         "gazelle": attr.label(
             allow_single_file = True,
             default = "//cmd/gazelle",
@@ -147,7 +148,7 @@ def _gazelle_runner_impl_factory(ctx, test_runner = False):
     args.extend([ctx.expand_location(arg, ctx.attr.data) for arg in ctx.attr.extra_args])
 
     combined_env = {}
-    combined_env.update(GO_ENV)
+    combined_env.update(ctx.attr._go_env[GoEnvInfo].env)
     combined_env.update(ctx.attr.env)
     for key in combined_env:
         if not _valid_env_variable_name(key):
