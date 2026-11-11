@@ -38,6 +38,12 @@ gazelle_binary(
     ],
 )
 
+alias(
+    name = "go_repository_config",
+    actual = "@bazel_gazelle_go_repository_config//:WORKSPACE",
+    visibility = ["//visibility:public"],
+)
+
 nogo(
     name = "nogo",
     vet = True,

@@ -112,7 +112,7 @@ def _gazelle_runner_attr_factory(test_runner = False):
         "data": attr.label_list(allow_files = True),
         "env": attr.string_dict(),
         "_repo_config": attr.label(
-            default = "@bazel_gazelle_go_repository_config//:WORKSPACE" if GAZELLE_IS_BAZEL_MODULE else None,
+            default = "//:go_repository_config" if GAZELLE_IS_BAZEL_MODULE else None,
             allow_single_file = True,
         ),
         "_template": attr.label(

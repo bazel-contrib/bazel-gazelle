@@ -139,6 +139,11 @@ If you build and install a Gazelle binary, you can also invoke it directly witho
 gazelle [fix|update] [flags...] [directories...]
 ```
 
+In a Bzlmod project, a Bazel action that calls Gazelle directly can declare
+`@gazelle//:go_repository_config` as an input and pass its path to
+`-repo_config`. This supplies the Go import paths and repository names
+that the `gazelle` rule gets from the shared `go_deps` extension.
+
 To print changes Gazelle would make and exit non-zero if changes are needed:
 
 ```
