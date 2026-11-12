@@ -86,3 +86,96 @@ func (mapKindTestLanguage) GenerateRules(args languagev1.GenerateArgs) languagev
 
 func (mapKindTestLanguage) Resolve(_ *config.Config, _ *resolve.RuleIndex, _ *repo.RemoteCache, r *rule.Rule, _ any, _ label.Label) {
 }
+
+// TestAliasedKindGeneratedRuleMergesAttrs verifies that aliases' attributes can
+// be updated (in addition to being added).
+func TestAliasedKindGeneratedRuleMergesAttrs(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "WORKSPACE"), nil, 0o666); err != nil {
+		t.Fatal(err)
+	}
+	buildPath := filepath.Join(dir, "BUILD.bazel")
+	if err := os.WriteFile(buildPath, []byte(`# gazelle:alias_kind aliased_library base_library
+
+aliased_library(
+    name = "foo",
+    srcs = ["old.src"],
+    deps = [":old"],
+)
+`), 0o666); err != nil {
+		t.Fatal(err)
+	}
+
+	langs := []language.Language{compat.LanguageV2(aliasKindTestLanguage{})}
+	if err := Run(context.Background(), langs, dir, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := os.ReadFile(buildPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `# gazelle:alias_kind aliased_library base_library
+
+aliased_library(
+    name = "foo",
+    srcs = ["new.src"],
+    deps = [":new"],
+)
+`
+	if string(got) != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// aliasKindTestLanguage declares base_library, but generates a rule with
+// aliased_library kind, as some languages (for example, gazelle_cc) do.
+type aliasKindTestLanguage struct{}
+
+func (aliasKindTestLanguage) Name() string { return "alias_kind_test" }
+
+func (aliasKindTestLanguage) RegisterFlags(*flag.FlagSet, string, *config.Config) {}
+
+func (aliasKindTestLanguage) CheckFlags(*flag.FlagSet, *config.Config) error { return nil }
+
+func (aliasKindTestLanguage) KnownDirectives() []string { return nil }
+
+func (aliasKindTestLanguage) Configure(*config.Config, string, *rule.File) {}
+
+func (aliasKindTestLanguage) Kinds() map[string]rule.KindInfo {
+	return map[string]rule.KindInfo{
+		"base_library": {
+			MatchAny:       true,
+			MergeableAttrs: map[string]bool{"srcs": true},
+			ResolveAttrs:   map[string]bool{"deps": true},
+		},
+	}
+}
+
+func (aliasKindTestLanguage) Loads() []rule.LoadInfo { return nil }
+
+func (aliasKindTestLanguage) Fix(*config.Config, *rule.File) {}
+
+func (aliasKindTestLanguage) Imports(*config.Config, *rule.Rule, *rule.File) []resolve.ImportSpec {
+	return nil
+}
+
+func (aliasKindTestLanguage) Embeds(*rule.Rule, label.Label) []label.Label { return nil }
+
+func (aliasKindTestLanguage) GenerateRules(args languagev1.GenerateArgs) languagev1.GenerateResult {
+	if args.Rel != "" {
+		return languagev1.GenerateResult{}
+	}
+	// Languages may generate a rule of an aliased kind directly, rather than
+	// the underlying kind.
+	r := rule.NewRule("aliased_library", "foo")
+	r.SetAttr("srcs", []string{"new.src"})
+	return languagev1.GenerateResult{
+		Gen:     []*rule.Rule{r},
+		Imports: []any{nil},
+	}
+}
+
+func (aliasKindTestLanguage) Resolve(_ *config.Config, _ *resolve.RuleIndex, _ *repo.RemoteCache, r *rule.Rule, _ any, _ label.Label) {
+	r.SetAttr("deps", []string{":new"})
+}
