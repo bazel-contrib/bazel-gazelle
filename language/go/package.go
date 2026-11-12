@@ -303,8 +303,8 @@ func goProtoImportPath(c *config.Config, pkg proto.Package, rel string) string {
 }
 
 func (t *goTarget) addFile(c *config.Config, er *embedResolver, info fileInfo) {
-	t.cgo = t.cgo || info.isCgo
-	add := getPlatformStringsAddFunction(c, info, nil)
+	add, included := getPlatformStringsAddFunction(c, info, nil)
+	t.cgo = t.cgo || (info.isCgo && included)
 	add(&t.sources, info.name)
 	add(&t.imports, info.imports...)
 	if er != nil {
@@ -320,28 +320,28 @@ func (t *goTarget) addFile(c *config.Config, er *embedResolver, info fileInfo) {
 	for _, cppopts := range info.cppopts {
 		optAdd := add
 		if !cppopts.empty() {
-			optAdd = getPlatformStringsAddFunction(c, info, cppopts)
+			optAdd, _ = getPlatformStringsAddFunction(c, info, cppopts)
 		}
 		optAdd(&t.cppopts, cppopts.opts)
 	}
 	for _, copts := range info.copts {
 		optAdd := add
 		if !copts.empty() {
-			optAdd = getPlatformStringsAddFunction(c, info, copts)
+			optAdd, _ = getPlatformStringsAddFunction(c, info, copts)
 		}
 		optAdd(&t.copts, copts.opts)
 	}
 	for _, cxxopts := range info.cxxopts {
 		optAdd := add
 		if !cxxopts.empty() {
-			optAdd = getPlatformStringsAddFunction(c, info, cxxopts)
+			optAdd, _ = getPlatformStringsAddFunction(c, info, cxxopts)
 		}
 		optAdd(&t.cxxopts, cxxopts.opts)
 	}
 	for _, clinkopts := range info.clinkopts {
 		optAdd := add
 		if !clinkopts.empty() {
-			optAdd = getPlatformStringsAddFunction(c, info, clinkopts)
+			optAdd, _ = getPlatformStringsAddFunction(c, info, clinkopts)
 		}
 		optAdd(&t.clinkopts, clinkopts.opts)
 	}
@@ -367,23 +367,27 @@ func (t *protoTarget) addFile(info fileInfo) {
 	t.hasServices = t.hasServices || info.hasServices
 }
 
-// getPlatformStringsAddFunction returns a function used to add strings to
-// a *platformStringsBuilder under the same set of constraints. This is a
-// performance optimization to avoid evaluating constraints repeatedly.
-func getPlatformStringsAddFunction(c *config.Config, info fileInfo, cgoTags *cgoTagsAndOpts) func(sb *platformStringsBuilder, ss ...string) {
+// getPlatformStringsAddFunction returns a function that adds strings to a
+// platformStringsBuilder for the same OS/arch/platform split as go build, and
+// included reports whether the file contributes on at least one rules_go
+// platform (so it is false for e.g. //go:build ignore). The bool is used to
+// attribute cgo when "import C" appears only in excluded files.
+func getPlatformStringsAddFunction(c *config.Config, info fileInfo, cgoTags *cgoTagsAndOpts) (add func(sb *platformStringsBuilder, ss ...string), included bool) {
+	noop := func(_ *platformStringsBuilder, _ ...string) {}
 	isOSSpecific, isArchSpecific := isOSArchSpecific(info, cgoTags)
 	v := getGoConfig(c).rulesGoVersion
 	constraintPrefix := "@" + getGoConfig(c).rulesGoRepoName + "//go/platform:"
 
 	switch {
 	case !isOSSpecific && !isArchSpecific:
-		if checkConstraints(c, "", "", info.goos, info.goarch, info.tags, cgoTags) {
-			return func(sb *platformStringsBuilder, ss ...string) {
-				for _, s := range ss {
-					sb.addGenericString(s)
-				}
-			}
+		if !checkConstraints(c, "", "", info.goos, info.goarch, info.tags, cgoTags) {
+			return noop, false
 		}
+		return func(sb *platformStringsBuilder, ss ...string) {
+			for _, s := range ss {
+				sb.addGenericString(s)
+			}
+		}, true
 
 	case isOSSpecific && !isArchSpecific:
 		var osMatch []string
@@ -393,13 +397,14 @@ func getPlatformStringsAddFunction(c *config.Config, info fileInfo, cgoTags *cgo
 				osMatch = append(osMatch, os)
 			}
 		}
-		if len(osMatch) > 0 {
-			return func(sb *platformStringsBuilder, ss ...string) {
-				for _, s := range ss {
-					sb.addOSString(s, osMatch, constraintPrefix)
-				}
-			}
+		if len(osMatch) == 0 {
+			return noop, false
 		}
+		return func(sb *platformStringsBuilder, ss ...string) {
+			for _, s := range ss {
+				sb.addOSString(s, osMatch, constraintPrefix)
+			}
+		}, true
 
 	case !isOSSpecific && isArchSpecific:
 		var archMatch []string
@@ -409,13 +414,14 @@ func getPlatformStringsAddFunction(c *config.Config, info fileInfo, cgoTags *cgo
 				archMatch = append(archMatch, arch)
 			}
 		}
-		if len(archMatch) > 0 {
-			return func(sb *platformStringsBuilder, ss ...string) {
-				for _, s := range ss {
-					sb.addArchString(s, archMatch, constraintPrefix)
-				}
-			}
+		if len(archMatch) == 0 {
+			return noop, false
 		}
+		return func(sb *platformStringsBuilder, ss ...string) {
+			for _, s := range ss {
+				sb.addArchString(s, archMatch, constraintPrefix)
+			}
+		}, true
 
 	default:
 		var platformMatch []rule.Platform
@@ -425,16 +431,15 @@ func getPlatformStringsAddFunction(c *config.Config, info fileInfo, cgoTags *cgo
 				platformMatch = append(platformMatch, platform)
 			}
 		}
-		if len(platformMatch) > 0 {
-			return func(sb *platformStringsBuilder, ss ...string) {
-				for _, s := range ss {
-					sb.addPlatformString(s, platformMatch, constraintPrefix)
-				}
-			}
+		if len(platformMatch) == 0 {
+			return noop, false
 		}
+		return func(sb *platformStringsBuilder, ss ...string) {
+			for _, s := range ss {
+				sb.addPlatformString(s, platformMatch, constraintPrefix)
+			}
+		}, true
 	}
-
-	return func(_ *platformStringsBuilder, _ ...string) {}
 }
 
 func (sb *platformStringsBuilder) isEmpty() bool {
