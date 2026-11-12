@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cgo_select_build_tags_linux",
+    srcs = [
+        "cgo_icu.go",
+        "pure.go",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:android": [
+            "helper.c",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "helper.c",
+        ],
+        "//conditions:default": [],
+    }),
+    _gazelle_imports = [],
+    cgo = select({
+        "@io_bazel_rules_go//go/platform:android": True,
+        "@io_bazel_rules_go//go/platform:linux": True,
+        "//conditions:default": False,
+    }),
+    importpath = "example.com/repo/cgo_select_build_tags_linux",
+    visibility = ["//visibility:public"],
+)
