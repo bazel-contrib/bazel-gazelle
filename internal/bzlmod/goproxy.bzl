@@ -35,6 +35,38 @@ def required_mod_file(
         version = version,
     )
 
+def get_required_mod_files(required_mods, replacements):
+    """
+    Creates a set of .mod files that may need to be downloaded.
+
+    Args:
+        required_mods: a list of _go_require_info structs for Go modules
+            required via go_deps.module tags or go.mod files referenced by
+            go_deps.from_file tags. May contain duplicate entries since the same
+            module can be required from multiple places.
+        replacements: a dict mapping (importpath, version) pairs to either
+            (importpath, version) or (directory, None) Go module replacements.
+            If the version in the key is omitted, the replacement applies to
+            all versions. Only replacements in the root Bazel module are
+            considered.
+
+    Returns:
+        A dict of required_mod_file structs.
+    """
+    required_mod_files = {}
+    for require in required_mods:
+        replacement = replacements.get((require.importpath, require.version))
+        if not replacement:
+            replacement = replacements.get((require.importpath, None))
+        if replacement:
+            importpath, version = replacement
+            if not version:
+                continue  # local path, no .mod file needed
+        else:
+            importpath, version = require.importpath, require.version
+        required_mod_files[required_mod_file(importpath, version)] = None
+    return required_mod_files
+
 def download_mod_files(
         module_ctx,
         go_env,

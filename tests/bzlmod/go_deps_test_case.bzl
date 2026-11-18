@@ -155,6 +155,7 @@ def _parse_config_tag(d):
         "go_env": {},
         "go_env_inherit": [],
         "debug_mode": False,
+        "version_selection": "slow_correct",
     })
 
 def _parse_from_file_tag(d):

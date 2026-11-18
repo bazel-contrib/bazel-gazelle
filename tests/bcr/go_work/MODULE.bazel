@@ -33,6 +33,7 @@ go_deps.config(
     go_env = {
         "GOPRIVATE": "example.com/*",
     },
+    version_selection = "fast_imprecise",
 )
 
 # Validate a full go workspace. The non-default file name exercises

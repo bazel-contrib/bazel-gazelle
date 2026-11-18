@@ -183,7 +183,7 @@ func convertDirToBzlWithGoEnv(dirPath, bzlPath string) error {
 	if err != nil {
 		return err
 	}
-	mainExecs, err := deriveExecutions(dirPath, files, goDepsWorkDir("", false), collectFromFileTags(parsed, false), mainDownloads)
+	mainExecs, err := deriveExecutions(dirPath, files, goDepsWorkDir("", false), collectFromFileTags(parsed, false), mainDownloads, usesFastImprecise(parsed[rootName].tags, parsed[rootName].tagsDev))
 	if err != nil {
 		return err
 	}
@@ -198,7 +198,7 @@ func convertDirToBzlWithGoEnv(dirPath, bzlPath string) error {
 		if err != nil {
 			return err
 		}
-		isolateExecs, err := deriveExecutions(dirPath, files, goDepsWorkDir(name, true), collectFromFileTagsForModule(pm), isolateDownloads)
+		isolateExecs, err := deriveExecutions(dirPath, files, goDepsWorkDir(name, true), collectFromFileTagsForModule(pm), isolateDownloads, usesFastImprecise(pm.tagsIsolate))
 		if err != nil {
 			return err
 		}
@@ -758,7 +758,18 @@ func expandFromFileRefs(files map[string]string, fromFileRefs []fromFileRef) ([]
 	return expanded, nil
 }
 
-func deriveExecutions(dirPath string, files map[string]string, workSubdir string, fromFileRefs []fromFileRef, downloads *modDownloadInputs) (map[string]string, error) {
+func usesFastImprecise(tagSets ...tags) bool {
+	for _, ts := range tagSets {
+		for _, config := range ts.Config {
+			if config["version_selection"] == "fast_imprecise" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func deriveExecutions(dirPath string, files map[string]string, workSubdir string, fromFileRefs []fromFileRef, downloads *modDownloadInputs, fastImprecise bool) (map[string]string, error) {
 	executions := map[string]string{}
 	expandedRefs, err := expandFromFileRefs(files, fromFileRefs)
 	if err != nil {
@@ -766,6 +777,9 @@ func deriveExecutions(dirPath string, files map[string]string, workSubdir string
 	}
 	if err := appendDerivedGoEditExecutions(dirPath, files, expandedRefs, executions); err != nil {
 		return nil, err
+	}
+	if fastImprecise {
+		return executions, nil
 	}
 	workDir := filepath.Join(dirPath, workSubdir)
 	if err := appendGoListExecution(workDir, dirPath, executions); err != nil {
