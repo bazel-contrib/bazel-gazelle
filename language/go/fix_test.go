@@ -589,6 +589,97 @@ go_library(
 )
 `,
 		},
+		{
+			desc: "preserve srcs select when cgo is platform-specific select",
+			old: `load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "pure.go",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:darwin": [
+            # darwin helper
+            "custom_darwin.c",  # keep
+            "helper_darwin.c",
+        ],
+        "//conditions:default": [],
+    }),
+    cgo = select({
+        "@io_bazel_rules_go//go/platform:darwin": True,
+        "//conditions:default": False,
+    }),
+)
+`,
+			want: `load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "pure.go",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:darwin": [
+            # darwin helper
+            "custom_darwin.c",  # keep
+            "helper_darwin.c",
+        ],
+        "//conditions:default": [],
+    }),
+    cgo = select({
+        "@io_bazel_rules_go//go/platform:darwin": True,
+        "//conditions:default": False,
+    }),
+)
+`,
+		},
+		{
+			desc: "do not flatten srcs on rule marked keep",
+			old: `load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+# keep
+go_library(
+    name = "go_default_library",
+    srcs = select({
+        "@io_bazel_rules_go//go/platform:darwin": ["foo_darwin.go"],
+        "//conditions:default": [],
+    }),
+)
+`,
+			want: `load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+# keep
+go_library(
+    name = "go_default_library",
+    srcs = select({
+        "@io_bazel_rules_go//go/platform:darwin": ["foo_darwin.go"],
+        "//conditions:default": [],
+    }),
+)
+`,
+		},
+		{
+			desc: "do not flatten srcs attribute marked keep",
+			old: `load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = select({
+        "@io_bazel_rules_go//go/platform:darwin": ["foo_darwin.go"],
+        "//conditions:default": [],
+    }),  # keep
+)
+`,
+			want: `load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = select({
+        "@io_bazel_rules_go//go/platform:darwin": ["foo_darwin.go"],
+        "//conditions:default": [],
+    }),  # keep
+)
+`,
+		},
 		// squashXtest tests
 		{
 			desc: "rename xtest",

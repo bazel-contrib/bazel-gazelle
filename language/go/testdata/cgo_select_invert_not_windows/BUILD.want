@@ -1,0 +1,16 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cgo_select_invert_not_windows",
+    srcs = [
+        "cgo_posix.go",
+        "pure.go",
+    ],
+    _gazelle_imports = [],
+    cgo = select({
+        "@io_bazel_rules_go//go/platform:windows": False,
+        "//conditions:default": True,
+    }),
+    importpath = "example.com/repo/cgo_select_invert_not_windows",
+    visibility = ["//visibility:public"],
+)

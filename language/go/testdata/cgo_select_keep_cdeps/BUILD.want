@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cgo_select_keep_cdeps",
+    srcs = [
+        "cgo_darwin.go",
+        "helper_darwin.c",
+        "pure.go",
+    ],
+    _gazelle_imports = [],
+    cgo = True,
+    importpath = "example.com/repo/cgo_select_keep_cdeps",
+    visibility = ["//visibility:public"],
+)

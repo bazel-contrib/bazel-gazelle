@@ -24,10 +24,16 @@ import (
 	"strings"
 
 	"github.com/bazel-contrib/bazel-gazelle/v2/config"
-	"github.com/bazelbuild/bazel-gazelle/language/proto"
 	"github.com/bazel-contrib/bazel-gazelle/v2/pathtools"
 	"github.com/bazel-contrib/bazel-gazelle/v2/rule"
+	"github.com/bazelbuild/bazel-gazelle/internal/version"
+	"github.com/bazelbuild/bazel-gazelle/language/proto"
+	bzl "github.com/bazelbuild/buildtools/build"
 )
+
+// cgoSentinel is the only string in goTarget.cgoPlatforms. Its platform
+// information tells where the target needs cgo.
+const cgoSentinel = "true"
 
 // goPackage contains metadata for a set of .go and .proto files that can be
 // used to generate Go rules.
@@ -45,8 +51,24 @@ type goPackage struct {
 // (library, binary, or test).
 type goTarget struct {
 	sources, embedSrcs, imports, cppopts, copts, cxxopts, clinkopts platformStringsBuilder
-	cgo, hasInternalTest                                            bool
-	pgoprofile                                                      string
+
+	// cgoPlatforms holds cgoSentinel on the platforms where at least one .go
+	// file of the target imports "C". It is empty when no such file matches
+	// any platform.
+	cgoPlatforms platformStringsBuilder
+
+	// cgoSources is the set of companion sources in sources. These are C, C++,
+	// and Objective-C sources, C-preprocessed assembly, and C++ headers.
+	// rules_go rejects them, or builds them only with cgo, so srcs lists them
+	// only on cgo platforms.
+	cgoSources map[string]bool
+
+	// cgo is true if at least one .go file of the target imports "C", on any
+	// platform or on none.
+	cgo bool
+
+	hasInternalTest bool
+	pgoprofile      string
 }
 
 // protoTarget contains information used to generate a go_proto_library rule.
@@ -97,7 +119,7 @@ var pkgVersionRe = regexp.MustCompile("^v[0-9]+$")
 // be added to any target (for example, .txt files).
 func (pkg *goPackage) addFile(c *config.Config, er *embedResolver, info fileInfo, cgo bool) error {
 	switch {
-	case info.ext == unknownExt || !cgo && (info.ext == cExt || info.ext == csExt):
+	case info.ext == unknownExt || !cgo && isCompanionCgoFile(info):
 		return nil
 	case info.ext == protoExt:
 		if pcMode := getProtoMode(c); pcMode == proto.LegacyMode {
@@ -302,10 +324,47 @@ func goProtoImportPath(c *config.Config, pkg proto.Package, rel string) string {
 	return InferImportPath(c, rel)
 }
 
+// isCompanionCgoFile reports whether info is a file that rules_go builds only
+// with cgo:
+//   - C, C++, Objective-C, and Objective-C++ sources (.c, .cc, .cpp, .cxx,
+//     .m, .mm)
+//   - C-preprocessed assembly (.S). Lowercase .s files are Go assembly.
+//   - C++ headers (.hh, .hpp, .hxx), which rules_go rejects when cgo is False
+//
+// Plain .h headers are not companion files, so Go assembly in a package
+// without cgo can include them. Go files that import "C" are not companion
+// files either: they stay in the flat srcs list, and rules_go filters them by
+// build constraints.
+func isCompanionCgoFile(info fileInfo) bool {
+	switch info.ext {
+	case cExt, csExt:
+		return true
+	case hExt:
+		switch path.Ext(info.name) {
+		case ".hh", ".hpp", ".hxx":
+			return true
+		}
+	}
+	return false
+}
+
 func (t *goTarget) addFile(c *config.Config, er *embedResolver, info fileInfo) {
-	t.cgo = t.cgo || info.isCgo
 	add := getPlatformStringsAddFunction(c, info, nil)
+	if info.isCgo {
+		t.cgo = true
+		gc := getGoConfig(c)
+		add(&t.cgoPlatforms, cgoSentinel)
+		t.cgoPlatforms.collapseAllSupportedPlatforms(gc.rulesGoVersion, "@"+gc.rulesGoRepoName+"//go/platform:")
+	}
 	add(&t.sources, info.name)
+	if isCompanionCgoFile(info) {
+		if _, added := t.sources.strs[info.name]; added {
+			if t.cgoSources == nil {
+				t.cgoSources = make(map[string]bool)
+			}
+			t.cgoSources[info.name] = true
+		}
+	}
 	add(&t.imports, info.imports...)
 	if er != nil {
 		for _, embed := range info.embeds {
@@ -594,6 +653,286 @@ func (sb *platformStringsBuilder) buildFlat() []string {
 	}
 	sort.Strings(strs)
 	return strs
+}
+
+// cgoSelect is the value of a platform-specific cgo attribute. Each key maps
+// to value, and the default case maps to the opposite value.
+type cgoSelect struct {
+	keys  []string
+	value bool
+}
+
+var _ rule.BzlExprValue = cgoSelect{}
+
+func (s cgoSelect) BzlExpr() bzl.Expr {
+	boolIdent := func(b bool) bzl.Expr {
+		if b {
+			return &bzl.Ident{Name: "True"}
+		}
+		return &bzl.Ident{Name: "False"}
+	}
+	args := make([]*bzl.KeyValueExpr, 0, len(s.keys)+1)
+	for _, key := range s.keys {
+		args = append(args, &bzl.KeyValueExpr{
+			Key:   &bzl.StringExpr{Value: key},
+			Value: boolIdent(s.value),
+		})
+	}
+	args = append(args, &bzl.KeyValueExpr{
+		Key:   &bzl.StringExpr{Value: "//conditions:default"},
+		Value: boolIdent(!s.value),
+	})
+	return &bzl.CallExpr{
+		X:    &bzl.Ident{Name: "select"},
+		List: []bzl.Expr{&bzl.DictExpr{List: args, ForceMultiLine: true}},
+	}
+}
+
+func (sb *platformStringsBuilder) cgoConstraintInfo() (platformStringInfo, bool) {
+	if sb.isEmpty() {
+		return platformStringInfo{}, false
+	}
+	si, ok := sb.strs[cgoSentinel]
+	return si, ok
+}
+
+// supportedKeys returns the select keys of the set type of si that the
+// rules_go version v supports. Each key maps to true if si contains it.
+// The result is empty for the generic set.
+func (si platformStringInfo) supportedKeys(v version.Version, constraintPrefix string) map[string]bool {
+	keys := make(map[string]bool)
+	switch si.set {
+	case osSet:
+		for _, os := range rule.KnownOSs {
+			if rulesGoSupportsOS(v, os) {
+				key := constraintPrefix + os
+				keys[key] = si.osConstraints[key]
+			}
+		}
+	case archSet:
+		for _, arch := range rule.KnownArchs {
+			if rulesGoSupportsArch(v, arch) {
+				key := constraintPrefix + arch
+				keys[key] = si.archConstraints[key]
+			}
+		}
+	case platformSet:
+		for _, p := range rule.KnownPlatforms {
+			if rulesGoSupportsPlatform(v, p) {
+				pc := rule.PlatformConstraint{Platform: p, ConstraintPrefix: constraintPrefix}
+				keys[pc.String()] = si.platformConstraints[pc]
+			}
+		}
+	}
+	return keys
+}
+
+// keys returns the sorted select keys of the constraints in si.
+func (si platformStringInfo) keys() []string {
+	var keys []string
+	switch si.set {
+	case osSet:
+		for c := range si.osConstraints {
+			keys = append(keys, c)
+		}
+	case archSet:
+		for c := range si.archConstraints {
+			keys = append(keys, c)
+		}
+	case platformSet:
+		for p := range si.platformConstraints {
+			keys = append(keys, p.String())
+		}
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// collapseAllSupportedPlatforms makes the cgo platforms generic when they
+// contain every key of their set type that rules_go version v supports.
+// Gazelle then sets cgo = True.
+func (sb *platformStringsBuilder) collapseAllSupportedPlatforms(v version.Version, constraintPrefix string) {
+	si, ok := sb.cgoConstraintInfo()
+	if !ok || si.set == genericSet {
+		return
+	}
+	keys := si.supportedKeys(v, constraintPrefix)
+	if len(keys) == 0 {
+		return
+	}
+	for _, in := range keys {
+		if !in {
+			return
+		}
+	}
+	sb.strs[cgoSentinel] = platformStringInfo{set: genericSet}
+}
+
+// buildCgoAttr returns the value of the cgo attribute, or nil if the target
+// does not need cgo on any platform. The value is True for generic cgo
+// platforms. Otherwise, it is a select. If cgo is on for more than half of
+// the supported keys, the select lists the keys where cgo is off and
+// defaults to True. Otherwise, it lists the keys where cgo is on and
+// defaults to False.
+func (sb *platformStringsBuilder) buildCgoAttr(v version.Version, constraintPrefix string) interface{} {
+	si, ok := sb.cgoConstraintInfo()
+	if !ok {
+		return nil
+	}
+	if si.set == genericSet {
+		return true
+	}
+	supported := si.supportedKeys(v, constraintPrefix)
+	var off []string
+	for key, in := range supported {
+		if !in {
+			off = append(off, key)
+		}
+	}
+	if on := len(supported) - len(off); on*2 > len(supported) {
+		sort.Strings(off)
+		return cgoSelect{keys: off, value: false}
+	}
+	keys := si.keys()
+	if len(keys) == 0 {
+		return nil
+	}
+	return cgoSelect{keys: keys, value: true}
+}
+
+// addConstrainedString adds s on the platforms in tmpl.
+func (sb *platformStringsBuilder) addConstrainedString(s string, tmpl platformStringInfo, constraintPrefix string) {
+	switch tmpl.set {
+	case genericSet:
+		sb.addGenericString(s)
+	case osSet:
+		var oss []string
+		for c := range tmpl.osConstraints {
+			oss = append(oss, strings.TrimPrefix(c, constraintPrefix))
+		}
+		sb.addOSString(s, oss, constraintPrefix)
+	case archSet:
+		var archs []string
+		for c := range tmpl.archConstraints {
+			archs = append(archs, strings.TrimPrefix(c, constraintPrefix))
+		}
+		sb.addArchString(s, archs, constraintPrefix)
+	case platformSet:
+		var platforms []rule.Platform
+		for p := range tmpl.platformConstraints {
+			platforms = append(platforms, p.Platform)
+		}
+		sb.addPlatformString(s, platforms, constraintPrefix)
+	}
+}
+
+// intersectPlatformStringInfo returns the platforms that a and b share. The
+// result is false if they share no platform.
+func intersectPlatformStringInfo(a, b platformStringInfo, constraintPrefix string) (platformStringInfo, bool) {
+	if a.set == genericSet {
+		return b, true
+	}
+	if b.set == genericSet {
+		return a, true
+	}
+	if a.set == osSet && b.set == osSet {
+		m := make(map[string]bool)
+		for k := range a.osConstraints {
+			if b.osConstraints[k] {
+				m[k] = true
+			}
+		}
+		if len(m) == 0 {
+			return platformStringInfo{}, false
+		}
+		return platformStringInfo{set: osSet, osConstraints: m}, true
+	}
+	if a.set == archSet && b.set == archSet {
+		m := make(map[string]bool)
+		for k := range a.archConstraints {
+			if b.archConstraints[k] {
+				m[k] = true
+			}
+		}
+		if len(m) == 0 {
+			return platformStringInfo{}, false
+		}
+		return platformStringInfo{set: archSet, archConstraints: m}, true
+	}
+	ac, bc := a.clone(), b.clone()
+	ac.convertToPlatforms(constraintPrefix)
+	bc.convertToPlatforms(constraintPrefix)
+	m := make(map[rule.PlatformConstraint]bool)
+	for k := range ac.platformConstraints {
+		if bc.platformConstraints[k] {
+			m[k] = true
+		}
+	}
+	if len(m) == 0 {
+		return platformStringInfo{}, false
+	}
+	// When the intersection is all of a or all of b, keep its set type. The
+	// select expression is then shorter.
+	if len(m) == len(ac.platformConstraints) {
+		return a, true
+	}
+	if len(m) == len(bc.platformConstraints) {
+		return b, true
+	}
+	return platformStringInfo{set: platformSet, platformConstraints: m}, true
+}
+
+func (si platformStringInfo) clone() platformStringInfo {
+	out := platformStringInfo{set: si.set}
+	if si.osConstraints != nil {
+		out.osConstraints = make(map[string]bool, len(si.osConstraints))
+		for k, v := range si.osConstraints {
+			out.osConstraints[k] = v
+		}
+	}
+	if si.archConstraints != nil {
+		out.archConstraints = make(map[string]bool, len(si.archConstraints))
+		for k, v := range si.archConstraints {
+			out.archConstraints[k] = v
+		}
+	}
+	if si.platformConstraints != nil {
+		out.platformConstraints = make(map[rule.PlatformConstraint]bool, len(si.platformConstraints))
+		for k, v := range si.platformConstraints {
+			out.platformConstraints[k] = v
+		}
+	}
+	return out
+}
+
+// buildSources returns the value of the srcs attribute. Companion files are
+// listed only on platforms where cgo is on and the file applies. All other
+// files are in a flat list, and rules_go filters them by build constraints.
+func (t *goTarget) buildSources(constraintPrefix string) interface{} {
+	if len(t.cgoSources) == 0 {
+		return t.sources.buildFlat()
+	}
+	cgoSI, ok := t.cgoPlatforms.cgoConstraintInfo()
+	if ok && cgoSI.set == genericSet {
+		return t.sources.buildFlat()
+	}
+	var out platformStringsBuilder
+	for s, si := range t.sources.strs {
+		if !t.cgoSources[s] {
+			out.addGenericString(s)
+			continue
+		}
+		if !ok {
+			continue
+		}
+		if constrained, match := intersectPlatformStringInfo(si, cgoSI, constraintPrefix); match {
+			out.addConstrainedString(s, constrained, constraintPrefix)
+		}
+	}
+	if !ok {
+		return out.buildFlat()
+	}
+	return out.build()
 }
 
 func (si *platformStringInfo) convertToPlatforms(constraintPrefix string) {
