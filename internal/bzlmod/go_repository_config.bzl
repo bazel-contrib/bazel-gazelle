@@ -15,7 +15,7 @@
 """go_repository_config internal repo rule, used by go_deps"""
 
 load("//internal:common.bzl", "repository_config_input_path")
-load("//internal:env.bzl", "write_go_env_file")
+load("//internal:env.bzl", "runner_env_build", "write_go_env_file")
 
 def _import_path_prefixes(importpath):
     """Returns importpath and its slash-delimited prefixes, shortest first."""
@@ -135,7 +135,7 @@ def _go_repository_config_impl(ctx):
     for prefix, indices in repository_config_inputs(ctx.attr.repo_names).items():
         ctx.file(repository_config_input_path(prefix), "\n".join([lines[i] for i in indices]))
     write_go_env_file(ctx, ctx.attr.go_env)
-    ctx.file("BUILD.bazel", "exports_files(['WORKSPACE', 'config.json', 'go.env', 'go_env.bzl', 'go_tools.bzl'])")
+    ctx.file("BUILD.bazel", runner_env_build(["WORKSPACE", "config.json", "go.env", "go_env.bzl", "go_tools.bzl"]))
     ctx.file("go_env.bzl", content = "GO_ENV = " + repr(ctx.attr.go_env))
     ctx.file("go_tools.bzl", content = "GO_TOOLS = {{k: Label(v) for k, v in {}.items()}}".format(
         repr(ctx.attr.tool_targets),

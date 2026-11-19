@@ -16,6 +16,7 @@ bzl_library(
     visibility = ["//:__subpackages__"],
     deps = [
         "//internal:common",
+        "//internal:env",
         "//internal:go_repository_cache",
     ],
 )
